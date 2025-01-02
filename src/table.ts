@@ -7,6 +7,7 @@ import type {
 import { PutBuilder } from "./builders/put-builder";
 import { QueryBuilder } from "./builders/query-builder";
 import { UpdateBuilder } from "./builders/update-builder";
+import { handleDynamoError } from "./errors/error-handler";
 import { ExponentialBackoffStrategy } from "./retry/exponential-backoff-strategy";
 import type { RetryStrategy } from "./retry/retry-strategy";
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
@@ -168,8 +169,18 @@ export class Table {
 			try {
 				return await this.client.put(params);
 			} catch (e) {
-				// TODO: Add logging + Throw easier to understand errors for developers
-				throw e;
+				handleDynamoError(e, {
+					operation: "PUT",
+					tableName: this.tableName,
+					key: item,
+					expression: {
+						condition: options?.conditionExpression,
+					},
+					attributes: {
+						names: options?.expressionAttributeNames,
+						values: options?.expressionAttributeValues,
+					},
+				});
 			}
 		});
 	}
@@ -289,7 +300,23 @@ export class Table {
 				}),
 			};
 
-			return await this.client.update(params);
+			try {
+				return await this.client.update(params);
+			} catch (error) {
+				handleDynamoError(error, {
+					operation: "UPDATE",
+					tableName: this.tableName,
+					key,
+					expression: {
+						update: updateResult.expression,
+						condition: options?.conditionExpression,
+					},
+					attributes: {
+						names: params.ExpressionAttributeNames,
+						values: params.ExpressionAttributeValues,
+					},
+				});
+			}
 		});
 	}
 
