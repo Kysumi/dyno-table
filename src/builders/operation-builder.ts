@@ -1,14 +1,18 @@
+import type { Table } from "../table";
 import type { IExpressionBuilder } from "./expression-builder";
-import type { FilterOperator } from "./operators";
+import type { ConditionOperator, FilterOperator } from "./operators";
 
-export class ConditionBuilder {
+export abstract class OperationBuilder {
 	protected conditions: Array<{
 		field: string;
-		operator: FilterOperator | "attribute_exists" | "attribute_not_exists";
+		operator: ConditionOperator;
 		value?: unknown;
 	}> = [];
 
-	constructor(protected expressionBuilder: IExpressionBuilder) {}
+	constructor(
+		protected table: Table,
+		protected expressionBuilder: IExpressionBuilder,
+	) {}
 
 	where(field: string, operator: FilterOperator, value: unknown) {
 		this.conditions.push({ field, operator, value });
@@ -38,6 +42,17 @@ export class ConditionBuilder {
 	}
 
 	protected buildConditionExpression() {
+		this.validateConditions();
 		return this.expressionBuilder.buildConditionExpression(this.conditions);
 	}
+
+	/**
+	 * A place where we can extend and standardize the validation of conditions
+	 * @returns
+	 */
+	protected validateConditions() {
+		if (this.conditions.length === 0) return;
+	}
+
+	abstract execute(): Promise<unknown>;
 }

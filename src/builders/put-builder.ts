@@ -1,19 +1,18 @@
 import type { Table } from "../table";
-import { ConditionBuilder } from "./condition-builder";
 import type { IExpressionBuilder } from "./expression-builder";
+import { OperationBuilder } from "./operation-builder";
 
-export class PutBuilder extends ConditionBuilder {
+export class PutBuilder extends OperationBuilder {
 	constructor(
-		private table: Table,
+		table: Table,
 		private item: Record<string, unknown>,
 		expressionBuilder: IExpressionBuilder,
 	) {
-		super(expressionBuilder);
+		super(table, expressionBuilder);
 	}
 
 	async execute() {
 		const { expression, attributes } = this.buildConditionExpression();
-
 		return this.table.nativePut(this.item, {
 			conditionExpression: expression,
 			expressionAttributeNames: attributes.names,

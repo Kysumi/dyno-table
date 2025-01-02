@@ -1,5 +1,9 @@
 import { ExpressionBuilder } from "./builders/expression-builder";
-import type { PrimaryKey, FilterCondition } from "./builders/operators";
+import type {
+	PrimaryKey,
+	FilterCondition,
+	Condition,
+} from "./builders/operators";
 import { PutBuilder } from "./builders/put-builder";
 import { QueryBuilder } from "./builders/query-builder";
 import { UpdateBuilder } from "./builders/update-builder";
@@ -345,7 +349,7 @@ export class Table {
 	async nativeQuery(
 		key: PrimaryKey,
 		options?: {
-			filters?: FilterCondition[];
+			filters?: Condition[];
 			indexName?: string;
 			limit?: number;
 			autoPaginate?: boolean;

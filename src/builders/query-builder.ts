@@ -1,18 +1,18 @@
 import type { Table } from "../table";
-import { ConditionBuilder } from "./condition-builder";
-import type { ExpressionBuilder } from "./expression-builder";
+import type { IExpressionBuilder } from "./expression-builder";
+import { OperationBuilder } from "./operation-builder";
 import type { PrimaryKey } from "./operators";
 
-export class QueryBuilder extends ConditionBuilder {
+export class QueryBuilder extends OperationBuilder {
 	private limitValue?: number;
 	private indexNameValue?: string;
 
 	constructor(
-		private table: Table,
+		table: Table,
 		private key: PrimaryKey,
-		expressionBuilder: ExpressionBuilder,
+		expressionBuilder: IExpressionBuilder,
 	) {
-		super(expressionBuilder);
+		super(table, expressionBuilder);
 	}
 
 	limit(value: number) {
@@ -26,14 +26,12 @@ export class QueryBuilder extends ConditionBuilder {
 	}
 
 	async execute() {
-		// Get the filter conditions from ConditionBuilder
 		const { expression, attributes } = this.buildConditionExpression();
 
 		return this.table.nativeQuery(this.key, {
 			filters: this.conditions,
 			limit: this.limitValue,
 			indexName: this.indexNameValue,
-
 			conditionExpression: expression,
 			expressionAttributeNames: attributes.names,
 			expressionAttributeValues: attributes.values,

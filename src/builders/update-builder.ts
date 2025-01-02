@@ -1,16 +1,16 @@
-import type { PrimaryKeyWithoutExpression, Table } from "../table";
-import { ConditionBuilder } from "./condition-builder";
-import type { ExpressionBuilder } from "./expression-builder";
+import type { Table, PrimaryKeyWithoutExpression } from "../table";
+import type { IExpressionBuilder } from "./expression-builder";
+import { OperationBuilder } from "./operation-builder";
 
-export class UpdateBuilder extends ConditionBuilder {
+export class UpdateBuilder extends OperationBuilder {
 	private updates: Record<string, unknown> = {};
 
 	constructor(
-		private table: Table,
+		table: Table,
 		private key: PrimaryKeyWithoutExpression,
-		expressionBuilder: ExpressionBuilder,
+		expressionBuilder: IExpressionBuilder,
 	) {
-		super(expressionBuilder);
+		super(table, expressionBuilder);
 	}
 
 	set(field: string, value: unknown) {
@@ -32,7 +32,6 @@ export class UpdateBuilder extends ConditionBuilder {
 
 	async execute() {
 		const { expression, attributes } = this.buildConditionExpression();
-
 		return this.table.nativeUpdate(this.key, this.updates, {
 			conditionExpression: expression,
 			expressionAttributeNames: attributes.names,

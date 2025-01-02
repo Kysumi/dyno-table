@@ -232,10 +232,10 @@ export class ExpressionBuilder implements IExpressionBuilder {
 	 * ])
 	 * ```
 	 */
-	buildFilterExpression(filters: FilterCondition[]): ExpressionResult {
+	buildFilterExpression(filters: Condition[]): ExpressionResult {
 		return this.buildExpression(
 			filters,
-			({ fieldPath, operator, valueAlias, value }) => {
+			({ fieldPath, operator, valueAlias }) => {
 				switch (operator) {
 					case "BETWEEN":
 						return `${fieldPath} BETWEEN ${valueAlias}[0] AND ${valueAlias}[1]`;
