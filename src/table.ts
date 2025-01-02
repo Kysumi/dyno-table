@@ -84,7 +84,7 @@ export class Table {
 	 */
 	getIndexConfig(indexName?: string): TableIndexConfig {
 		if (!indexName) {
-			return this.tableIndexes.base;
+			return this.tableIndexes.primary;
 		}
 
 		if (this.tableIndexes[indexName]) {
