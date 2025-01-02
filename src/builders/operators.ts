@@ -1,6 +1,6 @@
 export interface ExpressionAttributes {
 	names: Record<string, string>;
-	values: Record<string, unknown>;
+	values?: Record<string, unknown>;
 }
 
 export interface ExpressionResult {
