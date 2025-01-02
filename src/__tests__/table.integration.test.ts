@@ -213,7 +213,11 @@ describe("Table Integration Tests", () => {
 	describe("Conditional Operations", () => {
 		it("should handle conditional puts", async () => {
 			// First put should succeed
-			await table.put(testItem).whereNotExists("pk").execute();
+			await table
+				.put(testItem)
+				.whereNotExists("pk")
+				.whereNotExists("sk")
+				.execute();
 
 			// Verify item was created
 			const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
@@ -221,7 +225,10 @@ describe("Table Integration Tests", () => {
 
 			// Second put with same condition should fail
 			await expect(
-				table.put(testItem).whereNotExists("pk").execute(),
+				table
+					.put({ pk: testItem.pk, sk: testItem.sk, banana: true })
+					.whereNotExists("pk")
+					.execute(),
 			).rejects.toThrow();
 
 			// Verify item wasn't modified
@@ -233,8 +240,6 @@ describe("Table Integration Tests", () => {
 		});
 
 		it("should handle conditional updates", async () => {
-			// Insert initial item
-			// First put should succeed
 			await table.put(testItem).whereNotExists("pk").execute();
 
 			// Verify item was created
@@ -244,7 +249,7 @@ describe("Table Integration Tests", () => {
 			// Update with matching condition should succeed
 			await table
 				.update({ pk: testItem.pk, sk: testItem.sk })
-				.set("age", 31)
+				.set("age", 20)
 				.whereEquals("age", 30)
 				.execute();
 
@@ -253,14 +258,15 @@ describe("Table Integration Tests", () => {
 				pk: testItem.pk,
 				sk: testItem.sk,
 			});
-			expect(updatedItem?.age).toBe(31);
+
+			expect(updatedItem?.age).toBe(20);
 
 			// Update with non-matching condition should fail
 			await expect(
 				table
 					.update({ pk: testItem.pk, sk: testItem.sk })
 					.set("age", 32)
-					.whereEquals("age", 30)
+					.whereEquals("age", 30) // Incorrect age
 					.execute(),
 			).rejects.toThrow();
 
@@ -269,7 +275,7 @@ describe("Table Integration Tests", () => {
 				pk: testItem.pk,
 				sk: testItem.sk,
 			});
-			expect(unchangedItem?.age).toBe(31);
+			expect(unchangedItem?.age).toBe(20);
 		});
 	});
 });

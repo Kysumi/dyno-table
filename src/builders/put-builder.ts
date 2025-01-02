@@ -1,12 +1,12 @@
 import type { Table } from "../table";
 import { ConditionBuilder } from "./condition-builder";
-import type { ExpressionBuilder } from "./expression-builder";
+import type { IExpressionBuilder } from "./expression-builder";
 
 export class PutBuilder extends ConditionBuilder {
 	constructor(
 		private table: Table,
 		private item: Record<string, unknown>,
-		expressionBuilder: ExpressionBuilder,
+		expressionBuilder: IExpressionBuilder,
 	) {
 		super(expressionBuilder);
 	}

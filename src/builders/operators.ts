@@ -1,10 +1,10 @@
 export interface ExpressionAttributes {
-	names: Record<string, string>;
+	names?: Record<string, string>;
 	values?: Record<string, unknown>;
 }
 
 export interface ExpressionResult {
-	expression: string;
+	expression?: string;
 	attributes: ExpressionAttributes;
 }
 

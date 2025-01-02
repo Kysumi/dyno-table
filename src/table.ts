@@ -147,6 +147,7 @@ export class Table {
 		},
 	) {
 		return this.withRetry(async () => {
+			// The typedef on the PutCommandInput is incorrect. It only supports the following return values:
 			// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html
 			// For `PutCommand`, the only valid `ReturnValues` options are:
 			// - `"NONE"` (default)
@@ -154,13 +155,18 @@ export class Table {
 			const params: PutCommandInput = {
 				TableName: this.tableName,
 				Item: item,
+
 				ConditionExpression: options?.conditionExpression,
 				ExpressionAttributeNames: options?.expressionAttributeNames,
 				ExpressionAttributeValues: options?.expressionAttributeValues,
-				// ...options,
 			};
 
-			return await this.client.put(params);
+			try {
+				return await this.client.put(params);
+			} catch (e) {
+				// TODO: Add logging + Throw easier to understand errors for developers
+				throw e;
+			}
 		});
 	}
 
@@ -258,19 +264,20 @@ export class Table {
 		},
 	) {
 		return this.withRetry(async () => {
-			const { expression, attributes } =
+			// We do this here to allow for developers to use this API directly wihtout using the fluent method
+			const updateResult =
 				this.expressionBuilder.buildUpdateExpression(updates);
 
 			const params: UpdateCommandInput = {
 				TableName: this.tableName,
 				Key: key,
-				UpdateExpression: expression,
+				UpdateExpression: updateResult.expression, // Use the built expression
 				ExpressionAttributeNames: {
-					...attributes.names,
+					...updateResult.attributes.names,
 					...options?.expressionAttributeNames,
 				},
 				ExpressionAttributeValues: {
-					...attributes.values,
+					...updateResult.attributes.values,
 					...options?.expressionAttributeValues,
 				},
 				...(options?.conditionExpression && {

@@ -18,13 +18,9 @@ export interface IExpressionBuilder {
 		key: PrimaryKey,
 		indexConfig: TableIndexConfig,
 	): ExpressionResult;
-
 	buildFilterExpression(filters: FilterCondition[]): ExpressionResult;
-
 	buildConditionExpression(conditions: Condition[]): ExpressionResult;
-
 	buildUpdateExpression(updates: Record<string, unknown>): ExpressionResult;
-
 	mergeExpressionResults(...results: ExpressionResult[]): ExpressionResult;
 }
 
@@ -36,16 +32,16 @@ export class ExpressionBuilder implements IExpressionBuilder {
 	 * Generates a unique alias for attribute names in DynamoDB expressions
 	 * Format: #n0, #n1, #n2, etc.
 	 */
-	private getNextNameAlias() {
-		return `#n${this.nameCount++}`;
+	private getNextNameAlias(prefix = "n") {
+		return `#${prefix}${this.nameCount++}`;
 	}
 
 	/**
 	 * Generates a unique alias for attribute values in DynamoDB expressions
 	 * Format: :v0, :v1, :v2, etc.
 	 */
-	private getNextValueAlias() {
-		return `:v${this.valueCount++}`;
+	private getNextValueAlias(prefix = "v") {
+		return `:${prefix}${this.valueCount++}`;
 	}
 
 	/**
@@ -68,7 +64,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
 		values?: Record<string, unknown>,
 	): ExpressionAttributes {
 		return {
-			names,
+			...(this.hasValues(names) ? { names } : {}),
 			...(this.hasValues(values) ? { values } : {}),
 		};
 	}
@@ -150,15 +146,10 @@ export class ExpressionBuilder implements IExpressionBuilder {
 			});
 		});
 
-		const values =
-			Object.keys(attributes.values).length > 0 ? attributes.values : undefined;
-
 		return {
-			expression: expressions.join(" AND "),
-			attributes: {
-				names: attributes.names,
-				values,
-			},
+			expression:
+				expressions.length > 0 ? expressions.join(" AND ") : undefined,
+			attributes: this.createAttributes(attributes.names, attributes.values),
 		};
 	}
 
@@ -301,8 +292,8 @@ export class ExpressionBuilder implements IExpressionBuilder {
 	 * @example
 	 * ```ts
 	 * buildUpdateExpression({
-	 *   name: "John",       // SET name = :v0
-	 *   age: 30,            // SET age = :v1
+	 *   name: "John",       // SET name = :u0
+	 *   age: 30,            // SET age = :u1
 	 *   oldField: null      // REMOVE oldField
 	 * })
 	 * ```
@@ -316,13 +307,13 @@ export class ExpressionBuilder implements IExpressionBuilder {
 
 		const { sets, removes } = Object.entries(updates).reduce(
 			(acc, [key, value]) => {
-				const nameAlias = this.getNextNameAlias();
+				const nameAlias = this.getNextNameAlias("u");
 				attributes.names[nameAlias] = key;
 
 				if (value === null || value === undefined) {
 					acc.removes.push(nameAlias);
 				} else {
-					const valueAlias = this.getNextValueAlias();
+					const valueAlias = this.getNextValueAlias("u");
 					acc.sets.push(`${nameAlias} = ${valueAlias}`);
 					attributes.values[valueAlias] = value;
 				}
