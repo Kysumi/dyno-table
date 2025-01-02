@@ -147,10 +147,17 @@ export class Table {
 		},
 	) {
 		return this.withRetry(async () => {
+			// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html
+			// For `PutCommand`, the only valid `ReturnValues` options are:
+			// - `"NONE"` (default)
+			// - `"ALL_OLD"` (returns the previous item if it existed)
 			const params: PutCommandInput = {
 				TableName: this.tableName,
 				Item: item,
-				...options,
+				ConditionExpression: options?.conditionExpression,
+				ExpressionAttributeNames: options?.expressionAttributeNames,
+				ExpressionAttributeValues: options?.expressionAttributeValues,
+				// ...options,
 			};
 
 			return await this.client.put(params);
