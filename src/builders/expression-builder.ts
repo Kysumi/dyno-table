@@ -163,9 +163,9 @@ export class ExpressionBuilder implements IExpressionBuilder {
 			values: {},
 		};
 
-		// Handle partition key
-		const pkAlias = this.getNextNameAlias();
-		const pkValueAlias = this.getNextValueAlias();
+		// Use specific aliases for key attributes to avoid conflicts
+		const pkAlias = "#pk"; // Fixed alias for partition key
+		const pkValueAlias = ":pk"; // Fixed alias for partition key value
 
 		conditions.push(`${pkAlias} = ${pkValueAlias}`);
 		attributes.names[pkAlias] = indexConfig.pkName;
@@ -173,8 +173,8 @@ export class ExpressionBuilder implements IExpressionBuilder {
 
 		// Handle sort key if present
 		if (key.sk && indexConfig.skName) {
-			const skAlias = this.getNextNameAlias();
-			const skValueAlias = this.getNextValueAlias();
+			const skAlias = "#sk"; // Fixed alias for sort key
+			const skValueAlias = ":sk"; // Fixed alias for sort key value
 			attributes.names[skAlias] = indexConfig.skName;
 
 			if (typeof key.sk === "string") {
