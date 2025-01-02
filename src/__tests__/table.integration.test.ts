@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, beforeEach, afterEach } from "vitest";
+import { beforeAll, describe, expect, it, beforeEach } from "vitest";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "../table";
@@ -19,9 +19,8 @@ describe("Table Integration Tests", () => {
 	};
 
 	beforeAll(() => {
-		// Initialize DynamoDB client with local endpoint
 		ddbClient = new DynamoDBClient({
-			endpoint: "http://localhost:8000", // Local DynamoDB endpoint
+			endpoint: "http://localhost:8000",
 			region: "local",
 			credentials: {
 				accessKeyId: "local",
@@ -31,7 +30,6 @@ describe("Table Integration Tests", () => {
 
 		docClient = DynamoDBDocument.from(ddbClient);
 
-		// Initialize Table instance
 		table = new Table({
 			client: docClient,
 			tableName: "TestTable",
@@ -59,17 +57,14 @@ describe("Table Integration Tests", () => {
 
 	describe("CRUD Operations", () => {
 		it("should create, get, update, and delete an item", async () => {
-			// Create
 			await table.put(testItem).execute();
 
-			// Get
 			const retrievedItem = await table.get({
 				pk: testItem.pk,
 				sk: testItem.sk,
 			});
 			expect(retrievedItem).toEqual(testItem);
 
-			// Update
 			const updates = {
 				email: "john.doe@example.com",
 				age: 31,
@@ -80,17 +75,14 @@ describe("Table Integration Tests", () => {
 				.set("age", updates.age)
 				.execute();
 
-			// Get updated item
 			const updatedItem = await table.get({
 				pk: testItem.pk,
 				sk: testItem.sk,
 			});
 			expect(updatedItem).toEqual({ ...testItem, ...updates });
 
-			// Delete
 			await table.delete({ pk: testItem.pk, sk: testItem.sk });
 
-			// Verify deletion
 			const deletedItem = await table.get({
 				pk: testItem.pk,
 				sk: testItem.sk,
@@ -101,13 +93,24 @@ describe("Table Integration Tests", () => {
 
 	describe("Query Operations", () => {
 		beforeEach(async () => {
-			// Insert test item before each query test
 			await table.put(testItem).execute();
+		});
+
+		it("should get back no results, when the filter doesn't match", async () => {
+			const result = await table
+				.query({ pk: testItem.pk })
+				.where("type", "=", "APPLE")
+				.execute();
+
+			expect(result.Items).toHaveLength(0);
 		});
 
 		it("should query items by partition key", async () => {
 			const result = await table
-				.query({ pk: testItem.pk })
+				.query({
+					pk: testItem.pk,
+					sk: testItem.sk,
+				})
 				.where("type", "=", "USER")
 				.execute();
 
@@ -130,7 +133,6 @@ describe("Table Integration Tests", () => {
 
 	describe("Scan Operations", () => {
 		beforeEach(async () => {
-			// Insert test item before each scan test
 			await table.put(testItem).execute();
 		});
 
@@ -152,7 +154,6 @@ describe("Table Integration Tests", () => {
 		];
 
 		it("should perform batch write operations", async () => {
-			// Batch write (put)
 			await table.batchWrite(
 				batchItems.map((item) => ({
 					type: "put",
@@ -160,13 +161,11 @@ describe("Table Integration Tests", () => {
 				})),
 			);
 
-			// Verify items were written
 			for (const item of batchItems) {
 				const result = await table.get({ pk: item.pk, sk: item.sk });
 				expect(result).toEqual(item);
 			}
 
-			// Batch write (delete)
 			await table.batchWrite(
 				batchItems.map((item) => ({
 					type: "delete",
@@ -174,7 +173,6 @@ describe("Table Integration Tests", () => {
 				})),
 			);
 
-			// Verify items were deleted
 			for (const item of batchItems) {
 				const result = await table.get({ pk: item.pk, sk: item.sk });
 				expect(result).toBeUndefined();
@@ -201,7 +199,6 @@ describe("Table Integration Tests", () => {
 
 			await table.transactWrite(transactItems);
 
-			// Verify items were written
 			const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
 			const item2 = await table.get({
 				pk: "USER#124",
@@ -215,31 +212,64 @@ describe("Table Integration Tests", () => {
 
 	describe("Conditional Operations", () => {
 		it("should handle conditional puts", async () => {
-			// Put with condition that item doesn't exist
+			// First put should succeed
 			await table.put(testItem).whereNotExists("pk").execute();
 
-			// Attempt to put again with same condition should fail
+			// Verify item was created
+			const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
+			expect(item).toEqual(testItem);
+
+			// Second put with same condition should fail
 			await expect(
 				table.put(testItem).whereNotExists("pk").execute(),
 			).rejects.toThrow();
+
+			// Verify item wasn't modified
+			const unchangedItem = await table.get({
+				pk: testItem.pk,
+				sk: testItem.sk,
+			});
+			expect(unchangedItem).toEqual(testItem);
 		});
 
 		it("should handle conditional updates", async () => {
 			// Insert initial item
-			await table.put(testItem).execute();
+			// First put should succeed
+			await table.put(testItem).whereNotExists("pk").execute();
 
-			// Update with condition
+			// Verify item was created
+			const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
+			expect(item).toEqual(testItem);
+
+			// Update with matching condition should succeed
 			await table
 				.update({ pk: testItem.pk, sk: testItem.sk })
 				.set("age", 31)
 				.whereEquals("age", 30)
 				.execute();
 
+			// Verify update succeeded
 			const updatedItem = await table.get({
 				pk: testItem.pk,
 				sk: testItem.sk,
 			});
 			expect(updatedItem?.age).toBe(31);
+
+			// Update with non-matching condition should fail
+			await expect(
+				table
+					.update({ pk: testItem.pk, sk: testItem.sk })
+					.set("age", 32)
+					.whereEquals("age", 30)
+					.execute(),
+			).rejects.toThrow();
+
+			// Verify item wasn't modified
+			const unchangedItem = await table.get({
+				pk: testItem.pk,
+				sk: testItem.sk,
+			});
+			expect(unchangedItem?.age).toBe(31);
 		});
 	});
 });
