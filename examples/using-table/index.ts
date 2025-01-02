@@ -5,7 +5,7 @@ import { dbClient } from "../db-client";
 
 const table = new Table({
 	client: dbClient,
-	gsiIndexes: {
+	tableIndexes: {
 		primary: {
 			pkName: "pk",
 			skName: "sk",

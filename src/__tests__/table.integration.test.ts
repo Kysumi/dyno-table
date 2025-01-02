@@ -33,7 +33,7 @@ describe("Table Integration Tests", () => {
 		table = new Table({
 			client: docClient,
 			tableName: "TestTable",
-			gsiIndexes: {
+			tableIndexes: {
 				base: {
 					pkName: "pk",
 					skName: "sk",

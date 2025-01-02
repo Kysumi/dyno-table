@@ -44,7 +44,7 @@ export class Table {
 	/**
 	 * DynamoDB GSI table indexes
 	 */
-	private readonly indexes: Record<string, TableIndexConfig>;
+	private readonly tableIndexes: Record<string, TableIndexConfig>;
 	private readonly expressionBuilder: ExpressionBuilder;
 
 	constructor({
@@ -59,17 +59,17 @@ export class Table {
 		 * These are the indexes that are available/configured on your DyanmoDB table
 		 * https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html
 		 */
-		gsiIndexes: tableIndexes,
+		tableIndexes,
 		expressionBuilder,
 	}: {
 		client: DynamoDBDocument;
 		tableName: string;
-		gsiIndexes: Record<string, TableIndexConfig>;
+		tableIndexes: Record<string, TableIndexConfig> & { base: TableIndexConfig };
 		expressionBuilder?: ExpressionBuilder;
 	}) {
 		this.client = client;
 		this.tableName = tableName;
-		this.indexes = tableIndexes;
+		this.tableIndexes = tableIndexes;
 		this.expressionBuilder = expressionBuilder ?? new ExpressionBuilder();
 	}
 
@@ -82,11 +82,11 @@ export class Table {
 	 */
 	getIndexConfig(indexName?: string): TableIndexConfig {
 		if (!indexName) {
-			return this.indexes.base;
+			return this.tableIndexes.base;
 		}
 
-		if (this.indexes[indexName]) {
-			return this.indexes[indexName];
+		if (this.tableIndexes[indexName]) {
+			return this.tableIndexes[indexName];
 		}
 
 		throw new Error(`Index ${indexName} does not exist`);
