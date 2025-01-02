@@ -8,7 +8,9 @@
 		"build": "tsc",
 		"clean": "rm -rf dist",
 		"prepare": "npm run build",
-		"test": "vitest"
+		"test": "vitest",
+		"lint": "biome lint",
+		"check-types": "tsc --noEmit"
 	},
 	"keywords": ["dynamodb", "aws", "typescript", "database"],
 	"author": "Maunder",
