@@ -8,6 +8,11 @@ import type {
 	TableIndexConfig,
 } from "./operators";
 
+interface InternalExpressionAttributes {
+	names: Record<string, string>;
+	values: Record<string, unknown>;
+}
+
 export interface IExpressionBuilder {
 	buildKeyCondition(
 		key: PrimaryKey,
@@ -51,6 +56,21 @@ export class ExpressionBuilder implements IExpressionBuilder {
 	private resetCounters() {
 		this.nameCount = 0;
 		this.valueCount = 0;
+	}
+
+	private hasValues(values: Record<string, unknown> | undefined): boolean {
+		return Boolean(values && Object.keys(values).length > 0);
+	}
+
+	// Add this helper function to create the attributes object
+	private createAttributes(
+		names: Record<string, string>,
+		values?: Record<string, unknown>,
+	): ExpressionAttributes {
+		return {
+			names,
+			...(this.hasValues(values) ? { values } : {}),
+		};
 	}
 
 	/**
@@ -101,7 +121,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
 		}) => string,
 	): ExpressionResult {
 		this.resetCounters();
-		const attributes: ExpressionAttributes = {
+		const attributes: InternalExpressionAttributes = {
 			names: {},
 			values: {},
 		};
@@ -130,9 +150,15 @@ export class ExpressionBuilder implements IExpressionBuilder {
 			});
 		});
 
+		const values =
+			Object.keys(attributes.values).length > 0 ? attributes.values : undefined;
+
 		return {
 			expression: expressions.join(" AND "),
-			attributes,
+			attributes: {
+				names: attributes.names,
+				values,
+			},
 		};
 	}
 
@@ -158,7 +184,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
 	): ExpressionResult {
 		this.resetCounters();
 		const conditions: string[] = [];
-		const attributes: ExpressionAttributes = {
+		const attributes: InternalExpressionAttributes = {
 			names: {},
 			values: {},
 		};
@@ -196,7 +222,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
 
 		return {
 			expression: conditions.join(" AND "),
-			attributes,
+			attributes: this.createAttributes(attributes.names, attributes.values),
 		};
 	}
 
@@ -283,7 +309,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
 	 */
 	buildUpdateExpression(updates: Record<string, unknown>): ExpressionResult {
 		this.resetCounters();
-		const attributes: ExpressionAttributes = {
+		const attributes: InternalExpressionAttributes = {
 			names: {},
 			values: {},
 		};
@@ -311,7 +337,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
 
 		return {
 			expression: expressions.join(" "),
-			attributes,
+			attributes: this.createAttributes(attributes.names, attributes.values),
 		};
 	}
 
@@ -336,10 +362,10 @@ export class ExpressionBuilder implements IExpressionBuilder {
 				.map((r) => r.expression)
 				.filter(Boolean)
 				.join(" "),
-			attributes: {
-				names: Object.assign({}, ...results.map((r) => r.attributes.names)),
-				values: Object.assign({}, ...results.map((r) => r.attributes.values)),
-			},
+			attributes: this.createAttributes(
+				Object.assign({}, ...results.map((r) => r.attributes.names)),
+				Object.assign({}, ...results.map((r) => r.attributes.values)),
+			),
 		};
 	}
 }
