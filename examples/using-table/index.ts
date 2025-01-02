@@ -1,12 +1,6 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "../../src/table";
+import { dbClient } from "../db-client";
 
-const dbClient = DynamoDBDocument.from(
-	new DynamoDBClient({
-		region: "ap-southeast-2",
-	}),
-);
 const table = new Table({
 	client: dbClient,
 	gsiIndexes: {

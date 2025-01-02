@@ -1,8 +1,7 @@
 import { BaseRepository } from "../../src/repository/base-repository";
 import z from "zod";
 import { Table } from "../../src/table";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { dbClient } from "../db-client";
 
 const UserSchema = z.object({
 	id: z.string(),
@@ -11,6 +10,9 @@ const UserSchema = z.object({
 });
 
 class UserRepo extends BaseRepository<typeof UserSchema> {
+	protected getType(): string {
+		return "user";
+	}
 	protected createPrimaryKey(data) {
 		return {
 			pk: `userId#${data.id}`,
@@ -21,12 +23,6 @@ class UserRepo extends BaseRepository<typeof UserSchema> {
 		throw new Error("Method not implemented.");
 	}
 }
-
-const dbClient = DynamoDBDocument.from(
-	new DynamoDBClient({
-		region: "ap-southeast-2",
-	}),
-);
 
 const table = new Table({
 	client: dbClient,
