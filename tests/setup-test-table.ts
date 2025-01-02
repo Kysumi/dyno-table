@@ -63,7 +63,7 @@ export const createTestTable = async () => {
 	try {
 		await client.send(new DeleteTableCommand({ TableName: TABLE_NAME }));
 		// Wait a bit for the deletion to complete
-		await new Promise((resolve) => setTimeout(resolve, 1000));
+		await new Promise((resolve) => setTimeout(resolve, 100));
 	} catch (error) {
 		// Ignore if table doesn't exist
 		if (!(error instanceof ResourceNotFoundException)) {
@@ -75,7 +75,7 @@ export const createTestTable = async () => {
 	await makeNewTable();
 
 	// Wait a bit for the table to be ready
-	await new Promise((resolve) => setTimeout(resolve, 1000));
+	await new Promise((resolve) => setTimeout(resolve, 100));
 };
 
 export const deleteTestTable = async () => {
