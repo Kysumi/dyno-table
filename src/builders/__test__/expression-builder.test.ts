@@ -20,10 +20,10 @@ describe("ExpressionBuilder", () => {
 			const result = builder.buildKeyCondition(key, indexConfig);
 
 			expect(result).toEqual({
-				expression: "#n0 = :v0",
+				expression: "#pk = :pk",
 				attributes: {
-					names: { "#n0": "PK" },
-					values: { ":v0": "USER#123" },
+					names: { "#pk": "PK" },
+					values: { ":pk": "USER#123" },
 				},
 			});
 		});
@@ -33,10 +33,10 @@ describe("ExpressionBuilder", () => {
 			const result = builder.buildKeyCondition(key, indexConfig);
 
 			expect(result).toEqual({
-				expression: "#n0 = :v0 AND #n1 = :v1",
+				expression: "#pk = :pk AND #sk = :sk",
 				attributes: {
-					names: { "#n0": "PK", "#n1": "SK" },
-					values: { ":v0": "USER#123", ":v1": "PROFILE#123" },
+					names: { "#pk": "PK", "#sk": "SK" },
+					values: { ":pk": "USER#123", ":sk": "PROFILE#123" },
 				},
 			});
 		});
@@ -49,10 +49,10 @@ describe("ExpressionBuilder", () => {
 			const result = builder.buildKeyCondition(key, indexConfig);
 
 			expect(result).toEqual({
-				expression: "#n0 = :v0 AND begins_with(#n1, :v1)",
+				expression: "#pk = :pk AND begins_with(#sk, :sk)",
 				attributes: {
-					names: { "#n0": "PK", "#n1": "SK" },
-					values: { ":v0": "USER#123", ":v1": "ORDER#" },
+					names: { "#pk": "PK", "#sk": "SK" },
+					values: { ":pk": "USER#123", ":sk": "ORDER#" },
 				},
 			});
 		});
@@ -141,7 +141,6 @@ describe("ExpressionBuilder", () => {
 				expression: "attribute_exists(#n0)",
 				attributes: {
 					names: { "#n0": "email" },
-					values: {},
 				},
 			});
 		});
@@ -155,7 +154,6 @@ describe("ExpressionBuilder", () => {
 				expression: "attribute_not_exists(#n0)",
 				attributes: {
 					names: { "#n0": "deletedAt" },
-					values: {},
 				},
 			});
 		});
@@ -184,10 +182,10 @@ describe("ExpressionBuilder", () => {
 			});
 
 			expect(result).toEqual({
-				expression: "SET #n0 = :v0, #n1 = :v1",
+				expression: "SET #u0 = :u0, #u1 = :u1",
 				attributes: {
-					names: { "#n0": "name", "#n1": "age" },
-					values: { ":v0": "John", ":v1": 30 },
+					names: { "#u0": "name", "#u1": "age" },
+					values: { ":u0": "John", ":u1": 30 },
 				},
 			});
 		});
@@ -198,11 +196,11 @@ describe("ExpressionBuilder", () => {
 				oldField: undefined,
 			});
 
+			// Due to there being no attributes being assigned, the values attribute is not present on the response
 			expect(result).toEqual({
-				expression: "REMOVE #n0, #n1",
+				expression: "REMOVE #u0, #u1",
 				attributes: {
-					names: { "#n0": "deletedAt", "#n1": "oldField" },
-					values: {},
+					names: { "#u0": "deletedAt", "#u1": "oldField" },
 				},
 			});
 		});
@@ -215,10 +213,10 @@ describe("ExpressionBuilder", () => {
 			});
 
 			expect(result).toEqual({
-				expression: "SET #n0 = :v0, #n1 = :v1 REMOVE #n2",
+				expression: "SET #u0 = :u0, #u1 = :u1 REMOVE #u2",
 				attributes: {
-					names: { "#n0": "name", "#n1": "age", "#n2": "deletedAt" },
-					values: { ":v0": "John", ":v1": 30 },
+					names: { "#u0": "name", "#u1": "age", "#u2": "deletedAt" },
+					values: { ":u0": "John", ":u1": 30 },
 				},
 			});
 		});
