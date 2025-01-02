@@ -26,6 +26,17 @@ export interface FilterCondition {
 	value: unknown;
 }
 
+export type ConditionOperator =
+	| FilterOperator
+	| "attribute_exists"
+	| "attribute_not_exists";
+
+export interface Condition {
+	field: string;
+	operator: ConditionOperator;
+	value?: unknown;
+}
+
 export type SKCondition = {
 	operator: "=" | "begins_with";
 	value: string;

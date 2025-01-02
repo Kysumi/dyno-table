@@ -44,34 +44,9 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 			...parsed,
 			...key,
 		};
-
-		// Get the index config to know which key attributes to check
 		const indexConfig = this.table.getIndexConfig();
-
-		// Build condition to ensure key doesn't exist
-		const conditionExpression = `attribute_not_exists(${indexConfig.pkName})${
-			indexConfig.skName
-				? ` AND attribute_not_exists(${indexConfig.skName})`
-				: ""
-		}`;
-
-		try {
-			await this.table.put(item, {
-				conditionExpression,
-			});
-			return parsed;
-		} catch (error) {
-			// Handle DynamoDB's ConditionalCheckFailedException
-			if (
-				error &&
-				typeof error === "object" &&
-				"name" in error &&
-				error.name === "ConditionalCheckFailedException"
-			) {
-				throw new Error("Item already exists");
-			}
-			throw error;
-		}
+		await this.table.put(item).whereNotExists(indexConfig.pkName).execute();
+		return parsed;
 	}
 
 	async update(

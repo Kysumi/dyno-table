@@ -1,15 +1,17 @@
 import type { PrimaryKeyWithoutExpression, Table } from "../table";
+import { ConditionBuilder } from "./condition-builder";
+import type { ExpressionBuilder } from "./expression-builder";
 
-/**
- * Updates can only be made against the table index.
- */
-export class UpdateBuilder {
+export class UpdateBuilder extends ConditionBuilder {
 	private updates: Record<string, unknown> = {};
 
 	constructor(
 		private table: Table,
 		private key: PrimaryKeyWithoutExpression,
-	) {}
+		expressionBuilder: ExpressionBuilder,
+	) {
+		super(expressionBuilder);
+	}
 
 	set(field: string, value: unknown) {
 		this.updates[field] = value;
@@ -29,6 +31,12 @@ export class UpdateBuilder {
 	}
 
 	async execute() {
-		return this.table.nativeUpdate(this.key, this.updates);
+		const { expression, attributes } = this.buildConditionExpression();
+
+		return this.table.nativeUpdate(this.key, this.updates, {
+			conditionExpression: expression,
+			expressionAttributeNames: attributes.names,
+			expressionAttributeValues: attributes.values,
+		});
 	}
 }

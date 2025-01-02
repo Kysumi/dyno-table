@@ -1,31 +1,18 @@
 import type { Table } from "../table";
-import type { FilterCondition, PrimaryKey, FilterOperator } from "./operators";
+import { ConditionBuilder } from "./condition-builder";
+import type { ExpressionBuilder } from "./expression-builder";
+import type { PrimaryKey } from "./operators";
 
-export class QueryBuilder {
-	private filters: FilterCondition[] = [];
+export class QueryBuilder extends ConditionBuilder {
 	private limitValue?: number;
 	private indexNameValue?: string;
 
 	constructor(
 		private table: Table,
 		private key: PrimaryKey,
-	) {}
-
-	where(field: string, operator: FilterOperator, value: unknown) {
-		this.filters.push({ field, operator, value });
-		return this;
-	}
-
-	whereEquals(field: string, value: unknown) {
-		return this.where(field, "=", value);
-	}
-
-	whereBetween(field: string, start: unknown, end: unknown) {
-		return this.where(field, "BETWEEN", [start, end]);
-	}
-
-	whereIn(field: string, values: unknown[]) {
-		return this.where(field, "IN", values);
+		expressionBuilder: ExpressionBuilder,
+	) {
+		super(expressionBuilder);
 	}
 
 	limit(value: number) {
@@ -39,10 +26,17 @@ export class QueryBuilder {
 	}
 
 	async execute() {
+		// Get the filter conditions from ConditionBuilder
+		const { expression, attributes } = this.buildConditionExpression();
+
 		return this.table.nativeQuery(this.key, {
-			filters: this.filters,
+			filters: this.conditions,
 			limit: this.limitValue,
 			indexName: this.indexNameValue,
+
+			conditionExpression: expression,
+			expressionAttributeNames: attributes.names,
+			expressionAttributeValues: attributes.values,
 		});
 	}
 }

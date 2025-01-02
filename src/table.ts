@@ -1,5 +1,6 @@
 import { ExpressionBuilder } from "./builders/expression-builder";
 import type { PrimaryKey, FilterCondition } from "./builders/operators";
+import { PutBuilder } from "./builders/put-builder";
 import { QueryBuilder } from "./builders/query-builder";
 import { UpdateBuilder } from "./builders/update-builder";
 import { ExponentialBackoffStrategy } from "./retry/exponential-backoff-strategy";
@@ -74,7 +75,7 @@ export class Table {
 	 * @returns Index configuration
 	 * @throws Error if index doesn't exist
 	 */
-	private getIndexConfig(indexName?: string): TableIndexConfig {
+	getIndexConfig(indexName?: string): TableIndexConfig {
 		if (!indexName) {
 			return this.indexes.base;
 		}
@@ -133,11 +134,23 @@ export class Table {
 	 * @param item - The item to put into the table
 	 * @returns Promise resolving to the PutCommand result
 	 */
-	async put(item: Record<string, unknown>) {
+	put(item: Record<string, unknown>): PutBuilder {
+		return new PutBuilder(this, item, this.expressionBuilder);
+	}
+
+	async nativePut(
+		item: Record<string, unknown>,
+		options?: {
+			conditionExpression?: string;
+			expressionAttributeNames?: Record<string, string>;
+			expressionAttributeValues?: Record<string, unknown>;
+		},
+	) {
 		return this.withRetry(async () => {
 			const params: PutCommandInput = {
 				TableName: this.tableName,
 				Item: item,
+				...options,
 			};
 
 			return await this.client.put(params);
@@ -225,19 +238,17 @@ export class Table {
 	 * @returns UpdateBuilder instance for chaining update operations
 	 */
 	update(key: PrimaryKeyWithoutExpression): UpdateBuilder {
-		return new UpdateBuilder(this, key);
+		return new UpdateBuilder(this, key, this.expressionBuilder);
 	}
 
-	/**
-	 * Performs a direct update operation without using the fluent interface
-	 *
-	 * @param key - Primary key of the item to update
-	 * @param updates - Map of attribute updates to apply
-	 * @returns Promise resolving to the UpdateCommand result
-	 */
 	async nativeUpdate(
 		key: PrimaryKeyWithoutExpression,
 		updates: Record<string, unknown>,
+		options?: {
+			conditionExpression?: string;
+			expressionAttributeNames?: Record<string, string>;
+			expressionAttributeValues?: Record<string, unknown>;
+		},
 	) {
 		return this.withRetry(async () => {
 			const { expression, attributes } =
@@ -247,8 +258,17 @@ export class Table {
 				TableName: this.tableName,
 				Key: key,
 				UpdateExpression: expression,
-				ExpressionAttributeNames: attributes.names,
-				ExpressionAttributeValues: attributes.values,
+				ExpressionAttributeNames: {
+					...attributes.names,
+					...options?.expressionAttributeNames,
+				},
+				ExpressionAttributeValues: {
+					...attributes.values,
+					...options?.expressionAttributeValues,
+				},
+				...(options?.conditionExpression && {
+					ConditionExpression: options.conditionExpression,
+				}),
 			};
 
 			return await this.client.update(params);
@@ -298,7 +318,7 @@ export class Table {
 	 * @returns QueryBuilder instance for chaining query operations
 	 */
 	query(key: PrimaryKey): QueryBuilder {
-		return new QueryBuilder(this, key);
+		return new QueryBuilder(this, key, this.expressionBuilder);
 	}
 
 	/**
@@ -311,28 +331,15 @@ export class Table {
 	async nativeQuery(
 		key: PrimaryKey,
 		options?: {
-			/**
-			 * Expression filters to be used for the qeury
-			 */
 			filters?: FilterCondition[];
-			/**
-			 * Name of the DynamoDB index to query. If not provided, the base table will be queried.
-			 */
 			indexName?: string;
-			/**
-			 * Return a maximum of N amount of results
-			 */
 			limit?: number;
-			/**
-			 * Page all results
-			 */
 			autoPaginate?: boolean;
-			/**
-			 * This will be the PK/SK of the last record from the results array.
-			 * It is how dynamodb handles pagination
-			 */
 			pageKey?: Record<string, unknown>;
 			consistentRead?: boolean;
+			conditionExpression?: string;
+			expressionAttributeNames?: Record<string, string>;
+			expressionAttributeValues?: Record<string, unknown>;
 		},
 	) {
 		return this.withRetry(async () => {
@@ -357,8 +364,17 @@ export class Table {
 				...(filterExpression.expression && {
 					FilterExpression: filterExpression.expression,
 				}),
-				ExpressionAttributeNames: merged.attributes.names,
-				ExpressionAttributeValues: merged.attributes.values,
+				ExpressionAttributeNames: {
+					...merged.attributes.names,
+					...options?.expressionAttributeNames,
+				},
+				ExpressionAttributeValues: {
+					...merged.attributes.values,
+					...options?.expressionAttributeValues,
+				},
+				...(options?.conditionExpression && {
+					ConditionExpression: options.conditionExpression,
+				}),
 				IndexName: options?.indexName,
 				Limit: options?.limit,
 				ConsistentRead: options?.consistentRead,
