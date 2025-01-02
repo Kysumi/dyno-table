@@ -9,8 +9,10 @@
 		"clean": "rm -rf dist",
 		"prepare": "npm run build",
 		"test": "vitest",
+		"test:int": "vitest --config vitest.integration.ts",
 		"lint": "biome lint",
-		"check-types": "tsc --noEmit"
+		"check-types": "tsc --noEmit",
+		"ddb:start": "docker compose up -d dynamodb"
 	},
 	"keywords": ["dynamodb", "aws", "typescript", "database"],
 	"author": "Maunder",
