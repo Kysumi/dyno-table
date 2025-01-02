@@ -34,7 +34,7 @@ describe("Table Integration Tests", () => {
 			client: docClient,
 			tableName: "TestTable",
 			tableIndexes: {
-				base: {
+				primary: {
 					pkName: "pk",
 					skName: "sk",
 				},

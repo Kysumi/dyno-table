@@ -64,7 +64,9 @@ export class Table {
 	}: {
 		client: DynamoDBDocument;
 		tableName: string;
-		tableIndexes: Record<string, TableIndexConfig> & { base: TableIndexConfig };
+		tableIndexes: Record<string, TableIndexConfig> & {
+			primary: TableIndexConfig;
+		};
 		expressionBuilder?: ExpressionBuilder;
 	}) {
 		this.client = client;
