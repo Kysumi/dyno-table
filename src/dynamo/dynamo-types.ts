@@ -93,6 +93,14 @@ export interface DynamoDeleteOperation {
 	condition?: DynamoExpression;
 }
 
+export interface DynamoScanOperation {
+	type: "scan";
+	filter?: DynamoExpression;
+	limit?: number;
+	pageKey?: Record<string, unknown>;
+	indexName?: string;
+}
+
 export interface DynamoBatchWriteOperation {
 	type: "batchWrite";
 	operations: DynamoBatchWriteItem[];
@@ -123,7 +131,8 @@ export type DynamoOperation =
 	| DynamoQueryOperation
 	| DynamoDeleteOperation
 	| DynamoBatchWriteOperation
-	| DynamoTransactOperation;
+	| DynamoTransactOperation
+	| DynamoScanOperation;
 
 export type PrimaryKeyWithoutExpression = {
 	pk: string;

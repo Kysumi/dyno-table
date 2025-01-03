@@ -209,13 +209,34 @@ describe("Table Integration Tests", () => {
 		});
 
 		it("should scan and filter items", async () => {
-			const result = await table.scan([
-				{ field: "type", operator: "=", value: "USER" },
-				{ field: "age", operator: ">", value: 25 },
-			]);
+			const shouldBeExcluded = {
+				pk: "USER#123",
+				sk: "123",
+				age: 24,
+				type: "USER",
+			};
+			await table.put(shouldBeExcluded).execute();
+
+			const noFilterShouldHaveTwoResults = await table
+				.scan()
+				.whereEquals("type", "USER")
+				.execute();
+
+			expect(noFilterShouldHaveTwoResults.Items).toBeDefined();
+			expect(noFilterShouldHaveTwoResults.Items).toContainEqual(
+				shouldBeExcluded,
+			);
+			expect(noFilterShouldHaveTwoResults.Items).toContainEqual(testItem);
+
+			const result = await table
+				.scan()
+				.whereEquals("type", "USER")
+				.where("age", ">", 25)
+				.execute();
 
 			expect(result.Items).toBeDefined();
 			expect(result.Items).toContainEqual(testItem);
+			expect(result.Items).not.toContainEqual(shouldBeExcluded);
 		});
 	});
 

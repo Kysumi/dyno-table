@@ -1,19 +1,17 @@
 import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
-import type { DynamoQueryOperation } from "../dynamo/dynamo-types";
-import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
-import type { PrimaryKey, TableIndexConfig } from "./operators";
+import type { IExpressionBuilder } from "./expression-builder";
+import type { DynamoScanOperation } from "../dynamo/dynamo-types";
 
-export class QueryBuilder extends OperationBuilder<DynamoQueryOperation> {
+export class ScanBuilder extends OperationBuilder<DynamoScanOperation> {
 	private limitValue?: number;
 	private indexNameValue?: string;
+	private pageKeyValue?: Record<string, unknown>;
 
 	constructor(
-		private readonly key: PrimaryKey,
-		private readonly indexConfig: TableIndexConfig,
 		expressionBuilder: IExpressionBuilder,
 		private readonly onBuild: (
-			operation: DynamoQueryOperation,
+			operation: DynamoScanOperation,
 		) => Promise<DynamoQueryResponse>,
 	) {
 		super(expressionBuilder);
@@ -29,21 +27,16 @@ export class QueryBuilder extends OperationBuilder<DynamoQueryOperation> {
 		return this;
 	}
 
-	build(): DynamoQueryOperation {
+	startKey(key: Record<string, unknown>) {
+		this.pageKeyValue = key;
+		return this;
+	}
+
+	build() {
 		const filter = this.buildConditionExpression();
 
-		const keyCondition = this.expressionBuilder.buildKeyCondition(
-			this.key,
-			this.indexConfig,
-		);
-
 		return {
-			type: "query",
-			keyCondition: {
-				expression: keyCondition.expression,
-				names: keyCondition.attributes.names,
-				values: keyCondition.attributes.values,
-			},
+			type: "scan" as const,
 			filter: filter.expression
 				? {
 						expression: filter.expression,
@@ -52,6 +45,7 @@ export class QueryBuilder extends OperationBuilder<DynamoQueryOperation> {
 					}
 				: undefined,
 			limit: this.limitValue,
+			pageKey: this.pageKeyValue,
 			indexName: this.indexNameValue,
 		};
 	}

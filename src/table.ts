@@ -17,6 +17,7 @@ import type {
 	DynamoDeleteOperation,
 	DynamoTransactOperation,
 } from "./dynamo/dynamo-types";
+import { ScanBuilder } from "./builders/scan-builder";
 
 export class Table {
 	private readonly dynamoService: DynamoService;
@@ -103,31 +104,10 @@ export class Table {
 		return this.executeOperation(operation);
 	}
 
-	async scan(
-		filters?: FilterCondition[],
-		options?: {
-			limit?: number;
-			pageKey?: Record<string, unknown>;
-			indexName?: string;
-		},
-	) {
-		let filter = undefined;
-
-		if (filters?.length) {
-			const filterResult = this.expressionBuilder.createExpression(filters);
-			filter = {
-				expression: filterResult.expression,
-				names: filterResult.attributes.names,
-				values: filterResult.attributes.values,
-			};
-		}
-
-		return this.dynamoService.scan({
-			filter,
-			limit: options?.limit,
-			pageKey: options?.pageKey,
-			indexName: options?.indexName,
-		});
+	scan(): ScanBuilder {
+		return new ScanBuilder(this.expressionBuilder, (operation) =>
+			this.executeOperation(operation),
+		);
 	}
 
 	async batchWrite(operations: BatchWriteOperation[]) {
@@ -219,6 +199,14 @@ export class Table {
 
 			case "transactWrite":
 				return this.dynamoService.transactWrite(operation.operations) as T;
+
+			case "scan":
+				return this.dynamoService.scan({
+					filter: operation.filter,
+					limit: operation.limit,
+					pageKey: operation.pageKey,
+					indexName: operation.indexName,
+				}) as T;
 
 			default:
 				throw new Error("Unknown operation type");
