@@ -5,5 +5,9 @@ export const dbClient = DynamoDBDocument.from(
 	new DynamoDBClient({
 		region: "ap-southeast-2",
 		endpoint: "http://localhost:8000",
+		credentials: {
+			accessKeyId: "local",
+			secretAccessKey: "local",
+		},
 	}),
 );

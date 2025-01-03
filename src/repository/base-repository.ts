@@ -15,8 +15,6 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 		data: InferZodSchema<TSchema>,
 	): PrimaryKeyWithoutExpression;
 
-	protected abstract getIndexKeys(): { pk: string; sk?: string };
-
 	/**
 	 * Default attribute applied to ALL records that get stored in DDB
 	 */
