@@ -307,7 +307,6 @@ describe("ExpressionBuilder", () => {
 			});
 		});
 
-		// Negative test cases
 		it("should handle updates with empty string values", () => {
 			const result = builder.buildUpdateExpression({
 				name: "",
