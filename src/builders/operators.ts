@@ -8,6 +8,21 @@ export interface ExpressionResult {
 	attributes: ExpressionAttributes;
 }
 
+export type FunctionOperator =
+	| "attribute_exists"
+	| "attribute_not_exists"
+	| "begins_with"
+	| "contains"
+	| "not_contains"
+	| "attribute_type";
+export type ComparisonOperator = "=" | "<" | "<=" | ">" | ">=" | "<>";
+export type SpecialOperator = "BETWEEN" | "IN" | "size";
+
+export type ConditionOperator =
+	| FunctionOperator
+	| ComparisonOperator
+	| SpecialOperator;
+
 export type FilterOperator =
 	| "="
 	| "<"
@@ -26,11 +41,6 @@ export interface FilterCondition {
 	value: unknown;
 }
 
-export type ConditionOperator =
-	| FilterOperator
-	| "attribute_exists"
-	| "attribute_not_exists";
-
 export interface Condition {
 	field: string;
 	operator: ConditionOperator;
@@ -38,7 +48,7 @@ export interface Condition {
 }
 
 export type SKCondition = {
-	operator: "=" | "begins_with";
+	operator: FilterOperator;
 	value: string;
 };
 

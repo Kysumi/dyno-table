@@ -1,22 +1,33 @@
-import type { Table } from "../table";
+import type { DynamoPutOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 
-export class PutBuilder extends OperationBuilder {
+export class PutBuilder extends OperationBuilder<DynamoPutOperation> {
 	constructor(
-		table: Table,
-		private item: Record<string, unknown>,
+		private readonly item: Record<string, unknown>,
 		expressionBuilder: IExpressionBuilder,
+		private readonly onBuild: (operation: DynamoPutOperation) => Promise<void>,
 	) {
-		super(table, expressionBuilder);
+		super(expressionBuilder);
 	}
 
-	async execute() {
+	build(): DynamoPutOperation {
 		const { expression, attributes } = this.buildConditionExpression();
-		return this.table.nativePut(this.item, {
-			conditionExpression: expression,
-			expressionAttributeNames: attributes.names,
-			expressionAttributeValues: attributes.values,
-		});
+
+		return {
+			type: "put",
+			item: this.item,
+			condition: expression
+				? {
+						expression,
+						names: attributes.names,
+						values: attributes.values,
+					}
+				: undefined,
+		};
+	}
+
+	async execute(): Promise<void> {
+		return this.onBuild(this.build());
 	}
 }

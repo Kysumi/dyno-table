@@ -1,11 +1,10 @@
 import type {
-	Condition,
 	ConditionOperator,
-	ExpressionAttributes,
 	ExpressionResult,
-	FilterCondition,
+	ExpressionAttributes,
 	PrimaryKey,
 	TableIndexConfig,
+	Condition,
 } from "./operators";
 
 interface InternalExpressionAttributes {
@@ -18,8 +17,7 @@ export interface IExpressionBuilder {
 		key: PrimaryKey,
 		indexConfig: TableIndexConfig,
 	): ExpressionResult;
-	buildFilterExpression(filters: FilterCondition[]): ExpressionResult;
-	buildConditionExpression(conditions: Condition[]): ExpressionResult;
+	createExpression(filters: Condition[]): ExpressionResult;
 	buildUpdateExpression(updates: Record<string, unknown>): ExpressionResult;
 	mergeExpressionResults(...results: ExpressionResult[]): ExpressionResult;
 }
@@ -28,335 +26,200 @@ export class ExpressionBuilder implements IExpressionBuilder {
 	private nameCount = 0;
 	private valueCount = 0;
 
-	/**
-	 * Generates a unique alias for attribute names in DynamoDB expressions
-	 * Format: #n0, #n1, #n2, etc.
-	 */
-	private getNextNameAlias(prefix = "n") {
-		return `#${prefix}${this.nameCount++}`;
+	private generateAlias(
+		type: "name" | "value",
+		prefix: string = type === "name" ? "n" : "v",
+	): string {
+		const count = type === "name" ? this.nameCount++ : this.valueCount++;
+		const symbol = type === "name" ? "#" : ":";
+		return `${symbol}${prefix}${count}`;
 	}
 
-	/**
-	 * Generates a unique alias for attribute values in DynamoDB expressions
-	 * Format: :v0, :v1, :v2, etc.
-	 */
-	private getNextValueAlias(prefix = "v") {
-		return `:${prefix}${this.valueCount++}`;
-	}
-
-	/**
-	 * Resets the name and value counters.
-	 * Should be called at the start of building each new expression
-	 * to ensure consistent alias generation.
-	 */
-	private resetCounters() {
+	private reset(): void {
 		this.nameCount = 0;
 		this.valueCount = 0;
 	}
 
-	private hasValues(values: Record<string, unknown> | undefined): boolean {
-		return Boolean(values && Object.keys(values).length > 0);
-	}
+	private createAttributePath(path: string) {
+		const parts = path.split(".");
+		const aliases = parts.map(() => this.generateAlias("name"));
 
-	// Add this helper function to create the attributes object
-	private createAttributes(
-		names: Record<string, string>,
-		values?: Record<string, unknown>,
-	): ExpressionAttributes {
 		return {
-			...(this.hasValues(names) ? { names } : {}),
-			...(this.hasValues(values) ? { values } : {}),
+			path: aliases.join("."),
+			names: Object.fromEntries(parts.map((part, i) => [aliases[i], part])),
 		};
 	}
 
-	/**
-	 * Handles nested attribute paths by creating appropriate aliases
-	 * Example: "user.address.city" becomes "#n0.#n1.#n2"
-	 *
-	 * @param field - The attribute path (e.g., "user.address.city")
-	 * @returns Object containing the aliased path and name mappings
-	 */
-	private createFieldPath(field: string): {
-		fieldPath: string;
-		aliases: { [key: string]: string };
-	} {
-		const pathParts = field.split(".");
-		const fieldAliases = pathParts.map(() => this.getNextNameAlias());
-		const fieldPath = fieldAliases.join(".");
-
-		const aliases = pathParts.reduce(
-			(acc, part, index) => {
-				acc[fieldAliases[index]] = part;
-				return acc;
-			},
-			{} as Record<string, string>,
-		);
-
-		return { fieldPath, aliases };
+	private addValue(
+		attributes: InternalExpressionAttributes,
+		value: unknown,
+		prefix?: string,
+	) {
+		const alias = this.generateAlias("value", prefix);
+		attributes.values[alias] = value;
+		return alias;
 	}
 
-	/**
-	 * Expression builder that handles the common pattern of creating
-	 * DynamoDB expressions with attribute name/value substitutions
-	 *
-	 * @param conditions - Array of conditions to build expressions for
-	 * @param buildCondition - Function that builds the specific expression syntax
-	 * @returns Expression string and attribute mappings
-	 */
-	private buildExpression(
+	private buildComparison(
+		path: string,
+		operator: ConditionOperator,
+		value: unknown,
+		attributes: InternalExpressionAttributes,
+		prefix?: string,
+	): string {
+		const simpleOperators = ["=", "<>", "<", "<=", ">", ">="];
+
+		if (simpleOperators.includes(operator)) {
+			const valueAlias = this.addValue(attributes, value, prefix);
+			return `${path} ${operator} ${valueAlias}`;
+		}
+
+		switch (operator) {
+			case "attribute_exists":
+			case "attribute_not_exists":
+				return `${operator}(${path})`;
+
+			case "begins_with":
+			case "contains":
+			case "attribute_type":
+				return `${operator}(${path}, ${this.addValue(attributes, value, prefix)})`;
+
+			case "not_contains":
+				return `NOT contains(${path}, ${this.addValue(attributes, value, prefix)})`;
+
+			case "size": {
+				const { compare, value: sizeValue } = value as {
+					compare: string;
+					value: unknown;
+				};
+				return `size(${path}) ${compare} ${this.addValue(attributes, sizeValue, prefix)}`;
+			}
+
+			case "BETWEEN": {
+				const valueAlias = this.addValue(attributes, value, prefix);
+				return `${path} BETWEEN ${valueAlias}[0] AND ${valueAlias}[1]`;
+			}
+
+			case "IN":
+				return `${path} IN (${this.addValue(attributes, value, prefix)})`;
+
+			default:
+				throw new Error(`Unsupported operator: ${operator}`);
+		}
+	}
+
+	createExpression(
 		conditions: Array<{
 			field: string;
 			operator: ConditionOperator;
 			value?: unknown;
 		}>,
-		buildCondition: (params: {
-			fieldPath: string;
-			operator: ConditionOperator;
-			valueAlias?: string;
-			value?: unknown;
-		}) => string,
 	): ExpressionResult {
-		this.resetCounters();
-		const attributes: InternalExpressionAttributes = {
-			names: {},
-			values: {},
-		};
+		this.reset();
+		const attributes: InternalExpressionAttributes = { names: {}, values: {} };
 
-		const expressions = conditions.map((condition) => {
-			const { fieldPath, aliases } = this.createFieldPath(condition.field);
-			Object.assign(attributes.names, aliases);
-
-			// Handle operators that don't require values
-			if (
-				condition.operator === "attribute_exists" ||
-				condition.operator === "attribute_not_exists"
-			) {
-				return buildCondition({ fieldPath, operator: condition.operator });
-			}
-
-			// Handle operators that require values
-			const valueAlias = this.getNextValueAlias();
-			attributes.values[valueAlias] = condition.value;
-
-			return buildCondition({
-				fieldPath,
-				operator: condition.operator,
-				valueAlias,
-				value: condition.value,
-			});
+		const expressions = conditions.map(({ field, operator, value }) => {
+			const { path, names } = this.createAttributePath(field);
+			Object.assign(attributes.names, names);
+			return this.buildComparison(path, operator, value, attributes);
 		});
 
 		return {
-			expression:
-				expressions.length > 0 ? expressions.join(" AND ") : undefined,
-			attributes: this.createAttributes(attributes.names, attributes.values),
+			expression: expressions.length ? expressions.join(" AND ") : undefined,
+			attributes: this.formatAttributes(attributes),
 		};
 	}
 
-	/**
-	 * Builds a KeyConditionExpression for DynamoDB queries
-	 * Handles both partition key and optional sort key conditions
-	 *
-	 * @param key - Primary key with partition key and optional sort key
-	 * @param indexConfig - Configuration of the table/index being queried
-	 * @returns KeyConditionExpression and attribute mappings
-	 *
-	 * @example
-	 * ```ts
-	 * buildKeyCondition(
-	 *   { pk: "USER#123", sk: { operator: "begins_with", value: "ORDER#" } },
-	 *   { pkName: "PK", skName: "SK" }
-	 * )
-	 * ```
-	 */
+	private formatAttributes({
+		names,
+		values,
+	}: InternalExpressionAttributes): ExpressionAttributes {
+		return {
+			...(Object.keys(names).length && { names }),
+			...(Object.keys(values).length && { values }),
+		};
+	}
+
 	buildKeyCondition(
 		key: PrimaryKey,
 		indexConfig: TableIndexConfig,
 	): ExpressionResult {
-		this.resetCounters();
+		this.reset();
+		const attributes: InternalExpressionAttributes = { names: {}, values: {} };
 		const conditions: string[] = [];
-		const attributes: InternalExpressionAttributes = {
-			names: {},
-			values: {},
-		};
 
-		// Use specific aliases for key attributes to avoid conflicts
-		const pkAlias = "#pk"; // Fixed alias for partition key
-		const pkValueAlias = ":pk"; // Fixed alias for partition key value
-
-		conditions.push(`${pkAlias} = ${pkValueAlias}`);
-		attributes.names[pkAlias] = indexConfig.pkName;
-		attributes.values[pkValueAlias] = key.pk;
+		// Handle partition key
+		const pkName = this.generateAlias("name", "pk");
+		attributes.names[pkName] = indexConfig.pkName;
+		conditions.push(`${pkName} = ${this.addValue(attributes, key.pk, "pk")}`);
 
 		// Handle sort key if present
 		if (key.sk && indexConfig.skName) {
-			const skAlias = "#sk"; // Fixed alias for sort key
-			const skValueAlias = ":sk"; // Fixed alias for sort key value
-			attributes.names[skAlias] = indexConfig.skName;
+			const skName = this.generateAlias("name", "sk");
+			attributes.names[skName] = indexConfig.skName;
 
 			if (typeof key.sk === "string") {
-				conditions.push(`${skAlias} = ${skValueAlias}`);
-				attributes.values[skValueAlias] = key.sk;
+				conditions.push(
+					`${skName} = ${this.addValue(attributes, key.sk, "sk")}`,
+				);
 			} else {
-				switch (key.sk.operator) {
-					case "begins_with":
-						conditions.push(`begins_with(${skAlias}, ${skValueAlias})`);
-						attributes.values[skValueAlias] = key.sk.value;
-						break;
-					case "=":
-						conditions.push(`${skAlias} = ${skValueAlias}`);
-						attributes.values[skValueAlias] = key.sk.value;
-						break;
-				}
+				conditions.push(
+					this.buildComparison(
+						skName,
+						key.sk.operator,
+						key.sk.value,
+						attributes,
+					),
+				);
 			}
 		}
 
 		return {
 			expression: conditions.join(" AND "),
-			attributes: this.createAttributes(attributes.names, attributes.values),
+			attributes: this.formatAttributes(attributes),
 		};
 	}
 
-	/**
-	 * Builds a FilterExpression for DynamoDB queries/scans
-	 * Supports various comparison operators and functions
-	 *
-	 * @param filters - Array of filter conditions
-	 * @returns FilterExpression and attribute mappings
-	 *
-	 * @example
-	 * ```ts
-	 * buildFilterExpression([
-	 *   { field: "age", operator: ">", value: 21 },
-	 *   { field: "status", operator: "IN", value: ["active", "pending"] }
-	 * ])
-	 * ```
-	 */
-	buildFilterExpression(filters: Condition[]): ExpressionResult {
-		return this.buildExpression(
-			filters,
-			({ fieldPath, operator, valueAlias }) => {
-				switch (operator) {
-					case "BETWEEN":
-						return `${fieldPath} BETWEEN ${valueAlias}[0] AND ${valueAlias}[1]`;
-					case "IN":
-						return `${fieldPath} IN (${valueAlias})`;
-					case "begins_with":
-						return `begins_with(${fieldPath}, ${valueAlias})`;
-					case "contains":
-						return `contains(${fieldPath}, ${valueAlias})`;
-					default:
-						return `${fieldPath} ${operator} ${valueAlias}`;
-				}
-			},
-		);
-	}
-
-	/**
-	 * Builds a ConditionExpression for DynamoDB write operations
-	 * Supports attribute existence checks and comparison operators
-	 *
-	 * @param conditions - Array of conditions to check
-	 * @returns ConditionExpression and attribute mappings
-	 *
-	 * @example
-	 * ```ts
-	 * buildConditionExpression([
-	 *   { field: "version", operator: "=", value: 1 },
-	 *   { field: "status", operator: "attribute_exists" }
-	 * ])
-	 * ```
-	 */
-	buildConditionExpression(conditions: Condition[]): ExpressionResult {
-		return this.buildExpression(
-			conditions,
-			({ fieldPath, operator, valueAlias }) => {
-				if (operator === "attribute_exists") {
-					return `attribute_exists(${fieldPath})`;
-				}
-				if (operator === "attribute_not_exists") {
-					return `attribute_not_exists(${fieldPath})`;
-				}
-				return `${fieldPath} ${operator} ${valueAlias}`;
-			},
-		);
-	}
-
-	/**
-	 * Builds an UpdateExpression for DynamoDB update operations
-	 * Handles SET and REMOVE operations based on value presence
-	 *
-	 * @param updates - Record of attribute updates
-	 * @returns UpdateExpression and attribute mappings
-	 *
-	 * @example
-	 * ```ts
-	 * buildUpdateExpression({
-	 *   name: "John",       // SET name = :u0
-	 *   age: 30,            // SET age = :u1
-	 *   oldField: null      // REMOVE oldField
-	 * })
-	 * ```
-	 */
 	buildUpdateExpression(updates: Record<string, unknown>): ExpressionResult {
-		this.resetCounters();
-		const attributes: InternalExpressionAttributes = {
-			names: {},
-			values: {},
-		};
+		this.reset();
+		const attributes: InternalExpressionAttributes = { names: {}, values: {} };
+		const operations = { sets: [] as string[], removes: [] as string[] };
 
-		const { sets, removes } = Object.entries(updates).reduce(
-			(acc, [key, value]) => {
-				const nameAlias = this.getNextNameAlias("u");
-				attributes.names[nameAlias] = key;
+		for (const [key, value] of Object.entries(updates)) {
+			const nameAlias = this.generateAlias("name", "u");
+			attributes.names[nameAlias] = key;
 
-				if (value === null || value === undefined) {
-					acc.removes.push(nameAlias);
-				} else {
-					const valueAlias = this.getNextValueAlias("u");
-					acc.sets.push(`${nameAlias} = ${valueAlias}`);
-					attributes.values[valueAlias] = value;
-				}
-				return acc;
-			},
-			{ sets: [] as string[], removes: [] as string[] },
-		);
+			if (value == null) {
+				operations.removes.push(nameAlias);
+			} else {
+				const valueAlias = this.addValue(attributes, value, "u");
+				operations.sets.push(`${nameAlias} = ${valueAlias}`);
+			}
+		}
 
-		const expressions: string[] = [];
-		if (sets.length > 0) expressions.push(`SET ${sets.join(", ")}`);
-		if (removes.length > 0) expressions.push(`REMOVE ${removes.join(", ")}`);
+		const expression = [
+			operations.sets.length && `SET ${operations.sets.join(", ")}`,
+			operations.removes.length && `REMOVE ${operations.removes.join(", ")}`,
+		]
+			.filter(Boolean)
+			.join(" ");
 
 		return {
-			expression: expressions.join(" "),
-			attributes: this.createAttributes(attributes.names, attributes.values),
+			expression,
+			attributes: this.formatAttributes(attributes),
 		};
 	}
 
-	/**
-	 * Combines multiple expression results into a single expression
-	 * Useful when combining different types of expressions
-	 *
-	 * @param results - Array of expression results to merge
-	 * @returns Combined expression and merged attribute mappings
-	 *
-	 * @example
-	 * ```ts
-	 * mergeExpressionResults(
-	 *   buildKeyCondition(...),
-	 *   buildFilterExpression(...)
-	 * )
-	 * ```
-	 */
 	mergeExpressionResults(...results: ExpressionResult[]): ExpressionResult {
 		return {
 			expression: results
 				.map((r) => r.expression)
 				.filter(Boolean)
 				.join(" "),
-			attributes: this.createAttributes(
-				Object.assign({}, ...results.map((r) => r.attributes.names)),
-				Object.assign({}, ...results.map((r) => r.attributes.values)),
-			),
+			attributes: this.formatAttributes({
+				names: Object.assign({}, ...results.map((r) => r.attributes.names)),
+				values: Object.assign({}, ...results.map((r) => r.attributes.values)),
+			}),
 		};
 	}
 }

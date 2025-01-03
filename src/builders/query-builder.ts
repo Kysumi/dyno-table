@@ -1,18 +1,24 @@
-import type { Table } from "../table";
+import type { DynamoQueryOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
-import type { PrimaryKey } from "./operators";
+import type { PrimaryKey, TableIndexConfig } from "./operators";
 
-export class QueryBuilder extends OperationBuilder {
+export class QueryBuilder extends OperationBuilder<DynamoQueryOperation> {
 	private limitValue?: number;
 	private indexNameValue?: string;
 
 	constructor(
-		table: Table,
-		private key: PrimaryKey,
+		private readonly key: PrimaryKey,
+		private readonly indexConfig: TableIndexConfig,
 		expressionBuilder: IExpressionBuilder,
+		private readonly onBuild: (operation: DynamoQueryOperation) => Promise<{
+			Items?: Record<string, unknown>[];
+			Count?: number;
+			ScannedCount?: number;
+			LastEvaluatedKey?: Record<string, unknown>;
+		}>,
 	) {
-		super(table, expressionBuilder);
+		super(expressionBuilder);
 	}
 
 	limit(value: number) {
@@ -25,16 +31,34 @@ export class QueryBuilder extends OperationBuilder {
 		return this;
 	}
 
-	async execute() {
-		const { expression, attributes } = this.buildConditionExpression();
+	build(): DynamoQueryOperation {
+		const filter = this.buildConditionExpression();
 
-		return this.table.nativeQuery(this.key, {
-			filters: this.conditions,
+		const keyCondition = this.expressionBuilder.buildKeyCondition(
+			this.key,
+			this.indexConfig,
+		);
+
+		return {
+			type: "query",
+			keyCondition: {
+				expression: keyCondition.expression,
+				names: keyCondition.attributes.names,
+				values: keyCondition.attributes.values,
+			},
+			filter: filter.expression
+				? {
+						expression: filter.expression,
+						names: filter.attributes.names,
+						values: filter.attributes.values,
+					}
+				: undefined,
 			limit: this.limitValue,
 			indexName: this.indexNameValue,
-			conditionExpression: expression,
-			expressionAttributeNames: attributes.names,
-			expressionAttributeValues: attributes.values,
-		});
+		};
+	}
+
+	async execute() {
+		return this.onBuild(this.build());
 	}
 }

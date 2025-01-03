@@ -1,16 +1,21 @@
-import type { Table, PrimaryKeyWithoutExpression } from "../table";
+import type {
+	PrimaryKeyWithoutExpression,
+	DynamoUpdateOperation,
+} from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 
-export class UpdateBuilder extends OperationBuilder {
+export class UpdateBuilder extends OperationBuilder<DynamoUpdateOperation> {
 	private updates: Record<string, unknown> = {};
 
 	constructor(
-		table: Table,
-		private key: PrimaryKeyWithoutExpression,
+		private readonly key: PrimaryKeyWithoutExpression,
 		expressionBuilder: IExpressionBuilder,
+		private readonly onBuild: (
+			operation: DynamoUpdateOperation,
+		) => Promise<{ Attributes?: Record<string, unknown> }>,
 	) {
-		super(table, expressionBuilder);
+		super(expressionBuilder);
 	}
 
 	set(field: string, value: unknown) {
@@ -30,12 +35,29 @@ export class UpdateBuilder extends OperationBuilder {
 		return this;
 	}
 
-	async execute() {
-		const { expression, attributes } = this.buildConditionExpression();
-		return this.table.nativeUpdate(this.key, this.updates, {
-			conditionExpression: expression,
-			expressionAttributeNames: attributes.names,
-			expressionAttributeValues: attributes.values,
-		});
+	build(): DynamoUpdateOperation {
+		const condition = this.buildConditionExpression();
+		const update = this.expressionBuilder.buildUpdateExpression(this.updates);
+
+		return {
+			type: "update",
+			key: this.key,
+			update: {
+				expression: update.expression,
+				names: update.attributes.names,
+				values: update.attributes.values,
+			},
+			condition: condition.expression
+				? {
+						expression: condition.expression,
+						names: condition.attributes.names,
+						values: condition.attributes.values,
+					}
+				: undefined,
+		};
+	}
+
+	async execute(): Promise<{ Attributes?: Record<string, unknown> }> {
+		return this.onBuild(this.build());
 	}
 }

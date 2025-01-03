@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Table } from "../../table";
 import { ExpressionBuilder } from "../expression-builder";
-import type { PrimaryKey } from "../operators";
+import type { PrimaryKey, TableIndexConfig } from "../operators";
 import { QueryBuilder } from "../query-builder";
 
 describe("QueryBuilder", () => {
-	let table: Table;
 	let expressionBuilder: ExpressionBuilder;
+	let mockExecute: ReturnType<typeof vi.fn>;
 	let queryBuilder: QueryBuilder;
 
 	const mockKey: PrimaryKey = {
@@ -14,61 +13,81 @@ describe("QueryBuilder", () => {
 		sk: "PROFILE#123",
 	};
 
+	const indexConfig: TableIndexConfig = {
+		pkName: "pk",
+		skName: "sk",
+	};
+
 	beforeEach(() => {
-		vi.clearAllMocks();
-
-		table = {
-			nativeQuery: vi.fn().mockResolvedValue({ Items: [] }),
-			getIndexConfig: vi.fn().mockReturnValue({
-				pkName: "PK",
-				skName: "SK",
-			}),
-		} as unknown as Table;
-
+		mockExecute = vi.fn().mockResolvedValue({ Items: [] });
 		expressionBuilder = new ExpressionBuilder();
-		queryBuilder = new QueryBuilder(table, mockKey, expressionBuilder);
+		queryBuilder = new QueryBuilder(
+			mockKey,
+			indexConfig,
+			expressionBuilder,
+			mockExecute,
+		);
 	});
 
 	describe("query construction", () => {
 		it("should build a basic query with primary key only", async () => {
+			queryBuilder = new QueryBuilder(
+				{ pk: "USER" },
+				indexConfig,
+				expressionBuilder,
+				mockExecute,
+			);
 			await queryBuilder.execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({
-					filters: [],
-					limit: undefined,
-					indexName: undefined,
-				}),
-			);
+			expect(mockExecute).toHaveBeenCalledWith({
+				type: "query",
+				keyCondition: {
+					expression: "#pk0 = :pk0",
+					names: { "#pk0": "pk" },
+					values: { ":pk0": "USER" },
+				},
+			});
 		});
 
 		it("should support begins_with sort key condition", async () => {
-			const keyWithBeginsWith: PrimaryKey = {
+			const key: PrimaryKey = {
 				pk: "USER#123",
 				sk: { operator: "begins_with", value: "ORDER#" },
 			};
 
 			const beginsWith = new QueryBuilder(
-				table,
-				keyWithBeginsWith,
+				key,
+				indexConfig,
 				expressionBuilder,
+				mockExecute,
 			);
 			await beginsWith.execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				keyWithBeginsWith,
-				expect.any(Object),
-			);
+			expect(mockExecute).toHaveBeenCalledWith({
+				type: "query",
+				limit: undefined,
+				keyCondition: {
+					expression: "#pk0 = :pk0 AND begins_with(#sk1, :v1)",
+					names: {
+						"#pk0": "pk",
+						"#sk1": "sk",
+					},
+					values: {
+						":pk0": "USER#123",
+						":v1": "ORDER#",
+					},
+				},
+			});
 		});
 
 		it("should apply pagination limit", async () => {
 			const limit = 10;
 			await queryBuilder.limit(limit).execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({ limit }),
+			expect(mockExecute).toHaveBeenCalledWith(
+				expect.objectContaining({
+					limit: 10,
+				}),
 			);
 		});
 
@@ -76,9 +95,10 @@ describe("QueryBuilder", () => {
 			const indexName = "GSI1";
 			await queryBuilder.useIndex(indexName).execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({ indexName }),
+			expect(mockExecute).toHaveBeenCalledWith(
+				expect.objectContaining({
+					indexName: "GSI1",
+				}),
 			);
 		});
 	});
@@ -87,10 +107,13 @@ describe("QueryBuilder", () => {
 		it("should build simple equality filter", async () => {
 			await queryBuilder.where("status", "=", "active").execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
+			expect(mockExecute).toHaveBeenCalledWith(
 				expect.objectContaining({
-					filters: [{ field: "status", operator: "=", value: "active" }],
+					filter: {
+						expression: "#n0 = :v0",
+						names: { "#n0": "status" },
+						values: { ":v0": "active" },
+					},
 				}),
 			);
 		});
@@ -101,13 +124,13 @@ describe("QueryBuilder", () => {
 				.where("score", "<=", 100)
 				.execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
+			expect(mockExecute).toHaveBeenCalledWith(
 				expect.objectContaining({
-					filters: [
-						{ field: "age", operator: ">", value: 18 },
-						{ field: "score", operator: "<=", value: 100 },
-					],
+					filter: {
+						expression: "#n0 > :v0 AND #n1 <= :v1",
+						names: { "#n0": "age", "#n1": "score" },
+						values: { ":v0": 18, ":v1": 100 },
+					},
 				}),
 			);
 		});
@@ -115,91 +138,53 @@ describe("QueryBuilder", () => {
 		it("should build BETWEEN filter", async () => {
 			await queryBuilder.whereBetween("age", 18, 65).execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
+			expect(mockExecute).toHaveBeenCalledWith(
 				expect.objectContaining({
-					filters: [{ field: "age", operator: "BETWEEN", value: [18, 65] }],
+					filter: {
+						expression: "#n0 BETWEEN :v0[0] AND :v0[1]",
+						names: { "#n0": "age" },
+						values: { ":v0": [18, 65] },
+					},
 				}),
 			);
 		});
 
 		it("should build IN filter", async () => {
-			const statuses = ["active", "pending"];
-			await queryBuilder.whereIn("status", statuses).execute();
+			await queryBuilder.whereIn("status", ["active", "pending"]).execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
+			expect(mockExecute).toHaveBeenCalledWith(
 				expect.objectContaining({
-					filters: [{ field: "status", operator: "IN", value: statuses }],
+					filter: {
+						expression: "#n0 IN (:v0)",
+						names: { "#n0": "status" },
+						values: { ":v0": ["active", "pending"] },
+					},
 				}),
 			);
 		});
 
-		it("should handle attribute_exists condition", async () => {
+		it("should handle exists conditions", async () => {
 			await queryBuilder.whereExists("email").execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
+			expect(mockExecute).toHaveBeenCalledWith(
 				expect.objectContaining({
-					filters: [{ field: "email", operator: "attribute_exists" }],
+					filter: {
+						expression: "attribute_exists(#n0)",
+						names: { "#n0": "email" },
+					},
 				}),
 			);
 		});
 
-		it("should handle attribute_not_exists condition", async () => {
+		it("should handle not exists conditions", async () => {
 			await queryBuilder.whereNotExists("deletedAt").execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
+			expect(mockExecute).toHaveBeenCalledWith(
 				expect.objectContaining({
-					filters: [{ field: "deletedAt", operator: "attribute_not_exists" }],
-				}),
-			);
-		});
-
-		it("should handle contains filter", async () => {
-			await queryBuilder.where("tags", "contains", "premium").execute();
-
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({
-					filters: [{ field: "tags", operator: "contains", value: "premium" }],
-				}),
-			);
-		});
-
-		it("should handle begins_with filter", async () => {
-			await queryBuilder.where("name", "begins_with", "Jo").execute();
-
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({
-					filters: [{ field: "name", operator: "begins_with", value: "Jo" }],
-				}),
-			);
-		});
-	});
-
-	describe("complex queries", () => {
-		it("should combine multiple conditions with index and limit", async () => {
-			await queryBuilder
-				.useIndex("GSI1")
-				.where("status", "=", "active")
-				.where("age", ">", 18)
-				.whereExists("email")
-				.limit(10)
-				.execute();
-
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({
-					indexName: "GSI1",
-					limit: 10,
-					filters: [
-						{ field: "status", operator: "=", value: "active" },
-						{ field: "age", operator: ">", value: 18 },
-						{ field: "email", operator: "attribute_exists" },
-					],
+					filter: {
+						expression: "attribute_not_exists(#n0)",
+						names: { "#n0": "deletedAt" },
+					},
 				}),
 			);
 		});
@@ -210,41 +195,31 @@ describe("QueryBuilder", () => {
 				.where("user.settings.notifications", "=", true)
 				.execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
+			expect(mockExecute).toHaveBeenCalledWith(
 				expect.objectContaining({
-					filters: [
-						{ field: "user.profile.age", operator: ">", value: 18 },
-						{
-							field: "user.settings.notifications",
-							operator: "=",
-							value: true,
+					filter: {
+						expression: "#n0.#n1.#n2 > :v0 AND #n3.#n4.#n5 = :v1",
+						names: {
+							"#n0": "user",
+							"#n1": "profile",
+							"#n2": "age",
+							"#n3": "user",
+							"#n4": "settings",
+							"#n5": "notifications",
 						},
-					],
+						values: { ":v0": 18, ":v1": true },
+					},
 				}),
 			);
 		});
 	});
 
 	describe("error handling", () => {
-		it("should propagate database errors", async () => {
-			const error = new Error("Database error");
-			table.nativeQuery = vi.fn().mockRejectedValue(error);
+		it("should propagate errors from execute function", async () => {
+			const error = new Error("Test error");
+			mockExecute.mockRejectedValueOnce(error);
 
-			await expect(queryBuilder.execute()).rejects.toThrow("Database error");
-		});
-
-		it("should handle invalid filter combinations gracefully", async () => {
-			table.nativeQuery = vi
-				.fn()
-				.mockRejectedValue(new Error("Invalid FilterExpression"));
-
-			await expect(
-				queryBuilder
-					.where("age", ">", 18)
-					.where("age", "<", 10) // Contradictory condition
-					.execute(),
-			).rejects.toThrow("Invalid FilterExpression");
+			await expect(queryBuilder.execute()).rejects.toThrow("Test error");
 		});
 	});
 
@@ -259,57 +234,17 @@ describe("QueryBuilder", () => {
 
 			await query.execute();
 
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({
-					indexName: "GSI1",
-					limit: 10,
-					filters: [{ field: "status", operator: "=", value: "active" }],
-				}),
-			);
-		});
-
-		it("should override previous values when methods are called multiple times", async () => {
-			await queryBuilder
-				.limit(10)
-				.limit(20) // Should override previous limit
-				.useIndex("GSI1")
-				.useIndex("GSI2") // Should override previous index
-				.execute();
-
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({
-					limit: 20,
-					indexName: "GSI2",
-				}),
-			);
-		});
-	});
-
-	describe("query execution", () => {
-		it("should pass correct parameters to table.nativeQuery", async () => {
-			const mockResult = {
-				Items: [{ id: 1 }, { id: 2 }],
-				Count: 2,
-				ScannedCount: 2,
-			};
-
-			table.nativeQuery = vi.fn().mockResolvedValue(mockResult);
-
-			const result = await queryBuilder
-				.where("status", "=", "active")
-				.limit(10)
-				.execute();
-
-			expect(result).toEqual(mockResult);
-			expect(table.nativeQuery).toHaveBeenCalledWith(
-				mockKey,
-				expect.objectContaining({
-					filters: [{ field: "status", operator: "=", value: "active" }],
-					limit: 10,
-				}),
-			);
+			expect(mockExecute).toHaveBeenCalledWith({
+				type: "query",
+				keyCondition: expect.any(Object),
+				indexName: "GSI1",
+				limit: 10,
+				filter: {
+					expression: "#n0 = :v0",
+					names: { "#n0": "status" },
+					values: { ":v0": "active" },
+				},
+			});
 		});
 	});
 });

@@ -182,22 +182,18 @@ describe("Table Integration Tests", () => {
 
 	describe("Transaction Operations", () => {
 		it("should perform transactional writes", async () => {
-			const transactItems = [
+			await table.transactWrite([
 				{
-					Put: {
-						TableName: "TestTable",
-						Item: testItem,
+					put: {
+						item: testItem,
 					},
 				},
 				{
-					Put: {
-						TableName: "TestTable",
-						Item: { ...testItem, pk: "USER#124", sk: "PROFILE#124" },
+					put: {
+						item: { ...testItem, pk: "USER#124", sk: "PROFILE#124" },
 					},
 				},
-			];
-
-			await table.transactWrite(transactItems);
+			]);
 
 			const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
 			const item2 = await table.get({
