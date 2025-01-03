@@ -1,3 +1,19 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Test coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
 .DS_Store
-dist
