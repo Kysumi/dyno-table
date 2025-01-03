@@ -57,10 +57,21 @@ export class Table {
 		);
 	}
 
-	update(key: PrimaryKeyWithoutExpression): UpdateBuilder {
-		return new UpdateBuilder(key, this.expressionBuilder, (operation) =>
-			this.executeOperation(operation),
+	update(
+		key: PrimaryKeyWithoutExpression,
+		data?: Record<string, unknown>,
+	): UpdateBuilder {
+		const builder = new UpdateBuilder(
+			key,
+			this.expressionBuilder,
+			(operation) => this.executeOperation(operation),
 		);
+
+		if (data) {
+			builder.setMany(data);
+		}
+
+		return builder;
 	}
 
 	query(key: PrimaryKey): QueryBuilder {
