@@ -14,10 +14,16 @@
 		"check-types": "tsc --noEmit",
 		"ddb:start": "docker compose up -d dynamodb"
 	},
-	"keywords": ["dynamodb", "aws", "typescript", "database"],
+	"keywords": [
+		"dynamodb",
+		"aws",
+		"typescript",
+		"database"
+	],
 	"author": "Maunder",
 	"license": "ISC",
 	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
 		"@types/node": "^20.0.0",
 		"typescript": "^5.0.0",
 		"vitest": "^2.1.8"
@@ -27,5 +33,7 @@
 		"@aws-sdk/lib-dynamodb": "^3.0.0",
 		"zod": "^3.0.0"
 	},
-	"files": ["dist"]
+	"files": [
+		"dist"
+	]
 }
