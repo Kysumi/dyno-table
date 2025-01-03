@@ -19,7 +19,6 @@ export interface IExpressionBuilder {
 	): ExpressionResult;
 	createExpression(filters: Condition[]): ExpressionResult;
 	buildUpdateExpression(updates: Record<string, unknown>): ExpressionResult;
-	mergeExpressionResults(...results: ExpressionResult[]): ExpressionResult;
 }
 
 export class ExpressionBuilder implements IExpressionBuilder {
@@ -186,6 +185,10 @@ export class ExpressionBuilder implements IExpressionBuilder {
 		const operations = { sets: [] as string[], removes: [] as string[] };
 
 		for (const [key, value] of Object.entries(updates)) {
+			if (key === "") {
+				throw new Error("Empty key provided");
+			}
+
 			const nameAlias = this.generateAlias("name", "u");
 			attributes.names[nameAlias] = key;
 
@@ -207,19 +210,6 @@ export class ExpressionBuilder implements IExpressionBuilder {
 		return {
 			expression,
 			attributes: this.formatAttributes(attributes),
-		};
-	}
-
-	mergeExpressionResults(...results: ExpressionResult[]): ExpressionResult {
-		return {
-			expression: results
-				.map((r) => r.expression)
-				.filter(Boolean)
-				.join(" "),
-			attributes: this.formatAttributes({
-				names: Object.assign({}, ...results.map((r) => r.attributes.names)),
-				values: Object.assign({}, ...results.map((r) => r.attributes.values)),
-			}),
 		};
 	}
 }

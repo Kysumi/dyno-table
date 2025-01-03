@@ -186,4 +186,176 @@ describe("ExpressionBuilder", () => {
 			});
 		});
 	});
+
+	describe("buildUpdateExpression", () => {
+		it("should build SET expression for single update", () => {
+			const result = builder.buildUpdateExpression({
+				name: "John Doe",
+			});
+
+			expect(result).toEqual({
+				expression: "SET #u0 = :u0",
+				attributes: {
+					names: { "#u0": "name" },
+					values: { ":u0": "John Doe" },
+				},
+			});
+		});
+
+		it("should build SET expression for multiple updates", () => {
+			const result = builder.buildUpdateExpression({
+				name: "John Doe",
+				age: 30,
+				email: "john@example.com",
+			});
+
+			expect(result).toEqual({
+				expression: "SET #u0 = :u0, #u1 = :u1, #u2 = :u2",
+				attributes: {
+					names: {
+						"#u0": "name",
+						"#u1": "age",
+						"#u2": "email",
+					},
+					values: {
+						":u0": "John Doe",
+						":u1": 30,
+						":u2": "john@example.com",
+					},
+				},
+			});
+		});
+
+		it("should build REMOVE expression for null values", () => {
+			const result = builder.buildUpdateExpression({
+				deletedAt: null,
+				temporaryFlag: undefined,
+			});
+
+			expect(result).toEqual({
+				expression: "REMOVE #u0, #u1",
+				attributes: {
+					names: {
+						"#u0": "deletedAt",
+						"#u1": "temporaryFlag",
+					},
+				},
+			});
+		});
+
+		it("should build combined SET and REMOVE expressions", () => {
+			const result = builder.buildUpdateExpression({
+				name: "John Doe",
+				age: 30,
+				deletedAt: null,
+				status: undefined,
+			});
+
+			expect(result).toEqual({
+				expression: "SET #u0 = :u0, #u1 = :u1 REMOVE #u2, #u3",
+				attributes: {
+					names: {
+						"#u0": "name",
+						"#u1": "age",
+						"#u2": "deletedAt",
+						"#u3": "status",
+					},
+					values: {
+						":u0": "John Doe",
+						":u1": 30,
+					},
+				},
+			});
+		});
+
+		it("should handle empty update object", () => {
+			const result = builder.buildUpdateExpression({});
+
+			expect(result).toEqual({
+				expression: "",
+				attributes: {},
+			});
+		});
+
+		it("should handle different value types", () => {
+			const result = builder.buildUpdateExpression({
+				string: "text",
+				number: 123,
+				boolean: true,
+				array: [1, 2, 3],
+				object: { key: "value" },
+			});
+
+			expect(result).toEqual({
+				expression: "SET #u0 = :u0, #u1 = :u1, #u2 = :u2, #u3 = :u3, #u4 = :u4",
+				attributes: {
+					names: {
+						"#u0": "string",
+						"#u1": "number",
+						"#u2": "boolean",
+						"#u3": "array",
+						"#u4": "object",
+					},
+					values: {
+						":u0": "text",
+						":u1": 123,
+						":u2": true,
+						":u3": [1, 2, 3],
+						":u4": { key: "value" },
+					},
+				},
+			});
+		});
+
+		// Negative test cases
+		it("should handle updates with empty string values", () => {
+			const result = builder.buildUpdateExpression({
+				name: "",
+			});
+
+			expect(result).toEqual({
+				expression: "SET #u0 = :u0",
+				attributes: {
+					names: { "#u0": "name" },
+					values: { ":u0": "" },
+				},
+			});
+		});
+
+		it("should handle updates with zero as value", () => {
+			const result = builder.buildUpdateExpression({
+				count: 0,
+			});
+
+			expect(result).toEqual({
+				expression: "SET #u0 = :u0",
+				attributes: {
+					names: { "#u0": "count" },
+					values: { ":u0": 0 },
+				},
+			});
+		});
+
+		it("should handle updates with false as value", () => {
+			const result = builder.buildUpdateExpression({
+				isActive: false,
+			});
+
+			expect(result).toEqual({
+				expression: "SET #u0 = :u0",
+				attributes: {
+					names: { "#u0": "isActive" },
+					values: { ":u0": false },
+				},
+			});
+		});
+
+		it("should throw error for invalid field names", () => {
+			expect(() =>
+				builder.buildUpdateExpression({
+					"": "value",
+				}),
+			).toThrow();
+		});
+	});
 });
