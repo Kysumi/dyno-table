@@ -1,7 +1,4 @@
-export interface DynamoKey {
-	pk: string;
-	sk?: string;
-}
+type DynamoKey = Record<string, unknown>;
 
 export interface DynamoExpression {
 	expression?: string;

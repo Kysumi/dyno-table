@@ -35,7 +35,9 @@ export class DynamoService {
 				operation: "PUT",
 				tableName: this.tableName,
 				key: options.item,
-				expression: options.condition,
+				expression: {
+					condition: options.condition?.expression,
+				},
 			});
 		}
 	}
@@ -58,15 +60,18 @@ export class DynamoService {
 	}
 
 	async delete(options: DynamoDeleteOptions) {
+		const params = this.converter.toDeleteCommand(options);
+
 		try {
-			const params = this.converter.toDeleteCommand(options);
 			return await this.withRetry(() => this.client.delete(params));
 		} catch (error) {
 			handleDynamoError(error, {
 				operation: "DELETE",
 				tableName: this.tableName,
 				key: options.key,
-				expression: options.condition,
+				expression: {
+					condition: params.ConditionExpression,
+				},
 			});
 		}
 	}
@@ -112,7 +117,9 @@ export class DynamoService {
 			handleDynamoError(error, {
 				operation: "SCAN",
 				tableName: this.tableName,
-				expression: options.filter,
+				expression: {
+					filter: options.filter?.expression,
+				},
 			});
 		}
 	}
@@ -171,6 +178,7 @@ export class DynamoService {
 			Items: allItems,
 			Count: allItems.length,
 			ScannedCount: allItems.length,
+			LastEvaluatedKey: undefined,
 		};
 	}
 
@@ -240,7 +248,6 @@ export class DynamoService {
 	}
 }
 
-// Response types for better type safety
 export interface DynamoQueryResponse {
 	Items?: Record<string, unknown>[];
 	Count?: number;
@@ -250,8 +257,4 @@ export interface DynamoQueryResponse {
 
 export interface DynamoBatchWriteResponse {
 	UnprocessedItems?: Record<string, unknown>[];
-}
-
-export interface DynamoTransactWriteResponse {
-	// Add any specific transaction response properties
 }

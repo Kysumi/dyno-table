@@ -16,24 +16,12 @@ import type {
 	DynamoScanOptions,
 	DynamoTransactItem,
 	DynamoBatchWriteItem,
-	DynamoKey,
 	DynamoExpression,
 	DynamoGetOptions,
 } from "./dynamo-types";
 
 export class DynamoConverter {
 	constructor(private readonly tableName: string) {}
-
-	/**
-	 * Converts our key format to DynamoDB key format
-	 */
-	private convertKey(key: DynamoKey): Record<string, unknown> {
-		const awsKey: Record<string, unknown> = { pk: key.pk };
-		if (key.sk !== undefined) {
-			awsKey.sk = key.sk;
-		}
-		return awsKey;
-	}
 
 	/**
 	 * Converts our expression format to DynamoDB expression format
@@ -69,7 +57,7 @@ export class DynamoConverter {
 	toGetCommand(options: DynamoGetOptions): GetCommandInput {
 		return {
 			TableName: this.tableName,
-			Key: this.convertKey(options.key),
+			Key: options.key,
 			...(options.indexName && { IndexName: options.indexName }),
 		};
 	}
@@ -80,7 +68,7 @@ export class DynamoConverter {
 	toUpdateCommand(options: DynamoUpdateOptions): UpdateCommandInput {
 		return {
 			TableName: this.tableName,
-			Key: this.convertKey(options.key),
+			Key: options.key,
 			UpdateExpression: options.update.expression,
 			ExpressionAttributeNames: {
 				...options.update.names,
@@ -105,7 +93,7 @@ export class DynamoConverter {
 	toDeleteCommand(options: DynamoDeleteOptions): DeleteCommandInput {
 		return {
 			TableName: this.tableName,
-			Key: this.convertKey(options.key),
+			Key: options.key,
 			...(options.condition && {
 				ConditionExpression: options.condition.expression,
 				ExpressionAttributeNames: options.condition.names,
@@ -173,7 +161,7 @@ export class DynamoConverter {
 			if (item.delete) {
 				return {
 					DeleteRequest: {
-						Key: this.convertKey(item.delete),
+						Key: item.delete,
 					},
 				};
 			}
@@ -212,7 +200,7 @@ export class DynamoConverter {
 					return {
 						Delete: {
 							TableName: this.tableName,
-							Key: this.convertKey(item.delete.key),
+							Key: item.delete.key,
 							...(item.delete.condition && {
 								ConditionExpression: item.delete.condition.expression,
 								ExpressionAttributeNames: item.delete.condition.names,
@@ -225,7 +213,7 @@ export class DynamoConverter {
 					return {
 						Update: {
 							TableName: this.tableName,
-							Key: this.convertKey(item.update.key),
+							Key: item.update.key,
 							UpdateExpression: item.update.update.expression,
 							...(item.update.condition && {
 								ConditionExpression: item.update.condition.expression,
@@ -260,25 +248,10 @@ export class DynamoConverter {
 			}
 			if ("DeleteRequest" in item) {
 				return {
-					delete: this.fromAwsKey(
-						(item.DeleteRequest as { Key: Record<string, unknown> }).Key,
-					),
+					delete: (item.DeleteRequest as { Key: Record<string, unknown> }).Key,
 				};
 			}
 			throw new Error("Invalid batch write response item");
 		});
-	}
-
-	/**
-	 * Convert DynamoDB key format to our key format
-	 */
-	private fromAwsKey(awsKey: Record<string, unknown>): DynamoKey {
-		const key: DynamoKey = {
-			pk: awsKey.pk as string,
-		};
-		if ("sk" in awsKey) {
-			key.sk = awsKey.sk as string;
-		}
-		return key;
 	}
 }

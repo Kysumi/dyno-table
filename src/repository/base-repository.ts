@@ -1,8 +1,7 @@
 import type { z } from "zod";
 import type { Table } from "../table";
-import { QueryBuilder } from "../builders/query-builder";
-import type { FilterOperator } from "../builders/operators";
-import type { PrimaryKeyWithoutExpression } from "../table";
+import type { QueryBuilder } from "../builders/query-builder";
+import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
 
 type InferZodSchema<T extends z.ZodType> = z.infer<T>;
 
@@ -22,6 +21,7 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 	 * Default attribute applied to ALL records that get stored in DDB
 	 */
 	protected abstract getType(): string;
+	protected abstract getTypeAttributeName(): string;
 
 	protected beforeInsert(
 		data: InferZodSchema<TSchema>,
@@ -54,7 +54,7 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 		updates: Partial<InferZodSchema<TSchema>>,
 	): Promise<InferZodSchema<TSchema>> {
 		const parsed = this.schema.parse(updates);
-		const result = await this.table.nativeUpdate(key, parsed);
+		const result = await this.table.update(key).setMany(parsed).execute();
 
 		return result.Attributes ? this.schema.parse(result.Attributes) : null;
 	}
@@ -63,51 +63,35 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 		await this.table.delete(key);
 	}
 
-	async findOne(key: PrimaryKeyWithoutExpression): Promise<T | null> {
-		const item = await this.table.get(key);
-		if (!item) return null;
+	async findOne(
+		key: PrimaryKeyWithoutExpression,
+	): Promise<InferZodSchema<TSchema> | null> {
+		const item = await this.table
+			.query(key)
+			.where(this.getTypeAttributeName(), "=", this.getType())
+			.execute();
+
+		if (!item) {
+			return null;
+		}
 		return this.schema.parse(item);
 	}
 
-	protected query(key: PrimaryKeyWithoutExpression): QueryBuilder {
-		return new QueryBuilder(this.table, key);
+	async findOrFail(
+		key: PrimaryKeyWithoutExpression,
+	): Promise<InferZodSchema<TSchema>> {
+		const result = await this.findOne(key);
+
+		if (!result) {
+			throw new Error("Item not found");
+		}
+
+		return this.schema.parse(result);
 	}
 
-	async find(options?: {
-		where?: Array<{
-			field: string;
-			operator: FilterOperator;
-			value: unknown;
-		}>;
-		limit?: number;
-		indexName?: string;
-	}): Promise<T[]> {
-		const { pk, sk } = this.getIndexKeys();
-
-		let queryBuilder = this.query({
-			pk: pk,
-			...(sk && { sk: sk }),
-		});
-
-		if (options?.where) {
-			for (const condition of options.where) {
-				queryBuilder = queryBuilder.where(
-					condition.field,
-					condition.operator,
-					condition.value,
-				);
-			}
-		}
-
-		if (options?.limit) {
-			queryBuilder = queryBuilder.limit(options.limit);
-		}
-
-		if (options?.indexName) {
-			queryBuilder = queryBuilder.useIndex(options.indexName);
-		}
-
-		const result = await queryBuilder.execute();
-		return (result.Items || []).map((item) => this.schema.parse(item));
+	protected query(key: PrimaryKeyWithoutExpression): QueryBuilder {
+		return this.table
+			.query(key)
+			.where(this.getTypeAttributeName(), "=", this.getType());
 	}
 }

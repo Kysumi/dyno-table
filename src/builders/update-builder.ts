@@ -23,6 +23,11 @@ export class UpdateBuilder extends OperationBuilder<DynamoUpdateOperation> {
 		return this;
 	}
 
+	setMany(attribtues: Record<string, unknown>) {
+		this.updates = { ...this.updates, ...attribtues };
+		return this;
+	}
+
 	remove(...fields: string[]) {
 		for (const field of fields) {
 			this.updates[field] = null;
