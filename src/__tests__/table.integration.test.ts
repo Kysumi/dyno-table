@@ -2,6 +2,10 @@ import { beforeAll, describe, expect, it, beforeEach } from "vitest";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "../table";
+import {
+	ConditionalCheckFailedError,
+	DynamoError,
+} from "../errors/dynamo-error";
 
 describe("Table Integration Tests", () => {
 	let ddbClient: DynamoDBClient;
@@ -53,6 +57,74 @@ describe("Table Integration Tests", () => {
 		} catch (error) {
 			// Ignore if item doesn't exist
 		}
+	});
+
+	describe("Input Validation", () => {
+		it("should throw error when partition key is missing", async () => {
+			await expect(table.get({ sk: "test" })).rejects.toThrow(
+				"Partition key is required",
+			);
+		});
+
+		it("should throw error when sort key is provided for index without sort key", async () => {
+			const invalidTable = new Table({
+				client: docClient,
+				tableName: "TestTable",
+				tableIndexes: {
+					primary: {
+						pkName: "pk", // No sort key defined
+					},
+				},
+			});
+
+			await expect(
+				invalidTable.get({ pk: "test", sk: "test" }),
+			).rejects.toThrow(
+				"Sort key provided but index does not support sort keys",
+			);
+		});
+
+		it("should throw error when sort key is missing for index requiring it", async () => {
+			await expect(
+				table.get({ pk: "test" }), // Missing required sk
+			).rejects.toThrow("Index requires a sort key but none was provided");
+		});
+	});
+
+	describe("Resource Limits", () => {
+		it("should throw error when transaction exceeds item limit", async () => {
+			const items = Array(101)
+				.fill(null)
+				.map((_, i) => ({
+					put: {
+						item: { ...testItem, pk: `USER#${i}`, sk: `PROFILE#${i}` },
+					},
+				}));
+
+			await expect(table.transactWrite(items)).rejects.toThrow(
+				"Transaction limit exceeded",
+			);
+		});
+
+		it("should handle batch write chunking for large datasets", async () => {
+			const items = Array(30)
+				.fill(null)
+				.map((_, i) => ({
+					type: "put" as const,
+					item: { ...testItem, pk: `USER#${i}`, sk: `PROFILE#${i}` },
+				}));
+
+			await table.batchWrite(items); // Should automatically chunk into 25-item batches
+
+			// Verify all items were written
+			for (let i = 0; i < 30; i++) {
+				const result = await table.get({
+					pk: `USER#${i}`,
+					sk: `PROFILE#${i}`,
+				});
+				expect(result).toBeDefined();
+			}
+		});
 	});
 
 	describe("CRUD Operations", () => {
@@ -272,6 +344,61 @@ describe("Table Integration Tests", () => {
 				sk: testItem.sk,
 			});
 			expect(unchangedItem?.age).toBe(20);
+		});
+	});
+
+	describe("Error Handling", () => {
+		it("should handle conditional check failures gracefully", async () => {
+			await table.put(testItem).execute();
+
+			await expect(
+				table
+					.update({ pk: testItem.pk, sk: testItem.sk })
+					.set("age", 40)
+					.whereEquals("age", 99) // Incorrect condition
+					.execute(),
+			).rejects.toThrow(ConditionalCheckFailedError);
+		});
+
+		it("should handle get back no results", async () => {
+			await expect(
+				table.get({ pk: "NONEXISTENT", sk: "ITEM" }),
+			).resolves.toBeUndefined();
+		});
+
+		it("should handle invalid attribute updates", async () => {
+			await expect(
+				table
+					.update({ pk: testItem.pk, sk: testItem.sk })
+					.set("", "invalid") // Empty attribute name
+					.execute(),
+			).rejects.toThrow();
+		});
+	});
+
+	describe("Query Edge Cases", () => {
+		it("should handle empty query results", async () => {
+			const result = await table.query({ pk: "NONEXISTENT" }).execute();
+
+			expect(result.Items).toHaveLength(0);
+			expect(result.Count).toBe(0);
+		});
+
+		it("should handle malformed begins_with queries", async () => {
+			await expect(
+				table
+					.query({
+						pk: "TEST",
+						sk: { operator: "begins_with", value: "" }, // Empty prefix
+					})
+					.execute(),
+			).rejects.toThrow();
+		});
+
+		it("should validate index names", async () => {
+			await expect(
+				table.query({ pk: "TEST" }).useIndex("NonexistentIndex").execute(),
+			).rejects.toThrow(DynamoError);
 		});
 	});
 });
