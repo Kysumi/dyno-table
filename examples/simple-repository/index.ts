@@ -10,6 +10,9 @@ const UserSchema = z.object({
 });
 
 class UserRepo extends BaseRepository<typeof UserSchema> {
+	protected getTypeAttributeName(): string {
+		return "_type";
+	}
 	protected getType(): string {
 		return "user";
 	}
@@ -19,14 +22,20 @@ class UserRepo extends BaseRepository<typeof UserSchema> {
 			sk: `userName#${data.name}`,
 		};
 	}
-	protected getIndexKeys(): { pk: string; sk?: string } {
-		throw new Error("Method not implemented.");
+
+	findAllUsersForOrganisation(organisationId: string) {
+		return this.table
+			.query({
+				pk: `organisation#${organisationId}`,
+				sk: { operator: "begins_with", value: "userId#" },
+			})
+			.whereEquals(this.getTypeAttributeName(), this.getType());
 	}
 }
 
 const table = new Table({
 	client: dbClient,
-	gsiIndexes: {
+	tableIndexes: {
 		primary: {
 			pkName: "pk",
 			skName: "sk",
@@ -35,10 +44,20 @@ const table = new Table({
 	tableName: "application-table",
 });
 
-const users = new UserRepo(table, UserSchema);
+const userRepo = new UserRepo(table, UserSchema);
 
-users.create({
+userRepo.create({
 	age: 10,
 	id: "1123",
 	name: "Scott",
 });
+
+userRepo.findOrFail({
+	pk: "userId#1123",
+});
+
+userRepo
+	.findAllUsersForOrganisation("123")
+	.whereLessThan("age", 65)
+	.whereGreaterThan("age", 21)
+	.execute();
