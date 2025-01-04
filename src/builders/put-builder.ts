@@ -1,10 +1,14 @@
 import type { DynamoPutOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
+import type { DynamoRecord } from "./types";
 
-export class PutBuilder extends OperationBuilder<DynamoPutOperation> {
+export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<
+	T,
+	DynamoPutOperation
+> {
 	constructor(
-		private readonly item: Record<string, unknown>,
+		private readonly item: T,
 		expressionBuilder: IExpressionBuilder,
 		private readonly onBuild: (operation: DynamoPutOperation) => Promise<void>,
 	) {

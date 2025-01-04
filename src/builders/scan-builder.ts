@@ -2,8 +2,12 @@ import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
 import { OperationBuilder } from "./operation-builder";
 import type { IExpressionBuilder } from "./expression-builder";
 import type { DynamoScanOperation } from "../dynamo/dynamo-types";
+import type { DynamoRecord } from "./types";
 
-export class ScanBuilder extends OperationBuilder<DynamoScanOperation> {
+export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<
+	T,
+	DynamoScanOperation
+> {
 	private limitValue?: number;
 	private indexNameValue?: string;
 	private pageKeyValue?: Record<string, unknown>;

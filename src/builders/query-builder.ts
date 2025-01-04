@@ -3,8 +3,12 @@ import type { DynamoQueryOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { PrimaryKey, TableIndexConfig } from "./operators";
+import type { DynamoRecord } from "./types";
 
-export class QueryBuilder extends OperationBuilder<DynamoQueryOperation> {
+export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<
+	T,
+	DynamoQueryOperation
+> {
 	private limitValue?: number;
 	private indexNameValue?: string;
 
@@ -31,7 +35,6 @@ export class QueryBuilder extends OperationBuilder<DynamoQueryOperation> {
 
 	build(): DynamoQueryOperation {
 		const filter = this.buildConditionExpression();
-
 		const keyCondition = this.expressionBuilder.buildKeyCondition(
 			this.key,
 			this.indexConfig,

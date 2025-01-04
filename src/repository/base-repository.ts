@@ -3,8 +3,9 @@ import type { Table } from "../table";
 import type { QueryBuilder } from "../builders/query-builder";
 import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
 import type { PutBuilder } from "../builders/put-builder";
+import type { DynamoRecord } from "../builders/types";
 
-export abstract class BaseRepository<TData> {
+export abstract class BaseRepository<TData extends DynamoRecord> {
 	constructor(
 		protected readonly table: Table,
 		protected readonly schema: z.Schema<TData>,
@@ -31,7 +32,7 @@ export abstract class BaseRepository<TData> {
 		return item !== null;
 	}
 
-	async create(data: TData): Promise<TData> {
+	create(data: TData): PutBuilder<TData> {
 		const parsed = this.schema.parse(data);
 		const key = this.createPrimaryKey(parsed);
 		const item = {
@@ -39,8 +40,16 @@ export abstract class BaseRepository<TData> {
 			...key,
 		};
 		const indexConfig = this.table.getIndexConfig();
-		await this.table.put(item).whereNotExists(indexConfig.pkName).execute();
-		return parsed;
+
+		const builder = this.table
+			.put<TData>(item)
+			.whereNotExists(indexConfig.pkName);
+
+		if (indexConfig.skName) {
+			builder.whereNotExists(indexConfig.skName);
+		}
+
+		return builder;
 	}
 
 	async update(
@@ -62,10 +71,10 @@ export abstract class BaseRepository<TData> {
 		return this.findOne(key);
 	}
 
-	upsert(data: TData): PutBuilder {
+	upsert(data: TData): PutBuilder<TData> {
 		const key = this.createPrimaryKey(data);
 
-		return this.table.put({
+		return this.table.put<TData>({
 			...data,
 			...key,
 		});
@@ -97,7 +106,7 @@ export abstract class BaseRepository<TData> {
 		return this.schema.parse(result);
 	}
 
-	protected query(key: PrimaryKeyWithoutExpression): QueryBuilder {
+	protected query(key: PrimaryKeyWithoutExpression): QueryBuilder<TData> {
 		return this.table
 			.query(key)
 			.where(this.getTypeAttributeName(), "=", this.getType());

@@ -12,19 +12,19 @@ const UserSchema = z.object({
 type TUser = z.infer<typeof UserSchema>;
 
 class UserRepo extends BaseRepository<TUser> {
+	protected override createPrimaryKey(data: TUser) {
+		return {
+			pk: `userId#${data.id}`,
+			sk: `userName#${data.name}`,
+		};
+	}
+
 	protected getTypeAttributeName(): string {
 		return "_type";
 	}
 
 	protected getType(): string {
 		return "user";
-	}
-
-	createPrimaryKey(data: TUser) {
-		return {
-			pk: `userId#${data.id}`,
-			sk: `userName#${data.name}`,
-		};
 	}
 
 	findAllUsersForOrganisation(organisationId: string) {
@@ -50,11 +50,13 @@ const table = new Table({
 
 const userRepo = new UserRepo(table, UserSchema);
 
-userRepo.create({
-	age: 10,
-	id: "1123",
-	name: "Scott",
-});
+userRepo
+	.create({
+		age: 10,
+		id: "1123",
+		name: "Scott",
+	})
+	.execute();
 
 userRepo.findOrFail({
 	pk: "userId#1123",

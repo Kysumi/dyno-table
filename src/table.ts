@@ -14,6 +14,7 @@ import type {
 	DynamoTransactOperation,
 } from "./dynamo/dynamo-types";
 import { ScanBuilder } from "./builders/scan-builder";
+import type { DynamoRecord } from "./builders/types";
 
 type IndexConfig = Record<string, TableIndexConfig> & {
 	primary: TableIndexConfig;
@@ -52,17 +53,17 @@ export class Table {
 		throw new Error(`Index ${indexName} does not exist`);
 	}
 
-	put(item: Record<string, unknown>): PutBuilder {
+	put<T extends DynamoRecord>(item: T): PutBuilder<T> {
 		return new PutBuilder(item, this.expressionBuilder, (operation) =>
 			this.executeOperation(operation),
 		);
 	}
 
-	update(
+	update<T extends DynamoRecord>(
 		key: PrimaryKeyWithoutExpression,
-		data?: Record<string, unknown>,
-	): UpdateBuilder {
-		const builder = new UpdateBuilder(
+		data?: Partial<T>,
+	): UpdateBuilder<T> {
+		const builder = new UpdateBuilder<T>(
 			key,
 			this.expressionBuilder,
 			(operation) => this.executeOperation(operation),
@@ -75,8 +76,8 @@ export class Table {
 		return builder;
 	}
 
-	query(key: PrimaryKey): QueryBuilder {
-		return new QueryBuilder(
+	query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T> {
+		return new QueryBuilder<T>(
 			key,
 			this.getIndexConfig(),
 			this.expressionBuilder,
@@ -104,7 +105,7 @@ export class Table {
 		return this.executeOperation(operation);
 	}
 
-	scan(): ScanBuilder {
+	scan<T extends DynamoRecord>(): ScanBuilder<T> {
 		return new ScanBuilder(this.expressionBuilder, (operation) =>
 			this.executeOperation(operation),
 		);

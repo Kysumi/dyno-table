@@ -1,96 +1,108 @@
 import type { DynamoOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
-import type { ConditionOperator, FilterOperator } from "./operators";
+import type { Condition, ConditionOperator, FilterOperator } from "./operators";
+import type { DynamoRecord } from "./types";
+
+type StringKeys<T> = Extract<keyof T, string>;
 
 /**
  * Base builder class for DynamoDB operations that supports condition expressions
  * @see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
  */
-export abstract class OperationBuilder<T extends DynamoOperation> {
+export abstract class OperationBuilder<
+	T extends DynamoRecord,
+	TOperation extends DynamoOperation,
+> {
 	protected conditions: Array<{
-		field: string;
+		field: keyof T;
 		operator: ConditionOperator;
 		value?: unknown;
 	}> = [];
 
 	constructor(protected expressionBuilder: IExpressionBuilder) {}
 
-	where(field: string, operator: FilterOperator, value: unknown) {
+	where<K extends keyof T>(
+		field: K,
+		operator: FilterOperator,
+		value: T[K] | T[K][],
+	) {
 		this.conditions.push({ field, operator, value });
 		return this;
 	}
 
-	whereExists(field: string) {
+	whereExists<K extends StringKeys<T>>(field: K) {
 		this.conditions.push({ field, operator: "attribute_exists" });
 		return this;
 	}
 
-	whereNotExists(field: string) {
+	whereNotExists<K extends keyof T>(field: K) {
 		this.conditions.push({ field, operator: "attribute_not_exists" });
 		return this;
 	}
 
-	whereEquals(field: string, value: unknown) {
+	whereEquals<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, "=", value);
 	}
 
-	whereBetween(field: string, start: unknown, end: unknown) {
+	whereBetween<K extends keyof T>(field: K, start: T[K], end: T[K]) {
 		return this.where(field, "BETWEEN", [start, end]);
 	}
 
-	whereIn(field: string, values: unknown[]) {
+	whereIn<K extends keyof T>(field: K, values: T[K][]) {
 		return this.where(field, "IN", values);
 	}
 
-	whereLessThan(field: string, value: unknown) {
+	whereLessThan<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, "<", value);
 	}
 
-	whereLessThanOrEqual(field: string, value: unknown) {
+	whereLessThanOrEqual<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, "<=", value);
 	}
 
-	whereGreaterThan(field: string, value: unknown) {
+	whereGreaterThan<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, ">", value);
 	}
 
-	whereGreaterThanOrEqual(field: string, value: unknown) {
+	whereGreaterThanOrEqual<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, ">=", value);
 	}
 
-	whereNotEqual(field: string, value: unknown) {
+	whereNotEqual<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, "<>", value);
 	}
 
-	whereBeginsWith(field: string, value: unknown) {
+	whereBeginsWith<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, "begins_with", value);
 	}
 
-	whereContains(field: string, value: unknown) {
+	whereContains<K extends keyof T>(field: K, value: T[K]) {
 		return this.where(field, "contains", value);
 	}
 
-	whereNotContains(field: string, value: unknown) {
+	whereNotContains<K extends keyof T>(field: K, value: T[K]) {
 		this.conditions.push({ field, operator: "not_contains", value });
 		return this;
 	}
 
-	whereAttributeType(
-		field: string,
+	whereAttributeType<K extends keyof T>(
+		field: K,
 		value: "S" | "SS" | "N" | "NS" | "B" | "BS" | "BOOL" | "NULL" | "M" | "L",
 	) {
 		this.conditions.push({ field, operator: "attribute_type", value });
 		return this;
 	}
 
-	whereSize(field: string, value: unknown) {
+	whereSize<K extends keyof T>(field: K, value: T[K]) {
 		this.conditions.push({ field, operator: "size", value });
 		return this;
 	}
 
 	protected buildConditionExpression() {
-		return this.expressionBuilder.createExpression(this.conditions);
+		return this.expressionBuilder.createExpression(
+			this.conditions as Condition[],
+		);
 	}
 
-	abstract build(): T;
+	abstract build(): TOperation;
 }
