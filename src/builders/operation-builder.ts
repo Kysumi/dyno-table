@@ -2,6 +2,10 @@ import type { DynamoOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import type { ConditionOperator, FilterOperator } from "./operators";
 
+/**
+ * Base builder class for DynamoDB operations that supports condition expressions
+ * @see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
+ */
 export abstract class OperationBuilder<T extends DynamoOperation> {
 	protected conditions: Array<{
 		field: string;
@@ -71,7 +75,10 @@ export abstract class OperationBuilder<T extends DynamoOperation> {
 		return this;
 	}
 
-	whereAttributeType(field: string, value: unknown) {
+	whereAttributeType(
+		field: string,
+		value: "S" | "SS" | "N" | "NS" | "B" | "BS" | "BOOL" | "NULL" | "M" | "L",
+	) {
 		this.conditions.push({ field, operator: "attribute_type", value });
 		return this;
 	}
