@@ -4,11 +4,7 @@ import { PutBuilder } from "./builders/put-builder";
 import { QueryBuilder } from "./builders/query-builder";
 import { UpdateBuilder } from "./builders/update-builder";
 import { DynamoService } from "./dynamo/dynamo-service";
-import type {
-	FilterCondition,
-	PrimaryKey,
-	TableIndexConfig,
-} from "./builders/operators";
+import type { PrimaryKey, TableIndexConfig } from "./builders/operators";
 import type {
 	PrimaryKeyWithoutExpression,
 	BatchWriteOperation,
@@ -19,10 +15,14 @@ import type {
 } from "./dynamo/dynamo-types";
 import { ScanBuilder } from "./builders/scan-builder";
 
+type IndexConfig = Record<string, TableIndexConfig> & {
+	primary: TableIndexConfig;
+};
+
 export class Table {
 	private readonly dynamoService: DynamoService;
 	private readonly expressionBuilder: ExpressionBuilder;
-	private readonly indexes: Record<string, TableIndexConfig>;
+	private readonly indexes: IndexConfig;
 
 	constructor({
 		client,
@@ -32,7 +32,7 @@ export class Table {
 	}: {
 		client: DynamoDBDocument;
 		tableName: string;
-		tableIndexes: Record<string, TableIndexConfig>;
+		tableIndexes: IndexConfig;
 		expressionBuilder?: ExpressionBuilder;
 	}) {
 		this.dynamoService = new DynamoService(client, tableName);

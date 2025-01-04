@@ -20,7 +20,7 @@ class UserRepo extends BaseRepository<TUser> {
 		return "user";
 	}
 
-	createPrimaryKey(data) {
+	createPrimaryKey(data: TUser) {
 		return {
 			pk: `userId#${data.id}`,
 			sk: `userName#${data.name}`,

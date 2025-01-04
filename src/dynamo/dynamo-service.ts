@@ -189,10 +189,10 @@ export class DynamoService {
 			const params = this.converter.toBatchWriteCommand(unprocessedItems);
 			const result = await this.client.batchWrite(params);
 
-			if (result.UnprocessedItems?.[this.tableName]?.length) {
-				const remainingItems = this.converter.fromBatchWriteResponse(
-					result.UnprocessedItems[this.tableName],
-				);
+			const outstandingItems = result.UnprocessedItems?.[this.tableName];
+			if (outstandingItems && outstandingItems.length > 0) {
+				const remainingItems =
+					this.converter.fromBatchWriteResponse(outstandingItems);
 				throw {
 					name: "UnprocessedItemsError",
 					unprocessedItems: remainingItems,
@@ -205,15 +205,17 @@ export class DynamoService {
 		const params = this.converter.toBatchWriteCommand(items);
 		const initialResult = await this.client.batchWrite(params);
 
+		const rawUnprocessedItems =
+			initialResult.UnprocessedItems?.[this.tableName];
+
 		// If no unprocessed items, return the initial result
-		if (!initialResult.UnprocessedItems?.[this.tableName]?.length) {
+		if (!rawUnprocessedItems || rawUnprocessedItems.length === 0) {
 			return initialResult;
 		}
 
 		// Retry with unprocessed items
-		const unprocessedItems = this.converter.fromBatchWriteResponse(
-			initialResult.UnprocessedItems[this.tableName],
-		);
+		const unprocessedItems =
+			this.converter.fromBatchWriteResponse(rawUnprocessedItems);
 
 		return this.withRetry(() => processUnprocessedItems(unprocessedItems));
 	}
