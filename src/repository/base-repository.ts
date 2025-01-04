@@ -2,18 +2,15 @@ import type { z } from "zod";
 import type { Table } from "../table";
 import type { QueryBuilder } from "../builders/query-builder";
 import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
+import type { PutBuilder } from "../builders/put-builder";
 
-type InferZodSchema<T extends z.ZodType> = z.infer<T>;
-
-export abstract class BaseRepository<TSchema extends z.ZodType> {
+export abstract class BaseRepository<TData> {
 	constructor(
 		protected readonly table: Table,
-		protected readonly schema: TSchema,
+		protected readonly schema: z.Schema<TData>,
 	) {}
 
-	protected abstract createPrimaryKey(
-		data: InferZodSchema<TSchema>,
-	): PrimaryKeyWithoutExpression;
+	protected abstract createPrimaryKey(data: TData): PrimaryKeyWithoutExpression;
 
 	/**
 	 * Default attribute applied to ALL records that get stored in DDB
@@ -21,21 +18,20 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 	protected abstract getType(): string;
 	protected abstract getTypeAttributeName(): string;
 
-	protected beforeInsert(
-		data: InferZodSchema<TSchema>,
-	): InferZodSchema<TSchema> {
+	protected beforeInsert(data: TData): TData {
 		return data;
 	}
 
-	protected beforeUpdate(
-		data: InferZodSchema<TSchema>,
-	): InferZodSchema<TSchema> {
+	protected beforeUpdate(data: Partial<TData>): Partial<TData> {
 		return data;
 	}
 
-	async create(
-		data: InferZodSchema<TSchema>,
-	): Promise<InferZodSchema<TSchema>> {
+	async exists(key: PrimaryKeyWithoutExpression): Promise<boolean> {
+		const item = await this.findOne(key);
+		return item !== null;
+	}
+
+	async create(data: TData): Promise<TData> {
 		const parsed = this.schema.parse(data);
 		const key = this.createPrimaryKey(parsed);
 		const item = {
@@ -49,21 +45,37 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 
 	async update(
 		key: PrimaryKeyWithoutExpression,
-		updates: Partial<InferZodSchema<TSchema>>,
-	): Promise<InferZodSchema<TSchema>> {
-		const parsed = this.schema.parse(updates);
-		const result = await this.table.update(key).setMany(parsed).execute();
+		updates: Partial<TData>,
+	): Promise<TData | null> {
+		const processed = this.beforeUpdate(updates);
+		const parsed = this.schema.parse(processed);
 
-		return result.Attributes ? this.schema.parse(result.Attributes) : null;
+		const updateData = {
+			...parsed,
+			updatedAt: new Date().toISOString(),
+		};
+
+		const result = await this.table.update(key).setMany(updateData).execute();
+
+		if (!result.Attributes) return null;
+
+		return this.findOne(key);
+	}
+
+	upsert(data: TData): PutBuilder {
+		const key = this.createPrimaryKey(data);
+
+		return this.table.put({
+			...data,
+			...key,
+		});
 	}
 
 	async delete(key: PrimaryKeyWithoutExpression): Promise<void> {
 		await this.table.delete(key);
 	}
 
-	async findOne(
-		key: PrimaryKeyWithoutExpression,
-	): Promise<InferZodSchema<TSchema> | null> {
+	async findOne(key: PrimaryKeyWithoutExpression): Promise<TData | null> {
 		const item = await this.table
 			.query(key)
 			.where(this.getTypeAttributeName(), "=", this.getType())
@@ -75,9 +87,7 @@ export abstract class BaseRepository<TSchema extends z.ZodType> {
 		return this.schema.parse(item);
 	}
 
-	async findOrFail(
-		key: PrimaryKeyWithoutExpression,
-	): Promise<InferZodSchema<TSchema>> {
+	async findOrFail(key: PrimaryKeyWithoutExpression): Promise<TData> {
 		const result = await this.findOne(key);
 
 		if (!result) {
