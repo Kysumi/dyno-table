@@ -1,18 +1,23 @@
 {
 	"compilerOptions": {
-		"target": "ESNext",
-		"module": "commonjs",
-		"lib": ["ESNext"],
-		"resolveJsonModule": true,
-		"sourceMap": true,
-		"outDir": "./dist",
-		"strict": true,
-		"noImplicitAny": true,
-		"moduleResolution": "node",
 		"esModuleInterop": true,
 		"skipLibCheck": true,
-		"forceConsistentCasingInFileNames": true
+		"target": "es2022",
+		"allowJs": true,
+		"resolveJsonModule": true,
+		"moduleDetection": "force",
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+
+		"declaration": true,
+		"module": "preserve",
+		"noEmit": true,
+
+		"lib": ["es2022"]
 	},
-	"include": ["src"],
 	"exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
