@@ -9,14 +9,18 @@ const UserSchema = z.object({
 	age: z.number(),
 });
 
-class UserRepo extends BaseRepository<typeof UserSchema> {
+type TUser = z.infer<typeof UserSchema>;
+
+class UserRepo extends BaseRepository<TUser> {
 	protected getTypeAttributeName(): string {
 		return "_type";
 	}
+
 	protected getType(): string {
 		return "user";
 	}
-	protected createPrimaryKey(data) {
+
+	createPrimaryKey(data) {
 		return {
 			pk: `userId#${data.id}`,
 			sk: `userName#${data.name}`,
