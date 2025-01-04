@@ -38,6 +38,49 @@ export abstract class OperationBuilder<T extends DynamoOperation> {
 		return this.where(field, "IN", values);
 	}
 
+	whereLessThan(field: string, value: unknown) {
+		return this.where(field, "<", value);
+	}
+
+	whereLessThanOrEqual(field: string, value: unknown) {
+		return this.where(field, "<=", value);
+	}
+
+	whereGreaterThan(field: string, value: unknown) {
+		return this.where(field, ">", value);
+	}
+
+	whereGreaterThanOrEqual(field: string, value: unknown) {
+		return this.where(field, ">=", value);
+	}
+
+	whereNotEqual(field: string, value: unknown) {
+		return this.where(field, "<>", value);
+	}
+
+	whereBeginsWith(field: string, value: unknown) {
+		return this.where(field, "begins_with", value);
+	}
+
+	whereContains(field: string, value: unknown) {
+		return this.where(field, "contains", value);
+	}
+
+	whereNotContains(field: string, value: unknown) {
+		this.conditions.push({ field, operator: "not_contains", value });
+		return this;
+	}
+
+	whereAttributeType(field: string, value: unknown) {
+		this.conditions.push({ field, operator: "attribute_type", value });
+		return this;
+	}
+
+	whereSize(field: string, value: unknown) {
+		this.conditions.push({ field, operator: "size", value });
+		return this;
+	}
+
 	protected buildConditionExpression() {
 		return this.expressionBuilder.createExpression(this.conditions);
 	}
