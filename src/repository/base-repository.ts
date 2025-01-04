@@ -4,6 +4,7 @@ import type { QueryBuilder } from "../builders/query-builder";
 import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
 import type { PutBuilder } from "../builders/put-builder";
 import type { DynamoRecord } from "../builders/types";
+import type { PrimaryKey } from "../builders/operators";
 
 export abstract class BaseRepository<TData extends DynamoRecord> {
 	constructor(
@@ -84,7 +85,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
 		await this.table.delete(key);
 	}
 
-	async findOne(key: PrimaryKeyWithoutExpression): Promise<TData | null> {
+	async findOne(key: PrimaryKey): Promise<TData | null> {
 		const item = await this.table
 			.query(key)
 			.where(this.getTypeAttributeName(), "=", this.getType())
@@ -106,7 +107,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
 		return this.schema.parse(result);
 	}
 
-	protected query(key: PrimaryKeyWithoutExpression): QueryBuilder<TData> {
+	protected query(key: PrimaryKey): QueryBuilder<TData> {
 		return this.table
 			.query(key)
 			.where(this.getTypeAttributeName(), "=", this.getType());

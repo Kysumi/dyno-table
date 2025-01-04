@@ -19,7 +19,7 @@ class UserRepo extends BaseRepository<TUser> {
 		};
 	}
 
-	protected getTypeAttributeName(): string {
+	protected getTypeAttributeName() {
 		return "_type";
 	}
 
@@ -28,12 +28,10 @@ class UserRepo extends BaseRepository<TUser> {
 	}
 
 	findAllUsersForOrganisation(organisationId: string) {
-		return this.table
-			.query({
-				pk: `organisation#${organisationId}`,
-				sk: { operator: "begins_with", value: "userId#" },
-			})
-			.whereEquals(this.getTypeAttributeName(), this.getType());
+		return this.query({
+			pk: `organisation#${organisationId}`,
+			sk: { operator: "begins_with", value: "userId#" },
+		}).useIndex("gsi1");
 	}
 }
 
