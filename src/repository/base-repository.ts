@@ -12,6 +12,12 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
 		protected readonly schema: z.Schema<TData>,
 	) {}
 
+	/**
+	 * Templates out the primary key for the record, it is consumed for create, put, update and delete actions
+	 *
+	 * Unfortunately, TypeScript is not inferring the TData type when implmenting this method in a subclass.
+	 * https://github.com/microsoft/TypeScript/issues/32082
+	 */
 	protected abstract createPrimaryKey(data: TData): PrimaryKeyWithoutExpression;
 
 	/**
@@ -31,6 +37,12 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
 	async exists(key: PrimaryKeyWithoutExpression): Promise<boolean> {
 		const item = await this.findOne(key);
 		return item !== null;
+	}
+
+	protected isPrimaryKey(
+		value: PrimaryKeyWithoutExpression | TData,
+	): value is PrimaryKeyWithoutExpression {
+		return "pk" in value && typeof value.pk === "string";
 	}
 
 	create(data: TData): PutBuilder<TData> {
@@ -81,7 +93,13 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
 		});
 	}
 
-	async delete(key: PrimaryKeyWithoutExpression): Promise<void> {
+	async delete(keyOrDTO: PrimaryKeyWithoutExpression | TData): Promise<void> {
+		if (this.isPrimaryKey(keyOrDTO)) {
+			this.table.delete(keyOrDTO);
+			return;
+		}
+
+		const key = this.createPrimaryKey(keyOrDTO);
 		await this.table.delete(key);
 	}
 
