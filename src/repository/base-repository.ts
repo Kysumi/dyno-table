@@ -104,10 +104,13 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
 	}
 
 	async findOne(key: PrimaryKey): Promise<TData | null> {
-		const item = await this.table
+		const results = await this.table
 			.query(key)
 			.where(this.getTypeAttributeName(), "=", this.getType())
+			.limit(1)
 			.execute();
+
+		const item = results.Items?.[0];
 
 		if (!item) {
 			return null;
