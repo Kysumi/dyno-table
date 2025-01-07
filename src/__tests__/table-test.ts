@@ -59,6 +59,7 @@ export const tableSuite = () =>
 
     describe("Input Validation", () => {
       it("should throw error when partition key is missing", async () => {
+        // @ts-ignore Testing invalid input
         await expect(table.get({ sk: "test" })).rejects.toThrow("Partition key is required");
       });
 
