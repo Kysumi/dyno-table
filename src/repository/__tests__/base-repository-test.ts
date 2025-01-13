@@ -3,7 +3,6 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "../../table";
 import { BaseRepository } from "../base-repository";
-import { TimestampsPlugin } from "../../plugins/timestamps-plugin";
 
 type UserRecord = {
   id: string;
@@ -69,12 +68,6 @@ export const baseRepositorySuite = () =>
       });
 
       userRepository = new UserRepository(table);
-      userRepository.use(
-        new TimestampsPlugin<UserRecord>([
-          { attributeName: "createdAt" },
-          { attributeName: "updatedAt", onUpdate: true },
-        ]),
-      );
     });
 
     beforeEach(async () => {
