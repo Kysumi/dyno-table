@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, it, beforeEach, afterEach } from "vitest";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "../../table";
 import { BaseRepository } from "../base-repository";
+import { docClient } from "../../../tests/ddb-client";
 
 type UserRecord = {
   id: string;
@@ -32,8 +31,6 @@ class UserRepository extends BaseRepository<UserRecord> {
 
 export const baseRepositorySuite = () =>
   describe("BaseRepository Integration Tests", () => {
-    let ddbClient: DynamoDBClient;
-    let docClient: DynamoDBDocument;
     let table: Table;
     let userRepository: UserRepository;
 
@@ -45,17 +42,6 @@ export const baseRepositorySuite = () =>
     };
 
     beforeAll(() => {
-      ddbClient = new DynamoDBClient({
-        endpoint: "http://localhost:8897",
-        region: "local",
-        credentials: {
-          accessKeyId: "local",
-          secretAccessKey: "local",
-        },
-      });
-
-      docClient = DynamoDBDocument.from(ddbClient);
-
       table = new Table({
         client: docClient,
         tableName: "TestTable",

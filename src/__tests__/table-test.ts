@@ -1,13 +1,10 @@
 import { beforeAll, describe, expect, it, beforeEach } from "vitest";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "../table";
 import { ConditionalCheckFailedError, DynamoError } from "../errors/dynamo-error";
+import { docClient } from "../../tests/ddb-client";
 
 export const tableSuite = () =>
   describe("Table Integration Tests", () => {
-    let ddbClient: DynamoDBClient;
-    let docClient: DynamoDBDocument;
     let table: Table;
 
     // Test item data
@@ -21,17 +18,6 @@ export const tableSuite = () =>
     };
 
     beforeAll(() => {
-      ddbClient = new DynamoDBClient({
-        endpoint: "http://localhost:8897",
-        region: "local",
-        credentials: {
-          accessKeyId: "local",
-          secretAccessKey: "local",
-        },
-      });
-
-      docClient = DynamoDBDocument.from(ddbClient);
-
       table = new Table({
         client: docClient,
         tableName: "TestTable",

@@ -1,24 +1,11 @@
-import {
-  DynamoDBClient,
-  CreateTableCommand,
-  DeleteTableCommand,
-  ResourceNotFoundException,
-} from "@aws-sdk/client-dynamodb";
-
-const client = new DynamoDBClient({
-  endpoint: "http://localhost:8000",
-  region: "local",
-  credentials: {
-    accessKeyId: "local",
-    secretAccessKey: "local",
-  },
-});
+import { CreateTableCommand, DeleteTableCommand, ResourceNotFoundException } from "@aws-sdk/client-dynamodb";
+import { ddbClient } from "./ddb-client";
 
 const TABLE_NAME = "TestTable";
 
 const makeNewTable = async () => {
   try {
-    await client.send(
+    await ddbClient.send(
       new CreateTableCommand({
         TableName: TABLE_NAME,
         AttributeDefinitions: [
@@ -60,7 +47,7 @@ const makeNewTable = async () => {
 export const createTestTable = async () => {
   // Try to delete the table if it exists
   try {
-    await client.send(new DeleteTableCommand({ TableName: TABLE_NAME }));
+    await ddbClient.send(new DeleteTableCommand({ TableName: TABLE_NAME }));
     // Wait a bit for the deletion to complete
     await new Promise((resolve) => setTimeout(resolve, 100));
   } catch (error) {
@@ -79,7 +66,7 @@ export const createTestTable = async () => {
 
 export const deleteTestTable = async () => {
   try {
-    await client.send(new DeleteTableCommand({ TableName: TABLE_NAME }));
+    await ddbClient.send(new DeleteTableCommand({ TableName: TABLE_NAME }));
   } catch (error) {
     // Ignore cleanup errors
     console.log("Cleanup error:", error);
