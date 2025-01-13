@@ -1,3 +1,3 @@
 export interface DynamoRecord {
-	[key: string]: unknown;
+  [key: string]: unknown;
 }

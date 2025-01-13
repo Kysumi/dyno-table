@@ -1,23 +1,23 @@
 {
-	"compilerOptions": {
-		"esModuleInterop": true,
-		"skipLibCheck": true,
-		"target": "es2022",
-		"allowJs": true,
-		"resolveJsonModule": true,
-		"moduleDetection": "force",
-		"isolatedModules": true,
-		"verbatimModuleSyntax": true,
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
 
-		"strict": true,
-		"noUncheckedIndexedAccess": true,
-		"noImplicitOverride": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
 
-		"declaration": true,
-		"module": "preserve",
-		"noEmit": true,
+    "declaration": true,
+    "module": "preserve",
+    "noEmit": true,
 
-		"lib": ["es2022"]
-	},
-	"exclude": ["node_modules", "dist", "**/*.test.ts"]
+    "lib": ["es2022"]
+  },
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

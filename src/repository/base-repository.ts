@@ -1,4 +1,3 @@
-import type { z } from "zod";
 import type { Table } from "../table";
 import type { QueryBuilder } from "../builders/query-builder";
 import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
@@ -7,130 +6,186 @@ import type { DynamoRecord } from "../builders/types";
 import type { PrimaryKey } from "../builders/operators";
 
 export abstract class BaseRepository<TData extends DynamoRecord> {
-	constructor(
-		protected readonly table: Table,
-		protected readonly schema: z.Schema<TData>,
-	) {}
+  constructor(protected readonly table: Table) {}
 
-	/**
-	 * Templates out the primary key for the record, it is consumed for create, put, update and delete actions
-	 *
-	 * Unfortunately, TypeScript is not inferring the TData type when implmenting this method in a subclass.
-	 * https://github.com/microsoft/TypeScript/issues/32082
-	 */
-	protected abstract createPrimaryKey(data: TData): PrimaryKeyWithoutExpression;
+  /**
+   * Templates out the primary key for the record, it is consumed for create, put, update and delete actions
+   *
+   * Unfortunately, TypeScript is not inferring the TData type when implmenting this method in a subclass.
+   * https://github.com/microsoft/TypeScript/issues/32082
+   */
+  protected abstract createPrimaryKey(data: TData): PrimaryKeyWithoutExpression;
 
-	/**
-	 * Default attribute applied to ALL records that get stored in DDB
-	 */
-	protected abstract getType(): string;
-	protected abstract getTypeAttributeName(): string;
+  /**
+   * Default attribute applied to ALL records that get stored in DDB
+   * Defines the type of the record.
+   * For example User, Post, Comment etc.
+   *
+   * This helps to ensure isolation of models when using a single table design
+   * @returns The type of the record as a string.
+   */
+  protected abstract getType(): string;
 
-	protected beforeInsert(data: TData): TData {
-		return data;
-	}
+  /**
+   * Used to define the attribute name for the type.
+   * @returns The type attribute name as a string.
+   */
+  protected abstract getTypeAttributeName(): string;
 
-	protected beforeUpdate(data: Partial<TData>): Partial<TData> {
-		return data;
-	}
+  /**
+   * Hook method called before inserting a record.
+   * Subclasses can override this method to modify the data before insertion.
+   * @param data - The record data.
+   * @returns The modified record data.
+   */
+  protected beforeInsert(data: TData): TData {
+    return data;
+  }
 
-	async exists(key: PrimaryKeyWithoutExpression): Promise<boolean> {
-		const item = await this.findOne(key);
-		return item !== null;
-	}
+  /**
+   * Hook method called before updating a record.
+   * Subclasses can override this method to modify the data before updating.
+   * @param data - The partial record data to be updated.
+   * @returns The modified partial record data.
+   */
+  protected beforeUpdate(data: Partial<TData>): Partial<TData> {
+    return data;
+  }
 
-	protected isPrimaryKey(
-		value: PrimaryKeyWithoutExpression | TData,
-	): value is PrimaryKeyWithoutExpression {
-		return "pk" in value && typeof value.pk === "string";
-	}
+  /**
+   * Checks if a record exists in the table.
+   * @param key - The primary key of the record.
+   * @returns A promise that resolves to true if the record exists, false otherwise.
+   */
+  async exists(key: PrimaryKeyWithoutExpression): Promise<boolean> {
+    const item = await this.table.get(key);
+    return item !== null;
+  }
 
-	create(data: TData): PutBuilder<TData> {
-		const parsed = this.schema.parse(data);
-		const key = this.createPrimaryKey(parsed);
-		const item = {
-			...parsed,
-			...key,
-		};
-		const indexConfig = this.table.getIndexConfig();
+  /**
+   * Type guard to check if the value is a primary key.
+   * @param value - The value to check.
+   * @returns True if the value is a primary key, false otherwise.
+   */
+  protected isPrimaryKey(value: PrimaryKeyWithoutExpression | TData): value is PrimaryKeyWithoutExpression {
+    return "pk" in value && typeof value.pk === "string";
+  }
 
-		const builder = this.table
-			.put<TData>(item)
-			.whereNotExists(indexConfig.pkName);
+  /**
+   * Creates a new record in the table.
+   * @param data - The record data.
+   * @returns A PutBuilder instance to execute the put operation.
+   */
+  create(data: TData): PutBuilder<TData> {
+    const key = this.createPrimaryKey(data);
+    const item = {
+      ...data,
+      ...key,
+    };
+    const indexConfig = this.table.getIndexConfig();
 
-		if (indexConfig.skName) {
-			builder.whereNotExists(indexConfig.skName);
-		}
+    const builder = this.table.put<TData>(item).whereNotExists(indexConfig.pkName);
 
-		return builder;
-	}
+    if (indexConfig.skName) {
+      builder.whereNotExists(indexConfig.skName);
+    }
 
-	async update(
-		key: PrimaryKeyWithoutExpression,
-		updates: Partial<TData>,
-	): Promise<TData | null> {
-		const processed = this.beforeUpdate(updates);
-		const parsed = this.schema.parse(processed);
+    return builder;
+  }
 
-		const updateData = {
-			...parsed,
-			updatedAt: new Date().toISOString(),
-		};
+  /**
+   * Updates an existing record in the table.
+   * @param key - The primary key of the record.
+   * @param updates - The partial record data to be updated.
+   * @returns A promise that resolves to the updated record or null if the record does not exist.
+   */
+  async update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>): Promise<TData | null> {
+    const processed = this.beforeUpdate(updates);
 
-		const result = await this.table.update(key).setMany(updateData).execute();
+    const updateData = {
+      ...processed,
+      updatedAt: new Date().toISOString(),
+    };
 
-		if (!result.Attributes) return null;
+    const result = await this.table.update(key).setMany(updateData).execute();
 
-		return this.findOne(key);
-	}
+    if (!result.Attributes) return null;
 
-	upsert(data: TData): PutBuilder<TData> {
-		const key = this.createPrimaryKey(data);
+    return this.findOne(key);
+  }
 
-		return this.table.put<TData>({
-			...data,
-			...key,
-		});
-	}
+  /**
+   * Upserts (inserts or updates) a record in the table.
+   * @param data - The record data.
+   * @returns A PutBuilder instance to execute the put operation.
+   */
+  upsert(data: TData): PutBuilder<TData> {
+    const key = this.createPrimaryKey(data);
 
-	async delete(keyOrDTO: PrimaryKeyWithoutExpression | TData): Promise<void> {
-		if (this.isPrimaryKey(keyOrDTO)) {
-			this.table.delete(keyOrDTO);
-			return;
-		}
+    return this.table.put<TData>({
+      ...data,
+      ...key,
+    });
+  }
 
-		const key = this.createPrimaryKey(keyOrDTO);
-		await this.table.delete(key);
-	}
+  /**
+   * Deletes a record from the table.
+   * @param keyOrDTO - The primary key or the record data.
+   * @returns A promise that resolves when the record is deleted.
+   */
+  async delete(keyOrDTO: PrimaryKeyWithoutExpression | TData): Promise<void> {
+    if (this.isPrimaryKey(keyOrDTO)) {
+      this.table.delete(keyOrDTO);
+      return;
+    }
 
-	async findOne(key: PrimaryKey): Promise<TData | null> {
-		const results = await this.table
-			.query(key)
-			.where(this.getTypeAttributeName(), "=", this.getType())
-			.limit(1)
-			.execute();
+    const key = this.createPrimaryKey(keyOrDTO);
+    await this.table.delete(key);
+  }
 
-		const item = results.Items?.[0];
+  /**
+   * Finds a single record by its primary key.
+   * @param key - The primary key of the record.
+   * @returns A promise that resolves to the record or null if the record does not exist.
+   */
+  async findOne(key: PrimaryKey): Promise<TData | null> {
+    const results = await this.table
+      .query(key)
+      .whereEquals(this.getTypeAttributeName(), this.getType())
+      .limit(1)
+      .execute();
 
-		if (!item) {
-			return null;
-		}
-		return this.schema.parse(item);
-	}
+    const item = results.Items?.[0];
 
-	async findOrFail(key: PrimaryKeyWithoutExpression): Promise<TData> {
-		const result = await this.findOne(key);
+    if (!item) {
+      return null;
+    }
 
-		if (!result) {
-			throw new Error("Item not found");
-		}
+    return item as TData;
+  }
 
-		return this.schema.parse(result);
-	}
+  /**
+   * Finds a single record by its primary key or throws an error if the record does not exist.
+   * @param key - The primary key of the record.
+   * @returns A promise that resolves to the record.
+   * @throws An error if the record does not exist.
+   */
+  async findOrFail(key: PrimaryKeyWithoutExpression): Promise<TData> {
+    const result = await this.findOne(key);
 
-	protected query(key: PrimaryKey): QueryBuilder<TData> {
-		return this.table
-			.query(key)
-			.where(this.getTypeAttributeName(), "=", this.getType());
-	}
+    if (!result) {
+      throw new Error("Item not found");
+    }
+
+    return result;
+  }
+
+  /**
+   * Creates a query builder for querying records by their primary key.
+   * @param key - The primary key of the record.
+   * @returns A QueryBuilder instance to build and execute the query.
+   */
+  protected query(key: PrimaryKey): QueryBuilder<TData> {
+    return this.table.query(key).whereEquals(this.getTypeAttributeName(), this.getType());
+  }
 }
