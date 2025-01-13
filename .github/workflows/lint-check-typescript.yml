@@ -48,9 +48,8 @@ jobs:
         run: pnpm test
 
       - name: Start DynamoDB Local
-        uses: rrainn/dynamodb-action@v2.0.1
-        with:
-          port: 8897
+        run: |
+          docker compose up -d dynamodb
 
       - name: Wait for DynamoDB
         run: |
