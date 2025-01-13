@@ -191,7 +191,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @param key - The primary key of the record.
    * @returns A QueryBuilder instance to build and execute the query.
    */
-  protected query(key: PrimaryKey): QueryBuilder<TData> {
+  query(key: PrimaryKey): QueryBuilder<TData> {
     return this.table.query(key).whereEquals(this.getTypeAttributeName(), this.getType());
   }
 }
