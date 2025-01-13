@@ -44,6 +44,13 @@ jobs:
       - name: Check types
         run: pnpm check-types
 
-
-      - name: Run tests
+      - name: Run Unit tests
         run: pnpm test
+
+      - name: Start DynamoDB Local
+        uses: rrainn/dynamodb-action@v2.0.1
+        with:
+          port: 8000
+
+      - name: Run Integration tests
+        run: pnpm test:int
