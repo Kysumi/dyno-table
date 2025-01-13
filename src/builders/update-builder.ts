@@ -1,72 +1,64 @@
-import type {
-	PrimaryKeyWithoutExpression,
-	DynamoUpdateOperation,
-} from "../dynamo/dynamo-types";
+import type { PrimaryKeyWithoutExpression, DynamoUpdateOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { DynamoRecord } from "./types";
 
-export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<
-	T,
-	DynamoUpdateOperation
-> {
-	private updates: Partial<T> = {};
+export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoUpdateOperation> {
+  private updates: Partial<T> = {};
 
-	constructor(
-		private readonly key: PrimaryKeyWithoutExpression,
-		expressionBuilder: IExpressionBuilder,
-		private readonly onBuild: (
-			operation: DynamoUpdateOperation,
-		) => Promise<{ Attributes?: T }>,
-	) {
-		super(expressionBuilder);
-	}
+  constructor(
+    private readonly key: PrimaryKeyWithoutExpression,
+    expressionBuilder: IExpressionBuilder,
+    private readonly onBuild: (operation: DynamoUpdateOperation) => Promise<{ Attributes?: T }>,
+  ) {
+    super(expressionBuilder);
+  }
 
-	set<K extends keyof T>(field: K, value: T[K]) {
-		this.updates[field] = value;
-		return this;
-	}
+  set<K extends keyof T>(field: K, value: T[K]) {
+    this.updates[field] = value;
+    return this;
+  }
 
-	setMany(attributes: Partial<T>) {
-		this.updates = { ...this.updates, ...attributes };
-		return this;
-	}
+  setMany(attributes: Partial<T>) {
+    this.updates = { ...this.updates, ...attributes };
+    return this;
+  }
 
-	remove(...fields: Array<keyof T>) {
-		for (const field of fields) {
-			this.updates[field] = null as T[keyof T];
-		}
-		return this;
-	}
+  remove(...fields: Array<keyof T>) {
+    for (const field of fields) {
+      this.updates[field] = null as T[keyof T];
+    }
+    return this;
+  }
 
-	increment<K extends keyof T>(field: K, by = 1) {
-		this.updates[field] = { $add: by } as T[K];
-		return this;
-	}
+  increment<K extends keyof T>(field: K, by = 1) {
+    this.updates[field] = { $add: by } as T[K];
+    return this;
+  }
 
-	build(): DynamoUpdateOperation {
-		const condition = this.buildConditionExpression();
-		const update = this.expressionBuilder.buildUpdateExpression(this.updates);
+  build(): DynamoUpdateOperation {
+    const condition = this.buildConditionExpression();
+    const update = this.expressionBuilder.buildUpdateExpression(this.updates);
 
-		return {
-			type: "update",
-			key: this.key,
-			update: {
-				expression: update.expression,
-				names: update.attributes.names,
-				values: update.attributes.values,
-			},
-			condition: condition.expression
-				? {
-						expression: condition.expression,
-						names: condition.attributes.names,
-						values: condition.attributes.values,
-					}
-				: undefined,
-		};
-	}
+    return {
+      type: "update",
+      key: this.key,
+      update: {
+        expression: update.expression,
+        names: update.attributes.names,
+        values: update.attributes.values,
+      },
+      condition: condition.expression
+        ? {
+            expression: condition.expression,
+            names: condition.attributes.names,
+            values: condition.attributes.values,
+          }
+        : undefined,
+    };
+  }
 
-	async execute(): Promise<{ Attributes?: T }> {
-		return this.onBuild(this.build());
-	}
+  async execute(): Promise<{ Attributes?: T }> {
+    return this.onBuild(this.build());
+  }
 }
