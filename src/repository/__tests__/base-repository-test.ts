@@ -46,7 +46,7 @@ export const baseRepositorySuite = () =>
 
     beforeAll(() => {
       ddbClient = new DynamoDBClient({
-        endpoint: "http://localhost:8000",
+        endpoint: "http://localhost:8897",
         region: "local",
         credentials: {
           accessKeyId: "local",
