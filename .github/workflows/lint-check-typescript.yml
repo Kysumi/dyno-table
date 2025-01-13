@@ -44,6 +44,24 @@ jobs:
       - name: Check types
         run: pnpm check-types
 
-
-      - name: Run tests
+      - name: Run Unit tests
         run: pnpm test
+
+      - name: Start DynamoDB Local
+        run: |
+          docker compose up -d dynamodb
+
+      - name: Wait for DynamoDB
+        run: |
+          timeout=30
+          while ! nc -z localhost 8897; do
+            if [ $timeout -le 0 ]; then
+              echo "DynamoDB failed to start"
+              exit 1
+            fi
+            timeout=$((timeout-1))
+            sleep 1
+          done
+
+      - name: Run Integration tests
+        run: pnpm test:int

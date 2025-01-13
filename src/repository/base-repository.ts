@@ -84,7 +84,13 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
     };
     const indexConfig = this.table.getIndexConfig();
 
-    const builder = this.table.put<TData>(item).whereNotExists(indexConfig.pkName);
+    const builder = this.table
+      .put<TData>(item)
+      /**
+       * Enforcing the type attribute for filter
+       */
+      .set(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData])
+      .whereNotExists(indexConfig.pkName);
 
     if (indexConfig.skName) {
       builder.whereNotExists(indexConfig.skName);
@@ -185,7 +191,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @param key - The primary key of the record.
    * @returns A QueryBuilder instance to build and execute the query.
    */
-  protected query(key: PrimaryKey): QueryBuilder<TData> {
+  query(key: PrimaryKey): QueryBuilder<TData> {
     return this.table.query(key).whereEquals(this.getTypeAttributeName(), this.getType());
   }
 }

@@ -1,15 +1,12 @@
 import { BaseRepository } from "../../src/repository/base-repository";
-import z from "zod";
 import { Table } from "../../src/table";
 import { dbClient } from "../db-client";
 
-const UserSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  age: z.number(),
-});
-
-type TUser = z.infer<typeof UserSchema>;
+type TUser = {
+  id: string;
+  name: string;
+  age: number;
+};
 
 class UserRepo extends BaseRepository<TUser> {
   protected override createPrimaryKey(data: TUser) {

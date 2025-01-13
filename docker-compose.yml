@@ -1,7 +1,6 @@
-version: "3.8"
 services:
   dynamodb:
-    command: "-jar DynamoDBLocal.jar -inMemory"
+    command: "-jar DynamoDBLocal.jar -inMemory -sharedDb -disableTelemetry"
     image: "amazon/dynamodb-local:latest"
     ports:
-      - "8000:8000"
+      - "8897:8000"

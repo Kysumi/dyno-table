@@ -4,7 +4,7 @@
   "description": "A TypeScript library to simplify working with DynamoDB",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type": "commonjs",
+  "type": "module",
   "exports": {
     ".": {
       "import": "./dist/index.mjs",
@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "build": "tsup src/index.ts --format esm --dts",
     "clean": "rm -rf dist",
     "test": "vitest",
     "test:int": "vitest --config vitest.integration.ts",
@@ -28,17 +28,17 @@
     "url": "git+https://github.com/Kysumi/dyno-table.git"
   },
   "devDependencies": {
+    "@babel/preset-typescript": "^7.26.0",
     "@biomejs/biome": "1.9.4",
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^2.1.8",
     "rimraf": "^5.0.0",
-    "tsup": "^8.0.0"
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.8"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0",
-    "zod": "^3.0.0"
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
   "files": ["dist"]
 }
