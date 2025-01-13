@@ -8,7 +8,6 @@ A powerful, type-safe, and fluent DynamoDB table abstraction layer for Node.js a
 - 🏗️ **Expression Builder**: Automatically handles complex DynamoDB expressions and attribute mappings
 - 🔍 **Query Builder**: Powerful and flexible query construction with support for GSIs
 - 📦 **Repository Pattern**: Easily create and manage data repositories with type-safe schemas
-- 🧪 **Type Safety**: Utilizes Zod for runtime schema validation and TypeScript type inference
 
 ## Quick Start 🚀
 
@@ -72,7 +71,6 @@ await table
 ## Repository Pattern 🏗️
 
 ```typescript
-import { z } from 'zod';
 import { BaseRepository } from 'dyno-table';
 
 // Define your schema
@@ -121,7 +119,7 @@ class UserRepository extends BaseRepository<typeof UserSchema> {
 pnpm i
 
 # Installing the peerDependencies manually
-pnpm i @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb zod
+pnpm i @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
 

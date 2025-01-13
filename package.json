@@ -28,17 +28,17 @@
     "url": "git+https://github.com/Kysumi/dyno-table.git"
   },
   "devDependencies": {
+    "@babel/preset-typescript": "^7.26.0",
     "@biomejs/biome": "1.9.4",
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^2.1.8",
     "rimraf": "^5.0.0",
-    "tsup": "^8.0.0"
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.8"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0",
-    "zod": "^3.0.0"
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
   "files": ["dist"]
 }
