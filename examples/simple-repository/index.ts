@@ -46,13 +46,15 @@ const table = new Table({
 	tableName: "application-table",
 });
 
-const userRepo = new UserRepo(table);
+const userRepo = new UserRepo(table, UserSchema);
 
-userRepo.create({
-	age: 10,
-	id: "1123",
-	name: "Scott",
-});
+userRepo
+	.create({
+		age: 10,
+		id: "1123",
+		name: "Scott",
+	})
+	.execute();
 
 userRepo.findOrFail({
 	pk: "userId#1123",

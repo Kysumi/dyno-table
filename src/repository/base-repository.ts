@@ -1,171 +1,136 @@
+import type { z } from "zod";
 import type { Table } from "../table";
 import type { QueryBuilder } from "../builders/query-builder";
 import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
 import type { PutBuilder } from "../builders/put-builder";
 import type { DynamoRecord } from "../builders/types";
 import type { PrimaryKey } from "../builders/operators";
-import type { RepositoryHooks, RepositoryPlugin } from "./types";
 
 export abstract class BaseRepository<TData extends DynamoRecord> {
-  private plugins: Map<string, RepositoryPlugin<TData>> = new Map();
+	constructor(
+		protected readonly table: Table,
+		protected readonly schema: z.Schema<TData>,
+	) {}
 
-  constructor(protected readonly table: Table) {}
+	/**
+	 * Templates out the primary key for the record, it is consumed for create, put, update and delete actions
+	 *
+	 * Unfortunately, TypeScript is not inferring the TData type when implmenting this method in a subclass.
+	 * https://github.com/microsoft/TypeScript/issues/32082
+	 */
+	protected abstract createPrimaryKey(data: TData): PrimaryKeyWithoutExpression;
 
-  /**
-   * Register a plugin with the repository
-   */
-  async use(plugin: RepositoryPlugin<TData>): Promise<this> {
-    if (this.plugins.has(plugin.name)) {
-      throw new Error(`Plugin ${plugin.name} is already registered`);
-    }
+	/**
+	 * Default attribute applied to ALL records that get stored in DDB
+	 */
+	protected abstract getType(): string;
+	protected abstract getTypeAttributeName(): string;
 
-    // Register plugin
-    this.plugins.set(plugin.name, plugin);
+	protected beforeInsert(data: TData): TData {
+		return data;
+	}
 
-    // Initialize plugin if needed
-    if (plugin.initialize) {
-      await plugin.initialize(this);
-    }
+	protected beforeUpdate(data: Partial<TData>): Partial<TData> {
+		return data;
+	}
 
-    return this;
-  }
+	async exists(key: PrimaryKeyWithoutExpression): Promise<boolean> {
+		const item = await this.findOne(key);
+		return item !== null;
+	}
 
-  /**
-   * Required methods that must be implemented by child classes
-   */
-  protected abstract createPrimaryKey(data: TData): PrimaryKeyWithoutExpression;
-  protected abstract getType(): string;
-  protected abstract getTypeAttributeName(): string;
+	protected isPrimaryKey(
+		value: PrimaryKeyWithoutExpression | TData,
+	): value is PrimaryKeyWithoutExpression {
+		return "pk" in value && typeof value.pk === "string";
+	}
 
-  /**
-   * Execute a lifecycle hook across all plugins
-   */
-  protected async executeHook<THook extends keyof RepositoryHooks<TData>>(
-    hook: THook,
-    ...args: Parameters<NonNullable<RepositoryHooks<TData>[THook]>>
-  ): Promise<ReturnType<NonNullable<RepositoryHooks<TData>[THook]>>> {
-    let result = args[0] as ReturnType<NonNullable<RepositoryHooks<TData>[THook]>>;
+	create(data: TData): PutBuilder<TData> {
+		const parsed = this.schema.parse(data);
+		const key = this.createPrimaryKey(parsed);
+		const item = {
+			...parsed,
+			...key,
+		};
+		const indexConfig = this.table.getIndexConfig();
 
-    for (const plugin of this.plugins.values()) {
-      const hookMethod = plugin.hooks?.[hook];
-
-      if (hookMethod) {
-        // @ts-ignore disabling type check on ...args.slice(1)
-        const hookResult = await hookMethod(result, ...args.slice(1));
-        if (hookResult !== undefined) {
-          result = hookResult as ReturnType<NonNullable<RepositoryHooks<TData>[THook]>>;
-        }
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Check if an item exists
-   */
-  async exists(key: PrimaryKeyWithoutExpression): Promise<boolean> {
-    const item = await this.findOne(key);
-    return item !== null;
-  }
-
-  /**
-   * Create a new item
-   */
-  async create(data: TData): Promise<TData> {
-    const item = {
-      ...data,
-      ...this.createPrimaryKey(data),
-      [this.getTypeAttributeName()]: this.getType(),
-    };
-    // Items can only be inserted to the primary index
-    const indexConfig = this.table.getIndexConfig();
-
-    // Since this is a create method we want to ensure the item doesn't already exist
-    const builder = this.table.put<TData>(item).whereNotExists(indexConfig.pkName);
+		const builder = this.table
+			.put<TData>(item)
+			.whereNotExists(indexConfig.pkName);
 
     if (indexConfig.skName) {
       builder.whereNotExists(indexConfig.skName);
     }
 
-    const processed = await this.executeHook("beforeCreate", data, builder);
+		return builder;
+	}
 
-    await builder.execute();
-    await this.executeHook("afterCreate", processed);
+	async update(
+		key: PrimaryKeyWithoutExpression,
+		updates: Partial<TData>,
+	): Promise<TData | null> {
+		const processed = this.beforeUpdate(updates);
+		const parsed = this.schema.parse(processed);
 
-    return processed;
-  }
+		const updateData = {
+			...parsed,
+			updatedAt: new Date().toISOString(),
+		};
 
-  /**
-   * Update an existing item
-   */
-  async update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>): Promise<TData | null> {
-    const builder = this.table.update<TData>(key);
+		const result = await this.table.update(key).setMany(updateData).execute();
 
-    await this.executeHook("beforeUpdate", key, updates, builder);
+		if (!result.Attributes) return null;
 
-    const result = await builder.execute();
-    const updated = result.Attributes as TData;
+		return this.findOne(key);
+	}
 
-    await this.executeHook("afterUpdate", updated);
+	upsert(data: TData): PutBuilder<TData> {
+		const key = this.createPrimaryKey(data);
 
-    return updated || null;
-  }
+		return this.table.put<TData>({
+			...data,
+			...key,
+		});
+	}
 
-  /**
-   * Delete an item
-   */
-  async delete(key: PrimaryKeyWithoutExpression): Promise<void> {
-    await this.executeHook("beforeDelete", key);
-    await this.table.delete(key);
-    await this.executeHook("afterDelete", key);
-  }
+	async delete(keyOrDTO: PrimaryKeyWithoutExpression | TData): Promise<void> {
+		if (this.isPrimaryKey(keyOrDTO)) {
+			this.table.delete(keyOrDTO);
+			return;
+		}
 
-  /**
-   * Find a single item
-   */
-  /**
-   * Find a single item
-   */
-  async findOne(key: PrimaryKey): Promise<TData | null> {
-    const builder = this.table.query(key).where(this.getTypeAttributeName(), "=", this.getType()).limit(1);
+		const key = this.createPrimaryKey(keyOrDTO);
+		await this.table.delete(key);
+	}
 
-    await this.executeHook("beforeFind", key, builder);
+	async findOne(key: PrimaryKey): Promise<TData | null> {
+		const results = await this.table
+			.query(key)
+			.where(this.getTypeAttributeName(), "=", this.getType())
+			.limit(1)
+			.execute();
 
-    const results = await builder.execute();
-    const item = results.Items?.[0] as TData | null;
+		const item = results.Items?.[0];
 
-    return this.executeHook("afterFind", item);
-  }
+		if (!item) {
+			return null;
+		}
+		return this.schema.parse(item);
+	}
 
-  /**
-   * Find an item or throw if not found
-   */
-  async findOrFail(key: PrimaryKeyWithoutExpression): Promise<TData> {
-    const result = await this.findOne(key);
+	async findOrFail(key: PrimaryKeyWithoutExpression): Promise<TData> {
+		const result = await this.findOne(key);
 
-    if (!result) {
-      throw new Error(`${this.getType()} not found`);
-    }
+		if (!result) {
+			throw new Error("Item not found");
+		}
 
-    return result;
-  }
+		return this.schema.parse(result);
+	}
 
-  /**
-   * Start a query operation
-   */
-  protected query(key: PrimaryKey): QueryBuilder<TData> {
-    const builder = this.table.query(key).where(this.getTypeAttributeName(), "=", this.getType());
-
-    this.executeHook("beforeQuery", key, builder);
-
-    return builder;
-  }
-
-  /**
-   * Helper to check if a value is a primary key
-   */
-  protected isPrimaryKey(value: PrimaryKeyWithoutExpression | TData): value is PrimaryKeyWithoutExpression {
-    return "pk" in value && typeof value.pk === "string";
-  }
+	protected query(key: PrimaryKey): QueryBuilder<TData> {
+		return this.table
+			.query(key)
+			.where(this.getTypeAttributeName(), "=", this.getType());
+	}
 }
