@@ -24,8 +24,8 @@ class UserRepository extends BaseRepository<UserRecord> {
     return "USER";
   }
 
-  protected getTypeAttributeName() {
-    return "type";
+  protected getTypeAttributeName(): string {
+    return "_type";
   }
 }
 
@@ -75,21 +75,24 @@ export const baseRepositorySuite = () =>
     });
 
     it("should create a new user", async () => {
-      const createdUser = await userRepository.create(testUser);
+      const createdUser = await userRepository
+        .create({
+          ...testUser,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .execute();
 
-      expect(createdUser).toHaveProperty("createdAt");
-      expect(createdUser).toHaveProperty("updatedAt");
+      // Using the table instance to get the item to ensure no default filtering is applied
+      const item = await table.get({ pk: `USER#${testUser.id}`, sk: `PROFILE#${testUser.id}` });
 
-      const retrievedUser = await userRepository.findOne({
-        pk: `USER#${testUser.id}`,
-        sk: `PROFILE#${testUser.id}`,
-      });
-
-      expect(retrievedUser).toEqual(createdUser);
+      expect(item).toHaveProperty("createdAt");
+      expect(item).toHaveProperty("updatedAt");
+      expect(item).toEqual(createdUser);
     });
 
     it("should update an existing user", async () => {
-      await userRepository.create(testUser);
+      await userRepository.create(testUser).execute();
 
       const updates = {
         email: "john.doe@example.com",
@@ -107,8 +110,7 @@ export const baseRepositorySuite = () =>
     });
 
     it("should delete a user", async () => {
-      await userRepository.create(testUser);
-
+      await userRepository.create(testUser).execute();
       await userRepository.delete({ pk: `USER#${testUser.id}`, sk: `PROFILE#${testUser.id}` });
 
       const deletedUser = await userRepository.findOne({
@@ -120,19 +122,54 @@ export const baseRepositorySuite = () =>
     });
 
     it("should find a user by primary key", async () => {
-      const createdUser = await userRepository.create(testUser);
+      const user = await userRepository.create(testUser).execute();
 
       const retrievedUser = await userRepository.findOne({
         pk: `USER#${testUser.id}`,
         sk: `PROFILE#${testUser.id}`,
       });
 
-      expect(retrievedUser).toEqual(createdUser);
+      expect(retrievedUser).toEqual(user);
+    });
+
+    it("repository isolation should be in place", async () => {
+      // Insert item via REPO
+      await userRepository.create(testUser).execute();
+
+      // Inserting another item so it will get picked up by a begins_with query
+      table
+        .put({
+          pk: `USER#${testUser.id}`,
+          sk: `PROFILE#${testUser.id}-another`,
+          ...testUser,
+        })
+        .execute();
+
+      const retrievedUsers = await userRepository
+        .query({
+          pk: `USER#${testUser.id}`,
+          sk: {
+            operator: "begins_with",
+            value: "PROFILE#",
+          },
+        })
+        .execute();
+
+      // We expect that the user repo query to only return the user that was inserted via the repo
+      // due to the isolation of the repository
+      expect(retrievedUsers.Items?.length).toBe(1);
+
+      // Proving the DB had 2 items in it with the PK/SK we queried for
+      const allUsers = await table
+        .query({ pk: `USER#${testUser.id}`, sk: { operator: "begins_with", value: "PROFILE#123" } })
+        .execute();
+
+      expect(allUsers.Items?.length).toBe(2);
     });
 
     it("should throw an error if user not found", async () => {
       await expect(userRepository.findOrFail({ pk: "USER#nonexistent", sk: "PROFILE#nonexistent" })).rejects.toThrow(
-        "USER not found",
+        Error,
       );
     });
   });

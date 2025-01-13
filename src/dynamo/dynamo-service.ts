@@ -29,7 +29,10 @@ export class DynamoService {
   async put(options: DynamoPutOptions) {
     try {
       const params = this.converter.toPutCommand(options);
-      return await this.withRetry(() => this.client.put(params));
+      return await this.withRetry(async () => {
+        await this.client.put(params);
+        return options.item;
+      });
     } catch (error) {
       handleDynamoError(error, {
         operation: "PUT",
