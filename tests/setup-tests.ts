@@ -2,9 +2,9 @@ import { afterAll, beforeEach } from "vitest";
 import { createTestTable, deleteTestTable } from "./setup-test-table";
 
 beforeEach(async () => {
-	await createTestTable();
+  await createTestTable();
 });
 
 afterAll(async () => {
-	await deleteTestTable();
+  await deleteTestTable();
 });
