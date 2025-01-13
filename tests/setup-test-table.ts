@@ -1,4 +1,3 @@
-import { beforeEach, afterAll } from "vitest";
 import {
   DynamoDBClient,
   CreateTableCommand,
