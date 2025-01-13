@@ -2,12 +2,13 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    fileParallelism: false,
     poolOptions: {
-      threads: {
-        singleThread: true,
+      forks: {
+        maxForks: 1,
       },
     },
     setupFiles: ["./tests/setup-tests.ts"],
-    include: ["./src/**/*.integration.test.ts"],
+    include: ["./src/**/*.itest.ts"],
   },
 });
