@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, beforeEach } from "vitest";
 import { Table } from "../table";
 import { ConditionalCheckFailedError, DynamoError } from "../errors/dynamo-error";
 import { docClient } from "../../tests/ddb-client";
+import { TransactionBuilder } from "../builders/transaction-builder";
 
 describe("Table Integration Tests", () => {
   let table: Table;
@@ -79,7 +80,8 @@ describe("Table Integration Tests", () => {
           put: {
             item: { ...testItem, pk: `USER#${i}`, sk: `PROFILE#${i}` },
           },
-        }));
+        }))
+        .reduce((builder, item) => builder.addOperation(item), new TransactionBuilder());
 
       await expect(table.transactWrite(items)).rejects.toThrow("Transaction limit exceeded");
     });
@@ -240,19 +242,38 @@ describe("Table Integration Tests", () => {
   });
 
   describe("Transaction Operations", () => {
+    it("should rollback transaction on failure", async () => {
+      const transaction = new TransactionBuilder();
+
+      table.put({ ...testItem, id: "1" }).withTransaction(transaction);
+      table
+        .put({ id: "2" }) // Missing required fields
+        .withTransaction(transaction);
+
+      await expect(table.transactWrite(transaction)).rejects.toThrow();
+
+      // This user should not exist if the transaction was rolled back
+      const user = await table.get({
+        pk: "USER#1",
+        sk: "PROFILE#1",
+      });
+      expect(user).toBeUndefined();
+    });
+
     it("should perform transactional writes (transactWrite)", async () => {
-      await table.transactWrite([
-        {
+      const transaction = new TransactionBuilder();
+      transaction
+        .addOperation({
           put: {
             item: testItem,
           },
-        },
-        {
+        })
+        .addOperation({
           put: {
             item: { ...testItem, pk: "USER#124", sk: "PROFILE#124" },
           },
-        },
-      ]);
+        });
+      await table.transactWrite(transaction);
 
       const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
       const item2 = await table.get({

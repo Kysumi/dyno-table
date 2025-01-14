@@ -12,5 +12,6 @@ export class TransactionBuilder {
 
   addOperation(operation: DynamoTransactOperation["operations"][0]) {
     this.operations.push(operation);
+    return this;
   }
 }

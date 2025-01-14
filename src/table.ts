@@ -117,13 +117,7 @@ export class Table {
    * @param operations
    * @returns
    */
-  async transactWrite(operations: Array<DynamoTransactOperation["operations"][number]>) {
-    const builder = new TransactionBuilder();
-
-    for (const operation of operations) {
-      builder.addOperation(operation);
-    }
-
+  async transactWrite(builder: TransactionBuilder) {
     return this.executeOperation(builder.getOperation());
   }
 
