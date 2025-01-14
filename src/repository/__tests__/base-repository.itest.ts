@@ -110,7 +110,7 @@ describe("BaseRepository Integration Tests", () => {
 
   it("should delete a user", async () => {
     await userRepository.create(testUser).execute();
-    await userRepository.delete({ pk: `USER#${testUser.id}`, sk: `PROFILE#${testUser.id}` });
+    await userRepository.delete({ pk: `USER#${testUser.id}`, sk: `PROFILE#${testUser.id}` }).execute();
 
     const deletedUser = await userRepository.findOne({
       pk: `USER#${testUser.id}`,

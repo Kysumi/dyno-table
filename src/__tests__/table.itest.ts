@@ -36,7 +36,7 @@ describe("Table Integration Tests", () => {
   beforeEach(async () => {
     // Clean up any existing data before each test
     try {
-      await table.delete({ pk: testItem.pk, sk: testItem.sk });
+      await table.delete({ pk: testItem.pk, sk: testItem.sk }).execute();
     } catch (error) {
       // Ignore if item doesn't exist
     }
@@ -131,7 +131,7 @@ describe("Table Integration Tests", () => {
       });
       expect(updatedItem).toEqual({ ...testItem, ...updates });
 
-      await table.delete({ pk: testItem.pk, sk: testItem.sk });
+      await table.delete({ pk: testItem.pk, sk: testItem.sk }).execute();
 
       const deletedItem = await table.get({
         pk: testItem.pk,
@@ -240,7 +240,7 @@ describe("Table Integration Tests", () => {
   });
 
   describe("Transaction Operations", () => {
-    it("should perform transactional writes", async () => {
+    it("should perform transactional writes (transactWrite)", async () => {
       await table.transactWrite([
         {
           put: {
@@ -262,6 +262,42 @@ describe("Table Integration Tests", () => {
 
       expect(item1).toEqual(testItem);
       expect(item2).toEqual({ ...testItem, pk: "USER#124", sk: "PROFILE#124" });
+    });
+
+    it("should perform transactional writes (withTransaction)", async () => {
+      await table.withTransaction(async (trx) => {
+        table.put(testItem).withTransaction(trx);
+        table.put({ ...testItem, pk: "USER#124", sk: "PROFILE#124" }).withTransaction(trx);
+      });
+
+      const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
+      const item2 = await table.get({
+        pk: "USER#124",
+        sk: "PROFILE#124",
+      });
+
+      expect(item1).toEqual(testItem);
+      expect(item2).toEqual({ ...testItem, pk: "USER#124", sk: "PROFILE#124" });
+    });
+
+    it("should handle transactional write failures", async () => {
+      await expect(
+        table.withTransaction(async (trx) => {
+          table
+            .put({
+              item: testItem,
+            })
+            .withTransaction(trx);
+          table
+            .put({
+              item: testItem, // Duplicate item to cause failure
+            })
+            .withTransaction(trx);
+        }),
+      ).rejects.toThrow();
+
+      const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
+      expect(item).toBeUndefined();
     });
   });
 
