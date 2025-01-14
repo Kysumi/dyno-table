@@ -1,133 +1,179 @@
-# dyno-table 🚀
+# 🚀 dyno-table
 
 A powerful, type-safe, and fluent DynamoDB table abstraction layer for Node.js applications.
 
-## Features ✨
-- 🔄 **Fluent API**: Intuitive builder pattern for constructing DynamoDB operations
-- 🎯 **Smart Retries**: Built-in exponential backoff with configurable retry strategies
-- 🏗️ **Expression Builder**: Automatically handles complex DynamoDB expressions and attribute mappings
-- 🔍 **Query Builder**: Powerful and flexible query construction with support for GSIs
-- 📦 **Repository Pattern**: Easily create and manage data repositories with type-safe schemas
+## ✨ Features
 
-## Quick Start 🚀
+- **Type-safe operations**: Ensures type safety for all DynamoDB operations.
+- **Builders for operations**: Provides builders for put, update, delete, query, and scan operations.
+- **Transaction support**: Supports transactional operations.
+- **Batch operations**: Handles batch write operations with automatic chunking for large datasets.
+- **Conditional operations**: Supports conditional puts, updates, and deletes.
+- **Repository pattern**: Provides a base repository class for implementing the repository pattern.
+- **Error handling**: Custom error classes for handling DynamoDB errors gracefully.
 
-```typescript
-import { Table } from 'dyno-table';
+## 📦 Installation
+
+Get started with Dyno Table by installing it via npm:
+
+```bash
+npm install dyno-table
+```
+
+## 🚀 Getting Started
+
+### Setting Up the Table
+
+First, set up the `Table` instance with your DynamoDB client and table configuration.
+
+```ts
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { Table } from "dyno-table";
+import { docClient } from "./ddb-client"; // Your DynamoDB client instance
 
-// Initialize your DynamoDB client
-const client = DynamoDBDocument.from(/* your DynamoDB client config */);
-
-// Create a table instance
 const table = new Table({
-  client,
-  tableName: 'your-table-name',
-  gsiIndexes: {
-    base: { pkName: 'PK', skName: 'SK' },
-    GSI1: { pkName: 'GSI1PK', skName: 'GSI1SK' }
-  }
+  client: docClient,
+  tableName: "YourTableName",
+  tableIndexes: {
+    primary: {
+      pkName: "pk",
+      skName: "sk",
+    },
+    GSI1: {
+      pkName: "GSI1PK",
+      skName: "GSI1SK",
+    },
+  },
 });
 ```
 
-## Basic Operations 💫
+### CRUD Operations
 
-### Querying Data
+#### Create (Put)
 
-```typescript
-// Simple query
+```ts
+const item = {
+  pk: "USER#123",
+  sk: "PROFILE#123",
+  name: "John Doe",
+  email: "john@example.com",
+  age: 30,
+  type: "USER",
+};
+
+await table.put(item).execute();
+```
+
+#### Read (Get)
+
+```ts
+const key = { pk: "USER#123", sk: "PROFILE#123" };
+const result = await table.get(key);
+console.log(result);
+```
+
+#### Update
+
+```ts
+const updates = { email: "john.doe@example.com", age: 31 };
+await table.update(key).setMany(updates).execute();
+```
+
+#### Delete
+
+```ts
+await table.delete(key).execute();
+```
+
+### Query Operations
+
+```ts
 const result = await table
-  .query({ pk: 'USER#123', sk: 'PROFILE#' })
-  .where('status', '=', 'active')
-  .limit(10)
+  .query({ pk: "USER#123" })
+  .where("type", "=", "USER")
   .execute();
 
-// Query with GSI
-const gsiResult = await table
-  .query({ pk: 'ORG#123', sk: { operator: 'begins_with', value: 'USER#' }})
-  .useIndex('GSI1')
-  .where('role', '=', 'admin')
-  .execute();
+console.log(result.Items);
 ```
 
-### Writing Data
+### Scan Operations
 
-```typescript
-// Put item with condition
-await table
-  .put({ id: '123', name: 'John', status: 'active' })
-  .whereNotExists('id')
-  .execute();
-
-// Update with conditions
-await table
-  .update({ pk: 'USER#123', sk: 'PROFILE#1' })
-  .set('name', 'John Doe')
-  .set('status', 'active')
-  .remove('oldField')
-  .whereExists('id')
-  .execute();
+```ts
+const result = await table.scan().whereEquals("type", "USER").execute();
+console.log(result.Items);
 ```
 
+### Batch Operations
 
-## Transactions 🔄
+```ts
+const items = [
+  { pk: "USER#123", sk: "PROFILE#123", name: "John Doe" },
+  { pk: "USER#124", sk: "PROFILE#124", name: "Jane Doe" },
+];
 
-### Using `withTransaction`
+await table.batchWrite(
+  items.map((item) => ({ type: "put", item })),
+);
+```
 
-```typescript
+### Transaction Operations
+
+```ts
 await table.withTransaction(async (trx) => {
-  table
-    .put({
-      item: { id: '123', name: 'John Doe' },
-    })
-    .withTransaction(trx);
-
-  table
-    .update({ pk: 'USER#123', sk: 'PROFILE#1' })
-    .set('status', 'active')
-    .withTransaction(trx);
+  table.put({ pk: "USER#123", sk: "PROFILE#123", name: "John Doe" }).withTransaction(trx);
+  table.put({ pk: "USER#124", sk: "PROFILE#124", name: "Jane Doe" }).withTransaction(trx);
 });
 ```
 
-## Repository Pattern 🏗️
+### Repository Pattern
 
-```typescript
-import { BaseRepository } from 'dyno-table';
+Create a repository by extending the `BaseRepository` class.
 
-// Define your schema
-const UserSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string().email(),
-  status: z.enum(['active', 'inactive']),
-  createdAt: z.string()
-});
+```ts
+import { BaseRepository } from "dyno-table";
 
-class UserRepository extends BaseRepository<typeof UserSchema> {
-  constructor(table: Table) {
-    super(table, UserSchema);
-  }
+type UserRecord = {
+  id: string;
+  name: string;
+  email: string;
+  age: number;
+};
 
-  protected createPrimaryKey(data: z.infer<typeof UserSchema>) {
+class UserRepository extends BaseRepository<UserRecord> {
+  protected createPrimaryKey(data: UserRecord) {
     return {
       pk: `USER#${data.id}`,
-      sk: `PROFILE#${data.id}`
+      sk: `PROFILE#${data.id}`,
     };
   }
 
-  protected getIndexKeys() {
-    return {
-      pk: 'USER#',
-      sk: 'PROFILE#'
-    };
+  protected getType() {
+    return "USER";
   }
 
   /**
-  * Applies a filter to the query to only return models with this type
+  * This allows allows dyno-table to work in a singe table design
   */
-  protected getType() {
-    return 'USER';
+  protected getTypeAttributeName(): string {
+    return "_type";
   }
 }
+
+const userRepository = new UserRepository(table);
+```
+
+Use the repository for CRUD operations.
+
+```ts
+const user = { id: "123", name: "John Doe", email: "john@example.com", age: 30 };
+await userRepository.create(user).execute();
+
+const retrievedUser = await userRepository.findOne({ pk: "USER#123", sk: "PROFILE#123" });
+console.log(retrievedUser);
+
+await userRepository.update({ pk: "USER#123", sk: "PROFILE#123" }, { age: 31 });
+
+await userRepository.delete({ pk: "USER#123", sk: "PROFILE#123" }).execute();
 ```
 
 ## Contributing 🤝
