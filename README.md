@@ -68,6 +68,26 @@ await table
   .execute();
 ```
 
+
+## Transactions 🔄
+
+### Using `withTransaction`
+
+```typescript
+await table.withTransaction(async (trx) => {
+  table
+    .put({
+      item: { id: '123', name: 'John Doe' },
+    })
+    .withTransaction(trx);
+
+  table
+    .update({ pk: 'USER#123', sk: 'PROFILE#1' })
+    .set('status', 'active')
+    .withTransaction(trx);
+});
+```
+
 ## Repository Pattern 🏗️
 
 ```typescript

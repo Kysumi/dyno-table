@@ -4,6 +4,7 @@ import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
 import type { PutBuilder } from "../builders/put-builder";
 import type { DynamoRecord } from "../builders/types";
 import type { PrimaryKey } from "../builders/operators";
+import type { DeleteBuilder } from "../builders/delete-builder";
 
 export abstract class BaseRepository<TData extends DynamoRecord> {
   constructor(protected readonly table: Table) {}
@@ -139,14 +140,13 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @param keyOrDTO - The primary key or the record data.
    * @returns A promise that resolves when the record is deleted.
    */
-  async delete(keyOrDTO: PrimaryKeyWithoutExpression | TData): Promise<void> {
+  delete(keyOrDTO: PrimaryKeyWithoutExpression | TData): DeleteBuilder<TData> {
     if (this.isPrimaryKey(keyOrDTO)) {
-      this.table.delete(keyOrDTO);
-      return;
+      return this.table.delete(keyOrDTO);
     }
 
     const key = this.createPrimaryKey(keyOrDTO);
-    await this.table.delete(key);
+    return this.table.delete(key);
   }
 
   /**

@@ -1,10 +1,12 @@
 import type { PrimaryKeyWithoutExpression, DynamoUpdateOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
+import type { TransactionBuilder } from "./transaction-builder";
 import type { DynamoRecord } from "./types";
 
 export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoUpdateOperation> {
   private updates: Partial<T> = {};
+  private inTransaction = false;
 
   constructor(
     private readonly key: PrimaryKeyWithoutExpression,
@@ -58,7 +60,19 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
     };
   }
 
+  withTransaction(transaction: TransactionBuilder) {
+    this.inTransaction = true;
+    const operation = this.build();
+
+    transaction.addOperation({
+      update: operation,
+    });
+  }
+
   async execute(): Promise<{ Attributes?: T }> {
+    if (this.inTransaction) {
+      throw new Error("Cannot call execute after withTransaction");
+    }
     return this.onBuild(this.build());
   }
 }

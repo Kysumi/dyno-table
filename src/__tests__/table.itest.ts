@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, beforeEach } from "vitest";
 import { Table } from "../table";
 import { ConditionalCheckFailedError, DynamoError } from "../errors/dynamo-error";
 import { docClient } from "../../tests/ddb-client";
+import { TransactionBuilder } from "../builders/transaction-builder";
 
 describe("Table Integration Tests", () => {
   let table: Table;
@@ -36,7 +37,7 @@ describe("Table Integration Tests", () => {
   beforeEach(async () => {
     // Clean up any existing data before each test
     try {
-      await table.delete({ pk: testItem.pk, sk: testItem.sk });
+      await table.delete({ pk: testItem.pk, sk: testItem.sk }).execute();
     } catch (error) {
       // Ignore if item doesn't exist
     }
@@ -79,7 +80,8 @@ describe("Table Integration Tests", () => {
           put: {
             item: { ...testItem, pk: `USER#${i}`, sk: `PROFILE#${i}` },
           },
-        }));
+        }))
+        .reduce((builder, item) => builder.addOperation(item), new TransactionBuilder());
 
       await expect(table.transactWrite(items)).rejects.toThrow("Transaction limit exceeded");
     });
@@ -131,7 +133,7 @@ describe("Table Integration Tests", () => {
       });
       expect(updatedItem).toEqual({ ...testItem, ...updates });
 
-      await table.delete({ pk: testItem.pk, sk: testItem.sk });
+      await table.delete({ pk: testItem.pk, sk: testItem.sk }).execute();
 
       const deletedItem = await table.get({
         pk: testItem.pk,
@@ -240,19 +242,38 @@ describe("Table Integration Tests", () => {
   });
 
   describe("Transaction Operations", () => {
-    it("should perform transactional writes", async () => {
-      await table.transactWrite([
-        {
+    it("should rollback transaction on failure", async () => {
+      const transaction = new TransactionBuilder();
+
+      table.put({ ...testItem, id: "1" }).withTransaction(transaction);
+      table
+        .put({ id: "2" }) // Missing required fields
+        .withTransaction(transaction);
+
+      await expect(table.transactWrite(transaction)).rejects.toThrow();
+
+      // This user should not exist if the transaction was rolled back
+      const user = await table.get({
+        pk: "USER#1",
+        sk: "PROFILE#1",
+      });
+      expect(user).toBeUndefined();
+    });
+
+    it("should perform transactional writes (transactWrite)", async () => {
+      const transaction = new TransactionBuilder();
+      transaction
+        .addOperation({
           put: {
             item: testItem,
           },
-        },
-        {
+        })
+        .addOperation({
           put: {
             item: { ...testItem, pk: "USER#124", sk: "PROFILE#124" },
           },
-        },
-      ]);
+        });
+      await table.transactWrite(transaction);
 
       const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
       const item2 = await table.get({
@@ -262,6 +283,42 @@ describe("Table Integration Tests", () => {
 
       expect(item1).toEqual(testItem);
       expect(item2).toEqual({ ...testItem, pk: "USER#124", sk: "PROFILE#124" });
+    });
+
+    it("should perform transactional writes (withTransaction)", async () => {
+      await table.withTransaction(async (trx) => {
+        table.put(testItem).withTransaction(trx);
+        table.put({ ...testItem, pk: "USER#124", sk: "PROFILE#124" }).withTransaction(trx);
+      });
+
+      const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
+      const item2 = await table.get({
+        pk: "USER#124",
+        sk: "PROFILE#124",
+      });
+
+      expect(item1).toEqual(testItem);
+      expect(item2).toEqual({ ...testItem, pk: "USER#124", sk: "PROFILE#124" });
+    });
+
+    it("should handle transactional write failures", async () => {
+      await expect(
+        table.withTransaction(async (trx) => {
+          table
+            .put({
+              item: testItem,
+            })
+            .withTransaction(trx);
+          table
+            .put({
+              item: testItem, // Duplicate item to cause failure
+            })
+            .withTransaction(trx);
+        }),
+      ).rejects.toThrow();
+
+      const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
+      expect(item).toBeUndefined();
     });
   });
 

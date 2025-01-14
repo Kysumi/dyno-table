@@ -10,11 +10,12 @@ import type {
   BatchWriteOperation,
   DynamoOperation,
   DynamoBatchWriteOperation,
-  DynamoDeleteOperation,
   DynamoTransactOperation,
 } from "./dynamo/dynamo-types";
 import { ScanBuilder } from "./builders/scan-builder";
 import type { DynamoRecord } from "./builders/types";
+import { TransactionBuilder } from "./builders/transaction-builder";
+import { DeleteBuilder } from "./builders/delete-builder";
 
 type IndexConfig = Record<string, TableIndexConfig> & {
   primary: TableIndexConfig;
@@ -82,12 +83,8 @@ export class Table {
     return result.Item;
   }
 
-  async delete(key: PrimaryKeyWithoutExpression) {
-    const operation: DynamoDeleteOperation = {
-      type: "delete",
-      key,
-    };
-    return this.executeOperation(operation);
+  delete(key: PrimaryKeyWithoutExpression) {
+    return new DeleteBuilder(key, this.expressionBuilder, (operation) => this.executeOperation(operation));
   }
 
   scan<T extends DynamoRecord>(): ScanBuilder<T> {
@@ -108,45 +105,20 @@ export class Table {
     return this.executeOperation(batchOperation);
   }
 
-  async transactWrite(
-    operations: Array<{
-      put?: {
-        item: Record<string, unknown>;
-        condition?: {
-          expression: string;
-          names?: Record<string, string>;
-          values?: Record<string, unknown>;
-        };
-      };
-      delete?: {
-        key: PrimaryKeyWithoutExpression;
-        condition?: {
-          expression: string;
-          names?: Record<string, string>;
-          values?: Record<string, unknown>;
-        };
-      };
-      update?: {
-        key: PrimaryKeyWithoutExpression;
-        update: {
-          expression: string;
-          names?: Record<string, string>;
-          values?: Record<string, unknown>;
-        };
-        condition?: {
-          expression: string;
-          names?: Record<string, string>;
-          values?: Record<string, unknown>;
-        };
-      };
-    }>,
-  ) {
-    const transactOperation: DynamoTransactOperation = {
-      type: "transactWrite",
-      operations,
-    };
+  async withTransaction<T>(callback: (trx: TransactionBuilder) => Promise<void>) {
+    const transactionBuilder = new TransactionBuilder();
+    await callback(transactionBuilder);
+    const result = await this.executeOperation(transactionBuilder.getOperation());
+    return result;
+  }
 
-    return this.executeOperation(transactOperation);
+  /**
+   * Execute a transaction with multiple operations.
+   * @param operations
+   * @returns
+   */
+  async transactWrite(builder: TransactionBuilder) {
+    return this.executeOperation(builder.getOperation());
   }
 
   private async executeOperation<T>(operation: DynamoOperation): Promise<T> {
