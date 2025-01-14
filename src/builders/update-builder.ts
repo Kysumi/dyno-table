@@ -6,6 +6,7 @@ import type { DynamoRecord } from "./types";
 
 export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoUpdateOperation> {
   private updates: Partial<T> = {};
+  private inTransaction = false;
 
   constructor(
     private readonly key: PrimaryKeyWithoutExpression,
@@ -60,6 +61,7 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
   }
 
   withTransaction(transaction: TransactionBuilder) {
+    this.inTransaction = true;
     const operation = this.build();
 
     transaction.addOperation({
@@ -68,6 +70,9 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
   }
 
   async execute(): Promise<{ Attributes?: T }> {
+    if (this.inTransaction) {
+      throw new Error("Cannot call execute after withTransaction");
+    }
     return this.onBuild(this.build());
   }
 }

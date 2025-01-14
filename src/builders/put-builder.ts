@@ -6,6 +6,7 @@ import type { DynamoRecord } from "./types";
 
 export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoPutOperation> {
   private item: T;
+  private inTransaction = false;
 
   constructor(
     item: T,
@@ -43,6 +44,7 @@ export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyna
   }
 
   withTransaction(transaction: TransactionBuilder) {
+    this.inTransaction = true;
     const operation = this.build();
 
     transaction.addOperation({
@@ -56,6 +58,9 @@ export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyna
    * @returns The provided attributes. This does not load the model from the DB after insert
    */
   async execute(): Promise<T> {
+    if (this.inTransaction) {
+      throw new Error("Cannot execute a put operation that is part of a transaction");
+    }
     return this.onBuild(this.build());
   }
 }
