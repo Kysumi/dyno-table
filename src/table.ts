@@ -124,18 +124,10 @@ export class Table {
   private async executeOperation<T>(operation: DynamoOperation): Promise<T> {
     switch (operation.type) {
       case "put":
-        return this.dynamoService.put({
-          item: operation.item,
-          condition: operation.condition,
-        }) as T;
+        return this.dynamoService.put(operation) as T;
 
       case "update":
-        return this.dynamoService.update({
-          key: operation.key,
-          update: operation.update,
-          condition: operation.condition,
-          returnValues: "ALL_NEW",
-        }) as T;
+        return this.dynamoService.update(operation) as T;
 
       case "query":
         return this.dynamoService.query({

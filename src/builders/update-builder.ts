@@ -7,6 +7,7 @@ import type { DynamoRecord } from "./types";
 export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoUpdateOperation> {
   private updates: Partial<T> = {};
   private inTransaction = false;
+  private returnValues: DynamoUpdateOperation["returnValues"] = "ALL_NEW";
 
   constructor(
     private readonly key: PrimaryKeyWithoutExpression,
@@ -16,13 +17,14 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
     super(expressionBuilder);
   }
 
-  set<K extends keyof T>(field: K, value: T[K]) {
-    this.updates[field] = value;
-    return this;
-  }
-
-  setMany(attributes: Partial<T>) {
-    this.updates = { ...this.updates, ...attributes };
+  set<K extends keyof T>(field: K, value: T[K]): this;
+  set(attributes: Partial<T>): this;
+  set<K extends keyof T>(fieldOrAttributes: K | Partial<T>, value?: T[K]) {
+    if (typeof fieldOrAttributes === "string") {
+      this.updates[fieldOrAttributes as keyof T] = value as T[K];
+    } else {
+      this.updates = { ...this.updates, ...(fieldOrAttributes as Partial<T>) };
+    }
     return this;
   }
 
@@ -38,6 +40,11 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
     return this;
   }
 
+  return(valuesToReturn: DynamoUpdateOperation["returnValues"]) {
+    this.returnValues = valuesToReturn;
+    return this;
+  }
+
   build(): DynamoUpdateOperation {
     const condition = this.buildConditionExpression();
     const update = this.expressionBuilder.buildUpdateExpression(this.updates);
@@ -50,6 +57,7 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
         names: update.attributes.names,
         values: update.attributes.values,
       },
+      returnValues: this.returnValues,
       condition: condition.expression
         ? {
             expression: condition.expression,
