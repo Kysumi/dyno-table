@@ -70,6 +70,7 @@ export interface DynamoPutOperation {
   type: "put";
   item: Record<string, unknown>;
   condition?: DynamoExpression;
+  returnValues: "ALL_NEW" | "ALL_OLD" | "UPDATED_NEW" | "UPDATED_OLD";
 }
 
 export interface DynamoUpdateOperation {

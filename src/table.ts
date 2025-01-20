@@ -53,7 +53,10 @@ export class Table {
       // TODO: Make it so the end user can specify if they want the additional DATA
       // about the query to be returned like capcity units ect
       const result = await this.dynamoService.put(operation);
-      return result.Attributes as T;
+
+      // Return the item that was placed into the table
+      return item;
+      // return result.Attributes as T;
     });
   }
 

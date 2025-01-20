@@ -94,6 +94,10 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
       .set(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData])
       .whereNotExists(indexConfig.pkName);
 
+    /**
+     * If the table has a sort key, we need to ensure that the sort key does not exist
+     * This is to prevent the creation of a duplicate record
+     */
     if (indexConfig.skName) {
       builder.whereNotExists(indexConfig.skName);
     }
@@ -107,7 +111,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @param updates - The partial record data to be updated.
    * @returns A promise that resolves to the updated record or null if the record does not exist.
    */
-  async update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>): Promise<TData | null> {
+  async update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>): Promise<TData> {
     const processed = this.beforeUpdate(updates);
 
     const updateData = {
@@ -115,11 +119,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await this.table.update(key).set(updateData).execute();
-
-    if (!result.Attributes) return null;
-
-    return this.findOne(key);
+    return this.table.update<TData>(key).set(updateData).return("ALL_NEW").execute() as Promise<TData>;
   }
 
   /**
