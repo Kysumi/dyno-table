@@ -1,4 +1,4 @@
-import type { DynamoOperation } from "../dynamo/dynamo-types";
+import type { DynamoPutOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import type { Condition, ConditionOperator, FilterOperator } from "./operators";
 import type { DynamoRecord } from "./types";
@@ -11,7 +11,7 @@ type StringKeys<T> = Extract<keyof T, string>;
  *
  * @see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html
  */
-export abstract class OperationBuilder<T extends DynamoRecord, TOperation extends DynamoOperation> {
+export abstract class OperationBuilder<T extends DynamoRecord, TOperation extends DynamoPutOperation> {
   protected conditions: Array<{
     field: keyof T;
     operator: ConditionOperator;

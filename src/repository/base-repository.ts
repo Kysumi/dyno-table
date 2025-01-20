@@ -162,7 +162,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
       .limit(1)
       .execute();
 
-    const item = results.Items?.[0];
+    const item = results[0];
 
     if (!item) {
       return null;
@@ -193,7 +193,9 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @returns A QueryBuilder instance to build and execute the query.
    */
   query(key: PrimaryKey): QueryBuilder<TData> {
-    return this.table.query(key).whereEquals(this.getTypeAttributeName(), this.getType());
+    return this.table
+      .query<TData>(key)
+      .whereEquals(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData]);
   }
 
   /**
