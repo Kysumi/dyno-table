@@ -19,7 +19,7 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
     private readonly key: PrimaryKey,
     private readonly indexConfig: TableIndexConfig,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoQueryOperation) => Promise<DynamoQueryResponse>,
+    private readonly onBuild: (operation: DynamoQueryOperation) => Promise<T[]>,
   ) {
     super(expressionBuilder);
   }

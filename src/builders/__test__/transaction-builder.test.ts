@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { TransactionBuilder } from "../transaction-builder";
-import type { DynamoTransactOperation } from "../../dynamo/dynamo-types";
+import type { DynamoTransactItem } from "../../dynamo/dynamo-types";
 
 describe("TransactionBuilder", () => {
   let builder: TransactionBuilder;
@@ -11,24 +11,26 @@ describe("TransactionBuilder", () => {
 
   it("should initialize with an empty operations array", () => {
     const operation = builder.getOperation();
-    expect(operation.operations).toHaveLength(0);
+    expect(operation).toHaveLength(0);
   });
 
   it("should add a put operation", () => {
-    const putOperation: DynamoTransactOperation["operations"][0] = {
+    const putOperation: DynamoTransactItem = {
       put: {
         item: { pk: "USER#123", sk: "PROFILE#123", name: "John Doe" },
       },
     };
 
     builder.addOperation(putOperation);
+
     const operation = builder.getOperation();
-    expect(operation.operations).toHaveLength(1);
-    expect(operation.operations[0]).toEqual(putOperation);
+    expect(operation).toHaveLength(1);
+
+    expect(operation).toEqual([putOperation]);
   });
 
   it("should add a delete operation", () => {
-    const deleteOperation: DynamoTransactOperation["operations"][0] = {
+    const deleteOperation: DynamoTransactItem = {
       delete: {
         key: { pk: "USER#123", sk: "PROFILE#123" },
       },
@@ -36,18 +38,18 @@ describe("TransactionBuilder", () => {
 
     builder.addOperation(deleteOperation);
     const operation = builder.getOperation();
-    expect(operation.operations).toHaveLength(1);
-    expect(operation.operations[0]).toEqual(deleteOperation);
+    expect(operation).toHaveLength(1);
+    expect(operation).toEqual([deleteOperation]);
   });
 
   it("should add multiple operations", () => {
-    const putOperation: DynamoTransactOperation["operations"][0] = {
+    const putOperation: DynamoTransactItem = {
       put: {
         item: { pk: "USER#123", sk: "PROFILE#123", name: "John Doe" },
       },
     };
 
-    const deleteOperation: DynamoTransactOperation["operations"][0] = {
+    const deleteOperation: DynamoTransactItem = {
       delete: {
         key: { pk: "USER#124", sk: "PROFILE#124" },
       },
@@ -55,42 +57,43 @@ describe("TransactionBuilder", () => {
 
     builder.addOperation(putOperation);
     builder.addOperation(deleteOperation);
+
     const operation = builder.getOperation();
-    expect(operation.operations).toHaveLength(2);
-    expect(operation.operations[0]).toEqual(putOperation);
-    expect(operation.operations[1]).toEqual(deleteOperation);
+
+    expect(operation).toHaveLength(2);
+    expect(operation[0]).toEqual(putOperation);
+    expect(operation[1]).toEqual(deleteOperation);
   });
 
   it("Produces the correct output", () => {
-    const staticData = {
-      type: "transactWrite",
-      operations: [
-        {
-          put: {
-            item: {
-              pk: "USER#123",
-              sk: "PROFILE#123",
-              name: "Hello Kitty",
-              email: "hello-kitty@example.com",
-              age: 30,
-              type: "USER",
-            },
+    const staticData: DynamoTransactItem[] = [
+      {
+        delete: undefined,
+        put: {
+          item: {
+            pk: "USER#123",
+            sk: "PROFILE#123",
+            name: "Hello Kitty",
+            email: "hello-kitty@example.com",
+            age: 30,
+            type: "USER",
           },
         },
-        {
-          put: {
-            item: {
-              pk: "USER#124",
-              sk: "PROFILE#124",
-              name: "Geoff Doe",
-              email: "geoff@example.com",
-              age: 30,
-              type: "USER",
-            },
+      },
+      {
+        delete: undefined,
+        put: {
+          item: {
+            pk: "USER#124",
+            sk: "PROFILE#124",
+            name: "Geoff Doe",
+            email: "geoff@example.com",
+            age: 30,
+            type: "USER",
           },
         },
-      ],
-    };
+      },
+    ];
 
     builder.addOperation({
       put: {

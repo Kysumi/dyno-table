@@ -5,12 +5,7 @@ import { QueryBuilder } from "./builders/query-builder";
 import { UpdateBuilder } from "./builders/update-builder";
 import { DynamoService } from "./dynamo/dynamo-service";
 import type { PrimaryKey, TableIndexConfig } from "./builders/operators";
-import type {
-  PrimaryKeyWithoutExpression,
-  BatchWriteOperation,
-  DynamoOperation,
-  DynamoBatchWriteOperation,
-} from "./dynamo/dynamo-types";
+import type { PrimaryKeyWithoutExpression, BatchWriteOperation, DynamoBatchWriteItem } from "./dynamo/dynamo-types";
 import { ScanBuilder } from "./builders/scan-builder";
 import type { DynamoRecord } from "./builders/types";
 import { TransactionBuilder } from "./builders/transaction-builder";
@@ -54,17 +49,29 @@ export class Table {
   }
 
   put<T extends DynamoRecord>(item: T): PutBuilder<T> {
-    return new PutBuilder(item, this.expressionBuilder, (operation) => this.executeOperation(operation));
+    return new PutBuilder(item, this.expressionBuilder, async (operation) => {
+      // TODO: Make it so the end user can specify if they want the additional DATA
+      // about the query to be returned like capcity units ect
+      const result = await this.dynamoService.put(operation);
+
+      // Return the item that was placed into the table
+      return item;
+      // return result.Attributes as T;
+    });
   }
 
   update<T extends DynamoRecord>(key: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
-    return new UpdateBuilder<T>(key, this.expressionBuilder, (operation) => this.executeOperation(operation));
+    return new UpdateBuilder<T>(key, this.expressionBuilder, async (operation) => {
+      const result = await this.dynamoService.update(operation);
+      return result.Attributes as T;
+    });
   }
 
   query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T> {
-    return new QueryBuilder<T>(key, this.getIndexConfig(), this.expressionBuilder, (operation) =>
-      this.executeOperation(operation),
-    );
+    return new QueryBuilder<T>(key, this.getIndexConfig(), this.expressionBuilder, async (operation) => {
+      const result = await this.dynamoService.query(operation);
+      return result.Items as T[];
+    });
   }
 
   async get(key: PrimaryKeyWithoutExpression, options?: { indexName?: string }) {
@@ -77,81 +84,41 @@ export class Table {
   }
 
   delete(key: PrimaryKeyWithoutExpression) {
-    return new DeleteBuilder(key, this.expressionBuilder, (operation) => this.executeOperation(operation));
+    return new DeleteBuilder(key, this.expressionBuilder, async (operation) => {
+      await this.dynamoService.delete(operation);
+    });
   }
 
   scan<T extends DynamoRecord>(): ScanBuilder<T> {
-    return new ScanBuilder(this.expressionBuilder, (operation) => this.executeOperation(operation));
+    return new ScanBuilder(this.expressionBuilder, (operation) => this.dynamoService.scan(operation));
   }
 
   async batchWrite(operations: BatchWriteOperation[]) {
-    const batchOperation: DynamoBatchWriteOperation = {
-      type: "batchWrite",
-      operations: operations.map((op) => {
-        if (op.type === "put") {
-          return { put: op.item };
-        }
-        return { delete: op.key };
-      }),
-    };
+    const batchOperation: DynamoBatchWriteItem[] = operations.map((op) => {
+      if (op.type === "put") {
+        return { put: op.item };
+      }
+      return { delete: op.key };
+    });
 
-    return this.executeOperation(batchOperation);
+    return this.dynamoService.batchWrite(batchOperation);
   }
 
   async withTransaction<T>(callback: (trx: TransactionBuilder) => Promise<void>) {
     const transactionBuilder = new TransactionBuilder();
     await callback(transactionBuilder);
-    const result = await this.executeOperation(transactionBuilder.getOperation());
+    const result = await this.dynamoService.transactWrite(transactionBuilder.getOperation());
     return result;
   }
 
   /**
    * Execute a transaction with multiple operations.
-   * @param operations
+   * @param builder
    * @returns
    */
   async transactWrite(builder: TransactionBuilder) {
-    return this.executeOperation(builder.getOperation());
-  }
-
-  private async executeOperation<T>(operation: DynamoOperation): Promise<T> {
-    switch (operation.type) {
-      case "put":
-        return this.dynamoService.put(operation) as T;
-
-      case "update":
-        return this.dynamoService.update(operation) as T;
-
-      case "query":
-        return this.dynamoService.query({
-          keyCondition: operation.keyCondition,
-          filter: operation.filter,
-          limit: operation.limit,
-          indexName: operation.indexName,
-        }) as T;
-
-      case "delete":
-        return this.dynamoService.delete({
-          key: operation.key,
-        }) as T;
-
-      case "batchWrite":
-        return this.dynamoService.batchWrite(operation.operations) as T;
-
-      case "transactWrite":
-        return this.dynamoService.transactWrite(operation.operations) as T;
-
-      case "scan":
-        return this.dynamoService.scan({
-          filter: operation.filter,
-          limit: operation.limit,
-          pageKey: operation.pageKey,
-          indexName: operation.indexName,
-        }) as T;
-
-      default:
-        throw new Error("Unknown operation type");
-    }
+    const result = await this.dynamoService.transactWrite(builder.getOperation());
+    return result;
   }
 
   private buildKeyFromIndex(key: PrimaryKeyWithoutExpression, indexConfig: TableIndexConfig): Record<string, unknown> {
