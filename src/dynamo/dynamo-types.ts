@@ -70,6 +70,7 @@ export interface DynamoPutOperation {
   type: "put";
   item: Record<string, unknown>;
   condition?: DynamoExpression;
+  returnValues: "ALL_NEW" | "ALL_OLD" | "UPDATED_NEW" | "UPDATED_OLD";
 }
 
 export interface DynamoUpdateOperation {
@@ -104,39 +105,6 @@ export interface DynamoScanOperation {
   indexName?: string;
 }
 
-export interface DynamoBatchWriteOperation {
-  type: "batchWrite";
-  operations: DynamoBatchWriteItem[];
-}
-
-export interface DynamoTransactOperation {
-  type: "transactWrite";
-  operations: Array<{
-    put?: {
-      item: Record<string, unknown>;
-      condition?: DynamoExpression;
-    };
-    delete?: {
-      key: PrimaryKeyWithoutExpression;
-      condition?: DynamoExpression;
-    };
-    update?: {
-      key: PrimaryKeyWithoutExpression;
-      update: DynamoExpression;
-      condition?: DynamoExpression;
-    };
-  }>;
-}
-
-export type DynamoOperation =
-  | DynamoPutOperation
-  | DynamoUpdateOperation
-  | DynamoQueryOperation
-  | DynamoDeleteOperation
-  | DynamoBatchWriteOperation
-  | DynamoTransactOperation
-  | DynamoScanOperation;
-
 export type PrimaryKeyWithoutExpression = {
   pk: string;
   sk?: string;
@@ -145,3 +113,10 @@ export type PrimaryKeyWithoutExpression = {
 export type BatchWriteOperation =
   | { type: "put"; item: Record<string, unknown> }
   | { type: "delete"; key: PrimaryKeyWithoutExpression };
+
+export type DynamoOperation =
+  | DynamoPutOperation
+  | DynamoUpdateOperation
+  | DynamoDeleteOperation
+  | DynamoQueryOperation
+  | DynamoScanOperation;

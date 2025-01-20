@@ -71,6 +71,9 @@ export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyna
             values: attributes.values,
           }
         : undefined,
+      // Only option that does anything according to docs
+      // https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html#API_PutItem_ResponseElements
+      returnValues: "ALL_OLD",
     };
   }
 

@@ -156,14 +156,14 @@ describe("BaseRepository Integration Tests", () => {
 
     // We expect that the user repo query to only return the user that was inserted via the repo
     // due to the isolation of the repository
-    expect(retrievedUsers.Items?.length).toBe(1);
+    expect(retrievedUsers).toHaveLength(1);
 
     // Proving the DB had 2 items in it with the PK/SK we queried for
     const allUsers = await table
       .query({ pk: `USER#${testUser.id}`, sk: { operator: "begins_with", value: "PROFILE#123" } })
       .execute();
 
-    expect(allUsers.Items?.length).toBe(2);
+    expect(allUsers).toHaveLength(2);
   });
 
   it("should throw an error if user not found", async () => {

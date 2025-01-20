@@ -1,25 +1,25 @@
-import type { DynamoTransactOperation } from "../dynamo/dynamo-types";
+import type { DynamoTransactItem } from "../dynamo/dynamo-types";
 
 /**
  * Builder class for constructing DynamoDB transaction operations.
  * Allows adding multiple operations to be executed in a single transaction.
  */
 export class TransactionBuilder {
-  private operations: DynamoTransactOperation["operations"] = [];
+  private operations: DynamoTransactItem[] = [];
 
   /**
    * Retrieves the current transaction operation.
    *
-   * @returns A DynamoTransactOperation object representing the transaction.
+   * @returns An array of DynamoTransactItem objects representing the transaction operations.
    *
    * Usage:
-   * - To get the current transaction operation: `const operation = transactionBuilder.getOperation();`
+   * - To get the transaction operations: `const operations = transactionBuilder.getOperation();`
    */
-  getOperation(): DynamoTransactOperation {
-    return {
-      type: "transactWrite",
-      operations: this.operations,
-    };
+  getOperation(): DynamoTransactItem[] {
+    return this.operations.map((operation) => ({
+      put: operation.put,
+      delete: operation.delete,
+    }));
   }
 
   /**
@@ -32,7 +32,7 @@ export class TransactionBuilder {
    * - To add a put operation: `transactionBuilder.addOperation({ put: { item: {...} } });`
    * - To add a delete operation: `transactionBuilder.addOperation({ delete: { key: {...} } });`
    */
-  addOperation(operation: DynamoTransactOperation["operations"][0]) {
+  addOperation(operation: DynamoTransactItem) {
     this.operations.push(operation);
     return this;
   }
