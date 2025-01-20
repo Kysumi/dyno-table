@@ -151,7 +151,7 @@ describe("Table Integration Tests", () => {
     it("should get back no results, when the filter doesn't match", async () => {
       const result = await table.query({ pk: testItem.pk }).where("type", "=", "APPLE").execute();
 
-      expect(result.Items).toHaveLength(0);
+      expect(result).toHaveLength(0);
     });
 
     it("should query items by partition key", async () => {
@@ -163,8 +163,8 @@ describe("Table Integration Tests", () => {
         .where("type", "=", "USER")
         .execute();
 
-      expect(result.Items).toHaveLength(1);
-      expect(result.Items?.[0]).toEqual(testItem);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(testItem);
     });
 
     it("should query items with begins_with sort key", async () => {
@@ -175,8 +175,8 @@ describe("Table Integration Tests", () => {
         })
         .execute();
 
-      expect(result.Items).toHaveLength(1);
-      expect(result.Items?.[0]).toEqual(testItem);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(testItem);
     });
   });
 
@@ -410,9 +410,7 @@ describe("Table Integration Tests", () => {
   describe("Query Edge Cases", () => {
     it("should handle empty query results", async () => {
       const result = await table.query({ pk: "NONEXISTENT" }).execute();
-
-      expect(result.Items).toHaveLength(0);
-      expect(result.Count).toBe(0);
+      expect(result).toHaveLength(0);
     });
 
     it("should handle malformed begins_with queries", async () => {

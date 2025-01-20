@@ -10,10 +10,10 @@ export class TransactionBuilder {
   /**
    * Retrieves the current transaction operation.
    *
-   * @returns A DynamoTransactOperation object representing the transaction.
+   * @returns An array of DynamoTransactItem objects representing the transaction operations.
    *
    * Usage:
-   * - To get the current transaction operation: `const operation = transactionBuilder.getOperation();`
+   * - To get the transaction operations: `const operations = transactionBuilder.getOperation();`
    */
   getOperation(): DynamoTransactItem[] {
     return this.operations.map((operation) => ({

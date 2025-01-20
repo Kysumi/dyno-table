@@ -2,7 +2,7 @@
 # Bugs
   * dot notation for set method doesn't work
   * In errors logs the queries are not being correclty turned from DDB query to human readable query
-    * https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html
+  * [DynamoDB Programming Errors](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html)
 # Features
   * Partial updates and full updates should be more clear.
     * for example, if you want to update a single field, within a nested object, you should be able to do that easily.
