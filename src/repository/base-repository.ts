@@ -114,7 +114,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
       updatedAt: new Date().toISOString(),
     };
 
-    const result = await this.table.update(key).setMany(updateData).execute();
+    const result = await this.table.update(key).set(updateData).execute();
 
     if (!result.Attributes) return null;
 

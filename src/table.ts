@@ -10,7 +10,6 @@ import type {
   BatchWriteOperation,
   DynamoOperation,
   DynamoBatchWriteOperation,
-  DynamoTransactOperation,
 } from "./dynamo/dynamo-types";
 import { ScanBuilder } from "./builders/scan-builder";
 import type { DynamoRecord } from "./builders/types";
@@ -58,14 +57,8 @@ export class Table {
     return new PutBuilder(item, this.expressionBuilder, (operation) => this.executeOperation(operation));
   }
 
-  update<T extends DynamoRecord>(key: PrimaryKeyWithoutExpression, data?: Partial<T>): UpdateBuilder<T> {
-    const builder = new UpdateBuilder<T>(key, this.expressionBuilder, (operation) => this.executeOperation(operation));
-
-    if (data) {
-      builder.setMany(data);
-    }
-
-    return builder;
+  update<T extends DynamoRecord>(key: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
+    return new UpdateBuilder<T>(key, this.expressionBuilder, (operation) => this.executeOperation(operation));
   }
 
   query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T> {
