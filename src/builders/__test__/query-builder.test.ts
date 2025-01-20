@@ -36,6 +36,8 @@ describe("QueryBuilder", () => {
           names: { "#pk0": "pk" },
           values: { ":pk0": "USER" },
         },
+        consistentRead: false,
+        pageKey: undefined,
       });
     });
 
@@ -62,6 +64,8 @@ describe("QueryBuilder", () => {
             ":v1": "ORDER#",
           },
         },
+        consistentRead: false,
+        pageKey: undefined,
       });
     });
 
@@ -220,6 +224,8 @@ describe("QueryBuilder", () => {
           names: { "#n0": "status" },
           values: { ":v0": "active" },
         },
+        consistentRead: false,
+        pageKey: undefined,
       });
     });
   });
