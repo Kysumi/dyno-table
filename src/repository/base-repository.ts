@@ -5,6 +5,7 @@ import type { PutBuilder } from "../builders/put-builder";
 import type { DynamoRecord } from "../builders/types";
 import type { PrimaryKey } from "../builders/operators";
 import type { DeleteBuilder } from "../builders/delete-builder";
+import type { ScanBuilder } from "../builders/scan-builder";
 
 export abstract class BaseRepository<TData extends DynamoRecord> {
   constructor(protected readonly table: Table) {}
@@ -193,5 +194,13 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    */
   query(key: PrimaryKey): QueryBuilder<TData> {
     return this.table.query(key).whereEquals(this.getTypeAttributeName(), this.getType());
+  }
+
+  /**
+   * Creates a scan builder for scanning records.
+   * @returns A ScanBuilder instance to build and execute the scan operation.
+   */
+  scan(): ScanBuilder<TData> {
+    return this.table.scan().whereEquals(this.getTypeAttributeName(), this.getType());
   }
 }

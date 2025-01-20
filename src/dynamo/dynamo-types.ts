@@ -86,6 +86,8 @@ export interface DynamoQueryOperation {
   filter?: DynamoExpression;
   limit?: number;
   indexName?: string;
+  consistentRead?: boolean;
+  pageKey?: Record<string, unknown>;
 }
 
 export interface DynamoDeleteOperation {
