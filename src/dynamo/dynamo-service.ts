@@ -30,8 +30,7 @@ export class DynamoService {
     try {
       const params = this.converter.toPutCommand(options);
       return await this.withRetry(async () => {
-        await this.client.put(params);
-        return options.item;
+        return this.client.put(params);
       });
     } catch (error) {
       handleDynamoError(error, {
