@@ -1,4 +1,4 @@
-# 🚀 dyno-table
+# 🦖 dyno-table
 
 A powerful, type-safe, and fluent DynamoDB table abstraction layer for Node.js applications.
 
@@ -20,7 +20,7 @@ Get started with Dyno Table by installing it via npm:
 npm install dyno-table
 ```
 
-## 🚀 Getting Started
+## 🦕 Getting Started
 
 ### Setting Up the Table
 
@@ -33,7 +33,7 @@ import { docClient } from "./ddb-client"; // Your DynamoDB client instance
 
 const table = new Table({
   client: docClient,
-  tableName: "YourTableName",
+  tableName: "DinoTable",
   tableIndexes: {
     primary: {
       pkName: "pk",
@@ -53,21 +53,21 @@ const table = new Table({
 
 ```ts
 // Simple put
-const item = {
-  pk: "USER#123",
-  sk: "PROFILE#123",
-  name: "John Doe",
-  email: "john@example.com",
-  age: 30,
-  type: "USER",
+const dino = {
+  pk: "SPECIES#trex",
+  sk: "PROFILE#001",
+  name: "Rex",
+  diet: "Carnivore",
+  length: 40,
+  type: "DINOSAUR",
 };
 
-await table.put(item).execute();
+await table.put(dino).execute();
 
 // Conditional put
 await table
-  .put(item)
-  .whereNotExists("pk")  // Only insert if item doesn't exist
+  .put(dino)
+  .whereNotExists("pk")  // Only insert if dinosaur doesn't exist
   .whereNotExists("sk")
   .execute();
 ```
@@ -75,7 +75,7 @@ await table
 #### Read (Get)
 
 ```ts
-const key = { pk: "USER#123", sk: "PROFILE#123" };
+const key = { pk: "SPECIES#trex", sk: "PROFILE#001" };
 const result = await table.get(key);
 console.log(result);
 
@@ -87,17 +87,17 @@ const result = await table.get(key, { indexName: "GSI1" });
 
 ```ts
 // Simple update
-const updates = { email: "john.doe@example.com", age: 31 };
+const updates = { length: 42, diet: "Carnivore" };
 await table.update(key).setMany(updates).execute();
 
 // Advanced update operations
 await table
   .update(key)
-  .set("email", "new@example.com")       // Set a single field
-  .set({ age: 32, name: "John" })        // Set multiple fields
+  .set("diet", "Omnivore")              // Set a single field
+  .set({ length: 45, name: "Rexy" })    // Set multiple fields
   .remove("optional_field")              // Remove fields
-  .increment("visits", 1)                // Increment a number
-  .whereEquals("age", 31)                // Conditional update
+  .increment("sightings", 1)             // Increment a number
+  .whereEquals("length", 42)             // Conditional update
   .execute();
 ```
 
@@ -111,7 +111,7 @@ await table.delete(key).execute();
 await table
   .delete(key)
   .whereExists("pk")
-  .whereEquals("type", "USER")
+  .whereEquals("type", "DINOSAUR")
   .execute();
 ```
 
@@ -120,17 +120,17 @@ await table
 ```ts
 // Basic query
 const result = await table
-  .query({ pk: "USER#123" })
+  .query({ pk: "SPECIES#trex" })
   .execute();
 
 // Advanced query with conditions
 const result = await table
   .query({
-    pk: "USER#123",
+    pk: "SPECIES#velociraptor",
     sk: { operator: "begins_with", value: "PROFILE#" }
   })
-  .where("type", "=", "USER")
-  .whereGreaterThan("age", 25)
+  .where("type", "=", "DINOSAUR")
+  .whereGreaterThan("length", 6)
   .limit(10)
   .useIndex("GSI1")
   .execute();
@@ -162,8 +162,8 @@ const result = await table.scan().execute();
 // Filtered scan
 const result = await table
   .scan()
-  .whereEquals("type", "USER")
-  .where("age", ">", 25)
+  .whereEquals("type", "DINOSAUR")
+  .where("length", ">", 20)
   .limit(20)
   .execute();
 
@@ -174,19 +174,19 @@ const result = await table
 
 ```ts
 // Batch write (put)
-const items = [
-  { pk: "USER#123", sk: "PROFILE#123", name: "John Doe" },
-  { pk: "USER#124", sk: "PROFILE#124", name: "Jane Doe" },
+const dinos = [
+  { pk: "SPECIES#trex", sk: "PROFILE#001", name: "Rex", length: 40 },
+  { pk: "SPECIES#raptor", sk: "PROFILE#001", name: "Blue", length: 6 },
 ];
 
 await table.batchWrite(
-  items.map((item) => ({ type: "put", item }))
+  dinos.map((dino) => ({ type: "put", item: dino }))
 );
 
 // Batch write (delete)
 await table.batchWrite([
-  { type: "delete", key: { pk: "USER#123", sk: "PROFILE#123" } },
-  { type: "delete", key: { pk: "USER#124", sk: "PROFILE#124" } },
+  { type: "delete", key: { pk: "SPECIES#trex", sk: "PROFILE#001" } },
+  { type: "delete", key: { pk: "SPECIES#raptor", sk: "PROFILE#001" } },
 ]);
 
 // Batch operations automatically handle chunking for large datasets
@@ -200,9 +200,9 @@ Two ways to perform transactions:
 
 ```ts
 await table.withTransaction(async (trx) => {
-  table.put(item1).withTransaction(trx);
-  table.put(item2).withTransaction(trx);
-  table.delete(key3).withTransaction(trx);
+  table.put(trex).withTransaction(trx);
+  table.put(raptor).withTransaction(trx);
+  table.delete(brontoKey).withTransaction(trx);
 });
 ```
 
@@ -213,76 +213,107 @@ const transaction = new TransactionBuilder();
 
 transaction
   .addOperation({
-    put: { item: item1 }
+    put: { item: trex }
   })
   .addOperation({
-    put: { item: item2 }
+    put: { item: raptor }
   })
   .addOperation({
-    delete: { key: key3 }
+    delete: { key: brontoKey }
   });
 
 await table.transactWrite(transaction);
 ```
 
-### Repository Pattern
+## Repository Pattern
 
 Create a repository by extending the `BaseRepository` class.
 
 ```ts
 import { BaseRepository } from "dyno-table";
 
-type UserRecord = {
+type DinoRecord = {
   id: string;
   name: string;
-  email: string;
-  age: number;
+  diet: string;
+  length: number;
 };
 
-class UserRepository extends BaseRepository<UserRecord> {
-  protected createPrimaryKey(data: UserRecord) {
+class DinoRepository extends BaseRepository<DinoRecord> {
+  protected createPrimaryKey(data: DinoRecord) {
     return {
-      pk: `USER#${data.id}`,
+      pk: `SPECIES#${data.id}`,
       sk: `PROFILE#${data.id}`,
     };
   }
 
   protected getType() {
-    return "USER";
+    return "DINOSAUR";
   }
 
-  /**
-   * This allows dyno-table to work in a single table design
-   */
-  protected getTypeAttributeName(): string {
-    return "_type";
+  // Add custom methods
+  async findByDiet(diet: string) {
+    return this.scan()
+      .whereEquals("diet", diet)
+      .execute();
+  }
+
+  async findLargerThan(length: number) {
+    return this.scan()
+      .whereGreaterThan("length", length)
+      .execute();
   }
 }
-
-const userRepository = new UserRepository(table);
 ```
 
-Use the repository for CRUD operations:
+### Repository Operations
+
+The repository pattern in dyno-table not only provides a clean abstraction but also ensures data isolation through type-scoping. All operations available on the `Table` class are also available on your repository, but they're automatically scoped to the repository's type.
 
 ```ts
-// Create
-const user = { id: "123", name: "John Doe", email: "john@example.com", age: 30 };
-await userRepository.create(user).execute();
+const dinoRepo = new DinoRepository(table);
 
-// Read
-const user = await userRepository.findOne({ pk: "USER#123", sk: "PROFILE#123" });
+// Query all T-Rexes - automatically includes type="DINOSAUR" condition
+const rexes = await dinoRepo
+  .query({ pk: "SPECIES#trex" })
+  .execute();
 
-// Update
-await userRepository.update({ pk: "USER#123", sk: "PROFILE#123" }, { age: 31 });
+// Scan for large carnivores - automatically includes type="DINOSAUR"
+const largeCarnivores = await dinoRepo
+  .scan()
+  .whereEquals("diet", "Carnivore")
+  .whereGreaterThan("length", 30)
+  .execute();
 
-// Delete
-await userRepository.delete({ pk: "USER#123", sk: "PROFILE#123" }).execute();
+// Put operation, the type attribute is automatically along with the primary key/secondary key is created
+await dinoRepo.create({
+  id: "trex",
+  name: "Rex",
+  diet: "Carnivore",
+  length: 40
+}).execute();
+
+// Update operation
+await dinoRepo
+  .update({ pk: "SPECIES#trex", sk: "PROFILE#001" })
+  .set("diet", "Omnivore")
+  .execute();
+
+// Delete operation
+await dinoRepo
+  .delete({ pk: "SPECIES#trex", sk: "PROFILE#001" })
+  .execute();
 ```
 
+This type-scoping ensures that:
+- Each repository only accesses its own data type
+- Queries automatically include type filtering
+- Put operations automatically include the type attribute
+- Updates and deletes are constrained to the correct type
+
+This pattern is particularly useful in single-table designs where multiple entity types share the same table. Each repository provides a type-safe, isolated view of its own data while preventing accidental cross-type operations.
+
 ## Contributing 🤝
-
-### Developing
-
 ```bash
 # Installing the dependencies
 pnpm i
@@ -291,7 +322,7 @@ pnpm i
 pnpm i @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
-### Testing
+### Developing
 
 ```bash
 docker run -p 8000:8000 amazon/dynamodb-local
