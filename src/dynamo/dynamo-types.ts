@@ -77,6 +77,7 @@ export interface DynamoUpdateOperation {
   key: PrimaryKeyWithoutExpression;
   update: DynamoExpression;
   condition?: DynamoExpression;
+  returnValues: "ALL_NEW" | "ALL_OLD" | "UPDATED_NEW" | "UPDATED_OLD";
 }
 
 export interface DynamoQueryOperation {
