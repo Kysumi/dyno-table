@@ -112,3 +112,10 @@ export type PrimaryKeyWithoutExpression = {
 export type BatchWriteOperation =
   | { type: "put"; item: Record<string, unknown> }
   | { type: "delete"; key: PrimaryKeyWithoutExpression };
+
+export type DynamoOperation =
+  | DynamoPutOperation
+  | DynamoUpdateOperation
+  | DynamoDeleteOperation
+  | DynamoQueryOperation
+  | DynamoScanOperation;
