@@ -11,6 +11,7 @@ import type { DynamoRecord } from "./types";
 export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoScanOperation> {
   private limitValue?: number;
   private indexNameValue?: string;
+  private consistentReadValue = false;
   private pageKeyValue?: Record<string, unknown>;
 
   constructor(
@@ -44,6 +45,10 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
    * - To use a specific index: `scanBuilder.useIndex("GSI1");`
    */
   useIndex(indexName: string) {
+    if (this.consistentReadValue) {
+      throw new Error("Cannot use an index when consistent read is enabled.");
+    }
+
     this.indexNameValue = indexName;
     return this;
   }
@@ -59,6 +64,23 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
    */
   startKey(key: Record<string, unknown>) {
     this.pageKeyValue = key;
+    return this;
+  }
+
+  /**
+   * Enables consistent read for the query operation.
+   * Can only be used when querying the primary index.
+   *
+   * @returns The current instance of QueryBuilder for method chaining.
+   *
+   * Usage:
+   * - To enable consistent read: `queryBuilder.consistentRead();`
+   */
+  consistentRead() {
+    if (this.indexNameValue) {
+      throw new Error("Consistent read can only be used with the primary index.");
+    }
+    this.consistentReadValue = true;
     return this;
   }
 
@@ -85,6 +107,7 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
       limit: this.limitValue,
       pageKey: this.pageKeyValue,
       indexName: this.indexNameValue,
+      consistentRead: this.consistentReadValue,
     };
   }
 
