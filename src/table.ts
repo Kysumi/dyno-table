@@ -11,14 +11,12 @@ import type { DynamoRecord } from "./builders/types";
 import { TransactionBuilder } from "./builders/transaction-builder";
 import { DeleteBuilder } from "./builders/delete-builder";
 
-type IndexConfig = Record<string, TableIndexConfig> & {
-  primary: TableIndexConfig;
-};
+type RequiredIndexConfig<T extends string> = Record<T | "primary", TableIndexConfig>;
 
-export class Table {
+export class Table<TIndexes extends string> {
   private readonly dynamoService: DynamoService;
   private readonly expressionBuilder: ExpressionBuilder;
-  private readonly indexes: IndexConfig;
+  private readonly indexes: RequiredIndexConfig<TIndexes>;
 
   constructor({
     client,
@@ -28,7 +26,7 @@ export class Table {
   }: {
     client: DynamoDBDocument;
     tableName: string;
-    tableIndexes: IndexConfig;
+    tableIndexes: RequiredIndexConfig<TIndexes>;
     expressionBuilder?: ExpressionBuilder;
   }) {
     this.dynamoService = new DynamoService(client, tableName);
@@ -36,16 +34,14 @@ export class Table {
     this.indexes = tableIndexes;
   }
 
-  getIndexConfig(indexName?: string): TableIndexConfig {
-    if (!indexName) {
+  getIndexConfig(indexName: TIndexes | "primary"): TableIndexConfig {
+    if (indexName === "primary") {
       return this.indexes.primary;
     }
-
-    if (this.indexes[indexName]) {
-      return this.indexes[indexName];
+    if (!this.indexes[indexName]) {
+      throw new Error(`Index ${indexName} does not exist`);
     }
-
-    throw new Error(`Index ${indexName} does not exist`);
+    return this.indexes[indexName];
   }
 
   put<T extends DynamoRecord>(item: T): PutBuilder<T> {
@@ -67,15 +63,19 @@ export class Table {
     });
   }
 
-  query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T> {
-    return new QueryBuilder<T>(key, this.getIndexConfig(), this.expressionBuilder, async (operation) => {
-      const result = await this.dynamoService.query(operation);
-      return result.Items as T[];
-    });
+  query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T, TIndexes> {
+    return new QueryBuilder<T, TIndexes>(
+      key,
+      this.getIndexConfig("primary"),
+      this.expressionBuilder,
+      async (operation) => {
+        return await this.dynamoService.query(operation);
+      },
+    );
   }
 
-  async get(key: PrimaryKeyWithoutExpression, options?: { indexName?: string }) {
-    const indexConfig = this.getIndexConfig(options?.indexName);
+  async get(key: PrimaryKeyWithoutExpression, options?: { indexName?: TIndexes }) {
+    const indexConfig = this.getIndexConfig(options?.indexName || "primary");
     const keyObject = this.buildKeyFromIndex(key, indexConfig);
 
     const result = await this.dynamoService.get(keyObject, options);

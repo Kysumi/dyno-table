@@ -12,7 +12,7 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
   constructor(
     private readonly key: PrimaryKeyWithoutExpression,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoUpdateOperation) => Promise<{ Attributes?: T }>,
+    private readonly onBuild: (operation: DynamoUpdateOperation) => Promise<T>,
   ) {
     super(expressionBuilder);
   }
@@ -153,7 +153,7 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    *
    * Note: Cannot be called after withTransaction.
    */
-  async execute(): Promise<{ Attributes?: T }> {
+  async execute(): Promise<T> {
     if (this.inTransaction) {
       throw new Error("Cannot call execute after withTransaction");
     }

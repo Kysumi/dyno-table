@@ -7,8 +7,8 @@ import type { PrimaryKey } from "../builders/operators";
 import type { DeleteBuilder } from "../builders/delete-builder";
 import type { ScanBuilder } from "../builders/scan-builder";
 
-export abstract class BaseRepository<TData extends DynamoRecord> {
-  constructor(protected readonly table: Table) {}
+export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extends string> {
+  constructor(protected readonly table: Table<TIndexes>) {}
 
   /**
    * Templates out the primary key for the record, it is consumed for create, put, update and delete actions
@@ -111,7 +111,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @param updates - The partial record data to be updated.
    * @returns A promise that resolves to the updated record or null if the record does not exist.
    */
-  async update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>): Promise<TData> {
+  update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>) {
     const processed = this.beforeUpdate(updates);
 
     const updateData = {
@@ -119,7 +119,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
       updatedAt: new Date().toISOString(),
     };
 
-    return this.table.update<TData>(key).set(updateData).return("ALL_NEW").execute() as Promise<TData>;
+    return this.table.update<TData>(key).set(updateData).return("ALL_NEW");
   }
 
   /**
@@ -192,7 +192,7 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @param key - The primary key of the record.
    * @returns A QueryBuilder instance to build and execute the query.
    */
-  query(key: PrimaryKey): QueryBuilder<TData> {
+  query(key: PrimaryKey): QueryBuilder<TData, TIndexes> {
     return this.table
       .query<TData>(key)
       .whereEquals(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData]);
@@ -203,6 +203,8 @@ export abstract class BaseRepository<TData extends DynamoRecord> {
    * @returns A ScanBuilder instance to build and execute the scan operation.
    */
   scan(): ScanBuilder<TData> {
-    return this.table.scan().whereEquals(this.getTypeAttributeName(), this.getType());
+    return this.table
+      .scan<TData>()
+      .whereEquals(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData]);
   }
 }

@@ -9,9 +9,12 @@ import type { DynamoRecord } from "./types";
  * Builder class for constructing DynamoDB query operations.
  * Allows setting various parameters for a query operation.
  */
-export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoQueryOperation> {
+export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> extends OperationBuilder<
+  T,
+  DynamoQueryOperation
+> {
   private limitValue?: number;
-  private indexNameValue?: string;
+  private indexNameValue?: TIndexes;
   private consistentReadValue = false;
   private pageKeyValue?: Record<string, unknown>;
 
@@ -19,7 +22,7 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
     private readonly key: PrimaryKey,
     private readonly indexConfig: TableIndexConfig,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoQueryOperation) => Promise<T[]>,
+    private readonly onBuild: (operation: DynamoQueryOperation) => Promise<DynamoQueryResponse>,
   ) {
     super(expressionBuilder);
   }
@@ -63,7 +66,7 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
    * Usage:
    * - To use a specific index: `queryBuilder.useIndex("GSI1");`
    */
-  useIndex(indexName: string) {
+  useIndex(indexName: TIndexes) {
     if (this.consistentReadValue) {
       throw new Error("Cannot use an index when consistent read is enabled.");
     }
@@ -87,6 +90,21 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
     }
     this.consistentReadValue = true;
     return this;
+  }
+
+  /**
+   * Executes the query operation with the configured parameters.
+   *
+   * @returns A promise that resolves to an array of items matching the query criteria.
+   *
+   * Usage:
+   * - To execute the query: `const results = await queryBuilder.execute();`
+   */
+  async execute(): Promise<T[]> {
+    const response = await this.onBuild(this.build());
+
+    const items = response.Items ?? [];
+    return items as T[];
   }
 
   /**
@@ -120,17 +138,5 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
       pageKey: this.pageKeyValue,
       consistentRead: this.consistentReadValue,
     };
-  }
-
-  /**
-   * Executes the query operation.
-   *
-   * @returns A promise that resolves to the query results.
-   *
-   * Usage:
-   * - To execute the operation: `await queryBuilder.execute();`
-   */
-  async execute() {
-    return this.onBuild(this.build());
   }
 }

@@ -98,10 +98,9 @@ describe("BaseRepository Integration Tests", () => {
       age: 31,
     };
 
-    const updatedUser = await userRepository.update(
-      { pk: `USER#${testUser.id}`, sk: `PROFILE#${testUser.id}` },
-      updates,
-    );
+    const updatedUser = await userRepository
+      .update({ pk: `USER#${testUser.id}`, sk: `PROFILE#${testUser.id}` }, updates)
+      .execute();
 
     expect(updatedUser).toHaveProperty("updatedAt");
     expect(updatedUser?.email).toBe(updates.email);
