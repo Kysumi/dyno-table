@@ -1,18 +1,18 @@
-import type { PrimaryKeyWithoutExpression, DynamoUpdateOperation } from "../dynamo/dynamo-types";
+import type { PrimaryKeyWithoutExpression, DynamoUpdateOptions } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { TransactionBuilder } from "./transaction-builder";
 import type { DynamoRecord } from "./types";
 
-export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoUpdateOperation> {
+export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoUpdateOptions> {
   private updates: Partial<T> = {};
   private inTransaction = false;
-  private returnValues: DynamoUpdateOperation["returnValues"] = "ALL_NEW";
+  private returnValues: DynamoUpdateOptions["returnValues"] = "ALL_NEW";
 
   constructor(
     private readonly key: PrimaryKeyWithoutExpression,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoUpdateOperation) => Promise<{ Attributes?: T }>,
+    private readonly onBuild: (operation: DynamoUpdateOptions) => Promise<T>,
   ) {
     super(expressionBuilder);
   }
@@ -90,7 +90,7 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    * Usage:
    * - To set return values: `updateBuilder.return("ALL_NEW");`
    */
-  return(valuesToReturn: DynamoUpdateOperation["returnValues"]) {
+  return(valuesToReturn: DynamoUpdateOptions["returnValues"]) {
     this.returnValues = valuesToReturn;
     return this;
   }
@@ -103,12 +103,11 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    * Usage:
    * - To build the operation: `const operation = updateBuilder.build();`
    */
-  build(): DynamoUpdateOperation {
+  build(): DynamoUpdateOptions {
     const condition = this.buildConditionExpression();
     const update = this.expressionBuilder.buildUpdateExpression(this.updates);
 
     return {
-      type: "update",
       key: this.key,
       update: {
         expression: update.expression,
@@ -153,7 +152,7 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    *
    * Note: Cannot be called after withTransaction.
    */
-  async execute(): Promise<{ Attributes?: T }> {
+  async execute(): Promise<T> {
     if (this.inTransaction) {
       throw new Error("Cannot call execute after withTransaction");
     }

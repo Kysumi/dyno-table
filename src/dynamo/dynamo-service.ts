@@ -12,6 +12,7 @@ import type {
   DynamoBatchWriteItem,
   DynamoTransactItem,
 } from "./dynamo-types";
+import type { DynamoRecord } from "../builders/types";
 
 const BATCH_WRITE_LIMIT = 25;
 const TRANSACTION_LIMIT = 100;
@@ -91,7 +92,7 @@ export class DynamoService {
     }
   }
 
-  async query(options: DynamoQueryOptions) {
+  async query(options: DynamoQueryOptions): Promise<DynamoQueryResponse> {
     try {
       if (options.autoPaginate) {
         return await this.executeWithAutoPagination(options);
@@ -154,14 +155,14 @@ export class DynamoService {
     }
   }
 
-  private async executeWithAutoPagination(options: DynamoQueryOptions) {
-    const allItems: unknown[] = [];
+  private async executeWithAutoPagination(options: DynamoQueryOptions): Promise<DynamoQueryResponse> {
+    const allItems: DynamoRecord[] = [];
     let lastEvaluatedKey: Record<string, unknown> | undefined;
 
     do {
       const result = await this.query({
         ...options,
-        pageKey: lastEvaluatedKey,
+        exclusiveStartKey: lastEvaluatedKey,
         autoPaginate: false,
       });
 

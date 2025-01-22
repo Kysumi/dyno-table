@@ -1,4 +1,4 @@
-import type { DynamoPutOperation } from "../dynamo/dynamo-types";
+import type { DynamoPutOptions } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { TransactionBuilder } from "./transaction-builder";
@@ -8,14 +8,14 @@ import type { DynamoRecord } from "./types";
  * Builder class for constructing DynamoDB put operations.
  * Allows setting various parameters for a put operation.
  */
-export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoPutOperation> {
+export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoPutOptions> {
   private item: T;
   private inTransaction = false;
 
   constructor(
     item: T,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoPutOperation) => Promise<T>,
+    private readonly onBuild: (operation: DynamoPutOptions) => Promise<T>,
   ) {
     super(expressionBuilder);
     this.item = item;
@@ -58,11 +58,10 @@ export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyna
    * Usage:
    * - To build the operation: `const operation = putBuilder.build();`
    */
-  build(): DynamoPutOperation {
+  build(): DynamoPutOptions {
     const { expression, attributes } = this.buildConditionExpression();
 
     return {
-      type: "put",
       item: this.item,
       condition: expression
         ? {

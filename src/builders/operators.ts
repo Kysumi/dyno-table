@@ -48,3 +48,5 @@ export interface TableIndexConfig {
   pkName: string;
   skName?: string;
 }
+
+export type RequiredIndexConfig<T extends string> = Record<T | "primary", TableIndexConfig>;

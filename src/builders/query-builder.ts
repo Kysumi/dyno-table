@@ -1,27 +1,32 @@
 import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
-import type { DynamoQueryOperation } from "../dynamo/dynamo-types";
+import type { DynamoQueryOptions } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
-import type { PrimaryKey, TableIndexConfig } from "./operators";
-import type { DynamoRecord } from "./types";
+import type { PrimaryKey, RequiredIndexConfig, TableIndexConfig } from "./operators";
+import type { DynamoRecord, QueryPaginator } from "./types";
 
 /**
  * Builder class for constructing DynamoDB query operations.
  * Allows setting various parameters for a query operation.
  */
-export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoQueryOperation> {
+export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> extends OperationBuilder<
+  T,
+  DynamoQueryOptions
+> {
   private limitValue?: number;
-  private indexNameValue?: string;
+  private indexNameValue: TIndexes;
   private consistentReadValue = false;
-  private pageKeyValue?: Record<string, unknown>;
+  private lastEvaluatedKey?: Record<string, unknown>;
+  private sortDirectionValue: "asc" | "desc" = "asc";
 
   constructor(
     private readonly key: PrimaryKey,
-    private readonly indexConfig: TableIndexConfig,
+    private readonly indexConfig: RequiredIndexConfig<TIndexes>,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoQueryOperation) => Promise<T[]>,
+    private readonly onBuild: (operation: DynamoQueryOptions) => Promise<DynamoQueryResponse>,
   ) {
     super(expressionBuilder);
+    this.indexNameValue = "primary" as TIndexes;
   }
 
   /**
@@ -39,20 +44,6 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
   }
 
   /**
-   * Sets the starting key for the scan operation.
-   *
-   * @param key - The key to start the scan from.
-   * @returns The current instance of ScanBuilder for method chaining.
-   *
-   * Usage:
-   * - To start the scan from a specific key: `scanBuilder.startKey({ pk: "USER#123" });`
-   */
-  startKey(key: Record<string, unknown>) {
-    this.pageKeyValue = key;
-    return this;
-  }
-
-  /**
    * Specifies the index to use for the query operation.
    *
    * DynamoDB does not support consistent reads on global secondary indexes.
@@ -63,9 +54,13 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
    * Usage:
    * - To use a specific index: `queryBuilder.useIndex("GSI1");`
    */
-  useIndex(indexName: string) {
+  useIndex(indexName: TIndexes) {
     if (this.consistentReadValue) {
       throw new Error("Cannot use an index when consistent read is enabled.");
+    }
+
+    if (!(indexName in this.indexConfig)) {
+      throw new Error(`Index "${indexName}" is not configured for this table.`);
     }
 
     this.indexNameValue = indexName;
@@ -90,6 +85,73 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
   }
 
   /**
+   * Configures pagination for the query operation.
+   *
+   * @returns An object with methods to manage pagination.
+   *
+   * Usage:
+   * - To paginate results: `const paginator = queryBuilder.paginate(10);`
+   */
+  paginate(): QueryPaginator<T> {
+    return {
+      hasNextPage: () => !!this.lastEvaluatedKey,
+      getPage: async () => {
+        const response = await this.execute();
+        return {
+          items: response,
+          nextPageToken: this.lastEvaluatedKey,
+        };
+      },
+    };
+  }
+
+  /**
+   * Configures the sort direction for the query operation.
+   *
+   * By default the sort direction is ascending.
+   *
+   * @param direction - The direction to sort the results in.
+   * @returns The current instance of QueryBuilder for method chaining.
+   *
+   * Usage:
+   * - To sort results in ascending order: `queryBuilder.sort("asc");`
+   */
+  sort(direction: "asc" | "desc") {
+    this.sortDirectionValue = direction;
+    return this;
+  }
+
+  /**
+   * Sets the starting key for the query operation.
+   *
+   * @param key - The key to start the query from.
+   * @returns The current instance of QueryBuilder for method chaining.
+   *
+   * Usage:
+   * - To start the query from a specific key: `queryBuilder.startKey({ pk: "USER#123" });`
+   */
+  startKey(key: Record<string, unknown>) {
+    this.lastEvaluatedKey = key;
+    return this;
+  }
+
+  /**
+   * Executes the query operation with the configured parameters.
+   *
+   * @returns A promise that resolves to an array of items matching the query criteria.
+   *
+   * Usage:
+   * - To execute the query: `const results = await queryBuilder.execute();`
+   */
+  async execute(): Promise<T[]> {
+    const response = await this.onBuild(this.build());
+
+    this.lastEvaluatedKey = response.LastEvaluatedKey;
+    const items = response.Items ?? [];
+    return items as T[];
+  }
+
+  /**
    * Builds the query operation into a DynamoQueryOperation object.
    *
    * @returns A DynamoQueryOperation object representing the query operation.
@@ -97,12 +159,12 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
    * Usage:
    * - To build the operation: `const operation = queryBuilder.build();`
    */
-  build(): DynamoQueryOperation {
+  build(): DynamoQueryOptions {
     const filter = this.buildConditionExpression();
-    const keyCondition = this.expressionBuilder.buildKeyCondition(this.key, this.indexConfig);
+    const index = this.indexConfig[this.indexNameValue];
+    const keyCondition = this.expressionBuilder.buildKeyCondition(this.key, index);
 
     return {
-      type: "query",
       keyCondition: {
         expression: keyCondition.expression,
         names: keyCondition.attributes.names,
@@ -117,20 +179,9 @@ export class QueryBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dy
         : undefined,
       limit: this.limitValue,
       indexName: this.indexNameValue,
-      pageKey: this.pageKeyValue,
+      exclusiveStartKey: this.lastEvaluatedKey,
       consistentRead: this.consistentReadValue,
+      sortDirection: this.sortDirectionValue,
     };
-  }
-
-  /**
-   * Executes the query operation.
-   *
-   * @returns A promise that resolves to the query results.
-   *
-   * Usage:
-   * - To execute the operation: `await queryBuilder.execute();`
-   */
-  async execute() {
-    return this.onBuild(this.build());
   }
 }

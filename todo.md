@@ -16,6 +16,15 @@
       * store the success or failure state message
     * lock the migration table to prevent multiple migrations from running at the same time
 
+    allow glueing repositories together
+      * query method would restrict types returned to the glued repository
+         * would return the items in a structured manor
+         * would have to define the relationship and relationship names
+
+    making pagination better
+      * it'd be nice to do a query/scan and get a paginated result
+      * const pages = await repo.query(query).execute() ? Maybe
+
 # TODO
 * wind repos back to being really thin pre typed expression builder
   * this is to lower scope and make it easier to maintain through reducing complexity
@@ -33,8 +42,6 @@
 
 * allow db to taking in logging library
   * allow verbose logging to be turned on
-
-* string templating for GSI/Index names
 
 
 Flip the API for the batch and transaction methods
