@@ -43,8 +43,6 @@
 * allow db to taking in logging library
   * allow verbose logging to be turned on
 
-* string templating for GSI/Index names
-
 
 Flip the API for the batch and transaction methods
 * it should pass down a "table" object that has the allowed operations on it for batch/transaction
