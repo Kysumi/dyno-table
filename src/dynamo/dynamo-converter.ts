@@ -93,6 +93,8 @@ export class DynamoConverter {
    * Convert our format to DynamoDB query command input
    */
   toQueryCommand(options: DynamoQueryOptions): QueryCommandInput {
+    const index = options.indexName === "primary" ? undefined : options.indexName;
+
     return {
       TableName: this.tableName,
       ...(options.keyCondition && {
@@ -109,7 +111,7 @@ export class DynamoConverter {
       ...(options.filter && {
         FilterExpression: options.filter.expression,
       }),
-      IndexName: options.indexName,
+      IndexName: index,
       Limit: options.limit,
       ExclusiveStartKey: options.exclusiveStartKey,
       ConsistentRead: options.consistentRead,
@@ -121,6 +123,7 @@ export class DynamoConverter {
    * Convert our format to DynamoDB scan command input
    */
   toScanCommand(options: DynamoScanOptions): ScanCommandInput {
+    const index = options.indexName === "primary" ? undefined : options.indexName;
     return {
       TableName: this.tableName,
       ...(options.filter && {
@@ -128,7 +131,7 @@ export class DynamoConverter {
         ExpressionAttributeNames: options.filter.names,
         ExpressionAttributeValues: options.filter.values,
       }),
-      IndexName: options.indexName,
+      IndexName: index,
       Limit: options.limit,
       ExclusiveStartKey: options.exclusiveStartKey,
       ConsistentRead: options.consistentRead,

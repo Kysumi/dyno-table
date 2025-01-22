@@ -472,9 +472,11 @@ describe("Table Integration Tests", () => {
       ).rejects.toThrow();
     });
 
-    it("should validate index names", async () => {
+    it("should validate index names", () => {
       // @ts-expect-error - This is a test
-      await expect(table.query({ pk: "TEST" }).useIndex("NonexistentIndex").execute()).rejects.toThrow(DynamoError);
+      expect(() => table.query({ pk: "TEST" }).useIndex("NonexistentIndex")).toThrow(
+        'Index "NonexistentIndex" is not configured for this table.',
+      );
     });
   });
 });

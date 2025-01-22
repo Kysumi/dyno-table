@@ -43,7 +43,7 @@ export class Table<TIndexes extends string> {
     return new PutBuilder(item, this.expressionBuilder, async (operation) => {
       // TODO: Make it so the end user can specify if they want the additional DATA
       // about the query to be returned like capcity units ect
-      const result = await this.dynamoService.put(operation);
+      await this.dynamoService.put(operation);
 
       // Return the item that was placed into the table
       return item;
