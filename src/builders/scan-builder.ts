@@ -1,8 +1,8 @@
 import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
 import { OperationBuilder } from "./operation-builder";
 import type { IExpressionBuilder } from "./expression-builder";
-import type { DynamoScanOperation } from "../dynamo/dynamo-types";
 import type { DynamoRecord } from "./types";
+import type { DynamoScanOptions } from "../dynamo/dynamo-types";
 
 /**
  * Builder class for constructing DynamoDB scan operations.
@@ -10,7 +10,7 @@ import type { DynamoRecord } from "./types";
  */
 export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = string> extends OperationBuilder<
   T,
-  DynamoScanOperation
+  DynamoScanOptions
 > {
   private limitValue?: number;
   private indexNameValue?: TIndexes;
@@ -19,7 +19,7 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
 
   constructor(
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoScanOperation) => Promise<DynamoQueryResponse>,
+    private readonly onBuild: (operation: DynamoScanOptions) => Promise<DynamoQueryResponse>,
   ) {
     super(expressionBuilder);
   }
@@ -110,11 +110,10 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
    * Usage:
    * - To build the operation: `const operation = scanBuilder.build();`
    */
-  build(): DynamoScanOperation {
+  build(): DynamoScanOptions {
     const filter = this.buildConditionExpression();
 
     return {
-      type: "scan",
       filter: filter.expression
         ? {
             expression: filter.expression,

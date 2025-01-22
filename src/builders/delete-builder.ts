@@ -1,4 +1,4 @@
-import type { DynamoDeleteOperation, PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
+import type { DynamoDeleteOptions, PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { TransactionBuilder } from "./transaction-builder";
@@ -8,13 +8,13 @@ import type { DynamoRecord } from "./types";
  * Builder class for constructing DynamoDB delete operations.
  * Allows setting various parameters for a delete operation.
  */
-export class DeleteBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoDeleteOperation> {
+export class DeleteBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoDeleteOptions> {
   private inTransaction = false;
 
   constructor(
     private readonly key: PrimaryKeyWithoutExpression,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoDeleteOperation) => Promise<void>,
+    private readonly onBuild: (operation: DynamoDeleteOptions) => Promise<void>,
   ) {
     super(expressionBuilder);
   }
@@ -27,11 +27,10 @@ export class DeleteBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    * Usage:
    * - To build the operation: `const operation = deleteBuilder.build();`
    */
-  build(): DynamoDeleteOperation {
+  build(): DynamoDeleteOptions {
     const condition = this.buildConditionExpression();
 
     return {
-      type: "delete",
       key: this.key,
       condition: condition.expression
         ? {

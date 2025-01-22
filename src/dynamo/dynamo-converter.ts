@@ -24,19 +24,6 @@ export class DynamoConverter {
   constructor(private readonly tableName: string) {}
 
   /**
-   * Converts our expression format to DynamoDB expression format
-   */
-  private convertExpression(expr?: DynamoExpression) {
-    if (!expr) return {};
-
-    return {
-      ...(expr.expression && { Expression: expr.expression }),
-      ...(expr.names && { ExpressionAttributeNames: expr.names }),
-      ...(expr.values && { ExpressionAttributeValues: expr.values }),
-    };
-  }
-
-  /**
    * Convert our format to DynamoDB put command input
    */
   toPutCommand(options: DynamoPutOptions): PutCommandInput {
@@ -126,6 +113,7 @@ export class DynamoConverter {
       Limit: options.limit,
       ExclusiveStartKey: options.pageKey,
       ConsistentRead: options.consistentRead,
+      ScanIndexForward: options.sortDirection === "asc",
     };
   }
 

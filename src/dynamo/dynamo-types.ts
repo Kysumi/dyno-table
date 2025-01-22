@@ -19,11 +19,15 @@ export interface DynamoQueryOptions {
   pageKey?: Record<string, unknown>;
   autoPaginate?: boolean;
   consistentRead?: boolean;
+  sortDirection?: "asc" | "desc";
 }
 
 export interface DynamoPutOptions {
   item: Record<string, unknown>;
   condition?: DynamoExpression;
+  // Only option that does anything according to docs
+  // https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html#API_PutItem_ResponseElements
+  returnValues?: "ALL_OLD";
 }
 
 export interface DynamoUpdateOptions {
@@ -66,45 +70,6 @@ export interface DynamoTransactItem {
   };
 }
 
-export interface DynamoPutOperation {
-  type: "put";
-  item: Record<string, unknown>;
-  condition?: DynamoExpression;
-  returnValues: "ALL_NEW" | "ALL_OLD" | "UPDATED_NEW" | "UPDATED_OLD";
-}
-
-export interface DynamoUpdateOperation {
-  type: "update";
-  key: PrimaryKeyWithoutExpression;
-  update: DynamoExpression;
-  condition?: DynamoExpression;
-  returnValues: "ALL_NEW" | "ALL_OLD" | "UPDATED_NEW" | "UPDATED_OLD";
-}
-
-export interface DynamoQueryOperation {
-  type: "query";
-  keyCondition?: DynamoExpression;
-  filter?: DynamoExpression;
-  limit?: number;
-  indexName?: string;
-  consistentRead?: boolean;
-  pageKey?: Record<string, unknown>;
-}
-
-export interface DynamoDeleteOperation {
-  type: "delete";
-  key: PrimaryKeyWithoutExpression;
-  condition?: DynamoExpression;
-}
-
-export interface DynamoScanOperation {
-  type: "scan";
-  filter?: DynamoExpression;
-  limit?: number;
-  pageKey?: Record<string, unknown>;
-  indexName?: string;
-}
-
 export type PrimaryKeyWithoutExpression = {
   pk: string;
   sk?: string;
@@ -115,8 +80,8 @@ export type BatchWriteOperation =
   | { type: "delete"; key: PrimaryKeyWithoutExpression };
 
 export type DynamoOperation =
-  | DynamoPutOperation
-  | DynamoUpdateOperation
-  | DynamoDeleteOperation
-  | DynamoQueryOperation
-  | DynamoScanOperation;
+  | DynamoPutOptions
+  | DynamoUpdateOptions
+  | DynamoDeleteOptions
+  | DynamoQueryOptions
+  | DynamoScanOptions;

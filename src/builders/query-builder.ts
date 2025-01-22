@@ -1,5 +1,5 @@
 import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
-import type { DynamoQueryOperation } from "../dynamo/dynamo-types";
+import type { DynamoQueryOptions } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { PrimaryKey, TableIndexConfig } from "./operators";
@@ -11,18 +11,20 @@ import type { DynamoRecord } from "./types";
  */
 export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> extends OperationBuilder<
   T,
-  DynamoQueryOperation
+  DynamoQueryOptions
 > {
   private limitValue?: number;
   private indexNameValue?: TIndexes;
   private consistentReadValue = false;
   private pageKeyValue?: Record<string, unknown>;
+  private lastEvaluatedKey?: Record<string, unknown>;
+  private sortDirectionValue?: "asc" | "desc";
 
   constructor(
     private readonly key: PrimaryKey,
     private readonly indexConfig: TableIndexConfig,
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoQueryOperation) => Promise<DynamoQueryResponse>,
+    private readonly onBuild: (operation: DynamoQueryOptions) => Promise<DynamoQueryResponse>,
   ) {
     super(expressionBuilder);
   }
@@ -93,6 +95,46 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
   }
 
   /**
+   * Configures pagination for the query operation.
+   *
+   * @param pageSize - The number of items per page.
+   * @returns An object with methods to manage pagination.
+   *
+   * Usage:
+   * - To paginate results: `const paginator = queryBuilder.paginate(10);`
+   */
+  paginate(pageSize: number) {
+    this.limitValue = pageSize;
+
+    return {
+      hasNextPage: () => !!this.lastEvaluatedKey,
+      getPage: async () => {
+        const response = await this.execute();
+        return {
+          items: response,
+          nextPageToken: this.lastEvaluatedKey,
+        };
+      },
+    };
+  }
+
+  /**
+   * Configures the sort direction for the query operation.
+   *
+   * By default the sort direction is ascending.
+   *
+   * @param direction - The direction to sort the results in.
+   * @returns The current instance of QueryBuilder for method chaining.
+   *
+   * Usage:
+   * - To sort results in ascending order: `queryBuilder.sort("asc");`
+   */
+  sort(direction: "asc" | "desc") {
+    this.sortDirectionValue = direction;
+    return this;
+  }
+
+  /**
    * Executes the query operation with the configured parameters.
    *
    * @returns A promise that resolves to an array of items matching the query criteria.
@@ -103,6 +145,7 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
   async execute(): Promise<T[]> {
     const response = await this.onBuild(this.build());
 
+    this.lastEvaluatedKey = response.LastEvaluatedKey;
     const items = response.Items ?? [];
     return items as T[];
   }
@@ -115,12 +158,11 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
    * Usage:
    * - To build the operation: `const operation = queryBuilder.build();`
    */
-  build(): DynamoQueryOperation {
+  build(): DynamoQueryOptions {
     const filter = this.buildConditionExpression();
     const keyCondition = this.expressionBuilder.buildKeyCondition(this.key, this.indexConfig);
 
     return {
-      type: "query",
       keyCondition: {
         expression: keyCondition.expression,
         names: keyCondition.attributes.names,
@@ -137,6 +179,7 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
       indexName: this.indexNameValue,
       pageKey: this.pageKeyValue,
       consistentRead: this.consistentReadValue,
+      sortDirection: this.sortDirectionValue,
     };
   }
 }
