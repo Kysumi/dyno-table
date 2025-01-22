@@ -144,7 +144,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
       if (typeof key.sk === "string") {
         conditions.push(`${skName} = ${this.addValue(attributes, key.sk, "sk")}`);
       } else {
-        conditions.push(this.buildComparison(skName, key.sk.operator, key.sk.value, attributes));
+        conditions.push(this.buildComparison(skName, key.sk.operator, key.sk.value, attributes, "sk"));
       }
     }
 
