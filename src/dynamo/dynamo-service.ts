@@ -37,10 +37,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "PUT",
         tableName: this.tableName,
-        key: options.item,
-        expression: {
-          condition: options.condition?.expression,
-        },
+        commandInput: this.converter.toPutCommand(options),
       });
     }
   }
@@ -53,11 +50,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "UPDATE",
         tableName: this.tableName,
-        key: options.key,
-        expression: {
-          update: options.update.expression,
-          condition: options.condition?.expression,
-        },
+        commandInput: this.converter.toUpdateCommand(options),
       });
     }
   }
@@ -71,10 +64,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "DELETE",
         tableName: this.tableName,
-        key: options.key,
-        expression: {
-          condition: params.ConditionExpression,
-        },
+        commandInput: this.converter.toDeleteCommand(options),
       });
     }
   }
@@ -87,7 +77,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "GET",
         tableName: this.tableName,
-        key,
+        commandInput: this.converter.toGetCommand({ key, ...options }),
       });
     }
   }
@@ -104,10 +94,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "QUERY",
         tableName: this.tableName,
-        expression: {
-          keyCondition: options.keyCondition?.expression,
-          filter: options.filter?.expression,
-        },
+        commandInput: this.converter.toQueryCommand(options),
       });
     }
   }
@@ -120,9 +107,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "SCAN",
         tableName: this.tableName,
-        expression: {
-          filter: options.filter?.expression,
-        },
+        commandInput: this.converter.toScanCommand(options),
       });
     }
   }
@@ -135,6 +120,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "BATCH_WRITE",
         tableName: this.tableName,
+        commandInput: this.converter.toBatchWriteCommand(items),
       });
     }
   }
@@ -151,6 +137,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "TRANSACT_WRITE",
         tableName: this.tableName,
+        commandInput: this.converter.toTransactWriteCommand(items),
       });
     }
   }
