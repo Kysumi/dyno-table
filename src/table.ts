@@ -80,7 +80,9 @@ export class Table<TIndexes extends string> {
   }
 
   scan<T extends DynamoRecord>(): ScanBuilder<T, TIndexes> {
-    return new ScanBuilder(this.expressionBuilder, this.indexes, (operation) => this.dynamoService.scan(operation));
+    return new ScanBuilder<T, TIndexes>(this.expressionBuilder, this.indexes, (operation) =>
+      this.dynamoService.scan(operation),
+    );
   }
 
   async batchWrite(operations: BatchWriteOperation[]) {

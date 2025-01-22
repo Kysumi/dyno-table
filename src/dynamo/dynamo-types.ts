@@ -45,8 +45,9 @@ export interface DynamoDeleteOptions {
 export interface DynamoScanOptions {
   filter?: DynamoExpression;
   limit?: number;
-  pageKey?: Record<string, unknown>;
   indexName?: string;
+  exclusiveStartKey?: Record<string, unknown>;
+  consistentRead?: boolean;
 }
 
 export interface DynamoBatchWriteItem {

@@ -206,7 +206,7 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
    * Creates a scan builder for scanning records.
    * @returns A ScanBuilder instance to build and execute the scan operation.
    */
-  scan(): ScanBuilder<TData> {
+  scan(): ScanBuilder<TData, TIndexes> {
     return this.table
       .scan<TData>()
       .whereEquals(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData]);

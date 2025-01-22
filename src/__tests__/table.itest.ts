@@ -155,7 +155,7 @@ describe("Table Integration Tests", () => {
         await table.put({ ...testItem, pk: "USER#TEST", sk: `PROFILE#${i}` }).execute();
       }
 
-      const paginator = table.query({ pk: "USER#TEST" }).paginate(10);
+      const paginator = table.query({ pk: "USER#TEST" }).limit(10).paginate();
       const page1 = await paginator.getPage();
 
       expect(page1.items).toHaveLength(8);
@@ -174,7 +174,7 @@ describe("Table Integration Tests", () => {
 
       expect(insertCheck).toHaveLength(20);
 
-      const paginator = table.query({ pk: "USER#TEST" }).paginate(10);
+      const paginator = table.query({ pk: "USER#TEST" }).limit(10).paginate();
       const page1 = await paginator.getPage();
 
       expect(paginator.hasNextPage()).toBe(true);

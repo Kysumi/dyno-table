@@ -1,8 +1,9 @@
 import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
 import { OperationBuilder } from "./operation-builder";
 import type { IExpressionBuilder } from "./expression-builder";
-import type { DynamoRecord } from "./types";
+import type { DynamoRecord, QueryPaginator } from "./types";
 import type { DynamoScanOptions } from "../dynamo/dynamo-types";
+import type { RequiredIndexConfig } from "./operators";
 
 /**
  * Builder class for constructing DynamoDB scan operations.
@@ -15,10 +16,11 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
   private limitValue?: number;
   private indexNameValue?: TIndexes;
   private consistentReadValue = false;
-  private pageKeyValue?: Record<string, unknown>;
+  private lastEvaluatedKey?: Record<string, unknown>;
 
   constructor(
     expressionBuilder: IExpressionBuilder,
+    private readonly indexConfig: RequiredIndexConfig<TIndexes>,
     private readonly onBuild: (operation: DynamoScanOptions) => Promise<DynamoQueryResponse>,
   ) {
     super(expressionBuilder);
@@ -52,6 +54,10 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
       throw new Error("Cannot use an index when consistent read is enabled.");
     }
 
+    if (!(indexName in this.indexConfig)) {
+      throw new Error(`Index "${indexName}" is not configured for this table.`);
+    }
+
     this.indexNameValue = indexName;
     return this;
   }
@@ -66,7 +72,7 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
    * - To start the scan from a specific key: `scanBuilder.startKey({ pk: "USER#123" });`
    */
   startKey(key: Record<string, unknown>) {
-    this.pageKeyValue = key;
+    this.lastEvaluatedKey = key;
     return this;
   }
 
@@ -97,8 +103,30 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
    */
   async execute(): Promise<{ Items: T[] }> {
     const response = await this.onBuild(this.build());
+    this.lastEvaluatedKey = response.LastEvaluatedKey;
     return {
       Items: response.Items as T[],
+    };
+  }
+
+  /**
+   * Configures pagination for the query operation.
+   *
+   * @returns An object with methods to manage pagination.
+   *
+   * Usage:
+   * - To paginate results: `const paginator = queryBuilder.paginate(10);`
+   */
+  paginate(): QueryPaginator<T> {
+    return {
+      hasNextPage: () => !!this.lastEvaluatedKey,
+      getPage: async () => {
+        const response = await this.execute();
+        return {
+          items: response.Items,
+          nextPageToken: this.lastEvaluatedKey,
+        };
+      },
     };
   }
 
@@ -123,7 +151,8 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
         : undefined,
       limit: this.limitValue,
       indexName: this.indexNameValue,
-      pageKey: this.pageKeyValue,
+      exclusiveStartKey: this.lastEvaluatedKey,
+      consistentRead: this.consistentReadValue,
     };
   }
 }

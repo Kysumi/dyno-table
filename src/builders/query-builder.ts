@@ -87,15 +87,12 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
   /**
    * Configures pagination for the query operation.
    *
-   * @param pageSize - The number of items per page.
    * @returns An object with methods to manage pagination.
    *
    * Usage:
    * - To paginate results: `const paginator = queryBuilder.paginate(10);`
    */
-  paginate(pageSize: number): QueryPaginator<T> {
-    this.limitValue = pageSize;
-
+  paginate(): QueryPaginator<T> {
     return {
       hasNextPage: () => !!this.lastEvaluatedKey,
       getPage: async () => {
@@ -121,6 +118,20 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
    */
   sort(direction: "asc" | "desc") {
     this.sortDirectionValue = direction;
+    return this;
+  }
+
+  /**
+   * Sets the starting key for the query operation.
+   *
+   * @param key - The key to start the query from.
+   * @returns The current instance of QueryBuilder for method chaining.
+   *
+   * Usage:
+   * - To start the query from a specific key: `queryBuilder.startKey({ pk: "USER#123" });`
+   */
+  startKey(key: Record<string, unknown>) {
+    this.lastEvaluatedKey = key;
     return this;
   }
 
