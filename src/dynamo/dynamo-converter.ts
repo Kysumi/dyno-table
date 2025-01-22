@@ -111,7 +111,7 @@ export class DynamoConverter {
       }),
       IndexName: options.indexName,
       Limit: options.limit,
-      ExclusiveStartKey: options.pageKey,
+      ExclusiveStartKey: options.exclusiveStartKey,
       ConsistentRead: options.consistentRead,
       ScanIndexForward: options.sortDirection === "asc",
     };

@@ -16,7 +16,6 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
   private limitValue?: number;
   private indexNameValue?: TIndexes;
   private consistentReadValue = false;
-  private pageKeyValue?: Record<string, unknown>;
   private lastEvaluatedKey?: Record<string, unknown>;
   private sortDirectionValue?: "asc" | "desc";
 
@@ -40,20 +39,6 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
    */
   limit(value: number) {
     this.limitValue = value;
-    return this;
-  }
-
-  /**
-   * Sets the starting key for the scan operation.
-   *
-   * @param key - The key to start the scan from.
-   * @returns The current instance of ScanBuilder for method chaining.
-   *
-   * Usage:
-   * - To start the scan from a specific key: `scanBuilder.startKey({ pk: "USER#123" });`
-   */
-  startKey(key: Record<string, unknown>) {
-    this.pageKeyValue = key;
     return this;
   }
 
@@ -177,7 +162,7 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
         : undefined,
       limit: this.limitValue,
       indexName: this.indexNameValue,
-      pageKey: this.pageKeyValue,
+      exclusiveStartKey: this.lastEvaluatedKey,
       consistentRead: this.consistentReadValue,
       sortDirection: this.sortDirectionValue,
     };

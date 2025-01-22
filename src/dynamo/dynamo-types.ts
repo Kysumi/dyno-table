@@ -16,10 +16,10 @@ export interface DynamoQueryOptions {
   filter?: DynamoExpression;
   keyCondition?: DynamoExpression;
   limit?: number;
-  pageKey?: Record<string, unknown>;
   autoPaginate?: boolean;
   consistentRead?: boolean;
   sortDirection?: "asc" | "desc";
+  exclusiveStartKey?: Record<string, unknown>;
 }
 
 export interface DynamoPutOptions {
