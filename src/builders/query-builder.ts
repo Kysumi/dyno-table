@@ -17,7 +17,7 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
   private indexNameValue?: TIndexes;
   private consistentReadValue = false;
   private lastEvaluatedKey?: Record<string, unknown>;
-  private sortDirectionValue?: "asc" | "desc";
+  private sortDirectionValue: "asc" | "desc" = "asc";
 
   constructor(
     private readonly key: PrimaryKey,
