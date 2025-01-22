@@ -2,7 +2,7 @@ import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
 import type { DynamoQueryOptions } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
-import type { PrimaryKey, TableIndexConfig } from "./operators";
+import type { PrimaryKey, RequiredIndexConfig, TableIndexConfig } from "./operators";
 import type { DynamoRecord, QueryPaginator } from "./types";
 
 /**
@@ -14,18 +14,19 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
   DynamoQueryOptions
 > {
   private limitValue?: number;
-  private indexNameValue?: TIndexes;
+  private indexNameValue: TIndexes;
   private consistentReadValue = false;
   private lastEvaluatedKey?: Record<string, unknown>;
   private sortDirectionValue: "asc" | "desc" = "asc";
 
   constructor(
     private readonly key: PrimaryKey,
-    private readonly indexConfig: TableIndexConfig,
+    private readonly indexConfig: RequiredIndexConfig<TIndexes>,
     expressionBuilder: IExpressionBuilder,
     private readonly onBuild: (operation: DynamoQueryOptions) => Promise<DynamoQueryResponse>,
   ) {
     super(expressionBuilder);
+    this.indexNameValue = "primary" as TIndexes;
   }
 
   /**
@@ -149,7 +150,8 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
    */
   build(): DynamoQueryOptions {
     const filter = this.buildConditionExpression();
-    const keyCondition = this.expressionBuilder.buildKeyCondition(this.key, this.indexConfig);
+    const index = this.indexConfig[this.indexNameValue];
+    const keyCondition = this.expressionBuilder.buildKeyCondition(this.key, index);
 
     return {
       keyCondition: {

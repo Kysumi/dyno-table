@@ -85,7 +85,7 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
       ...data,
       ...key,
     };
-    const indexConfig = this.table.getIndexConfig("primary");
+    const indexConfig = this.table.getIndexConfig("primary" as TIndexes);
 
     const builder = this.table
       .put<TData>(item)
