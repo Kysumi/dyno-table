@@ -65,14 +65,14 @@ describe("QueryBuilder", () => {
         indexName: "primary",
         limit: undefined,
         keyCondition: {
-          expression: "#pk0 = :pk0 AND begins_with(#sk1, :v1)",
+          expression: "#pk0 = :pk0 AND begins_with(#sk1, :sk1)",
           names: {
             "#pk0": "pk",
             "#sk1": "sk",
           },
           values: {
             ":pk0": "SPECIES#trex",
-            ":v1": "SPECIMEN#",
+            ":sk1": "SPECIMEN#",
           },
         },
         consistentRead: false,
