@@ -1,6 +1,7 @@
+import { DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import { BaseRepository } from "../../src/repository/base-repository";
 import { Table } from "../../src/table";
-import { dbClient } from "../db-client";
+import { dbClient, makeNewTable } from "../db-client";
 
 type TDinosaur = {
   id: string;
@@ -8,6 +9,7 @@ type TDinosaur = {
   age: number;
   heightMeters: number;
   diet: "carnivore" | "herbivore" | "omnivore";
+  eats: { id: string; name: string }[];
 };
 
 const tableIndexes = {
@@ -15,9 +17,9 @@ const tableIndexes = {
     pkName: "pk",
     skName: "sk",
   },
-  gsi1: {
-    pkName: "gsi1pk",
-    skName: "gsi1sk",
+  GSI1: {
+    pkName: "GSI1PK",
+    skName: "GSI1SK",
   },
 };
 
@@ -41,38 +43,65 @@ class DinosaurRepo extends BaseRepository<TDinosaur, keyof typeof tableIndexes> 
     return this.query({
       pk: `paddock#${paddockId}`,
       sk: { operator: "begins_with", value: "dinosaurId#" },
-    }).useIndex("gsi1");
+    }).useIndex("GSI1");
   }
 }
 
-const table = new Table({
-  client: dbClient,
-  tableIndexes,
-  tableName: "jurassic-table",
-});
+async function main() {
+  console.log("Starting main");
+  // Check if the table exists
+  const tableExists = await dbClient.send(new DescribeTableCommand({ TableName: "jurassic-table" })).catch(() => false);
+  if (!tableExists) {
+    await makeNewTable();
+  }
 
-const dinosaurRepo = new DinosaurRepo(table);
+  const table = new Table({
+    client: dbClient,
+    tableIndexes,
+    tableName: "jurassic-table",
+  });
 
-dinosaurRepo
-  .create({
-    id: "rex001",
-    species: "Tyrannosaurus",
-    age: 25,
-    heightMeters: 4.6,
-    diet: "carnivore",
-  })
-  .execute();
+  const dinosaurRepo = new DinosaurRepo(table);
 
-dinosaurRepo.findOrFail({
-  pk: "dinosaurId#rex001",
-});
+  const rex = await dinosaurRepo.findOne({
+    pk: "dinosaurId#rex001",
+  });
+  if (!rex) {
+    await dinosaurRepo
+      .create({
+        id: "rex001",
+        species: "Tyrannosaurus",
+        age: 25,
+        heightMeters: 4.6,
+        diet: "carnivore",
+        eats: [],
+      })
+      .execute();
+  }
 
-// Find all adult dinosaurs in paddock
-dinosaurRepo
-  .findAllDinosaursInPaddock("paddock1")
-  .whereLessThan("heightMeters", 6)
-  .whereGreaterThan("age", 20)
-  .execute();
+  console.log("Finding rex");
+  await dinosaurRepo.findOrFail({
+    pk: "dinosaurId#rex001",
+  });
 
-// Scan for all juvenile carnivores
-dinosaurRepo.scan().where("age", "<", 10).where("diet", "=", "carnivore").execute();
+  console.log("Finding all dinosaurs in paddock");
+  // Find all adult dinosaurs in paddock
+  await dinosaurRepo
+    .findAllDinosaursInPaddock("paddock1")
+    .whereLessThan("heightMeters", 6)
+    .whereGreaterThan("age", 20)
+    .execute();
+
+  // Scan for all juvenile carnivores
+  await dinosaurRepo.scan().where("age", "<", 10).where("diet", "=", "carnivore").execute();
+
+  await dinosaurRepo
+    .update(
+      { pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" },
+      { eats: [{ id: "velociraptor001", name: "clever girl" }] },
+    )
+    .set("age", 26)
+    .execute();
+}
+
+main();
