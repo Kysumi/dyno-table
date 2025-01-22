@@ -162,7 +162,7 @@ export class DynamoService {
     do {
       const result = await this.query({
         ...options,
-        pageKey: lastEvaluatedKey,
+        exclusiveStartKey: lastEvaluatedKey,
         autoPaginate: false,
       });
 

@@ -20,6 +20,6 @@ const user = await table.get({
 const fluentUsers = await table
   .query({ pk: "users" })
   .whereEquals("name", "Scott")
-  .useIndex("gsi1")
+  .useIndex("primary")
   .limit(100)
   .execute();

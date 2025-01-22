@@ -6,6 +6,7 @@ import type { DynamoRecord } from "../builders/types";
 import type { PrimaryKey } from "../builders/operators";
 import type { DeleteBuilder } from "../builders/delete-builder";
 import type { ScanBuilder } from "../builders/scan-builder";
+import type { UpdateBuilder } from "../builders/update-builder";
 
 export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extends string> {
   constructor(protected readonly table: Table<TIndexes>) {}
@@ -84,7 +85,7 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
       ...data,
       ...key,
     };
-    const indexConfig = this.table.getIndexConfig();
+    const indexConfig = this.table.getIndexConfig("primary");
 
     const builder = this.table
       .put<TData>(item)
@@ -92,6 +93,9 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
        * Enforcing the type attribute for filter
        */
       .set(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData])
+      /**
+       * Ensuring that the record does not already exist
+       */
       .whereNotExists(indexConfig.pkName);
 
     /**
@@ -111,7 +115,7 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
    * @param updates - The partial record data to be updated.
    * @returns A promise that resolves to the updated record or null if the record does not exist.
    */
-  update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>) {
+  update(key: PrimaryKeyWithoutExpression, updates: Partial<TData>): UpdateBuilder<TData> {
     const processed = this.beforeUpdate(updates);
 
     const updateData = {

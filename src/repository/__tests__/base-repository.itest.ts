@@ -12,7 +12,14 @@ type UserRecord = {
   updatedAt?: string;
 };
 
-class UserRepository extends BaseRepository<UserRecord> {
+const tableIndexes = {
+  primary: {
+    pkName: "pk",
+    skName: "sk",
+  },
+};
+
+class UserRepository extends BaseRepository<UserRecord, keyof typeof tableIndexes> {
   protected createPrimaryKey(data: UserRecord) {
     return {
       pk: `USER#${data.id}`,
@@ -30,7 +37,7 @@ class UserRepository extends BaseRepository<UserRecord> {
 }
 
 describe("BaseRepository Integration Tests", () => {
-  let table: Table;
+  let table: Table<keyof typeof tableIndexes>;
   let userRepository: UserRepository;
 
   const testUser: UserRecord = {
@@ -44,12 +51,7 @@ describe("BaseRepository Integration Tests", () => {
     table = new Table({
       client: docClient,
       tableName: "TestTable",
-      tableIndexes: {
-        primary: {
-          pkName: "pk",
-          skName: "sk",
-        },
-      },
+      tableIndexes,
     });
 
     userRepository = new UserRepository(table);

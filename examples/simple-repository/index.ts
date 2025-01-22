@@ -8,7 +8,18 @@ type TUser = {
   age: number;
 };
 
-class UserRepo extends BaseRepository<TUser> {
+const tableIndexes = {
+  primary: {
+    pkName: "pk",
+    skName: "sk",
+  },
+  gsi1: {
+    pkName: "gsi1pk",
+    skName: "gsi1sk",
+  },
+};
+
+class UserRepo extends BaseRepository<TUser, keyof typeof tableIndexes> {
   protected override createPrimaryKey(data: TUser) {
     return {
       pk: `userId#${data.id}`,
@@ -34,12 +45,7 @@ class UserRepo extends BaseRepository<TUser> {
 
 const table = new Table({
   client: dbClient,
-  tableIndexes: {
-    primary: {
-      pkName: "pk",
-      skName: "sk",
-    },
-  },
+  tableIndexes,
   tableName: "application-table",
 });
 

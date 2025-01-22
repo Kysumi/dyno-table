@@ -3,7 +3,7 @@ import type { DynamoQueryOptions } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { PrimaryKey, TableIndexConfig } from "./operators";
-import type { DynamoRecord } from "./types";
+import type { DynamoRecord, QueryPaginator } from "./types";
 
 /**
  * Builder class for constructing DynamoDB query operations.
@@ -58,6 +58,10 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
       throw new Error("Cannot use an index when consistent read is enabled.");
     }
 
+    if (!(indexName in this.indexConfig)) {
+      throw new Error(`Index "${indexName}" is not configured for this table.`);
+    }
+
     this.indexNameValue = indexName;
     return this;
   }
@@ -88,7 +92,7 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
    * Usage:
    * - To paginate results: `const paginator = queryBuilder.paginate(10);`
    */
-  paginate(pageSize: number) {
+  paginate(pageSize: number): QueryPaginator<T> {
     this.limitValue = pageSize;
 
     return {

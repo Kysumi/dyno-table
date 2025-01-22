@@ -473,6 +473,7 @@ describe("Table Integration Tests", () => {
     });
 
     it("should validate index names", async () => {
+      // @ts-expect-error - This is a test
       await expect(table.query({ pk: "TEST" }).useIndex("NonexistentIndex").execute()).rejects.toThrow(DynamoError);
     });
   });
