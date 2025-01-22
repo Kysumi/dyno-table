@@ -90,7 +90,7 @@ export class QueryBuilder<T extends DynamoRecord, TIndexes extends string> exten
    * @returns An object with methods to manage pagination.
    *
    * Usage:
-   * - To paginate results: `const paginator = queryBuilder.paginate(10);`
+   * - To paginate results: `const paginator = queryBuilder.paginate();`
    */
   paginate(): QueryPaginator<T> {
     return {

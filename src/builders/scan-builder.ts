@@ -115,7 +115,7 @@ export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = strin
    * @returns An object with methods to manage pagination.
    *
    * Usage:
-   * - To paginate results: `const paginator = queryBuilder.paginate(10);`
+   * - To paginate results: `const paginator = queryBuilder.paginate();`
    */
   paginate(): QueryPaginator<T> {
     return {
