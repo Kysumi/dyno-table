@@ -1,18 +1,33 @@
+import { DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import { BaseRepository } from "../../src/repository/base-repository";
 import { Table } from "../../src/table";
-import { dbClient } from "../db-client";
+import { dbClient, makeNewTable } from "../db-client";
 
-type TUser = {
+type TDinosaur = {
   id: string;
-  name: string;
+  species: string;
   age: number;
+  heightMeters: number;
+  diet: "carnivore" | "herbivore" | "omnivore";
+  eats: { id: string; name: string }[];
 };
 
-class UserRepo extends BaseRepository<TUser> {
-  protected override createPrimaryKey(data: TUser) {
+const tableIndexes = {
+  primary: {
+    pkName: "pk",
+    skName: "sk",
+  },
+  GSI1: {
+    pkName: "GSI1PK",
+    skName: "GSI1SK",
+  },
+};
+
+class DinosaurRepo extends BaseRepository<TDinosaur, keyof typeof tableIndexes> {
+  protected override createPrimaryKey(data: TDinosaur) {
     return {
-      pk: `userId#${data.id}`,
-      sk: `userName#${data.name}`,
+      pk: `dinosaurId#${data.id}`,
+      sk: `species#${data.species}`,
     };
   }
 
@@ -21,40 +36,72 @@ class UserRepo extends BaseRepository<TUser> {
   }
 
   protected getType(): string {
-    return "user";
+    return "dinosaur";
   }
 
-  findAllUsersForOrganisation(organisationId: string) {
+  findAllDinosaursInPaddock(paddockId: string) {
     return this.query({
-      pk: `organisation#${organisationId}`,
-      sk: { operator: "begins_with", value: "userId#" },
-    }).useIndex("gsi1");
+      pk: `paddock#${paddockId}`,
+      sk: { operator: "begins_with", value: "dinosaurId#" },
+    }).useIndex("GSI1");
   }
 }
 
-const table = new Table({
-  client: dbClient,
-  tableIndexes: {
-    primary: {
-      pkName: "pk",
-      skName: "sk",
-    },
-  },
-  tableName: "application-table",
-});
+async function main() {
+  console.log("Starting main");
+  // Check if the table exists
+  const tableExists = await dbClient.send(new DescribeTableCommand({ TableName: "jurassic-table" })).catch(() => false);
+  if (!tableExists) {
+    await makeNewTable();
+  }
 
-const userRepo = new UserRepo(table);
+  const table = new Table({
+    client: dbClient,
+    tableIndexes,
+    tableName: "jurassic-table",
+  });
 
-userRepo
-  .create({
-    age: 10,
-    id: "1123",
-    name: "Scott",
-  })
-  .execute();
+  const dinosaurRepo = new DinosaurRepo(table);
 
-userRepo.findOrFail({
-  pk: "userId#1123",
-});
+  const rex = await dinosaurRepo.findOne({
+    pk: "dinosaurId#rex001",
+  });
+  if (!rex) {
+    await dinosaurRepo
+      .create({
+        id: "rex001",
+        species: "Tyrannosaurus",
+        age: 25,
+        heightMeters: 4.6,
+        diet: "carnivore",
+        eats: [],
+      })
+      .execute();
+  }
 
-userRepo.findAllUsersForOrganisation("123").whereLessThan("age", 65).whereGreaterThan("age", 21).execute();
+  console.log("Finding rex");
+  await dinosaurRepo.findOrFail({
+    pk: "dinosaurId#rex001",
+  });
+
+  console.log("Finding all dinosaurs in paddock");
+  // Find all adult dinosaurs in paddock
+  await dinosaurRepo
+    .findAllDinosaursInPaddock("paddock1")
+    .whereLessThan("heightMeters", 6)
+    .whereGreaterThan("age", 20)
+    .execute();
+
+  // Scan for all juvenile carnivores
+  await dinosaurRepo.scan().where("age", "<", 10).where("diet", "=", "carnivore").execute();
+
+  await dinosaurRepo
+    .update(
+      { pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" },
+      { eats: [{ id: "velociraptor001", name: "clever girl" }] },
+    )
+    .set("age", 26)
+    .execute();
+}
+
+main();

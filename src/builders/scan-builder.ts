@@ -1,22 +1,27 @@
 import type { DynamoQueryResponse } from "../dynamo/dynamo-service";
 import { OperationBuilder } from "./operation-builder";
 import type { IExpressionBuilder } from "./expression-builder";
-import type { DynamoScanOperation } from "../dynamo/dynamo-types";
-import type { DynamoRecord } from "./types";
+import type { DynamoRecord, QueryPaginator } from "./types";
+import type { DynamoScanOptions } from "../dynamo/dynamo-types";
+import type { RequiredIndexConfig } from "./operators";
 
 /**
  * Builder class for constructing DynamoDB scan operations.
  * Allows setting various parameters for a scan operation.
  */
-export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoScanOperation> {
+export class ScanBuilder<T extends DynamoRecord, TIndexes extends string = string> extends OperationBuilder<
+  T,
+  DynamoScanOptions
+> {
   private limitValue?: number;
-  private indexNameValue?: string;
+  private indexNameValue?: TIndexes;
   private consistentReadValue = false;
-  private pageKeyValue?: Record<string, unknown>;
+  private lastEvaluatedKey?: Record<string, unknown>;
 
   constructor(
     expressionBuilder: IExpressionBuilder,
-    private readonly onBuild: (operation: DynamoScanOperation) => Promise<DynamoQueryResponse>,
+    private readonly indexConfig: RequiredIndexConfig<TIndexes>,
+    private readonly onBuild: (operation: DynamoScanOptions) => Promise<DynamoQueryResponse>,
   ) {
     super(expressionBuilder);
   }
@@ -44,9 +49,13 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
    * Usage:
    * - To use a specific index: `scanBuilder.useIndex("GSI1");`
    */
-  useIndex(indexName: string) {
+  useIndex(indexName: TIndexes) {
     if (this.consistentReadValue) {
       throw new Error("Cannot use an index when consistent read is enabled.");
+    }
+
+    if (!(indexName in this.indexConfig)) {
+      throw new Error(`Index "${indexName}" is not configured for this table.`);
     }
 
     this.indexNameValue = indexName;
@@ -63,7 +72,7 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
    * - To start the scan from a specific key: `scanBuilder.startKey({ pk: "USER#123" });`
    */
   startKey(key: Record<string, unknown>) {
-    this.pageKeyValue = key;
+    this.lastEvaluatedKey = key;
     return this;
   }
 
@@ -85,6 +94,43 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
   }
 
   /**
+   * Executes the scan operation with the configured parameters.
+   *
+   * @returns A promise that resolves to the scan results.
+   *
+   * Usage:
+   * - To execute the scan: `const results = await scanBuilder.execute();`
+   */
+  async execute(): Promise<{ Items: T[] }> {
+    const response = await this.onBuild(this.build());
+    this.lastEvaluatedKey = response.LastEvaluatedKey;
+    return {
+      Items: response.Items as T[],
+    };
+  }
+
+  /**
+   * Configures pagination for the query operation.
+   *
+   * @returns An object with methods to manage pagination.
+   *
+   * Usage:
+   * - To paginate results: `const paginator = queryBuilder.paginate();`
+   */
+  paginate(): QueryPaginator<T> {
+    return {
+      hasNextPage: () => !!this.lastEvaluatedKey,
+      getPage: async () => {
+        const response = await this.execute();
+        return {
+          items: response.Items,
+          nextPageToken: this.lastEvaluatedKey,
+        };
+      },
+    };
+  }
+
+  /**
    * Builds the scan operation into a DynamoScanOperation object.
    *
    * @returns A DynamoScanOperation object representing the scan operation.
@@ -92,11 +138,10 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
    * Usage:
    * - To build the operation: `const operation = scanBuilder.build();`
    */
-  build() {
+  build(): DynamoScanOptions {
     const filter = this.buildConditionExpression();
 
     return {
-      type: "scan" as const,
       filter: filter.expression
         ? {
             expression: filter.expression,
@@ -105,21 +150,9 @@ export class ScanBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyn
           }
         : undefined,
       limit: this.limitValue,
-      pageKey: this.pageKeyValue,
       indexName: this.indexNameValue,
+      exclusiveStartKey: this.lastEvaluatedKey,
       consistentRead: this.consistentReadValue,
     };
-  }
-
-  /**
-   * Executes the scan operation.
-   *
-   * @returns A promise that resolves to the scan results.
-   *
-   * Usage:
-   * - To execute the operation: `await scanBuilder.execute();`
-   */
-  async execute() {
-    return this.onBuild(this.build());
   }
 }

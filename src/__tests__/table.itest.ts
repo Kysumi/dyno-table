@@ -4,8 +4,19 @@ import { ConditionalCheckFailedError, DynamoError } from "../errors/dynamo-error
 import { docClient } from "../../tests/ddb-client";
 import { TransactionBuilder } from "../builders/transaction-builder";
 
+const indexes = {
+  primary: {
+    pkName: "pk",
+    skName: "sk",
+  },
+  GSI1: {
+    pkName: "GSI1PK",
+    skName: "GSI1SK",
+  },
+};
+
 describe("Table Integration Tests", () => {
-  let table: Table;
+  let table: Table<keyof typeof indexes>;
 
   // Test item data
   const testItem = {
@@ -21,16 +32,7 @@ describe("Table Integration Tests", () => {
     table = new Table({
       client: docClient,
       tableName: "TestTable",
-      tableIndexes: {
-        primary: {
-          pkName: "pk",
-          skName: "sk",
-        },
-        GSI1: {
-          pkName: "GSI1PK",
-          skName: "GSI1SK",
-        },
-      },
+      tableIndexes: indexes,
     });
   });
 
@@ -146,6 +148,52 @@ describe("Table Integration Tests", () => {
   describe("Query Operations", () => {
     beforeEach(async () => {
       await table.put(testItem).execute();
+    });
+
+    it("should get back 1 page of results for 8 items paged by 10", async () => {
+      for (let i = 0; i < 8; i++) {
+        await table.put({ ...testItem, pk: "USER#TEST", sk: `PROFILE#${i}` }).execute();
+      }
+
+      const paginator = table.query({ pk: "USER#TEST" }).limit(10).paginate();
+      const page1 = await paginator.getPage();
+
+      expect(page1.items).toHaveLength(8);
+      expect(page1.nextPageToken).toBeUndefined();
+    });
+
+    it("should get back 3 pages of results for 20 items in DB paged by 10", async () => {
+      for (let i = 0; i < 20; i++) {
+        await table.put({ ...testItem, pk: "USER#TEST", sk: `PROFILE#${i}` }).execute();
+      }
+
+      // Ensure the 20 items are returned
+      const insertCheck = await table
+        .query({ pk: "USER#TEST", sk: { operator: "begins_with", value: "PROFILE#" } })
+        .execute();
+
+      expect(insertCheck).toHaveLength(20);
+
+      const paginator = table.query({ pk: "USER#TEST" }).limit(10).paginate();
+      const page1 = await paginator.getPage();
+
+      expect(paginator.hasNextPage()).toBe(true);
+      expect(page1.items).toHaveLength(10);
+      expect(page1.nextPageToken).toBeDefined();
+
+      const page2 = await paginator.getPage();
+
+      // Since we're paginating by 10, we should get 10 items
+      // and the next page token should be defined as we'd have loaded the very last item
+      // in this page
+      expect(page2.items).toHaveLength(10);
+      expect(page2.nextPageToken).toBeDefined();
+      expect(paginator.hasNextPage()).toBe(true);
+
+      const page3 = await paginator.getPage();
+
+      expect(page3.nextPageToken).toBeUndefined();
+      expect(paginator.hasNextPage()).toBe(false);
     });
 
     it("should get back no results, when the filter doesn't match", async () => {
@@ -424,8 +472,11 @@ describe("Table Integration Tests", () => {
       ).rejects.toThrow();
     });
 
-    it("should validate index names", async () => {
-      await expect(table.query({ pk: "TEST" }).useIndex("NonexistentIndex").execute()).rejects.toThrow(DynamoError);
+    it("should validate index names", () => {
+      // @ts-expect-error - This is a test
+      expect(() => table.query({ pk: "TEST" }).useIndex("NonexistentIndex")).toThrow(
+        'Index "NonexistentIndex" is not configured for this table.',
+      );
     });
   });
 });

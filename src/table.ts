@@ -4,21 +4,17 @@ import { PutBuilder } from "./builders/put-builder";
 import { QueryBuilder } from "./builders/query-builder";
 import { UpdateBuilder } from "./builders/update-builder";
 import { DynamoService } from "./dynamo/dynamo-service";
-import type { PrimaryKey, TableIndexConfig } from "./builders/operators";
+import type { PrimaryKey, RequiredIndexConfig, TableIndexConfig } from "./builders/operators";
 import type { PrimaryKeyWithoutExpression, BatchWriteOperation, DynamoBatchWriteItem } from "./dynamo/dynamo-types";
 import { ScanBuilder } from "./builders/scan-builder";
 import type { DynamoRecord } from "./builders/types";
 import { TransactionBuilder } from "./builders/transaction-builder";
 import { DeleteBuilder } from "./builders/delete-builder";
 
-type IndexConfig = Record<string, TableIndexConfig> & {
-  primary: TableIndexConfig;
-};
-
-export class Table {
+export class Table<TIndexes extends string> {
   private readonly dynamoService: DynamoService;
   private readonly expressionBuilder: ExpressionBuilder;
-  private readonly indexes: IndexConfig;
+  private readonly indexes: RequiredIndexConfig<TIndexes>;
 
   constructor({
     client,
@@ -28,7 +24,7 @@ export class Table {
   }: {
     client: DynamoDBDocument;
     tableName: string;
-    tableIndexes: IndexConfig;
+    tableIndexes: RequiredIndexConfig<TIndexes>;
     expressionBuilder?: ExpressionBuilder;
   }) {
     this.dynamoService = new DynamoService(client, tableName);
@@ -36,23 +32,18 @@ export class Table {
     this.indexes = tableIndexes;
   }
 
-  getIndexConfig(indexName?: string): TableIndexConfig {
-    if (!indexName) {
-      return this.indexes.primary;
+  getIndexConfig(indexName: TIndexes): TableIndexConfig {
+    if (!(indexName in this.indexes)) {
+      throw new Error(`Index ${indexName} does not exist`);
     }
-
-    if (this.indexes[indexName]) {
-      return this.indexes[indexName];
-    }
-
-    throw new Error(`Index ${indexName} does not exist`);
+    return this.indexes[indexName];
   }
 
   put<T extends DynamoRecord>(item: T): PutBuilder<T> {
     return new PutBuilder(item, this.expressionBuilder, async (operation) => {
       // TODO: Make it so the end user can specify if they want the additional DATA
       // about the query to be returned like capcity units ect
-      const result = await this.dynamoService.put(operation);
+      await this.dynamoService.put(operation);
 
       // Return the item that was placed into the table
       return item;
@@ -67,15 +58,14 @@ export class Table {
     });
   }
 
-  query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T> {
-    return new QueryBuilder<T>(key, this.getIndexConfig(), this.expressionBuilder, async (operation) => {
-      const result = await this.dynamoService.query(operation);
-      return result.Items as T[];
+  query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T, TIndexes> {
+    return new QueryBuilder<T, TIndexes>(key, this.indexes, this.expressionBuilder, async (operation) => {
+      return await this.dynamoService.query(operation);
     });
   }
 
-  async get(key: PrimaryKeyWithoutExpression, options?: { indexName?: string }) {
-    const indexConfig = this.getIndexConfig(options?.indexName);
+  async get(key: PrimaryKeyWithoutExpression, options?: { indexName?: TIndexes }) {
+    const indexConfig = this.getIndexConfig(options?.indexName || ("primary" as TIndexes));
     const keyObject = this.buildKeyFromIndex(key, indexConfig);
 
     const result = await this.dynamoService.get(keyObject, options);
@@ -89,8 +79,10 @@ export class Table {
     });
   }
 
-  scan<T extends DynamoRecord>(): ScanBuilder<T> {
-    return new ScanBuilder(this.expressionBuilder, (operation) => this.dynamoService.scan(operation));
+  scan<T extends DynamoRecord>(): ScanBuilder<T, TIndexes> {
+    return new ScanBuilder<T, TIndexes>(this.expressionBuilder, this.indexes, (operation) =>
+      this.dynamoService.scan(operation),
+    );
   }
 
   async batchWrite(operations: BatchWriteOperation[]) {

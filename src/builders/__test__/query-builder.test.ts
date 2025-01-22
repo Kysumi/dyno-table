@@ -3,69 +3,80 @@ import { ExpressionBuilder } from "../expression-builder";
 import type { PrimaryKey, TableIndexConfig } from "../operators";
 import { QueryBuilder } from "../query-builder";
 
+const indexes = {
+  primary: {
+    pkName: "pk",
+    skName: "sk",
+  },
+  GSI1: {
+    pkName: "gsi1pk",
+    skName: "gsi1sk",
+  },
+};
+
 describe("QueryBuilder", () => {
   let expressionBuilder: ExpressionBuilder;
   let mockExecute: ReturnType<typeof vi.fn>;
-  let queryBuilder: QueryBuilder;
+  let queryBuilder: QueryBuilder<Record<string, unknown>, keyof typeof indexes>;
 
   const mockKey: PrimaryKey = {
-    pk: "USER#123",
-    sk: "PROFILE#123",
-  };
-
-  const indexConfig: TableIndexConfig = {
-    pkName: "pk",
-    skName: "sk",
+    pk: "SPECIES#trex",
+    sk: "SPECIMEN#rex001",
   };
 
   beforeEach(() => {
     mockExecute = vi.fn().mockResolvedValue({ Items: [] });
     expressionBuilder = new ExpressionBuilder();
-    queryBuilder = new QueryBuilder(mockKey, indexConfig, expressionBuilder, mockExecute);
+    queryBuilder = new QueryBuilder(mockKey, indexes, expressionBuilder, mockExecute);
   });
 
   describe("query construction", () => {
     it("should build a basic query with primary key only", async () => {
-      queryBuilder = new QueryBuilder({ pk: "USER" }, indexConfig, expressionBuilder, mockExecute);
+      queryBuilder = new QueryBuilder({ pk: "SPECIES#trex" }, indexes, expressionBuilder, mockExecute);
       await queryBuilder.execute();
 
       expect(mockExecute).toHaveBeenCalledWith({
-        type: "query",
+        filter: undefined,
+        indexName: "primary",
+        limit: undefined,
         keyCondition: {
           expression: "#pk0 = :pk0",
           names: { "#pk0": "pk" },
-          values: { ":pk0": "USER" },
+          values: { ":pk0": "SPECIES#trex" },
         },
         consistentRead: false,
-        pageKey: undefined,
+        exclusiveStartKey: undefined,
+        sortDirection: "asc",
       });
     });
 
     it("should support begins_with sort key condition", async () => {
       const key: PrimaryKey = {
-        pk: "USER#123",
-        sk: { operator: "begins_with", value: "ORDER#" },
+        pk: "SPECIES#trex",
+        sk: { operator: "begins_with", value: "SPECIMEN#" },
       };
 
-      const beginsWith = new QueryBuilder(key, indexConfig, expressionBuilder, mockExecute);
+      const beginsWith = new QueryBuilder(key, indexes, expressionBuilder, mockExecute);
       await beginsWith.execute();
 
       expect(mockExecute).toHaveBeenCalledWith({
-        type: "query",
+        exclusiveStartKey: undefined,
+        filter: undefined,
+        indexName: "primary",
         limit: undefined,
         keyCondition: {
-          expression: "#pk0 = :pk0 AND begins_with(#sk1, :v1)",
+          expression: "#pk0 = :pk0 AND begins_with(#sk1, :sk1)",
           names: {
             "#pk0": "pk",
             "#sk1": "sk",
           },
           values: {
-            ":pk0": "USER#123",
-            ":v1": "ORDER#",
+            ":pk0": "SPECIES#trex",
+            ":sk1": "SPECIMEN#",
           },
         },
         consistentRead: false,
-        pageKey: undefined,
+        sortDirection: "asc",
       });
     });
 
@@ -94,103 +105,106 @@ describe("QueryBuilder", () => {
 
   describe("filter conditions", () => {
     it("should build simple equality filter", async () => {
-      await queryBuilder.where("status", "=", "active").execute();
+      await queryBuilder.where("diet", "=", "carnivore").execute();
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
             expression: "#n0 = :v0",
-            names: { "#n0": "status" },
-            values: { ":v0": "active" },
+            names: { "#n0": "diet" },
+            values: { ":v0": "carnivore" },
           },
         }),
       );
     });
 
     it("should build comparison filters", async () => {
-      await queryBuilder.where("age", ">", 18).where("score", "<=", 100).execute();
+      await queryBuilder.where("weight", ">", 1000).where("length", "<=", 40).execute();
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
             expression: "#n0 > :v0 AND #n1 <= :v1",
-            names: { "#n0": "age", "#n1": "score" },
-            values: { ":v0": 18, ":v1": 100 },
+            names: { "#n0": "weight", "#n1": "length" },
+            values: { ":v0": 1000, ":v1": 40 },
           },
         }),
       );
     });
 
     it("should build BETWEEN filter", async () => {
-      await queryBuilder.whereBetween("age", 18, 65).execute();
+      await queryBuilder.whereBetween("weight", 1000, 5000).execute();
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
             expression: "#n0 BETWEEN :v0[0] AND :v0[1]",
-            names: { "#n0": "age" },
-            values: { ":v0": [18, 65] },
+            names: { "#n0": "weight" },
+            values: { ":v0": [1000, 5000] },
           },
         }),
       );
     });
 
     it("should build IN filter", async () => {
-      await queryBuilder.whereIn("status", ["active", "pending"]).execute();
+      await queryBuilder.whereIn("period", ["Jurassic", "Cretaceous"]).execute();
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
             expression: "#n0 IN (:v0)",
-            names: { "#n0": "status" },
-            values: { ":v0": ["active", "pending"] },
+            names: { "#n0": "period" },
+            values: { ":v0": ["Jurassic", "Cretaceous"] },
           },
         }),
       );
     });
 
     it("should handle exists conditions", async () => {
-      await queryBuilder.whereExists("email").execute();
+      await queryBuilder.whereExists("fossilLocation").execute();
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
             expression: "attribute_exists(#n0)",
-            names: { "#n0": "email" },
+            names: { "#n0": "fossilLocation" },
           },
         }),
       );
     });
 
     it("should handle not exists conditions", async () => {
-      await queryBuilder.whereNotExists("deletedAt").execute();
+      await queryBuilder.whereNotExists("extinctionDate").execute();
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
             expression: "attribute_not_exists(#n0)",
-            names: { "#n0": "deletedAt" },
+            names: { "#n0": "extinctionDate" },
           },
         }),
       );
     });
 
     it("should handle nested attribute paths in filters", async () => {
-      await queryBuilder.where("user.profile.age", ">", 18).where("user.settings.notifications", "=", true).execute();
+      await queryBuilder
+        .where("specimen.measurements.height", ">", 3)
+        .where("specimen.features.feathers", "=", true)
+        .execute();
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
             expression: "#n0.#n1.#n2 > :v0 AND #n3.#n4.#n5 = :v1",
             names: {
-              "#n0": "user",
-              "#n1": "profile",
-              "#n2": "age",
-              "#n3": "user",
-              "#n4": "settings",
-              "#n5": "notifications",
+              "#n0": "specimen",
+              "#n1": "measurements",
+              "#n2": "height",
+              "#n3": "specimen",
+              "#n4": "features",
+              "#n5": "feathers",
             },
-            values: { ":v0": 18, ":v1": true },
+            values: { ":v0": 3, ":v1": true },
           },
         }),
       );
@@ -208,24 +222,23 @@ describe("QueryBuilder", () => {
 
   describe("method chaining", () => {
     it("should maintain correct order of operations", async () => {
-      const query = queryBuilder.useIndex("GSI1").where("status", "=", "active").limit(10);
+      const query = queryBuilder.useIndex("GSI1").where("diet", "=", "carnivore").limit(10);
 
       expect(query).toBe(queryBuilder); // Test method chaining
 
       await query.execute();
 
       expect(mockExecute).toHaveBeenCalledWith({
-        type: "query",
         keyCondition: expect.any(Object),
         indexName: "GSI1",
         limit: 10,
         filter: {
           expression: "#n0 = :v0",
-          names: { "#n0": "status" },
-          values: { ":v0": "active" },
+          names: { "#n0": "diet" },
+          values: { ":v0": "carnivore" },
         },
         consistentRead: false,
-        pageKey: undefined,
+        sortDirection: "asc",
       });
     });
   });

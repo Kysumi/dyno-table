@@ -2,6 +2,8 @@
 
 A powerful, type-safe, and fluent DynamoDB table abstraction layer for Node.js applications.
 
+Allows you to work with DynamoDB in a single table design pattern
+
 ## ✨ Features
 
 - **Type-safe operations**: Ensures type safety for all DynamoDB operations.
@@ -190,6 +192,19 @@ await table.batchWrite([
 ]);
 
 // Batch operations automatically handle chunking for large datasets
+```
+
+### Pagination
+
+```ts
+// Limit to 10 items per page
+const paginator = await table.query({ pk: "SPECIES#trex" }).limit(10).paginate();
+// const paginator = await table.scan().limit(10).paginate();
+
+while (paginator.hasNextPage()) {
+  const page = await paginator.getPage();
+  console.log(page);
+}
 ```
 
 ### Transaction Operations

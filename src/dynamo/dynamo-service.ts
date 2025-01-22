@@ -12,6 +12,7 @@ import type {
   DynamoBatchWriteItem,
   DynamoTransactItem,
 } from "./dynamo-types";
+import type { DynamoRecord } from "../builders/types";
 
 const BATCH_WRITE_LIMIT = 25;
 const TRANSACTION_LIMIT = 100;
@@ -36,10 +37,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "PUT",
         tableName: this.tableName,
-        key: options.item,
-        expression: {
-          condition: options.condition?.expression,
-        },
+        commandInput: this.converter.toPutCommand(options),
       });
     }
   }
@@ -52,11 +50,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "UPDATE",
         tableName: this.tableName,
-        key: options.key,
-        expression: {
-          update: options.update.expression,
-          condition: options.condition?.expression,
-        },
+        commandInput: this.converter.toUpdateCommand(options),
       });
     }
   }
@@ -70,10 +64,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "DELETE",
         tableName: this.tableName,
-        key: options.key,
-        expression: {
-          condition: params.ConditionExpression,
-        },
+        commandInput: this.converter.toDeleteCommand(options),
       });
     }
   }
@@ -86,12 +77,12 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "GET",
         tableName: this.tableName,
-        key,
+        commandInput: this.converter.toGetCommand({ key, ...options }),
       });
     }
   }
 
-  async query(options: DynamoQueryOptions) {
+  async query(options: DynamoQueryOptions): Promise<DynamoQueryResponse> {
     try {
       if (options.autoPaginate) {
         return await this.executeWithAutoPagination(options);
@@ -103,10 +94,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "QUERY",
         tableName: this.tableName,
-        expression: {
-          keyCondition: options.keyCondition?.expression,
-          filter: options.filter?.expression,
-        },
+        commandInput: this.converter.toQueryCommand(options),
       });
     }
   }
@@ -119,9 +107,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "SCAN",
         tableName: this.tableName,
-        expression: {
-          filter: options.filter?.expression,
-        },
+        commandInput: this.converter.toScanCommand(options),
       });
     }
   }
@@ -134,6 +120,7 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "BATCH_WRITE",
         tableName: this.tableName,
+        commandInput: this.converter.toBatchWriteCommand(items),
       });
     }
   }
@@ -150,18 +137,19 @@ export class DynamoService {
       handleDynamoError(error, {
         operation: "TRANSACT_WRITE",
         tableName: this.tableName,
+        commandInput: this.converter.toTransactWriteCommand(items),
       });
     }
   }
 
-  private async executeWithAutoPagination(options: DynamoQueryOptions) {
-    const allItems: unknown[] = [];
+  private async executeWithAutoPagination(options: DynamoQueryOptions): Promise<DynamoQueryResponse> {
+    const allItems: DynamoRecord[] = [];
     let lastEvaluatedKey: Record<string, unknown> | undefined;
 
     do {
       const result = await this.query({
         ...options,
-        pageKey: lastEvaluatedKey,
+        exclusiveStartKey: lastEvaluatedKey,
         autoPaginate: false,
       });
 

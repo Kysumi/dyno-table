@@ -1,18 +1,6 @@
 import type { ExpressionAttributes } from "../builders/operators";
 import { ConditionalCheckFailedError, DynamoError, ResourceNotFoundError } from "./dynamo-error";
-
-interface ErrorContext extends Record<string, unknown> {
-  operation: string;
-  tableName: string;
-  key?: Record<string, unknown>;
-  expression?: {
-    condition?: string;
-    update?: string;
-    filter?: string;
-    keyCondition?: string;
-  };
-  attributes?: ExpressionAttributes;
-}
+import type { ErrorContext, TranslatedQuery } from "./types";
 
 function translateExpression(expression: string | undefined, attributes?: ExpressionAttributes): string {
   if (!expression || !attributes) return expression || "";
@@ -36,6 +24,37 @@ function translateExpression(expression: string | undefined, attributes?: Expres
   return translated;
 }
 
+function translateCommandInput(commandInput: Record<string, unknown>): TranslatedQuery {
+  const translated: TranslatedQuery = {
+    TableName: commandInput.TableName as string,
+  };
+
+  const names = commandInput.ExpressionAttributeNames as Record<string, string>;
+  const values = commandInput.ExpressionAttributeValues as Record<string, unknown>;
+
+  // Translate KeyConditionExpression if present
+  if (commandInput.KeyConditionExpression) {
+    translated.KeyConditionExpression = translateExpression(commandInput.KeyConditionExpression as string, {
+      names,
+      values,
+    });
+  }
+
+  // Translate FilterExpression if present
+  if (commandInput.FilterExpression) {
+    translated.FilterExpression = translateExpression(commandInput.FilterExpression as string, { names, values });
+  }
+
+  // Copy other relevant fields
+  if (commandInput.IndexName) translated.IndexName = commandInput.IndexName as string;
+  if (commandInput.ConsistentRead !== undefined) translated.ConsistentRead = commandInput.ConsistentRead as boolean;
+  if (commandInput.ScanIndexForward !== undefined)
+    translated.ScanIndexForward = commandInput.ScanIndexForward as boolean;
+  if (commandInput.Limit !== undefined) translated.Limit = commandInput.Limit as number;
+
+  return translated;
+}
+
 function buildErrorMessage(context: ErrorContext, error: Error): string {
   const parts: string[] = [`DynamoDB ${context.operation} operation failed`];
 
@@ -43,25 +62,9 @@ function buildErrorMessage(context: ErrorContext, error: Error): string {
     parts.push(`\nTable: ${context.tableName}`);
   }
 
-  if (context.key) {
-    parts.push(`\nKey: ${JSON.stringify(context.key, null, 2)}`);
-  }
-
-  if (context.expression) {
-    const { condition, update, filter, keyCondition } = context.expression;
-
-    if (condition) {
-      parts.push(`\nCondition: ${translateExpression(condition, context.attributes)}`);
-    }
-    if (update) {
-      parts.push(`\nUpdate: ${translateExpression(update, context.attributes)}`);
-    }
-    if (filter) {
-      parts.push(`\nFilter: ${translateExpression(filter, context.attributes)}`);
-    }
-    if (keyCondition) {
-      parts.push(`\nKey Condition: ${translateExpression(keyCondition, context.attributes)}`);
-    }
+  if (context.commandInput) {
+    const translatedQuery = translateCommandInput(context.commandInput);
+    parts.push(`\nGenerated Query: ${JSON.stringify(translatedQuery, null, 2)}`);
   }
 
   parts.push(`\nOriginal Error: ${error.message}`);
