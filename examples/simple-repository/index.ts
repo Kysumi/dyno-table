@@ -10,6 +10,12 @@ type TDinosaur = {
   heightMeters: number;
   diet: "carnivore" | "herbivore" | "omnivore";
   eats: { id: string; name: string }[];
+  meta: {
+    paddock: {
+      id: string;
+      name: string;
+    };
+  };
 };
 
 const tableIndexes = {
@@ -75,6 +81,12 @@ async function main() {
         heightMeters: 4.6,
         diet: "carnivore",
         eats: [],
+        meta: {
+          paddock: {
+            id: "paddock1",
+            name: "Paddock 1",
+          },
+        },
       })
       .execute();
   }
@@ -94,6 +106,8 @@ async function main() {
 
   // Scan for all juvenile carnivores
   await dinosaurRepo.scan().where("age", "<", 10).where("diet", "=", "carnivore").execute();
+
+  await dinosaurRepo.scan().where("meta.paddock.name", "=", "Paddock 1").execute();
 
   await dinosaurRepo
     .update(
