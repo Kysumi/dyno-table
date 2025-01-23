@@ -162,14 +162,22 @@ export class ExpressionBuilder implements IExpressionBuilder {
     const attributes: InternalExpressionAttributes = { names: {}, values: {} };
     const operations = { sets: [] as string[], removes: [] as string[] };
 
-    const processUpdate = (prefix: string, obj: Record<string, unknown>) => {
+    const MAX_DEPTH = 32;
+    const seen = new WeakSet();
+    const processUpdate = (prefix: string, obj: Record<string, unknown>, depth = 0) => {
+      if (depth > MAX_DEPTH) {
+        throw new Error("Maximum nesting depth exceeded");
+      }
+      if (seen.has(obj)) {
+        throw new Error("Circular reference detected");
+      }
+      seen.add(obj);
       for (const [key, value] of Object.entries(obj)) {
         const fullPath = prefix ? `${prefix}.${key}` : key;
         const { path, names } = this.createAttributePath(fullPath, attributes);
         Object.assign(attributes.names, names);
-
         if (value && typeof value === "object" && !Array.isArray(value)) {
-          processUpdate(fullPath, value as Record<string, unknown>);
+          processUpdate(fullPath, value as Record<string, unknown>, depth + 1);
         } else {
           if (value == null) {
             operations.removes.push(path);

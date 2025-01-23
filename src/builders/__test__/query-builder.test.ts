@@ -195,14 +195,13 @@ describe("QueryBuilder", () => {
       expect(mockExecute).toHaveBeenCalledWith(
         expect.objectContaining({
           filter: {
-            expression: "#n0.#n1.#n2 > :v0 AND #n3.#n4.#n5 = :v1",
+            expression: "#n0.#n1.#n2 > :v0 AND #n0.#n3.#n4 = :v1",
             names: {
               "#n0": "specimen",
               "#n1": "measurements",
               "#n2": "height",
-              "#n3": "specimen",
-              "#n4": "features",
-              "#n5": "feathers",
+              "#n3": "features",
+              "#n4": "feathers",
             },
             values: { ":v0": 3, ":v1": true },
           },

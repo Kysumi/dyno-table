@@ -10,7 +10,7 @@ type TDinosaur = {
   heightMeters: number;
   diet: "carnivore" | "herbivore" | "omnivore";
   eats: { id: string; name: string }[];
-  banan: {
+  classification: {
     id: string;
     name: string;
   };
@@ -86,9 +86,9 @@ async function main() {
         heightMeters: 4.6,
         diet: "carnivore",
         eats: [],
-        banan: {
+        classification: {
           id: "123",
-          name: "banan",
+          name: "big-dino",
         },
         meta: {
           paddock: {
