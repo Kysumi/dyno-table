@@ -1,6 +1,6 @@
 {
   "name": "dyno-table",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A TypeScript library to simplify working with DynamoDB",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,7 +20,12 @@
     "check-types": "tsc --noEmit",
     "ddb:start": "docker compose up -d dynamodb"
   },
-  "keywords": ["dynamodb", "aws", "typescript", "database"],
+  "keywords": [
+    "dynamodb",
+    "aws",
+    "typescript",
+    "database"
+  ],
   "author": "Maunder",
   "license": "ISC",
   "repository": {
@@ -40,5 +45,7 @@
     "@aws-sdk/client-dynamodb": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ]
 }
