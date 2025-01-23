@@ -39,6 +39,10 @@ function translateCommandInput(commandInput: Record<string, unknown>): Translate
       values,
     });
   }
+  // Translate UpdateExpression if present
+  if (commandInput.UpdateExpression) {
+    translated.UpdateExpression = translateExpression(commandInput.UpdateExpression as string, { names, values });
+  }
 
   // Translate FilterExpression if present
   if (commandInput.FilterExpression) {
@@ -85,6 +89,8 @@ export function handleDynamoError(error: unknown, context: ErrorContext): never 
 
     case "ResourceNotFoundException":
       throw new ResourceNotFoundError(errorMessage, error, context);
+
+    case ""
 
     default:
       throw new DynamoError(errorMessage, error, context);

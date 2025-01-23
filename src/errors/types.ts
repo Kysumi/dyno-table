@@ -12,4 +12,5 @@ export interface TranslatedQuery {
   ConsistentRead?: boolean;
   ScanIndexForward?: boolean;
   Limit?: number;
+  UpdateExpression?: string;
 }
