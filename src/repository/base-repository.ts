@@ -2,7 +2,7 @@ import type { Table } from "../table";
 import type { QueryBuilder } from "../builders/query-builder";
 import type { PrimaryKeyWithoutExpression } from "../dynamo/dynamo-types";
 import type { PutBuilder } from "../builders/put-builder";
-import type { DynamoRecord } from "../builders/types";
+import type { DynamoRecord, Path, PathType } from "../builders/types";
 import type { PrimaryKey } from "../builders/operators";
 import type { DeleteBuilder } from "../builders/delete-builder";
 import type { ScanBuilder } from "../builders/scan-builder";
@@ -92,18 +92,18 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
       /**
        * Enforcing the type attribute for filter
        */
-      .set(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData])
+      .set(this.getTypeAttributeName() as Path<TData>, this.getType() as TData[Path<TData>])
       /**
        * Ensuring that the record does not already exist
        */
-      .whereNotExists(indexConfig.pkName);
+      .whereNotExists(indexConfig.pkName as Path<TData>);
 
     /**
      * If the table has a sort key, we need to ensure that the sort key does not exist
      * This is to prevent the creation of a duplicate record
      */
     if (indexConfig.skName) {
-      builder.whereNotExists(indexConfig.skName);
+      builder.whereNotExists(indexConfig.skName as Path<TData>);
     }
 
     return builder;
@@ -199,7 +199,10 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
   query(key: PrimaryKey): QueryBuilder<TData, TIndexes> {
     return this.table
       .query<TData>(key)
-      .whereEquals(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData]);
+      .whereEquals(
+        this.getTypeAttributeName() as Path<TData>,
+        this.getType() as unknown as PathType<TData, Path<TData>>,
+      );
   }
 
   /**
@@ -209,6 +212,9 @@ export abstract class BaseRepository<TData extends DynamoRecord, TIndexes extend
   scan(): ScanBuilder<TData, TIndexes> {
     return this.table
       .scan<TData>()
-      .whereEquals(this.getTypeAttributeName(), this.getType() as unknown as TData[keyof TData]);
+      .whereEquals(
+        this.getTypeAttributeName() as Path<TData>,
+        this.getType() as unknown as PathType<TData, Path<TData>>,
+      );
   }
 }

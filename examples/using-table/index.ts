@@ -23,3 +23,9 @@ const fluentUsers = await table
   .useIndex("primary")
   .limit(100)
   .execute();
+
+const users = await table
+  .scan<{ meta: { paddock: { name: string; id: number } } }>()
+  .whereEquals("meta.paddock.id", 20)
+  .whereIn("meta.paddock.name", ["Paddock 1", "Paddock 2"])
+  .execute();

@@ -73,8 +73,8 @@ export class Table<TIndexes extends string> {
     return result.Item;
   }
 
-  delete(key: PrimaryKeyWithoutExpression) {
-    return new DeleteBuilder(key, this.expressionBuilder, async (operation) => {
+  delete<T extends DynamoRecord>(key: PrimaryKeyWithoutExpression) {
+    return new DeleteBuilder<T>(key, this.expressionBuilder, async (operation) => {
       await this.dynamoService.delete(operation);
     });
   }

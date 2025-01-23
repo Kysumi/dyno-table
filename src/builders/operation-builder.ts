@@ -1,9 +1,7 @@
 import type { DynamoOperation } from "../dynamo/dynamo-types";
 import type { IExpressionBuilder } from "./expression-builder";
 import type { Condition, ConditionOperator, FilterOperator } from "./operators";
-import type { DynamoRecord } from "./types";
-
-type StringKeys<T> = Extract<keyof T, string>;
+import type { DynamoRecord, Path, PathType } from "./types";
 
 /**
  * Base builder class for DynamoDB operations that supports condition expressions.
@@ -31,7 +29,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a condition: `operationBuilder.where("fieldName", "=", value);`
    */
-  where<K extends keyof T>(field: K, operator: FilterOperator, value: T[K] | T[K][]) {
+  where<K extends Path<T>>(field: K, operator: FilterOperator, value: PathType<T, K> | PathType<T, K>[]) {
     this.conditions.push({ field, operator, value });
     return this;
   }
@@ -45,7 +43,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To check if an attribute exists: `operationBuilder.whereExists("fieldName");`
    */
-  whereExists<K extends StringKeys<T>>(field: K) {
+  whereExists<K extends Path<T>>(field: K) {
     this.conditions.push({ field, operator: "attribute_exists" });
     return this;
   }
@@ -59,7 +57,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To check if an attribute does not exist: `operationBuilder.whereNotExists("fieldName");`
    */
-  whereNotExists<K extends keyof T>(field: K) {
+  whereNotExists<K extends Path<T>>(field: K) {
     this.conditions.push({ field, operator: "attribute_not_exists" });
     return this;
   }
@@ -74,7 +72,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add an equals condition: `operationBuilder.whereEquals("fieldName", value);`
    */
-  whereEquals<K extends keyof T>(field: K, value: T[K]) {
+  whereEquals<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, "=", value);
   }
 
@@ -89,7 +87,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a between condition: `operationBuilder.whereBetween("fieldName", start, end);`
    */
-  whereBetween<K extends keyof T>(field: K, start: T[K], end: T[K]) {
+  whereBetween<K extends Path<T>>(field: K, start: PathType<T, K>, end: PathType<T, K>) {
     return this.where(field, "BETWEEN", [start, end]);
   }
 
@@ -103,7 +101,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add an in condition: `operationBuilder.whereIn("fieldName", [value1, value2]);`
    */
-  whereIn<K extends keyof T>(field: K, values: T[K][]) {
+  whereIn<K extends Path<T>>(field: K, values: PathType<T, K>[]) {
     return this.where(field, "IN", values);
   }
 
@@ -117,7 +115,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a less than condition: `operationBuilder.whereLessThan("fieldName", value);`
    */
-  whereLessThan<K extends keyof T>(field: K, value: T[K]) {
+  whereLessThan<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, "<", value);
   }
 
@@ -131,7 +129,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a less than or equal condition: `operationBuilder.whereLessThanOrEqual("fieldName", value);`
    */
-  whereLessThanOrEqual<K extends keyof T>(field: K, value: T[K]) {
+  whereLessThanOrEqual<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, "<=", value);
   }
 
@@ -145,7 +143,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a greater than condition: `operationBuilder.whereGreaterThan("fieldName", value);`
    */
-  whereGreaterThan<K extends keyof T>(field: K, value: T[K]) {
+  whereGreaterThan<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, ">", value);
   }
 
@@ -159,7 +157,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a greater than or equal condition: `operationBuilder.whereGreaterThanOrEqual("fieldName", value);`
    */
-  whereGreaterThanOrEqual<K extends keyof T>(field: K, value: T[K]) {
+  whereGreaterThanOrEqual<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, ">=", value);
   }
 
@@ -173,7 +171,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a not equal condition: `operationBuilder.whereNotEqual("fieldName", value);`
    */
-  whereNotEqual<K extends keyof T>(field: K, value: T[K]) {
+  whereNotEqual<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, "<>", value);
   }
 
@@ -187,7 +185,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a begins with condition: `operationBuilder.whereBeginsWith("fieldName", value);`
    */
-  whereBeginsWith<K extends keyof T>(field: K, value: T[K]) {
+  whereBeginsWith<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, "begins_with", value);
   }
 
@@ -201,7 +199,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a contains condition: `operationBuilder.whereContains("fieldName", value);`
    */
-  whereContains<K extends keyof T>(field: K, value: T[K]) {
+  whereContains<K extends Path<T>>(field: K, value: PathType<T, K>) {
     return this.where(field, "contains", value);
   }
 
@@ -215,7 +213,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a not contains condition: `operationBuilder.whereNotContains("fieldName", value);`
    */
-  whereNotContains<K extends keyof T>(field: K, value: T[K]) {
+  whereNotContains<K extends Path<T>>(field: K, value: PathType<T, K>) {
     this.conditions.push({ field, operator: "not_contains", value });
     return this;
   }
@@ -230,7 +228,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add an attribute type condition: `operationBuilder.whereAttributeType("fieldName", "S");`
    */
-  whereAttributeType<K extends keyof T>(
+  whereAttributeType<K extends Path<T>>(
     field: K,
     value: "S" | "SS" | "N" | "NS" | "B" | "BS" | "BOOL" | "NULL" | "M" | "L",
   ) {
@@ -248,7 +246,7 @@ export abstract class OperationBuilder<T extends DynamoRecord, TOperation extend
    * Usage:
    * - To add a size condition: `operationBuilder.whereSize("fieldName", value);`
    */
-  whereSize<K extends keyof T>(field: K, value: T[K]) {
+  whereSize<K extends Path<T>>(field: K, value: PathType<T, K>) {
     this.conditions.push({ field, operator: "size", value });
     return this;
   }
