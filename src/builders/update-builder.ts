@@ -2,7 +2,7 @@ import type { PrimaryKeyWithoutExpression, DynamoUpdateOptions } from "../dynamo
 import type { IExpressionBuilder } from "./expression-builder";
 import { OperationBuilder } from "./operation-builder";
 import type { TransactionBuilder } from "./transaction-builder";
-import type { DynamoRecord } from "./types";
+import type { DynamoRecord, Path, PathType } from "./types";
 
 export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, DynamoUpdateOptions> {
   private updates: Partial<T> = {};
@@ -22,7 +22,7 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    * @param field - The field to update
    * @param value - The value to set
    */
-  set<K extends keyof T>(field: K, value: T[K]): this;
+  set<K extends Path<T>>(fieldOrAttributes: K, value?: PathType<T, K>): this;
   /**
    * Set multiple attributes in the update operation.
    * @param attributes - Object containing field-value pairs to update
@@ -40,9 +40,18 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    * - To set a single attribute: `updateBuilder.set("fieldName", value);`
    * - To set multiple attributes: `updateBuilder.set({ field1: value1, field2: value2 });`
    */
-  set<K extends keyof T>(fieldOrAttributes: K | Partial<T>, value?: T[K]) {
+  set<K extends Path<T>>(fieldOrAttributes: K | Partial<T>, value?: PathType<T, K>) {
     if (typeof fieldOrAttributes === "string") {
-      this.updates[fieldOrAttributes as keyof T] = value as T[K];
+      const keys = fieldOrAttributes.split(".");
+      let current: any = this.updates;
+      while (keys.length > 1) {
+        const key = keys.shift();
+        if (key) {
+          if (!current[key]) current[key] = {};
+          current = current[key];
+        }
+      }
+      current[keys[0]] = value as PathType<T, K>;
     } else {
       this.updates = { ...this.updates, ...(fieldOrAttributes as Partial<T>) };
     }
