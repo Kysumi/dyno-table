@@ -1,5 +1,5 @@
 import type { ExpressionAttributes } from "../builders/operators";
-import { ConditionalCheckFailedError, DynamoError, ResourceNotFoundError } from "./dynamo-error";
+import { ConditionalCheckFailedError, DynamoError, ResourceNotFoundError, ValidationError } from "./dynamo-error";
 import type { ErrorContext, TranslatedQuery } from "./types";
 
 function translateExpression(expression: string | undefined, attributes?: ExpressionAttributes): string {
@@ -90,7 +90,8 @@ export function handleDynamoError(error: unknown, context: ErrorContext): never 
     case "ResourceNotFoundException":
       throw new ResourceNotFoundError(errorMessage, error, context);
 
-    case ""
+    case "ValidationException":
+      throw ValidationError.fromDynamoError(errorMessage, error, context);
 
     default:
       throw new DynamoError(errorMessage, error, context);

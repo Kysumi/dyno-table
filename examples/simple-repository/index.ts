@@ -10,9 +10,13 @@ type TDinosaur = {
   heightMeters: number;
   diet: "carnivore" | "herbivore" | "omnivore";
   eats: { id: string; name: string }[];
+  banan: {
+    id: string;
+    name: string;
+  };
   meta: {
     paddock: {
-      id: string;
+      id: number;
       name: string;
     };
   };
@@ -72,6 +76,7 @@ async function main() {
   const rex = await dinosaurRepo.findOne({
     pk: "dinosaurId#rex001",
   });
+  console.log(rex);
   if (!rex) {
     await dinosaurRepo
       .create({
@@ -81,9 +86,13 @@ async function main() {
         heightMeters: 4.6,
         diet: "carnivore",
         eats: [],
+        banan: {
+          id: "123",
+          name: "banan",
+        },
         meta: {
           paddock: {
-            id: "paddock1",
+            id: 1,
             name: "Paddock 1",
           },
         },
@@ -115,7 +124,23 @@ async function main() {
       { eats: [{ id: "velociraptor001", name: "clever girl" }] },
     )
     .set("age", 26)
+    .set("meta.paddock", { id: 2, name: "Paddock 2" })
     .execute();
+
+  await dinosaurRepo
+    .update({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }, {})
+    .set("meta.paddock.name", "welp")
+    .execute();
+
+  console.log(await dinosaurRepo.findOne({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }));
+
+  await dinosaurRepo
+    .update({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }, {})
+    .set("meta.paddock.id", 23)
+    .set("meta.paddock.name", "woah dude! sick dinosaur paddock")
+    .execute();
+
+  console.log(await dinosaurRepo.findOne({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }));
 }
 
 main();

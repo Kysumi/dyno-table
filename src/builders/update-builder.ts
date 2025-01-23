@@ -17,17 +17,27 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
     super(expressionBuilder);
   }
 
+  private setNestedField<K extends Path<T>>(field: K, value: PathType<T, K>) {
+    const keys = field.split(".");
+    let current: Record<string, unknown> = this.updates;
+    while (keys.length > 1) {
+      const key = keys.shift();
+      if (key) {
+        current[key] = current[key] || {};
+        current = current[key] as Record<string, unknown>;
+      }
+    }
+    if (keys.length > 0 && typeof keys[0] === "string") {
+      current[keys[0]] = value;
+    }
+  }
+
   /**
    * Set one or more attributes in the update operation.
    * @param field - The field to update
    * @param value - The value to set
    */
-  set<K extends Path<T>>(fieldOrAttributes: K, value?: PathType<T, K>): this;
-  /**
-   * Set multiple attributes in the update operation.
-   * @param attributes - Object containing field-value pairs to update
-   */
-  set(attributes: Partial<T>): this;
+  set<K extends Path<T>>(fieldOrAttributes: K | Partial<T>, value?: PathType<T, K>): this;
 
   /**
    * Sets one or more attributes in the update operation.
@@ -42,18 +52,11 @@ export class UpdateBuilder<T extends DynamoRecord> extends OperationBuilder<T, D
    */
   set<K extends Path<T>>(fieldOrAttributes: K | Partial<T>, value?: PathType<T, K>) {
     if (typeof fieldOrAttributes === "string") {
-      const keys = fieldOrAttributes.split(".");
-      let current: any = this.updates;
-      while (keys.length > 1) {
-        const key = keys.shift();
-        if (key) {
-          if (!current[key]) current[key] = {};
-          current = current[key];
-        }
-      }
-      current[keys[0]] = value as PathType<T, K>;
+      this.setNestedField(fieldOrAttributes, value as PathType<T, K>);
     } else {
-      this.updates = { ...this.updates, ...(fieldOrAttributes as Partial<T>) };
+      for (const [key, val] of Object.entries(fieldOrAttributes)) {
+        this.setNestedField(key as K, val as PathType<T, K>);
+      }
     }
     return this;
   }

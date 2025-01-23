@@ -485,7 +485,7 @@ describe("Table Integration Tests", () => {
       await table.put(testItem).execute();
     });
 
-    it("should filter dinosaurs using dot notation", async () => {
+    it("should filter dinosaurs using dot notation (exclude items that match)", async () => {
       const nestedDino = {
         ...testItem,
         details: {
@@ -506,6 +506,26 @@ describe("Table Integration Tests", () => {
       expect(result[0]).toEqual(nestedDino);
     });
 
+    it("should filter dinosaurs using dot notation (return items that do not match)", async () => {
+      const nestedDino = {
+        ...testItem,
+        details: {
+          habitat: {
+            region: "Cretaceous Park",
+            climate: "Tropical",
+          },
+        },
+      };
+      await table.put(nestedDino).execute();
+
+      const result = await table
+        .query<typeof nestedDino>({ pk: testItem.pk })
+        .where("details.habitat.region", "=", "Apple")
+        .execute();
+
+      expect(result).toHaveLength(0);
+    });
+
     it("should update dinosaur habitats using dot notation", async () => {
       const nestedDino = {
         ...testItem,
@@ -518,15 +538,8 @@ describe("Table Integration Tests", () => {
       };
       await table.put(nestedDino).execute();
 
-      const t = table
-        .update({ pk: testItem.pk, sk: testItem.sk })
-        .set("details.habitat.region", "Jurassic Jungle")
-        .build();
-
-      console.log(t);
-
       await table
-        .update({ pk: testItem.pk, sk: testItem.sk })
+        .update<typeof nestedDino>({ pk: testItem.pk, sk: testItem.sk })
         .set("details.habitat.region", "Jurassic Jungle")
         .execute();
 
