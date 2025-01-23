@@ -36,18 +36,20 @@ export class ValidationError extends DynamoError {
   }
 
   static fromDynamoError(message: string, originalError: Error, context: ErrorContext): ValidationError {
+    let messageToUse = message;
+
     // Provide clearer explanations for specific error messages
     if (message.includes("The document path provided in the update expression is invalid for update")) {
-      message +=
+      messageToUse +=
         "\n\nThe PK and/or SK provided does not find a single record in the table. Please ensure the PK and SK are correct and match the table's schema";
     } else if (message.includes("One or more parameter values were invalid")) {
-      message +=
+      messageToUse +=
         "The operation failed due to invalid parameter values. Check your query parameters and ensure they meet the expected format and constraints.";
     } else if (message.includes("The provided key element does not match the schema")) {
-      message +=
+      messageToUse +=
         "The key provided does not match the table's schema. Verify that your key attributes are correct and conform to the table's key schema.";
     }
 
-    return new ValidationError(message, originalError, context);
+    return new ValidationError(messageToUse, originalError, context);
   }
 }
