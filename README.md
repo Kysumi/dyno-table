@@ -4,6 +4,9 @@ A powerful, type-safe, and fluent DynamoDB table abstraction layer for Node.js a
 
 Allows you to work with DynamoDB in a single table design pattern
 
+
+![image](docs/images/geoff-the-dyno.png)
+
 ## ✨ Features
 
 - **Type-safe operations**: Ensures type safety for all DynamoDB operations.
