@@ -33,9 +33,12 @@ export class ExpressionBuilder implements IExpressionBuilder {
     this.valueCount = 0;
   }
 
-  private createAttributePath(path: string) {
+  private createAttributePath(path: string, attributes: InternalExpressionAttributes) {
     const parts = path.split(".");
-    const aliases = parts.map(() => this.generateAlias("name"));
+    const aliases = parts.map((part) => {
+      const existingAlias = Object.entries(attributes.names).find(([, name]) => name === part)?.[0];
+      return existingAlias || this.generateAlias("name");
+    });
 
     return {
       path: aliases.join("."),
@@ -108,7 +111,7 @@ export class ExpressionBuilder implements IExpressionBuilder {
     const attributes: InternalExpressionAttributes = { names: {}, values: {} };
 
     const expressions = conditions.map(({ field, operator, value }) => {
-      const { path, names } = this.createAttributePath(field);
+      const { path, names } = this.createAttributePath(field, attributes);
       Object.assign(attributes.names, names);
       return this.buildComparison(path, operator, value, attributes);
     });
@@ -159,21 +162,34 @@ export class ExpressionBuilder implements IExpressionBuilder {
     const attributes: InternalExpressionAttributes = { names: {}, values: {} };
     const operations = { sets: [] as string[], removes: [] as string[] };
 
-    for (const [key, value] of Object.entries(updates)) {
-      if (key === "") {
-        throw new Error("Empty key provided");
+    const MAX_DEPTH = 32;
+    const seen = new WeakSet();
+    const processUpdate = (prefix: string, obj: Record<string, unknown>, depth = 0) => {
+      if (depth > MAX_DEPTH) {
+        throw new Error("Maximum nesting depth exceeded");
       }
-
-      const nameAlias = this.generateAlias("name", "u");
-      attributes.names[nameAlias] = key;
-
-      if (value == null) {
-        operations.removes.push(nameAlias);
-      } else {
-        const valueAlias = this.addValue(attributes, value, "u");
-        operations.sets.push(`${nameAlias} = ${valueAlias}`);
+      if (seen.has(obj)) {
+        throw new Error("Circular reference detected");
       }
-    }
+      seen.add(obj);
+      for (const [key, value] of Object.entries(obj)) {
+        const fullPath = prefix ? `${prefix}.${key}` : key;
+        const { path, names } = this.createAttributePath(fullPath, attributes);
+        Object.assign(attributes.names, names);
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          processUpdate(fullPath, value as Record<string, unknown>, depth + 1);
+        } else {
+          if (value == null) {
+            operations.removes.push(path);
+          } else {
+            const valueAlias = this.addValue(attributes, value, "u");
+            operations.sets.push(`${path} = ${valueAlias}`);
+          }
+        }
+      }
+    };
+
+    processUpdate("", updates);
 
     const expression = [
       operations.sets.length && `SET ${operations.sets.join(", ")}`,

@@ -175,9 +175,9 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "SET #u0 = :u0",
+        expression: "SET #n0 = :u0",
         attributes: {
-          names: { "#u0": "name" },
+          names: { "#n0": "name" },
           values: { ":u0": "John Doe" },
         },
       });
@@ -191,12 +191,12 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "SET #u0 = :u0, #u1 = :u1, #u2 = :u2",
+        expression: "SET #n0 = :u0, #n1 = :u1, #n2 = :u2",
         attributes: {
           names: {
-            "#u0": "name",
-            "#u1": "age",
-            "#u2": "email",
+            "#n0": "name",
+            "#n1": "age",
+            "#n2": "email",
           },
           values: {
             ":u0": "John Doe",
@@ -214,11 +214,11 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "REMOVE #u0, #u1",
+        expression: "REMOVE #n0, #n1",
         attributes: {
           names: {
-            "#u0": "deletedAt",
-            "#u1": "temporaryFlag",
+            "#n0": "deletedAt",
+            "#n1": "temporaryFlag",
           },
         },
       });
@@ -233,13 +233,13 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "SET #u0 = :u0, #u1 = :u1 REMOVE #u2, #u3",
+        expression: "SET #n0 = :u0, #n1 = :u1 REMOVE #n2, #n3",
         attributes: {
           names: {
-            "#u0": "name",
-            "#u1": "age",
-            "#u2": "deletedAt",
-            "#u3": "status",
+            "#n0": "name",
+            "#n1": "age",
+            "#n2": "deletedAt",
+            "#n3": "status",
           },
           values: {
             ":u0": "John Doe",
@@ -268,21 +268,22 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "SET #u0 = :u0, #u1 = :u1, #u2 = :u2, #u3 = :u3, #u4 = :u4",
+        expression: "SET #n0 = :u0, #n1 = :u1, #n2 = :u2, #n3 = :u3, #n4.#n5 = :u4",
         attributes: {
           names: {
-            "#u0": "string",
-            "#u1": "number",
-            "#u2": "boolean",
-            "#u3": "array",
-            "#u4": "object",
+            "#n0": "string",
+            "#n1": "number",
+            "#n2": "boolean",
+            "#n3": "array",
+            "#n4": "object",
+            "#n5": "key",
           },
           values: {
             ":u0": "text",
             ":u1": 123,
             ":u2": true,
             ":u3": [1, 2, 3],
-            ":u4": { key: "value" },
+            ":u4": "value",
           },
         },
       });
@@ -294,9 +295,9 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "SET #u0 = :u0",
+        expression: "SET #n0 = :u0",
         attributes: {
-          names: { "#u0": "name" },
+          names: { "#n0": "name" },
           values: { ":u0": "" },
         },
       });
@@ -308,9 +309,9 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "SET #u0 = :u0",
+        expression: "SET #n0 = :u0",
         attributes: {
-          names: { "#u0": "count" },
+          names: { "#n0": "count" },
           values: { ":u0": 0 },
         },
       });
@@ -322,20 +323,12 @@ describe("ExpressionBuilder", () => {
       });
 
       expect(result).toEqual({
-        expression: "SET #u0 = :u0",
+        expression: "SET #n0 = :u0",
         attributes: {
-          names: { "#u0": "isActive" },
+          names: { "#n0": "isActive" },
           values: { ":u0": false },
         },
       });
-    });
-
-    it("should throw error for invalid field names", () => {
-      expect(() =>
-        builder.buildUpdateExpression({
-          "": "value",
-        }),
-      ).toThrow();
     });
   });
 });

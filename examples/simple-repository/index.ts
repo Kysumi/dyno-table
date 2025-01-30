@@ -10,6 +10,16 @@ type TDinosaur = {
   heightMeters: number;
   diet: "carnivore" | "herbivore" | "omnivore";
   eats: { id: string; name: string }[];
+  classification: {
+    id: string;
+    name: string;
+  };
+  meta: {
+    paddock: {
+      id: number;
+      name: string;
+    };
+  };
 };
 
 const tableIndexes = {
@@ -66,6 +76,7 @@ async function main() {
   const rex = await dinosaurRepo.findOne({
     pk: "dinosaurId#rex001",
   });
+  console.log(rex);
   if (!rex) {
     await dinosaurRepo
       .create({
@@ -75,6 +86,16 @@ async function main() {
         heightMeters: 4.6,
         diet: "carnivore",
         eats: [],
+        classification: {
+          id: "123",
+          name: "big-dino",
+        },
+        meta: {
+          paddock: {
+            id: 1,
+            name: "Paddock 1",
+          },
+        },
       })
       .execute();
   }
@@ -95,13 +116,31 @@ async function main() {
   // Scan for all juvenile carnivores
   await dinosaurRepo.scan().where("age", "<", 10).where("diet", "=", "carnivore").execute();
 
+  await dinosaurRepo.scan().where("meta.paddock.name", "=", "Paddock 1").execute();
+
   await dinosaurRepo
     .update(
       { pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" },
       { eats: [{ id: "velociraptor001", name: "clever girl" }] },
     )
     .set("age", 26)
+    .set("meta.paddock", { id: 2, name: "Paddock 2" })
     .execute();
+
+  await dinosaurRepo
+    .update({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }, {})
+    .set("meta.paddock.name", "welp")
+    .execute();
+
+  console.log(await dinosaurRepo.findOne({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }));
+
+  await dinosaurRepo
+    .update({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }, {})
+    .set("meta.paddock.id", 23)
+    .set("meta.paddock.name", "woah dude! sick dinosaur paddock")
+    .execute();
+
+  console.log(await dinosaurRepo.findOne({ pk: "dinosaurId#rex001", sk: "species#Tyrannosaurus" }));
 }
 
 main();

@@ -479,4 +479,74 @@ describe("Table Integration Tests", () => {
       );
     });
   });
+
+  describe("Dot Notations", () => {
+    beforeEach(async () => {
+      await table.put(testItem).execute();
+    });
+
+    it("should filter dinosaurs using dot notation (exclude items that match)", async () => {
+      const nestedDino = {
+        ...testItem,
+        details: {
+          habitat: {
+            region: "Cretaceous Park",
+            climate: "Tropical",
+          },
+        },
+      };
+      await table.put(nestedDino).execute();
+
+      const result = await table
+        .query<typeof nestedDino>({ pk: testItem.pk })
+        .where("details.habitat.region", "=", "Cretaceous Park")
+        .execute();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(nestedDino);
+    });
+
+    it("should filter dinosaurs using dot notation (return items that do not match)", async () => {
+      const nestedDino = {
+        ...testItem,
+        details: {
+          habitat: {
+            region: "Cretaceous Park",
+            climate: "Tropical",
+          },
+        },
+      };
+      await table.put(nestedDino).execute();
+
+      const result = await table
+        .query<typeof nestedDino>({ pk: testItem.pk })
+        .where("details.habitat.region", "=", "Apple")
+        .execute();
+
+      expect(result).toHaveLength(0);
+    });
+
+    it("should update dinosaur habitats using dot notation", async () => {
+      const nestedDino = {
+        ...testItem,
+        details: {
+          habitat: {
+            region: "Cretaceous Park",
+            climate: "Tropical",
+          },
+        },
+      };
+      await table.put(nestedDino).execute();
+
+      await table
+        .update<typeof nestedDino>({ pk: testItem.pk, sk: testItem.sk })
+        .set("details.habitat.region", "Jurassic Jungle")
+        .execute();
+
+      const updatedDino = await table.get({ pk: testItem.pk, sk: testItem.sk });
+      expect(updatedDino?.details?.habitat?.region).toBe("Jurassic Jungle");
+      // Assert that the attribute that wasn't updated is still the same
+      expect(updatedDino?.details?.habitat?.climate).toBe("Tropical");
+    });
+  });
 });
