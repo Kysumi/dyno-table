@@ -10,7 +10,7 @@ Allows you to work with DynamoDB in a single table design pattern
 ## ✨ Features
 
 - **Type-safe operations**: Ensures type safety for all DynamoDB operations.
-- **Builders for operations**: Provides builders for psut, update, delete, query, and scan operations.
+- **Builders for operations**: Provides builders for put, update, delete, query, and scan operations.
 - **Transaction support**: Supports transactional operations.
 - **Batch operations**: Handles batch write operations with automatic chunking for large datasets.
 - **Conditional operations**: Supports conditional puts, updates, and deletes.
