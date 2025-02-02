@@ -22,31 +22,34 @@ export class PutBuilder<T extends DynamoRecord> extends OperationBuilder<T, Dyna
   }
 
   /**
-   * Sets a single attribute in the put operation.
-   *
-   * @param field - The field to set.
-   * @param value - The value to set for the field.
-   * @returns The current instance of PutBuilder for method chaining.
-   *
-   * Usage:
-   * - To set a single attribute: `putBuilder.set("fieldName", value);`
+   * Set one or more attributes in the update operation.
+   * @param field - The field to update
+   * @param value - The value to set
    */
-  set<K extends keyof T>(field: K, value: T[K]) {
-    this.item[field] = value;
-    return this;
-  }
+  set<K extends keyof T>(field: K, value: T[K]): this;
+  /**
+   * Set multiple attributes in the update operation.
+   * @param attributes - Object containing field-value pairs to update
+   */
+  set(attributes: Partial<T>): this;
 
   /**
-   * Sets multiple attributes in the put operation.
+   * Sets one or more attributes in the update operation.
    *
-   * @param attributes - An object containing field-value pairs to set.
-   * @returns The current instance of PutBuilder for method chaining.
+   * @param fieldOrAttributes - The field to update or an object containing field-value pairs to update.
+   * @param value - The value to set if a single field is being updated.
+   * @returns The current instance of UpdateBuilder for method chaining.
    *
    * Usage:
-   * - To set multiple attributes: `putBuilder.setMany({ field1: value1, field2: value2 });`
+   * - To set a single attribute: `updateBuilder.set("fieldName", value);`
+   * - To set multiple attributes: `updateBuilder.set({ field1: value1, field2: value2 });`
    */
-  setMany(attributes: Partial<T>) {
-    this.item = { ...this.item, ...attributes };
+  set<K extends keyof T>(fieldOrAttributes: K | Partial<T>, value?: T[K]) {
+    if (typeof fieldOrAttributes === "string") {
+      this.item[fieldOrAttributes as keyof T] = value as T[K];
+    } else {
+      this.item = { ...this.item, ...(fieldOrAttributes as Partial<T>) };
+    }
     return this;
   }
 
