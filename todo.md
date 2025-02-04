@@ -1,6 +1,5 @@
 
 # Bugs
-  * dot notation for set method doesn't work
   * In errors logs the queries are not being correclty turned from DDB query to human readable query
   * [DynamoDB Programming Errors](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html)
 # Features
@@ -16,19 +15,21 @@
       * store the success or failure state message
     * lock the migration table to prevent multiple migrations from running at the same time
 
-    allow glueing repositories together
-      * query method would restrict types returned to the glued repository
-         * would return the items in a structured manor
-         * would have to define the relationship and relationship names
+## REPOSITORY GLUEING
+allow glueing repositories together
+  * query method would restrict types returned to the glued repository
+      * would return the items in a structured manor
+      * would have to define the relationship and relationship names
 
-    making pagination better
-      * it'd be nice to do a query/scan and get a paginated result
-      * const pages = await repo.query(query).execute() ? Maybe
+## PAGINATION / LIMIT IMPROVEMENTS / BUGS
+making pagination better
+  * limit should not apply to the page size, it should apply to the TOTAL number of items returned
+  * paginate should take a page size and page till the total number of items is reached
 
-# TODO
-* wind repos back to being really thin pre typed expression builder
-  * this is to lower scope and make it easier to maintain through reducing complexity
-  * allow consumers to extend and implement their own life cycle methods ontop of the base repo
+LIMIT should not use the DDB limit directly it should internally load data until the total number of items is reached
+
+query/scan need to always return the desired limit for the developer
+maybe need to make an iterator object? allow a for loop to make it work
 
 * Migrations
 
@@ -50,3 +51,8 @@ Flip the API for the batch and transaction methods
 * allow picking of specific attributes to be returned
   * this should be a method on the query builder
   * this should be a method on the scan builder
+
+* prevent devs from attempting to do a write in a getTransaction method or in batchGet
+* prevent devs from attempting to do a read in a batchWrite method
+
+
