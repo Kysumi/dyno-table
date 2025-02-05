@@ -11,6 +11,10 @@ import type { DynamoRecord } from "./builders/types";
 import { TransactionBuilder } from "./builders/transaction-builder";
 import { DeleteBuilder } from "./builders/delete-builder";
 
+/**
+ * Main interface for interacting with a DynamoDB table. Provides type-safe methods
+ * for CRUD operations, queries, scans, and transactions.
+ */
 export class Table<TIndexes extends string> {
   private readonly dynamoService: DynamoService;
   private readonly expressionBuilder: ExpressionBuilder;
