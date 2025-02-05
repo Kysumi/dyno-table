@@ -203,7 +203,7 @@ while (paginator.hasNextPage()) {
 
 ## 🛡️ Type-Safe Query Building
 
-Dyno-table provides a comprehensive query DSL that matches DynamoDB's capabilities while maintaining type safety:
+Dyno-table provides a comprehensive query methods that matches DynamoDB's capabilities while maintaining type safety:
 
 | Operation                  | Method Example                           |
 |----------------------------|------------------------------------------|
