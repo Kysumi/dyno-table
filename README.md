@@ -3,6 +3,8 @@
 **A type-safe, fluent interface for DynamoDB single-table designs**  
 *Tame the NoSQL wilderness with a robust abstraction layer that brings order to DynamoDB operations*
 
+<img src="docs/images/geoff-the-dyno.png" width="400" height="250" alt="Geoff the Dyno" style="float: right; margin-left: 20px; margin-bottom: 20px;">
+
 ```ts
 // Type-safe DynamoDB operations made simple
 await dinoRepo
