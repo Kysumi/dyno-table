@@ -84,12 +84,43 @@ export class DynamoService {
 
   async query(options: DynamoQueryOptions): Promise<DynamoQueryResponse> {
     try {
-      if (options.autoPaginate) {
-        return await this.executeWithAutoPagination(options);
+      const limit = options.limit;
+      if (typeof limit !== "number") {
+        // Original behavior without pagination
+        const params = this.converter.toQueryCommand(options);
+        const response = await this.withRetry(() => this.client.query(params));
+        return response;
       }
 
-      const params = this.converter.toQueryCommand(options);
-      return await this.withRetry(() => this.client.query(params));
+      let accumulatedItems: Record<string, unknown>[] = [];
+      let lastEvaluatedKey: Record<string, unknown> | undefined;
+      let totalScannedCount = 0;
+      let remainingLimit = limit;
+
+      do {
+        const currentOptions = {
+          ...options,
+          limit: remainingLimit,
+          exclusiveStartKey: lastEvaluatedKey,
+        };
+        const params = this.converter.toQueryCommand(currentOptions);
+        const response = await this.withRetry(() => this.client.query(params));
+        const items = response.Items || [];
+
+        accumulatedItems = accumulatedItems.concat(items);
+        totalScannedCount += response.ScannedCount || 0;
+
+        remainingLimit = limit - accumulatedItems.length;
+        lastEvaluatedKey = response.LastEvaluatedKey;
+      } while (remainingLimit > 0 && lastEvaluatedKey);
+
+      const finalItems = accumulatedItems.slice(0, limit);
+      return {
+        Items: finalItems,
+        Count: finalItems.length,
+        ScannedCount: totalScannedCount,
+        LastEvaluatedKey: lastEvaluatedKey,
+      };
     } catch (error) {
       handleDynamoError(error, {
         operation: "QUERY",
@@ -101,8 +132,44 @@ export class DynamoService {
 
   async scan(options: DynamoScanOptions) {
     try {
-      const params = this.converter.toScanCommand(options);
-      return await this.withRetry(() => this.client.scan(params));
+      const limit = options.limit;
+      if (typeof limit !== "number") {
+        // Original behavior without pagination
+        const params = this.converter.toScanCommand(options);
+        return await this.withRetry(() => this.client.scan(params));
+      }
+
+      let accumulatedItems: Record<string, unknown>[] = [];
+      let lastEvaluatedKey: Record<string, unknown> | undefined;
+      let totalScannedCount = 0;
+      let remainingLimit = limit;
+
+      do {
+        const currentOptions = {
+          ...options,
+          limit: remainingLimit,
+          exclusiveStartKey: lastEvaluatedKey,
+        };
+        const params = this.converter.toScanCommand(currentOptions);
+        const response = await this.withRetry(() => this.client.scan(params));
+        const items = response.Items || [];
+
+        accumulatedItems = accumulatedItems.concat(items);
+
+        totalScannedCount += response.ScannedCount || 0;
+
+        remainingLimit = limit - accumulatedItems.length;
+        lastEvaluatedKey = response.LastEvaluatedKey;
+      } while (remainingLimit > 0 && lastEvaluatedKey);
+
+      // Grab items up till the limit
+      const finalItems = accumulatedItems.slice(0, limit);
+      return {
+        Items: finalItems,
+        Count: finalItems.length,
+        ScannedCount: totalScannedCount,
+        LastEvaluatedKey: lastEvaluatedKey,
+      };
     } catch (error) {
       handleDynamoError(error, {
         operation: "SCAN",
@@ -140,32 +207,6 @@ export class DynamoService {
         commandInput: this.converter.toTransactWriteCommand(items),
       });
     }
-  }
-
-  private async executeWithAutoPagination(options: DynamoQueryOptions): Promise<DynamoQueryResponse> {
-    const allItems: DynamoRecord[] = [];
-    let lastEvaluatedKey: Record<string, unknown> | undefined;
-
-    do {
-      const result = await this.query({
-        ...options,
-        exclusiveStartKey: lastEvaluatedKey,
-        autoPaginate: false,
-      });
-
-      if (result.Items) {
-        allItems.push(...result.Items);
-      }
-
-      lastEvaluatedKey = result.LastEvaluatedKey;
-    } while (lastEvaluatedKey);
-
-    return {
-      Items: allItems,
-      Count: allItems.length,
-      ScannedCount: allItems.length,
-      LastEvaluatedKey: undefined,
-    };
   }
 
   private async processBatchWrite(items: DynamoBatchWriteItem[]) {
