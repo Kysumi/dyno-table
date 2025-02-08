@@ -16,7 +16,6 @@ export interface DynamoQueryOptions {
   filter?: DynamoExpression;
   keyCondition?: DynamoExpression;
   limit?: number;
-  autoPaginate?: boolean;
   consistentRead?: boolean;
   sortDirection?: "asc" | "desc";
   exclusiveStartKey?: Record<string, unknown>;
