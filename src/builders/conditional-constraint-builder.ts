@@ -97,7 +97,7 @@ export class ConditionalConstraintBuilder {
     };
   }
 
-  where(field: string, operator: string, value: unknown): this {
+  where(field: string, operator: ComparisonOperator, value: unknown): this {
     const expression = this.createCondition(
       field,
       (path, [placeholder]) => `${path} ${operator} ${placeholder}`,
@@ -106,7 +106,7 @@ export class ConditionalConstraintBuilder {
     return this.addCondition("AND", expression);
   }
 
-  orWhere(field: string, operator: string, value: unknown): this {
+  orWhere(field: string, operator: ComparisonOperator, value: unknown): this {
     const expression = this.createCondition(
       field,
       (path, [placeholder]) => `${path} ${operator} ${placeholder}`,
@@ -293,6 +293,11 @@ export class ConditionalConstraintBuilder {
     }
 
     const firstCondition = this.conditions[0];
+
+    if (!firstCondition) {
+      return null;
+    }
+
     let combinedExpression = firstCondition.expression.expression;
     let combinedNames = { ...(firstCondition.expression.names || {}) };
     let combinedValues = { ...(firstCondition.expression.values || {}) };
