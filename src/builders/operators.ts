@@ -29,15 +29,17 @@ export type FunctionOperator =
 /**
  * Examples of DynamoDB attribute types:
  * S    - String         e.g. "Hello World"
- * SS   - String Set     e.g. ["Hello", "World"]
  * N    - Number         e.g. "123.45" (stored as string)
- * NS   - Number Set     e.g. ["1", "2", "3"]
  * B    - Binary         e.g. Buffer/Blob data
+ * SS   - String Set     e.g. ["Hello", "World"]
+ * NS   - Number Set     e.g. ["1", "2", "3"]
  * BS   - Binary Set     e.g. [Buffer1, Buffer2]
  * BOOL - Boolean        e.g. true/false
  * NULL - Null           e.g. null
+ * M    - Map            e.g. { key: "value" }
+ * L    - List           e.g. ["item1", "item2"]
  */
-export type AttributeTypes = "S" | "N" | "B" | "SS" | "NS" | "BS" | "BOOL" | "NULL";
+export type AttributeTypes = "S" | "N" | "B" | "SS" | "NS" | "BS" | "BOOL" | "NULL" | "M" | "L";
 
 /**
  * Comparison operators

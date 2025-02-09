@@ -638,12 +638,6 @@ export class ConditionalConstraintBuilder {
    * Builds and returns the final condition expression
    *
    * @returns The complete condition expression, or null if no conditions were added
-   *
-   * Usage:
-   * ```typescript
-   * const expression = builder.getExpression();
-   * // { expression: "#0 > :0", names: { "#0": "age" }, values: { ":0": 21 } }
-   * ```
    */
   getExpression(): ConditionExpression | null {
     if (!this.conditions.length) {
@@ -651,21 +645,35 @@ export class ConditionalConstraintBuilder {
     }
 
     const firstCondition = this.conditions[0];
-
     if (!firstCondition) {
       return null;
+    }
+
+    // For a single condition, don't wrap in parentheses
+    if (this.conditions.length === 1) {
+      return firstCondition.expression;
     }
 
     let combinedExpression = firstCondition.expression.expression;
     let combinedNames = { ...(firstCondition.expression.names || {}) };
     let combinedValues = { ...(firstCondition.expression.values || {}) };
 
+    // For multiple conditions, only add parentheses when mixing AND/OR
     const remainingConditions = this.conditions.slice(1);
+    let lastConjunction: "AND" | "OR" | null = null;
+
     combinedExpression = remainingConditions.reduce((acc, condition) => {
       const { expression, conjunction } = condition;
       combinedNames = { ...combinedNames, ...(expression.names || {}) };
       combinedValues = { ...combinedValues, ...(expression.values || {}) };
-      return `(${acc}) ${conjunction} (${expression.expression})`;
+
+      // Only wrap in parentheses if we're mixing AND/OR
+      const needsParentheses = lastConjunction !== null && lastConjunction !== conjunction;
+      const wrappedAcc = needsParentheses ? `(${acc})` : acc;
+      const wrappedExpr = needsParentheses ? `(${expression.expression})` : expression.expression;
+
+      lastConjunction = conjunction;
+      return `${wrappedAcc} ${conjunction} ${wrappedExpr}`;
     }, combinedExpression);
 
     return {

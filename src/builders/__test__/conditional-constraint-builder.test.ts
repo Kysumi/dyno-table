@@ -32,7 +32,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 > :0) AND (#1 = :1)",
+      expression: "#0 > :0 AND #1 = :1",
       names: { "#0": "age", "#1": "diet" },
       values: { ":0": 65000000, ":1": "carnivore" },
     });
@@ -44,7 +44,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 = :0) OR (#0 = :1)",
+      expression: "#0 = :0 OR #0 = :1",
       names: { "#0": "period" },
       values: { ":0": "Jurassic", ":1": "Cretaceous" },
     });
@@ -109,7 +109,7 @@ describe("ConditionalConstraintBuilder", () => {
     const result = builder.getExpression();
     expect(result).toEqual({
       expression:
-        "(((#0 = :0) AND ((#1 > :1) OR (#2 = :2))) OR ((NOT attribute_type(#3, NULL)) OR (contains(#4, :3)))) OR (size(#4) > :4)",
+        "(#0 = :0 AND #1 > :1 OR #2 = :2) OR (NOT attribute_type(#3, NULL) OR contains(#4, :3)) OR size(#4) > :4",
       names: {
         "#0": "species",
         "#1": "height",
@@ -144,7 +144,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(attribute_type(#0, NULL)) OR (NOT attribute_type(#1, NULL))",
+      expression: "attribute_type(#0, NULL) OR NOT attribute_type(#1, NULL)",
       names: { "#0": "extinctionDate", "#1": "lastSighting" },
     });
   });
@@ -184,7 +184,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 = :0) OR (NOT (#1 < :1))",
+      expression: "#0 = :0 OR NOT (#1 < :1)",
       names: { "#0": "species", "#1": "age" },
       values: { ":0": "T-Rex", ":1": 1000 },
     });
@@ -207,7 +207,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 = :0) OR (attribute_type(#1, N))",
+      expression: "#0 = :0 OR attribute_type(#1, N)",
       names: { "#0": "active", "#1": "count" },
       values: { ":0": true },
     });
@@ -219,7 +219,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 = :0) OR (size(#1) > :1)",
+      expression: "#0 = :0 OR size(#1) > :1",
       names: { "#0": "type", "#1": "teeth" },
       values: { ":0": "carnivore", ":1": 50 },
     });
@@ -231,7 +231,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 = :0) OR (contains(#1, :1))",
+      expression: "#0 = :0 OR contains(#1, :1)",
       names: { "#0": "period", "#1": "features" },
       values: { ":0": "Jurassic", ":1": "scales" },
     });
@@ -243,7 +243,7 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 = :0) OR (begins_with(#1, :1))",
+      expression: "#0 = :0 OR begins_with(#1, :1)",
       names: { "#0": "class", "#1": "name" },
       values: { ":0": "reptile", ":1": "Tyranno" },
     });
@@ -269,9 +269,109 @@ describe("ConditionalConstraintBuilder", () => {
 
     const result = builder.getExpression();
     expect(result).toEqual({
-      expression: "(#0 = :0) AND (#0 = :0)", // Should reuse the same placeholder
+      expression: "#0 = :0 AND #0 = :0", // Should reuse the same placeholder
       names: { "#0": "species" },
       values: { ":0": "Raptor" },
+    });
+  });
+
+  test("should generate readable debug expression", () => {
+    const builder = new ConditionalConstraintBuilder();
+    builder
+      .where("age", ">", 21)
+      .orWhere("status", "=", "active")
+      .whereExpression((nested) => nested.where("role", "=", "admin").where("permissions.admin", "=", true));
+
+    const result = builder.getDebugExpression();
+    expect(result).toBe("(age > 21 OR status = 'active') AND (role = 'admin' AND permissions.admin = true)");
+  });
+
+  test("should return null debug expression for empty builder", () => {
+    const builder = new ConditionalConstraintBuilder();
+    const result = builder.getDebugExpression();
+    expect(result).toBeNull();
+  });
+
+  describe("getDebugExpression", () => {
+    test("should format simple conditions", () => {
+      const builder = new ConditionalConstraintBuilder();
+      builder.where("age", ">", 21).where("isActive", "=", true).orWhere("role", "=", "admin");
+
+      const result = builder.getDebugExpression();
+      expect(result).toBe("(age > 21 AND isActive = true) OR (role = 'admin')");
+    });
+
+    test("should format conditions with special characters", () => {
+      const builder = new ConditionalConstraintBuilder();
+      builder.where("user.name", "=", "John O'Connor").where("user.email", "=", "john@example.com");
+
+      const result = builder.getDebugExpression();
+      expect(result).toBe("user.name = 'John O'Connor' AND user.email = 'john@example.com'");
+    });
+
+    test("should format deeply nested conditions", () => {
+      const builder = new ConditionalConstraintBuilder();
+      builder
+        .where("status", "=", "active")
+        .whereExpression((nested1) => {
+          nested1.where("age", ">", 18).orWhereExpression((nested2) => {
+            nested2.where("parentConsent", "=", true).where("parentEmail", "<>", null);
+          });
+        })
+        .orWhereExpression((nested3) => {
+          nested3.whereAttributeExists("premium").whereExpression((nested4) => {
+            nested4.where("subscriptionType", "=", "annual").orWhere("credits", ">", 1000);
+          });
+        });
+
+      const result = builder.getDebugExpression();
+      expect(result).toBe(
+        "(status = 'active' AND age > 18 OR parentConsent = true AND parentEmail <> null) OR " +
+          "(attribute_exists(premium) AND subscriptionType = 'annual' OR credits > 1000)",
+      );
+    });
+
+    test("should format mixed type conditions", () => {
+      const builder = new ConditionalConstraintBuilder();
+      builder
+        .where("count", ">", 100)
+        .where("isEnabled", "=", true)
+        .where("tags", "=", ["important", "urgent"])
+        .where("lastUpdated", "=", "2023-01-01")
+        .where("score", "=", 4.5);
+
+      const result = builder.getDebugExpression();
+      expect(result).toBe(
+        "count > 100 AND isEnabled = true AND tags = ['important','urgent'] AND " +
+          "lastUpdated = '2023-01-01' AND score = 4.5",
+      );
+    });
+
+    test("should format complex function conditions", () => {
+      const builder = new ConditionalConstraintBuilder();
+      builder
+        .whereSize("items", ">", 5)
+        .whereContains("description", "important")
+        .whereBeginsWith("id", "user_")
+        .whereAttributeType("metadata", "M")
+        .whereIn("status", ["pending", "processing", "completed"]);
+
+      const result = builder.getDebugExpression();
+      expect(result).toBe(
+        "size(items) > 5 AND contains(description, 'important') AND begins_with(id, 'user_') AND " +
+          "attribute_type(metadata, M) AND status IN ('pending', 'processing', 'completed')",
+      );
+    });
+
+    test("should handle null and not exists conditions", () => {
+      const builder = new ConditionalConstraintBuilder();
+      builder.whereIsNull("deletedAt").whereAttributeNotExists("archivedAt").orWhereIsNotNull("completedAt");
+
+      const result = builder.getDebugExpression();
+      expect(result).toBe(
+        "(attribute_type(deletedAt, NULL) AND attribute_not_exists(archivedAt)) OR " +
+          "(NOT attribute_type(completedAt, NULL))",
+      );
     });
   });
 });
