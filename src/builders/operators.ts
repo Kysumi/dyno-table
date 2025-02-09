@@ -8,6 +8,16 @@ export interface ExpressionResult {
   attributes: ExpressionAttributes;
 }
 
+/**
+ * Function operators
+ *
+ * attribute_exists - Checks if an attribute exists
+ * attribute_not_exists - Checks if an attribute does not exist
+ * begins_with - Checks if a string begins with a specified prefix
+ * contains - Checks if a string contains a specified substring
+ * not_contains - Checks if a string does not contain a specified substring
+ * attribute_type - Checks if an attribute is of a specified type
+ */
 export type FunctionOperator =
   | "attribute_exists"
   | "attribute_not_exists"
@@ -29,7 +39,30 @@ export type FunctionOperator =
  */
 export type AttributeTypes = "S" | "N" | "B" | "SS" | "NS" | "BS" | "BOOL" | "NULL";
 
-export type ComparisonOperator = "=" | "<" | "<=" | ">" | ">=";
+/**
+ * Comparison operators
+ *
+ * =    - Equal to
+ * <>   - Not equal to
+ * <    - Less than
+ * <=   - Less than or equal to
+ * >    - Greater than
+ * >=   - Greater than or equal to
+ */
+export type ComparisonOperator = "=" | "<" | "<=" | ">" | ">=" | "<>";
+
+/**
+ * Special operators
+ *
+ * between - Between two values
+ * in    - In a list
+ * size  - Returns a number that represents an attribute's size. The following are valid data types for use with size.
+ * - String - length of the string
+ * - Binary - number of bytes in the binary data
+ * - Set - number of elements in the set
+ * - List - number of elements in the list
+ * - Map - number of elements in the map
+ */
 export type SpecialOperator = "between" | "in" | "size";
 
 export type ConditionOperator = FunctionOperator | ComparisonOperator | SpecialOperator;
