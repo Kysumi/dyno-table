@@ -603,7 +603,6 @@ export class ConditionalConstraintBuilder {
   whereExpression(builder: ConstraintBuilder): this {
     const nestedBuilder = new ConditionalConstraintBuilder(this.names, this.values);
     builder(nestedBuilder);
-
     const nestedExpression = nestedBuilder.getExpression();
     if (nestedExpression) {
       return this.addCondition("AND", nestedExpression);
@@ -674,5 +673,47 @@ export class ConditionalConstraintBuilder {
       names: Object.keys(combinedNames).length ? combinedNames : undefined,
       values: Object.keys(combinedValues).length ? combinedValues : undefined,
     };
+  }
+
+  /**
+   * Returns a human-readable version of the condition expression for debugging
+   * Replaces placeholders with their actual values
+   *
+   * @returns A readable version of the condition expression, or null if no conditions
+   *
+   * Usage:
+   * ```typescript
+   * const builder = new ConditionalConstraintBuilder()
+   *   .where("age", ">", 21)
+   *   .orWhere("status", "=", "active");
+   *
+   * console.log(builder.getDebugExpression());
+   * // "(age > 21) OR (status = 'active')"
+   * ```
+   */
+  getDebugExpression(): string | null {
+    const expression = this.getExpression();
+    if (!expression) {
+      return null;
+    }
+
+    let readableExpression = expression.expression;
+
+    // Replace name placeholders
+    if (expression.names) {
+      for (const [placeholder, actualName] of Object.entries(expression.names)) {
+        readableExpression = readableExpression.replace(new RegExp(placeholder, "g"), actualName);
+      }
+    }
+
+    // Replace value placeholders
+    if (expression.values) {
+      for (const [placeholder, value] of Object.entries(expression.values)) {
+        const formattedValue = typeof value === "string" ? `'${value}'` : value;
+        readableExpression = readableExpression.replace(new RegExp(placeholder, "g"), String(formattedValue));
+      }
+    }
+
+    return readableExpression;
   }
 }
