@@ -374,4 +374,43 @@ describe("ConditionalConstraintBuilder", () => {
       );
     });
   });
+
+  describe("expression limits", () => {
+    test("should throw error when exceeding 4KB expression length", () => {
+      const builder = new ConditionalConstraintBuilder();
+
+      // Generate a very long expression
+      for (let i = 0; i < 1000; i++) {
+        builder.where(`field${i}`, "=", `value${i}`);
+      }
+
+      expect(() => builder.getExpression()).toThrow("Condition expression exceeds maximum length of 4KB");
+    });
+
+    test("should throw error when exceeding 255 name placeholders", () => {
+      const builder = new ConditionalConstraintBuilder();
+
+      // Generate more than 255 unique field names
+      for (let i = 0; i < 256; i++) {
+        builder.where(`field${i}`, "=", "value");
+      }
+
+      expect(() => builder.getExpression()).toThrow(
+        "Condition expression exceeds maximum of 255 attribute name placeholders",
+      );
+    });
+
+    test("should throw error when exceeding 255 value placeholders", () => {
+      const builder = new ConditionalConstraintBuilder();
+
+      // Generate more than 255 unique values
+      for (let i = 0; i < 256; i++) {
+        builder.where("field", "=", `value${i}`);
+      }
+
+      expect(() => builder.getExpression()).toThrow(
+        "Condition expression exceeds maximum of 255 attribute value placeholders",
+      );
+    });
+  });
 });

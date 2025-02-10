@@ -635,6 +635,38 @@ export class ConditionalConstraintBuilder {
   }
 
   /**
+   * Validates that the expression meets DynamoDB's constraints
+   *
+   * @see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Constraints.html#limits-expression-parameters
+   *
+   * @param expression - The expression string to validate
+   * @param names - The expression attribute names
+   * @param values - The expression attribute values
+   * @throws Error if any constraints are violated
+   */
+  private validateExpressionConstraints(
+    expression: string,
+    names: Record<string, string>,
+    values: Record<string, unknown>,
+  ): void {
+    // Validate expression length
+    const expressionBytes = new TextEncoder().encode(expression).length;
+    if (expressionBytes > 4096) {
+      throw new Error(`Condition expression exceeds maximum length of 4KB (current: ${expressionBytes} bytes)`);
+    }
+
+    // Validate number of name placeholders
+    if (Object.keys(names).length > 255) {
+      throw new Error("Condition expression exceeds maximum of 255 attribute name placeholders");
+    }
+
+    // Validate number of value placeholders
+    if (Object.keys(values).length > 255) {
+      throw new Error("Condition expression exceeds maximum of 255 attribute value placeholders");
+    }
+  }
+
+  /**
    * Builds and returns the final condition expression
    *
    * @returns The complete condition expression, or null if no conditions were added
@@ -649,16 +681,10 @@ export class ConditionalConstraintBuilder {
       return null;
     }
 
-    // For a single condition, don't wrap in parentheses
-    if (this.conditions.length === 1) {
-      return firstCondition.expression;
-    }
-
     let combinedExpression = firstCondition.expression.expression;
     let combinedNames = { ...(firstCondition.expression.names || {}) };
     let combinedValues = { ...(firstCondition.expression.values || {}) };
 
-    // For multiple conditions, only add parentheses when mixing AND/OR
     const remainingConditions = this.conditions.slice(1);
     let lastConjunction: "AND" | "OR" | null = null;
 
@@ -667,14 +693,19 @@ export class ConditionalConstraintBuilder {
       combinedNames = { ...combinedNames, ...(expression.names || {}) };
       combinedValues = { ...combinedValues, ...(expression.values || {}) };
 
-      // Only wrap in parentheses if we're mixing AND/OR
+      // Always wrap nested expressions (from whereExpression/orWhereExpression)
+      const isNestedExpression = expression.expression.includes(" AND ") || expression.expression.includes(" OR ");
+      const wrappedExpr = isNestedExpression ? `(${expression.expression})` : expression.expression;
+
+      // Only wrap the accumulator if mixing AND/OR
       const needsParentheses = lastConjunction !== null && lastConjunction !== conjunction;
       const wrappedAcc = needsParentheses ? `(${acc})` : acc;
-      const wrappedExpr = needsParentheses ? `(${expression.expression})` : expression.expression;
 
       lastConjunction = conjunction;
       return `${wrappedAcc} ${conjunction} ${wrappedExpr}`;
     }, combinedExpression);
+
+    this.validateExpressionConstraints(combinedExpression, combinedNames, combinedValues);
 
     return {
       expression: combinedExpression,
