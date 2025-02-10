@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { ConditionalConstraintBuilder } from "../conditional-constraint-builder";
+import { ConstraintBuilder } from "../conditional-constraint-builder";
 
-describe("ConditionalConstraintBuilder", () => {
+describe("ConstraintBuilder", () => {
   test("should build simple equality condition for dinosaur name", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("species", "=", "T-Rex");
 
     const result = builder.getExpression();
@@ -15,7 +15,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle nested field paths for dinosaur attributes", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("dinosaur.physical.height", "=", "20");
 
     const result = builder.getExpression();
@@ -27,7 +27,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should combine multiple conditions with AND", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("age", ">", 65000000).where("diet", "=", "carnivore");
 
     const result = builder.getExpression();
@@ -39,7 +39,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle OR conditions", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("period", "=", "Jurassic").orWhere("period", "=", "Cretaceous");
 
     const result = builder.getExpression();
@@ -51,7 +51,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should build IN condition for multiple dinosaur habitats", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereIn("habitat", ["forest", "coastal", "swamp"]);
 
     const result = builder.getExpression();
@@ -63,7 +63,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle size function with pack size", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereSize("pack.members", ">", 3);
 
     const result = builder.getExpression();
@@ -75,7 +75,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle between condition for dinosaur weight", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereBetween("weight", 1000, 5000);
 
     const result = builder.getExpression();
@@ -87,7 +87,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle begins_with function for species classification", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereBeginsWith("classification.genus", "Tyranno");
 
     const result = builder.getExpression();
@@ -99,7 +99,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle complex nested expressions with mixed conjunctions", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder
       .where("species", "=", "Raptor")
       .whereExpression((nested) => nested.where("height", ">", 6).orWhere("juvenile", "=", true))
@@ -109,7 +109,7 @@ describe("ConditionalConstraintBuilder", () => {
     const result = builder.getExpression();
     expect(result).toEqual({
       expression:
-        "(#0 = :0 AND #1 > :1 OR #2 = :2) OR (NOT attribute_type(#3, NULL) OR contains(#4, :3)) OR size(#4) > :4",
+        "(#0 = :0 AND (#1 > :1 OR #2 = :2)) OR (NOT attribute_type(#3, NULL) OR contains(#4, :3)) OR size(#4) > :4",
       names: {
         "#0": "species",
         "#1": "height",
@@ -128,7 +128,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle attribute existence checks", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereAttributeExists("features.feathers");
 
     const result = builder.getExpression();
@@ -139,7 +139,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle null checks", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereIsNull("extinctionDate").orWhereIsNotNull("lastSighting");
 
     const result = builder.getExpression();
@@ -150,7 +150,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle attribute not exists checks", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereAttributeNotExists("features.wings");
 
     const result = builder.getExpression();
@@ -161,13 +161,13 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should return null for empty builder", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     const result = builder.getExpression();
     expect(result).toBeNull();
   });
 
   test("should handle whereNot condition", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereNot("status", "=", "extinct");
 
     const result = builder.getExpression();
@@ -179,7 +179,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle orWhereNot condition", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("species", "=", "T-Rex").orWhereNot("age", "<", 1000);
 
     const result = builder.getExpression();
@@ -191,7 +191,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle attribute type checks", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.whereAttributeType("metadata", "S");
 
     const result = builder.getExpression();
@@ -202,7 +202,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle orWhereAttributeType condition", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("active", "=", true).orWhereAttributeType("count", "N");
 
     const result = builder.getExpression();
@@ -214,7 +214,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle orWhereSize condition", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("type", "=", "carnivore").orWhereSize("teeth", ">", 50);
 
     const result = builder.getExpression();
@@ -226,7 +226,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle orWhereContains condition", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("period", "=", "Jurassic").orWhereContains("features", "scales");
 
     const result = builder.getExpression();
@@ -238,7 +238,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle orWhereBeginsWith condition", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("class", "=", "reptile").orWhereBeginsWith("name", "Tyranno");
 
     const result = builder.getExpression();
@@ -250,7 +250,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle nested whereExpression with no conditions", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("species", "=", "Raptor").whereExpression(() => {});
 
     const result = builder.getExpression();
@@ -262,7 +262,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should handle shared names and values across nested expressions", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder.where("species", "=", "Raptor").whereExpression((nested) => {
       nested.where("species", "=", "Raptor"); // Reusing same value
     });
@@ -276,7 +276,7 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should generate readable debug expression", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     builder
       .where("age", ">", 21)
       .orWhere("status", "=", "active")
@@ -287,22 +287,22 @@ describe("ConditionalConstraintBuilder", () => {
   });
 
   test("should return null debug expression for empty builder", () => {
-    const builder = new ConditionalConstraintBuilder();
+    const builder = new ConstraintBuilder();
     const result = builder.getDebugExpression();
     expect(result).toBeNull();
   });
 
   describe("getDebugExpression", () => {
     test("should format simple conditions", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
       builder.where("age", ">", 21).where("isActive", "=", true).orWhere("role", "=", "admin");
 
       const result = builder.getDebugExpression();
-      expect(result).toBe("(age > 21 AND isActive = true) OR (role = 'admin')");
+      expect(result).toBe("(age > 21 AND isActive = true) OR role = 'admin'");
     });
 
     test("should format conditions with special characters", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
       builder.where("user.name", "=", "John O'Connor").where("user.email", "=", "john@example.com");
 
       const result = builder.getDebugExpression();
@@ -310,7 +310,7 @@ describe("ConditionalConstraintBuilder", () => {
     });
 
     test("should format deeply nested conditions", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
       builder
         .where("status", "=", "active")
         .whereExpression((nested1) => {
@@ -326,29 +326,29 @@ describe("ConditionalConstraintBuilder", () => {
 
       const result = builder.getDebugExpression();
       expect(result).toBe(
-        "(status = 'active' AND age > 18 OR parentConsent = true AND parentEmail <> null) OR " +
-          "(attribute_exists(premium) AND subscriptionType = 'annual' OR credits > 1000)",
+        "(status = 'active' AND (age > 18 OR (parentConsent = true AND parentEmail <> null))) OR " +
+          "(attribute_exists(premium) AND (subscriptionType = 'annual' OR credits > 1000))",
       );
     });
 
     test("should format mixed type conditions", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
       builder
         .where("count", ">", 100)
         .where("isEnabled", "=", true)
-        .where("tags", "=", ["important", "urgent"])
+        .whereIn("tags", ["important", "urgent"])
         .where("lastUpdated", "=", "2023-01-01")
         .where("score", "=", 4.5);
 
       const result = builder.getDebugExpression();
       expect(result).toBe(
-        "count > 100 AND isEnabled = true AND tags = ['important','urgent'] AND " +
+        "count > 100 AND isEnabled = true AND tags IN ('important', 'urgent') AND " +
           "lastUpdated = '2023-01-01' AND score = 4.5",
       );
     });
 
     test("should format complex function conditions", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
       builder
         .whereSize("items", ">", 5)
         .whereContains("description", "important")
@@ -364,20 +364,20 @@ describe("ConditionalConstraintBuilder", () => {
     });
 
     test("should handle null and not exists conditions", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
       builder.whereIsNull("deletedAt").whereAttributeNotExists("archivedAt").orWhereIsNotNull("completedAt");
 
       const result = builder.getDebugExpression();
       expect(result).toBe(
         "(attribute_type(deletedAt, NULL) AND attribute_not_exists(archivedAt)) OR " +
-          "(NOT attribute_type(completedAt, NULL))",
+          "NOT attribute_type(completedAt, NULL)",
       );
     });
   });
 
   describe("expression limits", () => {
     test("should throw error when exceeding 4KB expression length", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
 
       // Generate a very long expression
       for (let i = 0; i < 1000; i++) {
@@ -388,7 +388,7 @@ describe("ConditionalConstraintBuilder", () => {
     });
 
     test("should throw error when exceeding 255 name placeholders", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
 
       // Generate more than 255 unique field names
       for (let i = 0; i < 256; i++) {
@@ -401,7 +401,7 @@ describe("ConditionalConstraintBuilder", () => {
     });
 
     test("should throw error when exceeding 255 value placeholders", () => {
-      const builder = new ConditionalConstraintBuilder();
+      const builder = new ConstraintBuilder();
 
       // Generate more than 255 unique values
       for (let i = 0; i < 256; i++) {
