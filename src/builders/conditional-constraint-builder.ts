@@ -6,7 +6,7 @@ export interface ConditionExpression {
   values?: Record<string, unknown>;
 }
 
-export type ConstraintBuilder = (builder: ConditionalConstraintBuilder) => void;
+export type TConstraintBuilder = (builder: ConstraintBuilder) => void;
 
 interface Condition {
   expression: ConditionExpression;
@@ -17,13 +17,13 @@ interface Condition {
  * Builder class for creating DynamoDB condition expressions.
  * Provides a fluent interface for building complex filter conditions.
  */
-export class ConditionalConstraintBuilder {
+export class ConstraintBuilder {
   private conditions: Condition[] = [];
   private names: Record<string, string>;
   private values: Record<string, unknown>;
 
   /**
-   * Creates a new instance of ConditionalConstraintBuilder.
+   * Creates a new instance of ConstraintBuilder.
    *
    * @param sharedNames - Optional map of existing name placeholders to reuse
    * @param sharedValues - Optional map of existing value placeholders to reuse
@@ -142,11 +142,25 @@ export class ConditionalConstraintBuilder {
    * Usage:
    * ```typescript
    * builder.where("age", ">", 21)
+   * // Or with nested conditions:
+   * builder.where(b => b.where("age", ">", 18).orWhere("hasParentalConsent", "=", true))
    * ```
    */
-  where(field: string, operator: ComparisonOperator, value: unknown): this {
+  where(builder: TConstraintBuilder): this;
+  where(field: string, operator: ComparisonOperator, value: unknown): this;
+  where(fieldOrBuilder: string | TConstraintBuilder, operator?: ComparisonOperator, value?: unknown): this {
+    if (typeof fieldOrBuilder === "function") {
+      const nestedBuilder = new ConstraintBuilder(this.names, this.values);
+      fieldOrBuilder(nestedBuilder);
+      const nestedExpression = nestedBuilder.getExpression();
+      if (nestedExpression) {
+        return this.addCondition("AND", nestedExpression);
+      }
+      return this;
+    }
+
     const expression = this.createCondition(
-      field,
+      fieldOrBuilder,
       (path, [placeholder]) => `${path} ${operator} ${placeholder}`,
       value,
     );
@@ -163,12 +177,28 @@ export class ConditionalConstraintBuilder {
    *
    * Usage:
    * ```typescript
-   * builder.where("type", "=", "admin").orWhereWhere("role", "=", "superuser")
+   * builder.where("type", "=", "admin").orWhere("role", "=", "superuser")
+   * // Or with nested conditions:
+   * builder.where("type", "=", "user").orWhere(b =>
+   *   b.where("role", "=", "admin").where("isActive", "=", true)
+   * )
    * ```
    */
-  orWhere(field: string, operator: ComparisonOperator, value: unknown): this {
+  orWhere(builder: TConstraintBuilder): this;
+  orWhere(field: string, operator: ComparisonOperator, value: unknown): this;
+  orWhere(fieldOrBuilder: string | TConstraintBuilder, operator?: ComparisonOperator, value?: unknown): this {
+    if (typeof fieldOrBuilder === "function") {
+      const nestedBuilder = new ConstraintBuilder(this.names, this.values);
+      fieldOrBuilder(nestedBuilder);
+      const nestedExpression = nestedBuilder.getExpression();
+      if (nestedExpression) {
+        return this.addCondition("OR", nestedExpression);
+      }
+      return this;
+    }
+
     const expression = this.createCondition(
-      field,
+      fieldOrBuilder,
       (path, [placeholder]) => `${path} ${operator} ${placeholder}`,
       value,
     );
@@ -600,8 +630,8 @@ export class ConditionalConstraintBuilder {
    * )
    * ```
    */
-  whereExpression(builder: ConstraintBuilder): this {
-    const nestedBuilder = new ConditionalConstraintBuilder(this.names, this.values);
+  whereExpression(builder: TConstraintBuilder): this {
+    const nestedBuilder = new ConstraintBuilder(this.names, this.values);
     builder(nestedBuilder);
     const nestedExpression = nestedBuilder.getExpression();
     if (nestedExpression) {
@@ -623,8 +653,8 @@ export class ConditionalConstraintBuilder {
    * )
    * ```
    */
-  orWhereExpression(builder: ConstraintBuilder): this {
-    const nestedBuilder = new ConditionalConstraintBuilder(this.names, this.values);
+  orWhereExpression(builder: TConstraintBuilder): this {
+    const nestedBuilder = new ConstraintBuilder(this.names, this.values);
     builder(nestedBuilder);
 
     const nestedExpression = nestedBuilder.getExpression();
@@ -722,7 +752,7 @@ export class ConditionalConstraintBuilder {
    *
    * Usage:
    * ```typescript
-   * const builder = new ConditionalConstraintBuilder()
+   * const builder = new ConstraintBuilder()
    *   .where("age", ">", 21)
    *   .orWhere("status", "=", "active");
    *
@@ -754,5 +784,77 @@ export class ConditionalConstraintBuilder {
     }
 
     return readableExpression;
+  }
+
+  /**
+   * Creates a new condition by combining multiple conditions with AND
+   *
+   * @param conditions - Array of condition builders or condition builder functions
+   * @returns A new ConstraintBuilder instance
+   *
+   * Usage:
+   * ```typescript
+   * const condition = ConstraintBuilder.and([
+   *   (builder) => builder.where("age", ">", 18),
+   *   (builder) => builder.where("status", "=", "active"),
+   * ]);
+   *
+   * // Or with existing builders
+   * const ageCheck = new ConstraintBuilder().where("age", ">", 18);
+   * const statusCheck = new ConstraintBuilder().where("status", "=", "active");
+   * const combined = ConstraintBuilder.and([ageCheck, statusCheck]);
+   * ```
+   */
+  static and(conditions: (ConstraintBuilder | TConstraintBuilder)[]): ConstraintBuilder {
+    const builder = new ConstraintBuilder();
+
+    for (const condition of conditions) {
+      if (condition instanceof ConstraintBuilder) {
+        const expr = condition.getExpression();
+        if (expr) {
+          builder.addCondition("AND", expr);
+        }
+      } else {
+        builder.whereExpression(condition);
+      }
+    }
+
+    return builder;
+  }
+
+  /**
+   * Creates a new condition by combining multiple conditions with OR
+   *
+   * @param conditions - Array of condition builders or condition builder functions
+   * @returns A new ConstraintBuilder instance
+   *
+   * Usage:
+   * ```typescript
+   * const condition = ConstraintBuilder.or([
+   *   (builder) => builder.where("role", "=", "admin"),
+   *   (builder) => builder.where("permissions", "contains", "super_user"),
+   * ]);
+   *
+   * // Or with existing builders
+   * const adminCheck = new ConstraintBuilder().where("role", "=", "admin");
+   * const permCheck = new ConstraintBuilder().where("permissions", "contains", "super_user");
+   * const combined = ConstraintBuilder.or([adminCheck, permCheck]);
+   * ```
+   */
+  static or(conditions: (ConstraintBuilder | TConstraintBuilder)[]): ConstraintBuilder {
+    const builder = new ConstraintBuilder();
+
+    for (const condition of conditions) {
+      if (condition instanceof ConstraintBuilder) {
+        const expr = condition.getExpression();
+        if (expr) {
+          builder.addCondition("OR", expr);
+        }
+      } else {
+        builder.orWhereExpression(condition);
+      }
+    }
+
+    return builder;
   }
 }

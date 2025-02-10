@@ -1,8 +1,4 @@
-import {
-  type ConditionExpression,
-  type ConstraintBuilder,
-  ConditionalConstraintBuilder,
-} from "./conditional-constraint-builder";
+import { type ConditionExpression, type TConstraintBuilder, ConstraintBuilder } from "./conditional-constraint-builder";
 import type { Table } from "../table";
 import type { DynamoRecord } from "./types";
 import type { DynamoQueryOptions } from "../dynamo/dynamo-types";
@@ -90,9 +86,9 @@ export class NewQueryBuilder<T extends DynamoRecord, TIndexes extends string> {
    * AND ((name = :name1) OR (age > :age1))
    * ```
    */
-  and(constraints: ConstraintBuilder): this;
+  and(constraints: TConstraintBuilder): this;
   and(field: string, operator: string, value: unknown): this;
-  and(fieldOrBuilder: string | ConstraintBuilder, arg2?: string, arg3?: unknown): this {
+  and(fieldOrBuilder: string | TConstraintBuilder, arg2?: string, arg3?: unknown): this {
     if (typeof fieldOrBuilder === "function") {
       return this.addCompositeFilterCondition(fieldOrBuilder, "AND");
     }
@@ -104,9 +100,9 @@ export class NewQueryBuilder<T extends DynamoRecord, TIndexes extends string> {
     throw new Error("Invalid arguments for 'and' method.");
   }
 
-  or(constraints: ConstraintBuilder): this;
+  or(constraints: TConstraintBuilder): this;
   or(field: string, operator: string, value: unknown): this;
-  or(fieldOrBuilder: string | ConstraintBuilder, arg2?: string, arg3?: unknown): this {
+  or(fieldOrBuilder: string | TConstraintBuilder, arg2?: string, arg3?: unknown): this {
     if (typeof fieldOrBuilder === "function") {
       return this.addCompositeFilterCondition(fieldOrBuilder, "OR");
     }
@@ -223,8 +219,8 @@ export class NewQueryBuilder<T extends DynamoRecord, TIndexes extends string> {
    * Usage:
    * - To add a composite filter condition: `queryBuilder.and(builder => builder.field("name").equals("John"));`
    */
-  private addCompositeFilterCondition(constraints: ConstraintBuilder, conjunction: "AND" | "OR"): this {
-    const builder = new ConditionalConstraintBuilder(conjunction);
+  private addCompositeFilterCondition(constraints: TConstraintBuilder, conjunction: "AND" | "OR"): this {
+    const builder = new ConstraintBuilder(conjunction);
     constraints(builder);
     const condition = builder.getExpression();
 
