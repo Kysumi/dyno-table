@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ConstraintBuilder } from "../conditional-constraint-builder";
+import { ConstraintBuilder } from "../constraint-builder";
 
 describe("ConstraintBuilder", () => {
   test("should build simple equality condition for dinosaur name", () => {

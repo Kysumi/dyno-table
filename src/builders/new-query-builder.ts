@@ -1,4 +1,4 @@
-import { type ConditionExpression, type TConstraintBuilder, ConstraintBuilder } from "./conditional-constraint-builder";
+import { type ConditionExpression, type TConstraintBuilder, ConstraintBuilder } from "./constraint-builder";
 import type { Table } from "../table";
 import type { DynamoRecord } from "./types";
 import type { DynamoQueryOptions } from "../dynamo/dynamo-types";

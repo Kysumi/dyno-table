@@ -1,4 +1,4 @@
-import type { ConditionExpression } from "./conditional-constraint-builder";
+import type { ConditionExpression } from "./constraint-builder";
 import type { FilterOperator, PrimaryKey, SKCondition } from "./operators";
 import type { Table } from "../table";
 
