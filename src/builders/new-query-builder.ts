@@ -2,7 +2,6 @@ import { type ConditionExpression, type TConstraintBuilder, ConstraintBuilder } 
 import type { Table } from "../table";
 import type { DynamoRecord } from "./types";
 import type { DynamoQueryOptions } from "../dynamo/dynamo-types";
-import type { PrimaryKey } from "./operators";
 
 export class NewQueryBuilder<T extends DynamoRecord, TIndexes extends string> {
   // private keyCondition: ConditionExpression | null = null;
@@ -220,7 +219,7 @@ export class NewQueryBuilder<T extends DynamoRecord, TIndexes extends string> {
    * - To add a composite filter condition: `queryBuilder.and(builder => builder.field("name").equals("John"));`
    */
   private addCompositeFilterCondition(constraints: TConstraintBuilder, conjunction: "AND" | "OR"): this {
-    const builder = new ConstraintBuilder(conjunction);
+    const builder = new ConstraintBuilder();
     constraints(builder);
     const condition = builder.getExpression();
 
