@@ -414,3 +414,136 @@ describe("ConstraintBuilder", () => {
     });
   });
 });
+
+describe("ConstraintBuilder combining", () => {
+  test("should combine two builders with AND", () => {
+    const ageCheck = new ConstraintBuilder().where("age", ">", 18);
+    const statusCheck = new ConstraintBuilder().where("status", "=", "active");
+
+    const combined = ageCheck.and(statusCheck);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "#0 > :0 AND #1 = :1",
+      names: { "#0": "age", "#1": "status" },
+      values: { ":0": 18, ":1": "active" },
+    });
+  });
+
+  test("should combine two builders with OR", () => {
+    const adminCheck = new ConstraintBuilder().where("role", "=", "admin");
+    const permissionCheck = new ConstraintBuilder().whereContains("permissions", "super_user");
+
+    const combined = adminCheck.or(permissionCheck);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "#0 = :0 OR contains(#1, :1)",
+      names: { "#0": "role", "#1": "permissions" },
+      values: { ":0": "admin", ":1": "super_user" },
+    });
+  });
+
+  test("should combine multiple builders with mixed AND/OR", () => {
+    const ageCheck = new ConstraintBuilder().where("age", ">", 18);
+    const statusCheck = new ConstraintBuilder().where("status", "=", "active");
+    const roleCheck = new ConstraintBuilder().where("role", "=", "admin");
+
+    const combined = ageCheck.and(statusCheck).or(roleCheck);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "(#0 > :0 AND #1 = :1) OR #2 = :2",
+      names: { "#0": "age", "#1": "status", "#2": "role" },
+      values: { ":0": 18, ":1": "active", ":2": "admin" },
+    });
+  });
+
+  test("should handle nested builders with AND/OR combinations", () => {
+    const ageCheck = new ConstraintBuilder().where("age", ">", 18);
+    const statusCheck = new ConstraintBuilder().where("status", "=", "active").orWhere("status", "=", "pending");
+
+    const combined = ageCheck.and(statusCheck);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "#0 > :0 AND (#1 = :1 OR #1 = :2)",
+      names: { "#0": "age", "#1": "status" },
+      values: { ":0": 18, ":1": "active", ":2": "pending" },
+    });
+  });
+
+  test("should combine builders using static and() method", () => {
+    const ageCheck = new ConstraintBuilder().where("age", ">", 18);
+    const statusCheck = new ConstraintBuilder().where("status", "=", "active");
+
+    const combined = ConstraintBuilder.and([ageCheck, statusCheck]);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "#0 > :0 AND #1 = :1",
+      names: { "#0": "age", "#1": "status" },
+      values: { ":0": 18, ":1": "active" },
+    });
+  });
+
+  test("should combine builders using static or() method", () => {
+    const adminCheck = new ConstraintBuilder().where("role", "=", "admin");
+    const permissionCheck = new ConstraintBuilder().where("permissions", "contains", "super_user");
+
+    const combined = ConstraintBuilder.or([adminCheck, permissionCheck]);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "#0 = :0 OR contains(#1, :1)",
+      names: { "#0": "role", "#1": "permissions" },
+      values: { ":0": "admin", ":1": "super_user" },
+    });
+  });
+
+  test("should handle empty builder in combinations", () => {
+    const emptyBuilder = new ConstraintBuilder();
+    const statusCheck = new ConstraintBuilder().where("status", "=", "active");
+
+    const combined = emptyBuilder.and(statusCheck);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "#0 = :0",
+      names: { "#0": "status" },
+      values: { ":0": "active" },
+    });
+  });
+
+  test("should handle complex nested combinations", () => {
+    const userCheck = new ConstraintBuilder().where("type", "=", "user").where("status", "=", "active");
+
+    const adminCheck = new ConstraintBuilder()
+      .where("role", "=", "admin")
+      .where("permissions", "contains", "super_user");
+
+    const guestCheck = new ConstraintBuilder().where("type", "=", "guest").where("expiresAt", ">", "2023-01-01");
+
+    const combined = userCheck.or(adminCheck).or(guestCheck);
+    const result = combined.getExpression();
+
+    expect(result).toEqual({
+      expression: "(#0 = :0 AND #1 = :1) OR (#2 = :2 AND contains(#3, :3)) OR (#0 = :4 AND #4 > :5)",
+      names: {
+        "#0": "type",
+        "#1": "status",
+        "#2": "role",
+        "#3": "permissions",
+        "#4": "expiresAt",
+      },
+      values: {
+        ":0": "user",
+        ":1": "active",
+        ":2": "admin",
+        ":3": "super_user",
+        ":4": "guest",
+        ":5": "2023-01-01",
+      },
+    });
+  });
+});
