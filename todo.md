@@ -56,3 +56,8 @@ Flip the API for the batch and transaction methods
 * prevent devs from attempting to do a read in a batchWrite method
 
 
+# Query 
+
+* Allow developer to provide PrimaryKey object and a KeyConditionBuilder to the query method on table
+* Allow developer to pass an object that has all of the attributes that are required to build the PK rather than manually constructing the PK or providing a KeyConditionBuilder
+  * the SK values are optional
