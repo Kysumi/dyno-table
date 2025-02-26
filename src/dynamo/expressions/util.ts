@@ -8,7 +8,7 @@ import type {
   Expression,
   LogicalOperator,
   Size,
-} from "../builders/operators";
+} from "../../builders/operators";
 
 export const isCondition = <T>(expr: Expression<T>): expr is Condition<T> => {
   return (expr as Condition<T>).field !== undefined && (expr as Condition<T>).operator !== undefined;
@@ -40,4 +40,51 @@ export const isBeginsWith = <T>(expr: Expression<T>): expr is BeginsWith => {
 
 export const isSize = <T>(expr: Expression<T>): expr is Size => {
   return (expr as Size).type === "size";
+};
+
+export const processAttributePath = (
+  path: string,
+  attributeNames: { [key: string]: string },
+  prefix: string,
+  counter: number,
+): {
+  expressionPath: string;
+  nextCounter: number;
+} => {
+  const parts = path.split(".");
+  const expressionParts: string[] = [];
+  let currentCounter = counter;
+
+  for (const part of parts) {
+    // Check if there's an array index in the path (e.g., items[0])
+    const indexMatch = part.match(/^(.+)\[(\d+)\]$/);
+
+    if (indexMatch) {
+      // Handle array indexing
+      const arrayName = indexMatch[1];
+      const arrayIndex = indexMatch[2];
+
+      const nameKey = `${prefix}${currentCounter++}`;
+      const escapedName = `#${nameKey}`;
+      attributeNames[escapedName] = arrayName;
+
+      expressionParts.push(`${escapedName}[${arrayIndex}]`);
+    } else {
+      // Regular attribute name
+      const nameKey = `${prefix}${currentCounter++}`;
+      const escapedName = `#${nameKey}`;
+      attributeNames[escapedName] = part;
+
+      expressionParts.push(escapedName);
+    }
+  }
+
+  return {
+    expressionPath: expressionParts.join("."),
+    nextCounter: currentCounter,
+  };
+};
+
+export const escapeValue = (name: string): string => {
+  return `:${name.replace(/[^a-zA-Z0-9_]+/g, "")}`;
 };

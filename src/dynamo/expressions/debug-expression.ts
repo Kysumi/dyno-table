@@ -1,5 +1,5 @@
 // Debug function to get a readable expression without aliases
-import type { Expression } from "../builders/operators";
+import type { Expression } from "../../builders/operators";
 import {
   isAttributeExists,
   isAttributeNotExists,
