@@ -2,14 +2,6 @@ export interface DynamoRecord {
   [key: string]: unknown;
 }
 
-export interface QueryPaginator<T> {
-  hasNextPage: () => boolean;
-  getPage: () => Promise<{
-    items: T[];
-    nextPageToken?: Record<string, unknown>;
-  }>;
-}
-
 type Primitive = null | undefined | string | number | boolean | symbol | bigint;
 
 type IsEqual<T1, T2> = T1 extends T2

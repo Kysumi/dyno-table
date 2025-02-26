@@ -1,15 +1,7 @@
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import { ExpressionBuilder } from "./builders/expression-builder";
-import { PutBuilder } from "./builders/put-builder";
-import { QueryBuilder } from "./builders/query-builder";
-import { UpdateBuilder } from "./builders/update-builder";
+import type { RequiredIndexConfig, TableIndexConfig } from "./builders/operators";
 import { DynamoService } from "./dynamo/dynamo-service";
-import type { PrimaryKey, RequiredIndexConfig, TableIndexConfig } from "./builders/operators";
-import type { PrimaryKeyWithoutExpression, BatchWriteOperation, DynamoBatchWriteItem } from "./dynamo/dynamo-types";
-import { ScanBuilder } from "./builders/scan-builder";
-import type { DynamoRecord } from "./builders/types";
-import { TransactionBuilder } from "./builders/transaction-builder";
-import { DeleteBuilder } from "./builders/delete-builder";
+import type { BatchWriteOperation, DynamoBatchWriteItem, PrimaryKeyWithoutExpression } from "./dynamo/dynamo-types";
 
 /**
  * Main interface for interacting with a DynamoDB table. Provides type-safe methods
@@ -17,7 +9,6 @@ import { DeleteBuilder } from "./builders/delete-builder";
  */
 export class Table<TIndexes extends string> {
   private readonly dynamoService: DynamoService;
-  private readonly expressionBuilder: ExpressionBuilder;
   private readonly indexes: RequiredIndexConfig<TIndexes>;
 
   /**
@@ -26,21 +17,17 @@ export class Table<TIndexes extends string> {
    * @param params.client - Pre-configured DynamoDB Document client instance
    * @param params.tableName - Name of the DynamoDB table to interact with
    * @param params.tableIndexes - Index configuration (both primary and secondary indexes)
-   * @param params.expressionBuilder - Optional custom expression builder for complex operations
    */
   constructor({
     client,
     tableName,
     tableIndexes,
-    expressionBuilder,
   }: {
     client: DynamoDBDocument;
     tableName: string;
     tableIndexes: RequiredIndexConfig<TIndexes>;
-    expressionBuilder?: ExpressionBuilder;
   }) {
     this.dynamoService = new DynamoService(client, tableName);
-    this.expressionBuilder = expressionBuilder ?? new ExpressionBuilder();
     this.indexes = tableIndexes;
   }
 
