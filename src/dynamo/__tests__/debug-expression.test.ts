@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { getReadableExpression } from "../debug-expression";
 
 describe("getReadableExpression", () => {
@@ -49,7 +49,7 @@ describe("getReadableExpression", () => {
       const expression = {
         field: "email",
         type: "attribute_exists",
-      };
+      } as const;
       expect(getReadableExpression(expression)).toBe("(attribute_exists(email))");
     });
 
@@ -57,7 +57,7 @@ describe("getReadableExpression", () => {
       const expression = {
         field: "deletedAt",
         type: "attribute_not_exists",
-      };
+      } as const;
       expect(getReadableExpression(expression)).toBe("(attribute_not_exists(deletedAt))");
     });
 
@@ -66,7 +66,7 @@ describe("getReadableExpression", () => {
         field: "age",
         type: "attribute_type",
         attributeType: "N",
-      };
+      } as const;
       expect(getReadableExpression(expression)).toBe('(attribute_type(age, "N"))');
     });
 
@@ -75,7 +75,7 @@ describe("getReadableExpression", () => {
         field: "interests",
         type: "contains",
         value: "reading",
-      };
+      } as const;
       expect(getReadableExpression(expression)).toBe('(contains(interests, "reading"))');
     });
 
@@ -84,7 +84,7 @@ describe("getReadableExpression", () => {
         field: "email",
         type: "begins_with",
         value: "john",
-      };
+      } as const;
       expect(getReadableExpression(expression)).toBe('(begins_with(email, "john"))');
     });
   });
@@ -115,9 +115,7 @@ describe("getReadableExpression", () => {
     it("should format NOT operator", () => {
       const expression = {
         operator: "NOT",
-        expressions: [
-          { field: "status", operator: "=", value: "deleted" },
-        ],
+        expressions: [{ field: "status", operator: "=", value: "deleted" }],
       };
       expect(getReadableExpression(expression)).toBe('(NOT (status = "deleted"))');
     });
@@ -141,6 +139,7 @@ describe("getReadableExpression", () => {
         field: "test",
         type: "unknown_type",
       };
+      // @ts-expect-error intentionally incorrect
       expect(() => getReadableExpression(expression)).toThrow("Unknown expression type");
     });
   });
