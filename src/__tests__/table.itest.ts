@@ -535,6 +535,45 @@ describe("Table Integration Tests", () => {
       }
     });
 
+    it("should use the Paginator for simplified pagination", async () => {
+      // Create a paginator with page size of 2
+      const paginator = table.query({ pk: "dinosaur#query" }).paginate(2);
+
+      // Get the first page
+      const firstPage = await paginator.getNextPage();
+      expect(firstPage.items).toHaveLength(2);
+      expect(firstPage.hasNextPage).toBe(true);
+      expect(firstPage.page).toBe(1);
+
+      // Get the second page
+      const secondPage = await paginator.getNextPage();
+      expect(secondPage.items).toHaveLength(2);
+      expect(secondPage.hasNextPage).toBe(true);
+      expect(secondPage.page).toBe(2);
+
+      // Get the third page
+      const thirdPage = await paginator.getNextPage();
+      expect(thirdPage.items).toHaveLength(1); // Only one item left
+      expect(thirdPage.hasNextPage).toBe(false);
+      expect(thirdPage.page).toBe(3);
+
+      // Try to get another page (should be empty)
+      const emptyPage = await paginator.getNextPage();
+      expect(emptyPage.items).toHaveLength(0);
+      expect(emptyPage.hasNextPage).toBe(false);
+    });
+
+    it("should get all pages at once using getAllPages", async () => {
+      const paginator = table.query({ pk: "dinosaur#query" }).paginate(2);
+      const allItems = await paginator.getAllPages();
+
+      expect(allItems).toHaveLength(5); // All 5 dinosaurs
+
+      // Verify we got all the dinosaurs
+      const names = allItems.map((item) => item.name).sort();
+      expect(names).toEqual(["Page 1 Dino", "Page 2 Dino", "Page 3 Dino", "Page 4 Dino", "Page 5 Dino"].sort());
+    });
+
     it("should use consistent read", async () => {
       // This is mostly a syntax test since we can't easily test the actual consistency
       const result = await table.query({ pk: "dinosaur#query" }).consistentRead(true).execute();

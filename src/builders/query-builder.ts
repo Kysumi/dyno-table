@@ -17,6 +17,7 @@ import {
   type Condition,
   type ConditionOperator,
 } from "../conditions";
+import { Paginator } from "./paginator";
 
 export interface QueryOptions {
   sortKeyCondition?: Condition;
@@ -110,14 +111,29 @@ export class QueryBuilder<T extends Record<string, unknown>> {
     return this;
   }
 
-  paginate(size: number): QueryBuilder<T> {
-    this.options.paginationSize = size;
-    return this;
+  /**
+   * Creates a paginator that will handle pagination for you
+   * @param pageSize The number of items to return per page
+   * @returns A Paginator instance
+   */
+  paginate(pageSize: number): Paginator<T> {
+    return new Paginator<T>(this, pageSize);
   }
 
   startFrom(lastEvaluatedKey: Record<string, unknown>): QueryBuilder<T> {
     this.options.lastEvaluatedKey = lastEvaluatedKey;
     return this;
+  }
+
+  /**
+   * Creates a clone of this QueryBuilder
+   * @returns A new QueryBuilder with the same options
+   */
+  clone(): QueryBuilder<T> {
+    const clone = new QueryBuilder<T>(this.executor, this.keyCondition);
+    clone.options = { ...this.options };
+    clone.selectedFields = new Set(this.selectedFields);
+    return clone;
   }
 
   async execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }> {

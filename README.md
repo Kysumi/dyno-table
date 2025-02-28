@@ -206,19 +206,27 @@ await dinoTable.batchWrite([
 
 **Page large datasets effortlessly**
 ```ts
-// TODO: Update with new pagination API
+// Create a paginator with a page size of 10
 const paginator = dinoTable
   .query<Dinosaur>({
     pk: "SPECIES#herbivore"
   })
   .filter((op) => op.gt("length", 5))
-  .limit(100) // Maximum of items returned
-  .paginate(10); // in pages of 10 items
+  .toPaginator(10); // Get pages of 10 items
 
+// Check if there are more pages
 while (paginator.hasNextPage()) {
-  const { items, lastKey } = await paginator.getNextPage();
-  processBatch(items);
+  // Get the next page of results
+  const page = await paginator.getNextPage();
+  console.log(`Processing page ${page.page} with ${page.items.length} items`);
+  processBatch(page.items);
 }
+
+// Or get all pages at once
+const allDinos = await dinoTable
+  .query<Dinosaur>({ pk: "SPECIES#carnivore" })
+  .toPaginator(25)
+  .getAllPages();
 ```
 
 ## 🛡️ Type-Safe Query Building
