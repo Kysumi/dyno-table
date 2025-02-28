@@ -411,5 +411,159 @@ describe("Table Integration Tests", () => {
       expect(result.item?.weight).toBe(1200);
       expect(result.item?.height).toBeUndefined();
     });
+
+    it("should update with delete operation for set attributes", async () => {
+      // First create an item with tags
+      const dino: Dinosaur = {
+        pk: "dinosaur#update-delete",
+        sk: "dino#test",
+        name: "Delete Test",
+        type: "DeleteType",
+        tags: ["tag1", "tag2", "tag3"],
+      };
+      await table.put(dino).execute();
+
+      // Delete a value from the tags set
+      const result = await table
+        .update({ pk: "dinosaur#update-delete", sk: "dino#test" })
+        .delete("tags", ["tag2"])
+        .execute();
+
+      expect(result.item?.tags).toEqual(expect.arrayContaining(["tag1", "tag3"]));
+      expect(result.item?.tags).not.toContain("tag2");
+    });
+
+    it("should update with set operation using an object", async () => {
+      const result = await table
+        .update({ pk: "dinosaur#update", sk: "dino#test" })
+        .set({
+          name: "Object Update",
+          height: 25,
+          discovered: 1905,
+        })
+        .execute();
+
+      expect(result.item?.name).toBe("Object Update");
+      expect(result.item?.height).toBe(25);
+      expect(result.item?.discovered).toBe(1905);
+    });
+
+    it("should update with specific return values", async () => {
+      // First update to a known state
+      await table.update({ pk: "dinosaur#update", sk: "dino#test" }).set("name", "Before Update").execute();
+
+      // Then update with UPDATED_OLD return values
+      const result = await table
+        .update({ pk: "dinosaur#update", sk: "dino#test" })
+        .set("name", "After Update")
+        .returnValues("UPDATED_OLD")
+        .execute();
+
+      // Should only return the updated attributes with their old values
+      expect(result.item?.name).toBe("Before Update");
+      expect(result.item?.height).toBeUndefined();
+      expect(result.item?.weight).toBeUndefined();
+    });
+  });
+
+  describe("Query Builder Advanced Features", () => {
+    beforeEach(async () => {
+      // Create test data
+      const dinos: Dinosaur[] = [
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page1",
+          name: "Page 1 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page2",
+          name: "Page 2 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page3",
+          name: "Page 3 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page4",
+          name: "Page 4 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page5",
+          name: "Page 5 Dino",
+          type: "Pagination",
+        },
+      ];
+
+      const createPromises = dinos.map((dino) => table.put(dino).execute());
+      await Promise.all(createPromises);
+    });
+
+    it("should paginate query results", async () => {
+      // First page
+      const firstPageResult = await table.query({ pk: "dinosaur#query" }).limit(2).execute();
+
+      expect(firstPageResult.items).toHaveLength(2);
+      expect(firstPageResult.lastEvaluatedKey).toBeDefined();
+
+      // Second page
+      if (firstPageResult.lastEvaluatedKey) {
+        const secondPageResult = await table
+          .query({ pk: "dinosaur#query" })
+          .limit(2)
+          .startFrom(firstPageResult.lastEvaluatedKey)
+          .execute();
+
+        expect(secondPageResult.items).toHaveLength(2);
+        if (secondPageResult.items[0] && firstPageResult.items[0]) {
+          expect(secondPageResult.items[0].name).not.toBe(firstPageResult.items[0].name);
+        }
+        if (secondPageResult.items[1] && firstPageResult.items[1]) {
+          expect(secondPageResult.items[1].name).not.toBe(firstPageResult.items[1].name);
+        }
+      }
+    });
+
+    it("should use consistent read", async () => {
+      // This is mostly a syntax test since we can't easily test the actual consistency
+      const result = await table.query({ pk: "dinosaur#query" }).consistentRead(true).execute();
+
+      expect(result.items.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Put Builder Advanced Features", () => {
+    it("should put an item with returnValues option", async () => {
+      // First create an item
+      const originalDino: Dinosaur = {
+        pk: "dinosaur#put-return",
+        sk: "dino#test",
+        name: "Original Name",
+        type: "ReturnTest",
+      };
+      await table.put(originalDino).execute();
+
+      // Update with returnValues
+      const updatedDino: Dinosaur = {
+        pk: "dinosaur#put-return",
+        sk: "dino#test",
+        name: "Updated Name",
+        type: "ReturnTest",
+      };
+
+      const result = await table.put(updatedDino).returnValues("ALL_OLD").execute();
+
+      // The result should be the updated item, but we can verify the operation worked
+      // by checking the item was updated
+      const getResult = await table.get({ pk: "dinosaur#put-return", sk: "dino#test" }).execute();
+      expect(getResult.item?.name).toBe("Updated Name");
+    });
   });
 });
