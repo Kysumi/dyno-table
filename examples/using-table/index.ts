@@ -1,18 +1,4 @@
-import {
-  and,
-  attributeExists,
-  attributeNotExists,
-  attributeType,
-  beginsWith,
-  contains,
-  eq,
-  gte,
-  inArray,
-  lt,
-  not,
-  or,
-  size,
-} from "../../src/builders/expressions";
+import { and, eq, or } from "../../src/conditions";
 import { Table } from "../../src/table";
 import { dbClient } from "../db-client";
 
@@ -31,51 +17,60 @@ const table = new Table(dbClient, {
   ],
 });
 
-const user = await table.getItem({
-  pk: "userId#1123",
-  sk: "userName#Scott",
-});
+type TDinosaur = {
+  pk: string;
+  sk: string;
+  name: string;
+  location: string;
+  height?: number;
+  weight?: number;
+};
 
-const fluentUsers = await table.query(
-  { pk: eq("pk", "userId") },
-  {
-    filter: and(inArray("name", ["Scott", "John"]), beginsWith("email", "scott@")),
-  },
-);
+const temp = async () => {
+  const dino = await table
+    .get({
+      pk: "type#dinosaur",
+      sk: "dinosaurName#Geoff",
+    })
+    .execute();
 
-const users = await table
-  .scan<{ meta: { paddock: { name: string; id: number } } }>()
-  .whereEquals("meta.paddock.id", 20)
-  .whereIn("meta.paddock.name", ["Paddock 1", "Paddock 2"])
-  .execute();
+  const manyDinosaurs = await table
+    .query({
+      pk: "type#dinosaur",
+      sk: (op) => op.beginsWith("dinosaurName"),
+    })
+    .execute();
 
-const complexFilter = and(
-  eq("pk", "userId"),
-  // and
-  or(
-    eq("sk", "userName#Scott"),
-    // or
-    eq("sk", "userName#John"),
-    // or
-    and(eq("sk", "userName#Scott"), or(eq("sk", "userName#John"))),
-  ),
-);
+  const complexFilter = and(eq("location", "France"), or(eq("name", "Jeff"), eq("name", "Geoff")));
 
-const complexUsers = await table
-  .query({
-    pk: "123123123",
-    sk: (op) => op.and(op.beginsWith("userName#Scott"), op.between(["2024-01-01", "2024-01-02"])),
-  })
-  .filter(complexFilter)
-  .select({
-    name: true,
-    email: true,
-  })
-  .select("name", "email")
-  .useIndex("gsi1")
-  .sortAscending()
-  .sortDescending()
-  // .limit(10)
-  .paginate(500);
+  const someMoreDinosaurs = await table
+    .query<TDinosaur>({
+      pk: "type#dinosaur",
+    })
+    .filter(complexFilter) // Using existing filter contraints
+    .execute();
 
-KeyCondition: "#pk = :pk AND begins_with(#sk, :sk) AND #sk BETWEEN :start_date AND :end_date";
+  const newDinoBuddy = await table
+    .create<TDinosaur>({
+      pk: "123123123",
+      sk: "dinosaurName#SomeNewDino",
+      name: "Some New Dino",
+      location: "France",
+      height: 10,
+    })
+    // Only create if the name does not already exist
+    .condition((op) => op.and(op.not(op.attributeExists("name")), op.not(op.attributeExists("sk"))))
+    .execute();
+
+  const updatedDino = await table
+    .update<TDinosaur>({
+      pk: "123123123",
+      sk: "dinosaurName#SomeNewDino",
+    })
+    .set({ name: "Some New Dino 2", location: "Germany" }) // Set multiple attributes at once
+    .set("location", "Germany") // Set specific attribute
+    .remove("height") // Deletes the attribute from DDB
+    // Only update if the attribute exists and the height is greater than 10
+    .condition((op) => op.and(op.attributeExists("location"), op.gte("height", 10)))
+    .execute();
+};
