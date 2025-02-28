@@ -131,7 +131,6 @@ export class Table {
     let keyConditionExpression = eq(pkAttributeName, keyCondition.pk);
 
     if (keyCondition.sk) {
-      // Create a KeyConditionOperator object
       const keyConditionOperator: KeyConditionOperator = {
         eq: (value) => eq(skAttributeName, value),
         lt: (value) => lt(skAttributeName, value),
@@ -143,14 +142,12 @@ export class Table {
         and: (...conditions) => and(...conditions),
       };
 
-      // Execute the function to get the condition
       const skCondition = keyCondition.sk(keyConditionOperator);
 
       // Create key condition expression
       keyConditionExpression = and(eq(pkAttributeName, keyCondition.pk), skCondition);
     }
 
-    // CRAZY SHIZ
     const executor = async (keyCondition: Condition, options: QueryOptions) => {
       // Implementation of the query execution logic
       const expressionParams: ExpressionParams = {
