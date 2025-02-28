@@ -35,7 +35,9 @@ export type UpdateAction = {
 
 export class UpdateBuilder<T extends Record<string, unknown>> {
   private updates: UpdateAction[] = [];
-  private options: UpdateOptions = {};
+  private options: UpdateOptions = {
+    returnValues: "ALL_NEW",
+  };
   private executor: UpdateExecutor<T>;
 
   constructor(executor: UpdateExecutor<T>) {
