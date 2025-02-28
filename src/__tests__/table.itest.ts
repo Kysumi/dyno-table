@@ -12,7 +12,7 @@ type Dinosaur = {
   diet?: string;
   period?: string;
   discovered?: number;
-  tags?: string[];
+  tags?: Set<string>;
 };
 
 describe("Table Integration Tests", () => {
@@ -419,17 +419,17 @@ describe("Table Integration Tests", () => {
         sk: "dino#test",
         name: "Delete Test",
         type: "DeleteType",
-        tags: ["tag1", "tag2", "tag3"],
+        tags: new Set(["tag1", "tag2", "tag3"]),
       };
       await table.put(dino).execute();
 
       // Delete a value from the tags set
       const result = await table
-        .update({ pk: "dinosaur#update-delete", sk: "dino#test" })
-        .delete("tags", ["tag2"])
+        .update<Dinosaur>({ pk: "dinosaur#update-delete", sk: "dino#test" })
+        .deleteElementsFromSet("tags", ["tag2"])
         .execute();
 
-      expect(result.item?.tags).toEqual(expect.arrayContaining(["tag1", "tag3"]));
+      expect(result.item?.tags).toEqual(new Set(["tag1", "tag3"]));
       expect(result.item?.tags).not.toContain("tag2");
     });
 

@@ -33,6 +33,12 @@ export type UpdateAction = {
   value?: unknown;
 };
 
+// Type utility to get the element type of a set
+type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
+
+// Type utility to get the element type from a path that points to a set
+type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
+
 export class UpdateBuilder<T extends Record<string, unknown>> {
   private updates: UpdateAction[] = [];
   private options: UpdateOptions = {
@@ -98,11 +104,22 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
   /**
    * Remove elements from a set
    */
-  delete<K extends Path<T>>(path: K, value: PathType<T, K>): UpdateBuilder<T> {
+  deleteElementsFromSet<K extends Path<T>>(
+    path: K,
+    value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
+  ): UpdateBuilder<T> {
+    let valuesToDelete: Set<PathSetElementType<T, K>>;
+
+    if (Array.isArray(value)) {
+      valuesToDelete = new Set(value);
+    } else {
+      valuesToDelete = value;
+    }
+
     this.updates.push({
       type: "DELETE",
       path,
-      value,
+      value: valuesToDelete,
     });
     return this;
   }
