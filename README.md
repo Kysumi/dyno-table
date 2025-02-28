@@ -7,11 +7,14 @@
 
 ```ts
 // Type-safe DynamoDB operations made simple
-await dinoRepo
-  .update({ pk: 'SPECIES#trex', sk: 'PROFILE#001' })
+await table
+  .update<Dinosaur>({
+    pk: 'SPECIES#trex',
+    sk: 'PROFILE#001'
+  })
   .set('diet', 'Carnivore')
-  .increment('sightings', 1)
-  .whereEquals('status', 'ACTIVE')
+  .add('sightings', 1)
+  .condition(op => op.eq('status', 'ACTIVE'))
   .execute();
 ```
 
@@ -49,26 +52,26 @@ const client = new DynamoDBClient({ region: "us-west-2" });
 const docClient = DynamoDBDocument.from(client);
 
 // Initialize table with single-table design schema
-const dinoTable = new Table({
-  client: docClient,
-  tableName: "DinosaurPark",
-  tableIndexes: {
-    primary: {
-      pkName: "pk",
-      skName: "sk",
+const dinoTable = new Table(docClient, {
+  name: "DinosaurPark",
+  partitionKey: "pk",
+  sortKey: "sk",
+  gsis: [
+    {
+      name: "GSI1",
+      keySchema: {
+        pk: "GSI1PK",
+        sk: "GSI1SK",
+      },
     },
-    GSI1: {
-      pkName: "GSI1PK",
-      skName: "GSI1SK",
-    },
-  },
+  ],
 });
 ```
 
 ### 2. Define Your Repository
 
 ```ts
-import { BaseRepository } from "dyno-table";
+import { Entity } from "dyno-table";
 
 type Dinosaur = {
   speciesId: string;
@@ -78,62 +81,71 @@ type Dinosaur = {
   discoveryYear: number;
 };
 
-class DinoRepository extends BaseRepository<Dinosaur> {
-  protected createPrimaryKey(data: Dinosaur) {
-    return {
-      pk: `SPECIES#${data.speciesId}`,
-      sk: `PROFILE#${data.speciesId}`,
-    };
-  }
+// Create an entity for dinosaurs
+const dinoEntity = dinoTable.entity<Dinosaur>({
+  discriminator: "DINOSAUR", // Automatic type scoping
+  timestamps: true, // Adds createdAt and updatedAt
+});
 
-  protected getType() {
-    return "DINOSAUR"; // Automatic type scoping
-  }
-
+// Or extend with custom methods
+class DinoRepository extends Entity<Dinosaur> {
   // Custom query methods
   async findCarnivores() {
-    return this.scan()
+    return this.query("SPECIES#carnivore")
       .whereEquals("diet", "carnivore")
       .execute();
   }
 }
 
-export const dinoRepo = new DinoRepository(dinoTable);
+const dinoRepo = new DinoRepository(dinoTable, {
+  discriminator: "DINOSAUR",
+  timestamps: true,
+});
 ```
 
 ### 3. Perform Type-Safe Operations
 
 **🦖 Creating a new dinosaur**
 ```ts
-const rex = await dinoRepo.create({
-  speciesId: "trex",
-  name: "Tyrannosaurus Rex",
-  diet: "carnivore",
-  length: 12.3,
-  discoveryYear: 1902
-}).execute();
+const rex = await dinoTable
+  .create<Dinosaur>({
+    pk: "SPECIES#trex",
+    sk: "PROFILE#trex",
+    speciesId: "trex",
+    name: "Tyrannosaurus Rex",
+    diet: "carnivore",
+    length: 12.3,
+    discoveryYear: 1902
+  })
+  .execute();
 ```
 
 **🔍 Query with conditions**
 ```ts
-const largeDinos = await dinoRepo
-  .query({ 
+const largeDinos = await dinoTable
+  .query<Dinosaur>({ 
     pk: "SPECIES#trex",
-    sk: { operator: "begins_with", value: "PROFILE#" }
+    sk: (op) => op.beginsWith("PROFILE#")
   })
-  .whereGreaterThan("length", 10)
+  .filter((op) => op.and(
+    op.gte("length", 10),
+    op.eq("diet", "carnivore")
+  ))
   .limit(10)
   .execute();
 ```
 
 **🔄 Complex update operation**
 ```ts
-await dinoRepo
-  .update({ pk: "SPECIES#trex", sk: "PROFILE#trex" })
+await dinoTable
+  .update<Dinosaur>({ 
+    pk: "SPECIES#trex", 
+    sk: "PROFILE#trex" 
+  })
   .set("diet", "omnivore")
-  .increment("discoveryYear", 1)
+  .add("discoveryYear", 1)
   .remove("outdatedField")
-  .whereExists("discoverySite")
+  .condition((op) => op.attributeExists("discoverySite"))
   .execute();
 ```
 
@@ -143,20 +155,21 @@ await dinoRepo
 
 **Atomic updates across multiple entities**
 ```ts
+// TODO: Update with new transaction API
 await dinoTable.withTransaction(async (trx) => {
   // Move dinosaur between enclosures
-  dinoRepo
-    .update(trexKey)
+  dinoTable
+    .update<Dinosaur>(trexKey)
     .set("enclosure", "NW-SECTOR")
     .withTransaction(trx);
 
-  dinoRepo
-    .update(raptorKey)
+  dinoTable
+    .update<Dinosaur>(raptorKey)
     .set("enclosure", "SW-SECTOR")
     .withTransaction(trx);
 
   // Update tracking system
-  trackingRepo
+  dinoTable
     .put(newTrackingRecord)
     .withTransaction(trx);
 });
@@ -173,7 +186,11 @@ const fossils = await loadPaleontologyData();
 await dinoTable.batchWrite(
   fossils.map(fossil => ({
     type: "put",
-    item: dinoRepo.createItem(fossil)
+    item: {
+      pk: `SPECIES#${fossil.id}`,
+      sk: `PROFILE#${fossil.id}`,
+      ...fossil
+    }
   }))
 );
 
@@ -189,9 +206,12 @@ await dinoTable.batchWrite([
 
 **Page large datasets effortlessly**
 ```ts
-const paginator = dinoRepo
-  .scan()
-  .whereGreaterThan("length", 5)
+// TODO: Update with new pagination API
+const paginator = dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#herbivore"
+  })
+  .filter((op) => op.gt("length", 5))
   .limit(100) // Maximum of items returned
   .paginate(10); // in pages of 10 items
 
@@ -203,47 +223,45 @@ while (paginator.hasNextPage()) {
 
 ## 🛡️ Type-Safe Query Building
 
-Dyno-table provides a comprehensive query methods that matches DynamoDB's capabilities while maintaining type safety:
+Dyno-table provides comprehensive query methods that match DynamoDB's capabilities while maintaining type safety:
 
-| Operation                  | Method Example                           |
-|----------------------------|------------------------------------------|
-| **Conditional Updates**    | `.whereEquals("status", "ACTIVE")`       |
-| **Attribute Existence**    | `.whereExists("migrationPath")`          |
-| **Begins With**            | `.whereBeginsWith("sk", "PROFILE#2023")` |
-| **Nested Attributes**      | `.whereEquals("address.city", "London")` |
-| **Between Values**         | `.whereBetween("age", 18, 65)`           |
-| **Type Checks**            | `.whereAttributeType("score", "N")`      |
+| Operation                  | Method Example                                               |
+|----------------------------|--------------------------------------------------------------|
+| **Conditional Updates**    | `.filter(op => op.eq("status", "ACTIVE"))`                   |
+| **Attribute Existence**    | `.filter(op => op.attributeExists("migrationPath"))`         |
+| **Begins With**            | `.filter({ sk: op => op.beginsWith("PROFILE#2023") })`       |
+| **Nested Attributes**      | `.filter(op => op.eq("address.city", "London"))`             |
+| **Between Values**         | `.filter(op => op.between("age", 18, 65))`                   |
+| **Type Checks**            | `.filter(op => op.attributeType("score", "N"))`              |
+| **Between**                | `.filter(op => op.between("score", 20, 100))`                |
 
 ```ts
 // Complex type-safe query example
-const results = await dinoRepo
-  .query({
+const results = await dinoTable
+  .query<Dinosaur>({
     pk: "SPECIES#carnivore",
-    sk: { operator: "between", start: "PROFILE#100", end: "PROFILE#200" }
+    sk: (op) => op.between("PROFILE#100", "PROFILE#200")
   })
-  .whereBeginsWith("discoverySite", "Canada")
-  .whereAttributeType("mass", "N")
-  .whereGreaterThanOrEqual("length", 8.5)
+  .filter((op) => op.and(
+    op.beginsWith("discoverySite", "Canada"),
+    op.attributeType("mass", "N"),
+    op.gte("length", 8.5)
+  ))
   .useIndex("GSI1")
   .execute();
 ```
 
-## 🏗️ Repository Pattern Best Practices
+## 🏗️ Entity Pattern Best Practices
 
-The repository implementation provides automatic type isolation:
+The entity implementation provides automatic type isolation:
 
 ```ts
 // All operations are automatically scoped to DINOSAUR type
-const dinosaur = await dinoRepo.get(key); 
-// Returns Dinosaur | null
-
-// Type-safe updates
-await dinoRepo.update(key)
-  .set("diet", "herbivore") // Autocomplete for Dinosaur properties
-  .execute();
+const dinosaur = await dinoEntity.get("SPECIES#trex", "PROFILE#trex"); 
+// Returns Dinosaur | undefined
 
 // Cross-type operations are prevented at compile time
-dinoRepo.put({ /* invalid shape */ }); // TypeScript error
+dinoEntity.create({ /* invalid shape */ }); // TypeScript error
 ```
 
 **Key benefits:**
@@ -260,15 +278,16 @@ Taking DynamoDB errors and adding additional context specific to the operation a
 
 ```ts
 try {
-  await dinoRepo.put(existingDino)
-    .whereNotExists("pk")
+  await dinoTable
+    .put<Dinosaur>(existingDino)
+    .condition((op) => op.attributeNotExists("pk"))
     .execute();
 } catch (error) {
   if (error instanceof ConditionalCheckFailedError) {
     // Handle conditional failure
     console.log("Dinosaur already exists!");
   }
-  
+
   if (error instanceof TransactionCanceledException) {
     // Inspect transaction cancellation reasons
     error.cancellationReasons?.forEach(reason => {
@@ -277,6 +296,111 @@ try {
   }
 }
 ```
+
+## 📚 API Reference
+
+### Condition Operators
+
+All condition operators are type-safe and will validate against your item type. For detailed information about DynamoDB conditions and expressions, see the [AWS DynamoDB Developer Guide](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html).
+
+#### Comparison Operators
+- `eq(attr, value)` - Equals (=)
+- `ne(attr, value)` - Not equals (≠)
+- `lt(attr, value)` - Less than (<)
+- `lte(attr, value)` - Less than or equal to (≤)
+- `gt(attr, value)` - Greater than (>)
+- `gte(attr, value)` - Greater than or equal to (≥)
+- `between(attr, lower, upper)` - Between two values (inclusive)
+- `beginsWith(attr, value)` - Checks if string begins with value
+- `contains(attr, value)` - Checks if string/set contains value
+
+```ts
+// Example: Using comparison operators
+await dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#trex"
+  })
+  .filter((op) => op.and(
+    op.gte("length", 10),
+    op.contains("diet", "carnivore"),
+    op.between("discoveryYear", 1900, 2000)
+  ))
+  .execute();
+```
+
+#### Attribute Operators
+- `attributeExists(attr)` - Checks if attribute exists
+- `attributeNotExists(attr)` - Checks if attribute does not exist
+
+```ts
+// Example: Using attribute operators
+await dinoTable
+  .update<Dinosaur>({
+    pk: "SPECIES#trex", 
+    sk: "PROFILE#trex"
+  })
+  .set("status", "VERIFIED")
+  .condition((op) => op.and(
+    op.attributeExists("discoveryDate"),
+    op.attributeNotExists("deletedAt")
+  ))
+  .execute();
+```
+
+#### Logical Operators
+- `and(...conditions)` - Combines conditions with AND
+- `or(...conditions)` - Combines conditions with OR
+- `not(condition)` - Negates a condition
+
+```ts
+// Example: Complex logical conditions
+await dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#all"
+  })
+  .filter((op) => op.or(
+    op.and(
+      op.eq("status", "ACTIVE"),
+      op.gt("length", 15)
+    ),
+    op.and(
+      op.eq("diet", "carnivore"),
+      op.not(op.eq("status", "EXTINCT"))
+    )
+  ))
+  .execute();
+```
+
+### Key Condition Operators
+
+Special operators for sort key conditions in queries. See [AWS DynamoDB Key Condition Expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.KeyConditionExpressions) for more details.
+
+```ts
+// Example: Key condition with begins_with
+const recentProfiles = await dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#carnivore",
+    sk: (op) => op.beginsWith("PROFILE#2023")
+  })
+  .execute();
+
+// Example: Key condition with between
+const alphabeticalProfiles = await dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#herbivore",
+    sk: (op) => op.between("PROFILE#A", "PROFILE#Z")
+  })
+  .execute();
+```
+
+Available key conditions:
+- `eq(value)` - Equals
+- `lt(value)` - Less than
+- `lte(value)` - Less than or equal
+- `gt(value)` - Greater than
+- `gte(value)` - Greater than or equal
+- `between(lower, upper)` - Between range
+- `beginsWith(value)` - Begins with prefix
 
 ## 🔮 Future Roadmap
 
