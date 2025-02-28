@@ -1,247 +1,184 @@
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import type { RequiredIndexConfig, TableIndexConfig } from "./builders/operators";
-import { DynamoService } from "./dynamo/dynamo-service";
-import type { BatchWriteOperation, DynamoBatchWriteItem, PrimaryKeyWithoutExpression } from "./dynamo/dynamo-types";
+import type { EntityConfig, IndexDefinition, TableConfig } from "./types";
+import { Entity } from "./entity";
+import {
+  and,
+  beginsWith,
+  between,
+  eq,
+  gt,
+  gte,
+  lt,
+  lte,
+  type Condition,
+  type ExpressionParams,
+  type KeyConditionOperator,
+  type PrimaryKey,
+} from "./conditions";
+import { buildExpression, generateAttributeName } from "./expression";
+import type { AttributeValue, PutItemCommandInput, QueryCommandInput } from "@aws-sdk/client-dynamodb";
+import { QueryBuilder, type QueryOptions } from "./query-builder";
+import { PutBuilder, type PutOptions } from "./put-builder";
 
-/**
- * Main interface for interacting with a DynamoDB table. Provides type-safe methods
- * for CRUD operations, queries, scans, and transactions.
- */
-export class Table<TIndexes extends string> {
-  private readonly dynamoService: DynamoService;
-  private readonly indexes: RequiredIndexConfig<TIndexes>;
+// Helper type for converting unknown values to AttributeValue
+type AttributeValueRecord = Record<string, AttributeValue>;
 
-  /**
-   * Creates a new Table instance with the specified configuration
-   * @param params - Configuration object
-   * @param params.client - Pre-configured DynamoDB Document client instance
-   * @param params.tableName - Name of the DynamoDB table to interact with
-   * @param params.tableIndexes - Index configuration (both primary and secondary indexes)
-   */
-  constructor({
-    client,
-    tableName,
-    tableIndexes,
-  }: {
-    client: DynamoDBDocument;
-    tableName: string;
-    tableIndexes: RequiredIndexConfig<TIndexes>;
-  }) {
-    this.dynamoService = new DynamoService(client, tableName);
-    this.indexes = tableIndexes;
+export class Table {
+  private dynamoClient: DynamoDBDocument;
+  readonly tableName: string;
+  readonly partitionKey: string;
+  readonly sortKey?: string;
+  readonly gsis: IndexDefinition[];
+  readonly lsis: IndexDefinition[];
+
+  constructor(client: DynamoDBDocument, config: TableConfig) {
+    this.dynamoClient = client;
+
+    this.tableName = config.name;
+    this.partitionKey = config.partitionKey;
+    this.sortKey = config.sortKey;
+    this.gsis = config.gsis || [];
+    this.lsis = config.lsis || [];
+  }
+
+  entity<T extends Record<string, unknown>>(entityConfig: EntityConfig<T>): Entity<T> {
+    return new Entity<T>(this, entityConfig);
   }
 
   /**
-   * Retrieves configuration for a specific table index
-   * @param indexName - Name of the index to retrieve (must be defined in tableIndexes)
-   * @returns Object containing the physical attribute names for the index keys
-   * @throws Error if the requested index is not configured
-   */
-  getIndexConfig(indexName: TIndexes): TableIndexConfig {
-    if (!(indexName in this.indexes)) {
-      throw new Error(`Index ${indexName} does not exist`);
-    }
-    return this.indexes[indexName];
-  }
-
-  /**
-   * Creates a new PutItem operation builder for inserting an item
-   * @param item - Complete item to insert into the table
-   * @returns PutBuilder instance for chaining conditions and executing the operation
-   * @example
-   * // Insert new dinosaur specimen
-   * await table.put({
-   *   pk: 'dino#trex123',
-   *   sk: 'specimen',
-   *   species: 'Tyrannosaurus Rex',
-   *   weight: 8000
-   * }).execute();
-   */
-  put<T extends DynamoRecord>(item: T): PutBuilder<T> {
-    return new PutBuilder(item, this.expressionBuilder, async (operation) => {
-      // TODO: Make it so the end user can specify if they want the additional DATA
-      // about the query to be returned like capcity units ect
-      await this.dynamoService.put(operation);
-
-      // Return the item that was placed into the table
-      return item;
-      // return result.Attributes as T;
-    });
-  }
-
-  /**
-   * Creates an UpdateItem operation builder for modifying an existing item
-   * @param key - Full primary key of the item to update (including sort key if required)
-   * @returns UpdateBuilder instance for chaining update operations and conditions
-   * @example
-   * // Update dinosaur's diet classification
-   * await table.update({ pk: 'dino#trex123', sk: 'classification' })
-   *   .set('diet', 'carnivore')
-   *   .execute();
-   */
-  update<T extends DynamoRecord>(key: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
-    return new UpdateBuilder<T>(key, this.expressionBuilder, async (operation) => {
-      const result = await this.dynamoService.update(operation);
-      return result.Attributes as T;
-    });
-  }
-
-  /**
-   * Creates a Query operation builder for finding items by primary key
-   * @param key - Key condition to query (supports partition key and sort key conditions)
-   * @returns QueryBuilder instance for adding filters, pagination, and index selection
-   * @example
-   * // Query for all velociraptor fossils
-   * const fossils = await table.query({
-   *   pk: 'dino#velociraptor',
-   *   sk: { operator: 'begins_with', value: 'fossil#' }
-   * }).execute();
-   */
-  query<T extends DynamoRecord>(key: PrimaryKey): QueryBuilder<T, TIndexes> {
-    return new QueryBuilder<T, TIndexes>(key, this.indexes, this.expressionBuilder, async (operation) => {
-      return await this.dynamoService.query(operation);
-    });
-  }
-
-  /**
-   * Direct GetItem operation for retrieving a single item by its full primary key
-   * @param key - Complete primary key (including sort key if required by the table's schema)
-   * @param options - Optional parameters including index specification
-   * @returns The retrieved item or undefined if not found
-   * @example
-   * // Get triceratops habitat info
-   * const habitat = await table.get({
-   *   pk: 'dino#triceratops',
-   *   sk: 'habitat#cretaceous'
-   * });
-   */
-  async get(key: PrimaryKeyWithoutExpression, options?: { indexName?: TIndexes }) {
-    const indexConfig = this.getIndexConfig(options?.indexName || ("primary" as TIndexes));
-    const keyObject = this.buildKeyFromIndex(key, indexConfig);
-
-    const result = await this.dynamoService.get(keyObject, options);
-
-    return result.Item;
-  }
-
-  /**
-   * Creates a DeleteItem operation builder for removing an item
-   * @param key - Full primary key of the item to delete
-   * @returns DeleteBuilder instance for adding conditional checks
-   * @example
-   * // Remove outdated fossil record
-   * await table.delete({ pk: 'dino#brontosaurus', sk: 'record#old' })
-   *   .where('discoveryYear', '<', 1990)
-   *   .execute();
-   */
-  delete<T extends DynamoRecord>(key: PrimaryKeyWithoutExpression) {
-    return new DeleteBuilder<T>(key, this.expressionBuilder, async (operation) => {
-      await this.dynamoService.delete(operation);
-    });
-  }
-
-  /**
-   * Creates a Scan operation builder for full table scans (use sparingly)
-   * @returns ScanBuilder instance for adding filters and pagination
-   * @example
-   * // Scan for all carnivorous dinosaurs
-   * const predators = await table.scan()
-   *   .where('diet', '=', 'carnivore')
-   *   .execute();
-   */
-  scan<T extends DynamoRecord>(): ScanBuilder<T, TIndexes> {
-    return new ScanBuilder<T, TIndexes>(this.expressionBuilder, this.indexes, (operation) =>
-      this.dynamoService.scan(operation),
-    );
-  }
-
-  /**
-   * Batch write operation for executing multiple puts/deletes in a single request
-   * @param operations - Array of write operations (max 25 per request)
-   * @returns Promise resolving when all operations complete, with unprocessed items if capacity exceeded
-   * @example
-   * // Batch write with mixed operations
-   * await table.batchWrite([
-   *   { type: 'put', item: { pk: '1', sk: 'a' } },
-   *   { type: 'delete', key: { pk: '2', sk: 'b' } }
-   * ]);
-   */
-  async batchWrite(operations: BatchWriteOperation[]) {
-    const batchOperation: DynamoBatchWriteItem[] = operations.map((op) => {
-      if (op.type === "put") {
-        return { put: op.item };
-      }
-      return { delete: op.key };
-    });
-
-    return this.dynamoService.batchWrite(batchOperation);
-  }
-
-  /**
-   * Transactional write operation builder for atomic multiple-item updates
-   * @param callback - Function that receives a TransactionBuilder to add operations
-   * @returns Promise resolving when transaction completes
-   * @example
-   * // Fossil discovery transaction
-   * await table.withTransaction(async (trx) => {
-   *   table.update({ pk: 'dino#trex', sk: 'fossil#456' })
-   *     .set('status', 'analyzed')
-   *     .withTransaction(trx);
+   * Creates a new item in the table, it will fail if the item already exists
    *
-   *   table.put({
-   *     pk: 'log#discovery',
-   *     sk: new Date().toISOString(),
-   *     event: 'Fossil analyzed',
-   *     specimenId: 'trex#456'
-   *   }).withTransaction(trx);
-   * });
+   * @param item The item to create
+   * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
-  async withTransaction<T>(callback: (trx: TransactionBuilder) => Promise<void>) {
-    const transactionBuilder = new TransactionBuilder();
-    await callback(transactionBuilder);
-    const result = await this.dynamoService.transactWrite(transactionBuilder.getOperation());
-    return result;
+  create<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
+    return this.put(item).condition((op) => op.attributeNotExists("pk"));
   }
 
   /**
-   * Executes a pre-configured transaction
-   * @param builder - TransactionBuilder containing the operations to execute
-   * @returns Promise resolving when transaction completes
-   * @example
-   * const trx = new TransactionBuilder();
-   * // ... add operations ...
-   * await table.transactWrite(trx);
+   * Updates an item in the table
+   *
+   * @param item The item to update
+   * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
-  async transactWrite(builder: TransactionBuilder) {
-    const result = await this.dynamoService.transactWrite(builder.getOperation());
-    return result;
-  }
+  put<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
+    // Define the executor function that will be called when execute() is called on the builder
+    const executor = async (item: T, options: PutOptions): Promise<T> => {
+      const expressionParams: ExpressionParams = {
+        expressionAttributeNames: {},
+        expressionAttributeValues: {},
+        valueCounter: { count: 0 },
+      };
 
-  private buildKeyFromIndex(key: PrimaryKeyWithoutExpression, indexConfig: TableIndexConfig): Record<string, unknown> {
-    this.validateKey(key, indexConfig);
+      let conditionExpression: string | undefined;
+      if (options.condition) {
+        conditionExpression = buildExpression(options.condition, expressionParams);
+      }
 
-    const keyObject = {
-      [indexConfig.pkName]: key.pk,
+      const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
+
+      const params: PutItemCommandInput = {
+        TableName: this.tableName,
+        Item: item as Record<string, AttributeValue>,
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames:
+          Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+        ExpressionAttributeValues:
+          Object.keys(expressionAttributeValues).length > 0
+            ? (expressionAttributeValues as AttributeValueRecord)
+            : undefined,
+        ReturnValues: options.returnValues,
+      };
+
+      try {
+        await this.dynamoClient.put(params);
+        return item;
+      } catch (error) {
+        console.error("Error creating item:", error);
+        throw error;
+      }
     };
 
-    if (indexConfig.skName && key.sk) {
-      keyObject[indexConfig.skName] = key.sk;
-    }
-
-    return keyObject;
+    return new PutBuilder<T>(executor, item);
   }
 
-  private validateKey(key: PrimaryKeyWithoutExpression, indexConfig: TableIndexConfig) {
-    if (!key.pk) {
-      throw new Error("Partition key is required");
+  /**
+   * Creates a query builder for complex queries
+   */
+  query<T extends Record<string, unknown>>(keyCondition: PrimaryKey): QueryBuilder<T> {
+    const pkAttributeName = "pk";
+    const skAttributeName = "sk";
+
+    let keyConditionExpression = eq(pkAttributeName, keyCondition.pk);
+
+    if (keyCondition.sk) {
+      // Create a KeyConditionOperator object
+      const keyConditionOperator: KeyConditionOperator = {
+        eq: (value) => eq(skAttributeName, value),
+        lt: (value) => lt(skAttributeName, value),
+        lte: (value) => lte(skAttributeName, value),
+        gt: (value) => gt(skAttributeName, value),
+        gte: (value) => gte(skAttributeName, value),
+        between: (lower, upper) => between(skAttributeName, lower, upper),
+        beginsWith: (value) => beginsWith(skAttributeName, value),
+        and: (...conditions) => and(...conditions),
+      };
+
+      // Execute the function to get the condition
+      const skCondition = keyCondition.sk(keyConditionOperator);
+
+      // Create key condition expression
+      keyConditionExpression = and(eq(pkAttributeName, keyCondition.pk), skCondition);
     }
 
-    if (key.sk && !indexConfig.skName) {
-      throw new Error("Sort key provided but index does not support sort keys");
-    }
+    // CRAZY SHIZ
+    const executor = async (keyCondition: Condition, options: QueryOptions) => {
+      // Implementation of the query execution logic
+      const expressionParams: ExpressionParams = {
+        expressionAttributeNames: {},
+        expressionAttributeValues: {},
+        valueCounter: { count: 0 },
+      };
 
-    if (!key.sk && indexConfig.skName) {
-      throw new Error("Index requires a sort key but none was provided");
-    }
+      const keyConditionExpression = buildExpression(keyCondition, expressionParams);
+
+      let filterExpression: string | undefined;
+      if (options.filter) {
+        filterExpression = buildExpression(options.filter, expressionParams);
+      }
+
+      const projectionExpression = options.projection
+        ?.map((p) => generateAttributeName(expressionParams, p))
+        .join(", ");
+
+      const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
+      const { indexName, limit, consistentRead, scanIndexForward, projection } = options;
+
+      const params: QueryCommandInput = {
+        TableName: this.tableName,
+        KeyConditionExpression: keyConditionExpression,
+        FilterExpression: filterExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues as AttributeValueRecord,
+        IndexName: indexName,
+        Limit: limit,
+        ConsistentRead: consistentRead,
+        ScanIndexForward: scanIndexForward,
+        ProjectionExpression: projectionExpression,
+      };
+
+      try {
+        const result = await this.dynamoClient.query(params);
+        return {
+          items: result.Items as T[],
+          lastEvaluatedKey: result.LastEvaluatedKey,
+        };
+      } catch (error) {
+        console.error("Error querying items:", error);
+        throw error;
+      }
+    };
+
+    return new QueryBuilder<T>(executor, keyConditionExpression);
   }
 }
