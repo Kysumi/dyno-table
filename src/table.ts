@@ -1,4 +1,4 @@
-import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import type { DynamoDBDocument, DeleteCommandInput, PutCommandInput, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
 import type { EntityConfig, IndexDefinition, TableConfig } from "./types";
 import { Entity } from "./entity";
 import {
@@ -16,13 +16,15 @@ import {
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
 } from "./conditions";
-import { buildExpression, generateAttributeName } from "./expression";
-import type { AttributeValue, PutItemCommandInput, QueryCommandInput } from "@aws-sdk/client-dynamodb";
+import { buildExpression, generateAttributeName, prepareExpressionParams } from "./expression";
 import { QueryBuilder, type QueryOptions } from "./query-builder";
 import { PutBuilder, type PutOptions } from "./put-builder";
+import { DeleteBuilder, type DeleteOptions } from "./delete-builder";
+import type { Path } from "./builders/types";
 
-// Helper type for converting unknown values to AttributeValue
-type AttributeValueRecord = Record<string, AttributeValue>;
+export interface GetBuilder<T> {
+  execute: () => Promise<{ item?: T }>;
+}
 
 export class Table {
   private dynamoClient: DynamoDBDocument;
@@ -53,7 +55,7 @@ export class Table {
    * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
   create<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
-    return this.put(item).condition((op) => op.attributeNotExists("pk"));
+    return this.put(item).condition((op) => op.attributeNotExists(this.partitionKey as Path<T>));
   }
 
   get<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
@@ -96,16 +98,14 @@ export class Table {
 
       const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
 
-      const params: PutItemCommandInput = {
+      const params: PutCommandInput = {
         TableName: this.tableName,
-        Item: item as Record<string, AttributeValue>,
+        Item: item,
         ConditionExpression: conditionExpression,
         ExpressionAttributeNames:
           Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
         ExpressionAttributeValues:
-          Object.keys(expressionAttributeValues).length > 0
-            ? (expressionAttributeValues as AttributeValueRecord)
-            : undefined,
+          Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined,
         ReturnValues: options.returnValues,
       };
 
@@ -175,7 +175,7 @@ export class Table {
         KeyConditionExpression: keyConditionExpression,
         FilterExpression: filterExpression,
         ExpressionAttributeNames: expressionAttributeNames,
-        ExpressionAttributeValues: expressionAttributeValues as AttributeValueRecord,
+        ExpressionAttributeValues: expressionAttributeValues,
         IndexName: indexName,
         Limit: limit,
         ConsistentRead: consistentRead,
@@ -196,5 +196,36 @@ export class Table {
     };
 
     return new QueryBuilder<T>(executor, keyConditionExpression);
+  }
+
+  delete(keyCondition: PrimaryKeyWithoutExpression): DeleteBuilder {
+    const executor = async (options: DeleteOptions) => {
+      const { expression, names, values } = prepareExpressionParams(options.condition);
+
+      // Create a properly typed params object for the delete operation
+      const params: DeleteCommandInput = {
+        TableName: this.tableName,
+        Key: {
+          pk: keyCondition.pk,
+          sk: keyCondition.sk,
+        },
+        ConditionExpression: expression,
+        ExpressionAttributeNames: names,
+        ExpressionAttributeValues: values,
+        ReturnValues: options.returnValues,
+      };
+
+      try {
+        const result = await this.dynamoClient.delete(params);
+        return {
+          item: result.Attributes as Record<string, unknown>,
+        };
+      } catch (error) {
+        console.error("Error deleting item:", error);
+        throw error;
+      }
+    };
+
+    return new DeleteBuilder(executor);
   }
 }
