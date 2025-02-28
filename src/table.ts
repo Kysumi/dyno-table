@@ -14,6 +14,7 @@ import {
   type ExpressionParams,
   type KeyConditionOperator,
   type PrimaryKey,
+  type PrimaryKeyWithoutExpression,
 } from "./conditions";
 import { buildExpression, generateAttributeName } from "./expression";
 import type { AttributeValue, PutItemCommandInput, QueryCommandInput } from "@aws-sdk/client-dynamodb";
@@ -53,6 +54,24 @@ export class Table {
    */
   create<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
     return this.put(item).condition((op) => op.attributeNotExists("pk"));
+  }
+
+  get<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
+    return {
+      execute: async () => {
+        const result = await this.dynamoClient.get({
+          TableName: this.tableName,
+          Key: {
+            pk: keyCondition.pk,
+            sk: keyCondition.sk,
+          },
+        });
+
+        return {
+          item: result.Item ? (result.Item as T) : undefined,
+        };
+      },
+    };
   }
 
   /**
