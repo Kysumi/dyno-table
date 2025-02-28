@@ -274,7 +274,7 @@ describe("Table Integration Tests", () => {
         sk: "dino#test",
         name: "Test Dino",
         type: "TestType",
-        tags: ["test", "get"],
+        tags: new Set(["test", "get"]),
       };
       await table.put(dino).execute();
     });

@@ -176,7 +176,7 @@ export class Table {
         .join(", ");
 
       const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
-      const { indexName, limit, consistentRead, scanIndexForward, projection } = options;
+      const { indexName, limit, consistentRead, scanIndexForward, lastEvaluatedKey } = options;
 
       const params: QueryCommandInput = {
         TableName: this.tableName,
@@ -189,6 +189,7 @@ export class Table {
         ConsistentRead: consistentRead,
         ScanIndexForward: scanIndexForward,
         ProjectionExpression: projectionExpression,
+        ExclusiveStartKey: lastEvaluatedKey,
       };
 
       try {
