@@ -574,6 +574,33 @@ describe("Table Integration Tests", () => {
       expect(names).toEqual(["Page 1 Dino", "Page 2 Dino", "Page 3 Dino", "Page 4 Dino", "Page 5 Dino"].sort());
     });
 
+    it("should respect the overall limit set on the query builder", async () => {
+      // Set an overall limit of 3 items, with a page size of 2
+      const paginator = table.query({ pk: "dinosaur#query" }).limit(3).paginate(2);
+
+      // Get the first page
+      const firstPage = await paginator.getNextPage();
+      expect(firstPage.items).toHaveLength(2);
+      expect(firstPage.hasNextPage).toBe(true);
+      expect(firstPage.page).toBe(1);
+
+      // Get the second page (should only have 1 item due to overall limit of 3)
+      const secondPage = await paginator.getNextPage();
+      expect(secondPage.items).toHaveLength(1); // Only 1 item due to overall limit
+      expect(secondPage.hasNextPage).toBe(false); // No more pages due to overall limit
+      expect(secondPage.page).toBe(2);
+
+      // Try to get another page (should be empty)
+      const emptyPage = await paginator.getNextPage();
+      expect(emptyPage.items).toHaveLength(0);
+      expect(emptyPage.hasNextPage).toBe(false);
+
+      // Verify we only got 3 items total (due to the limit)
+      const allItems = await table.query({ pk: "dinosaur#query" }).limit(3).paginate(2).getAllPages();
+
+      expect(allItems).toHaveLength(3); // Only 3 due to limit
+    });
+
     it("should use consistent read", async () => {
       // This is mostly a syntax test since we can't easily test the actual consistency
       const result = await table.query({ pk: "dinosaur#query" }).consistentRead(true).execute();

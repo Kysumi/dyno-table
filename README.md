@@ -212,7 +212,7 @@ const paginator = dinoTable
     pk: "SPECIES#herbivore"
   })
   .filter((op) => op.gt("length", 5))
-  .toPaginator(10); // Get pages of 10 items
+  .paginate(10); // Get pages of 10 items
 
 // Check if there are more pages
 while (paginator.hasNextPage()) {
@@ -225,8 +225,15 @@ while (paginator.hasNextPage()) {
 // Or get all pages at once
 const allDinos = await dinoTable
   .query<Dinosaur>({ pk: "SPECIES#carnivore" })
-  .toPaginator(25)
+  .paginate(25)
   .getAllPages();
+
+// You can also set an overall limit on the total number of items
+// The paginator will respect this limit even if more data is available
+const limitedPaginator = dinoTable
+  .query<Dinosaur>({ pk: "SPECIES#all" })
+  .limit(100) // Retrieve at most 100 items total
+  .paginate(20); // In pages of 20 items each
 ```
 
 ## 🛡️ Type-Safe Query Building

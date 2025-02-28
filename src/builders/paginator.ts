@@ -13,10 +13,14 @@ export class Paginator<T extends Record<string, unknown>> {
   private currentPage = 0;
   private lastEvaluatedKey?: Record<string, unknown>;
   private hasMorePages = true;
+  private totalItemsRetrieved = 0;
+  private overallLimit?: number;
 
   constructor(queryBuilder: QueryBuilder<T>, pageSize: number) {
     this.queryBuilder = queryBuilder;
     this.pageSize = pageSize;
+    // Store the overall limit from the query builder if it exists
+    this.overallLimit = queryBuilder.getLimit();
   }
 
   /**
@@ -30,6 +34,10 @@ export class Paginator<T extends Record<string, unknown>> {
    * Check if there are more pages available
    */
   hasNextPage(): boolean {
+    // If we have an overall limit and we've already retrieved that many items, there are no more pages
+    if (this.overallLimit !== undefined && this.totalItemsRetrieved >= this.overallLimit) {
+      return false;
+    }
     return this.hasMorePages;
   }
 
@@ -37,7 +45,7 @@ export class Paginator<T extends Record<string, unknown>> {
    * Get the next page of results
    */
   async getNextPage(): Promise<PaginationResult<T>> {
-    if (!this.hasMorePages) {
+    if (!this.hasNextPage()) {
       return {
         items: [],
         hasNextPage: false,
@@ -45,8 +53,24 @@ export class Paginator<T extends Record<string, unknown>> {
       };
     }
 
+    // Calculate how many items to fetch for this page
+    let effectivePageSize = this.pageSize;
+
+    // If we have an overall limit, make sure we don't fetch more than what's left
+    if (this.overallLimit !== undefined) {
+      const remainingItems = this.overallLimit - this.totalItemsRetrieved;
+      if (remainingItems <= 0) {
+        return {
+          items: [],
+          hasNextPage: false,
+          page: this.currentPage,
+        };
+      }
+      effectivePageSize = Math.min(effectivePageSize, remainingItems);
+    }
+
     // Clone the query builder to avoid modifying the original
-    const query = this.queryBuilder.clone().limit(this.pageSize);
+    const query = this.queryBuilder.clone().limit(effectivePageSize);
 
     // Apply the last evaluated key if we have one
     if (this.lastEvaluatedKey) {
@@ -59,12 +83,19 @@ export class Paginator<T extends Record<string, unknown>> {
     // Update pagination state
     this.currentPage += 1;
     this.lastEvaluatedKey = result.lastEvaluatedKey;
-    this.hasMorePages = !!result.lastEvaluatedKey;
+    this.totalItemsRetrieved += result.items.length;
+
+    // Determine if there are more pages
+    // We have more pages if:
+    // 1. DynamoDB returned a lastEvaluatedKey AND
+    // 2. We haven't hit our overall limit (if one exists)
+    this.hasMorePages =
+      !!result.lastEvaluatedKey && (this.overallLimit === undefined || this.totalItemsRetrieved < this.overallLimit);
 
     return {
       items: result.items,
       lastEvaluatedKey: result.lastEvaluatedKey,
-      hasNextPage: this.hasMorePages,
+      hasNextPage: this.hasNextPage(),
       page: this.currentPage,
     };
   }
@@ -75,7 +106,7 @@ export class Paginator<T extends Record<string, unknown>> {
   async getAllPages(): Promise<T[]> {
     const allItems: T[] = [];
 
-    while (this.hasMorePages) {
+    while (this.hasNextPage()) {
       const result = await this.getNextPage();
       allItems.push(...result.items);
     }

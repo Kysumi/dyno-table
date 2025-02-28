@@ -53,6 +53,14 @@ export class QueryBuilder<T extends Record<string, unknown>> {
     return this;
   }
 
+  /**
+   * Get the current limit set on the query
+   * @returns The current limit or undefined if no limit is set
+   */
+  getLimit(): number | undefined {
+    return this.options.limit;
+  }
+
   useIndex(indexName: string): QueryBuilder<T> {
     this.options.indexName = indexName;
     return this;
