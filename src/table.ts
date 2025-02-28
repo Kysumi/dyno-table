@@ -1,4 +1,10 @@
-import type { DynamoDBDocument, DeleteCommandInput, PutCommandInput, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
+import type {
+  DynamoDBDocument,
+  DeleteCommandInput,
+  PutCommandInput,
+  QueryCommandInput,
+  UpdateCommandInput,
+} from "@aws-sdk/lib-dynamodb";
 import type { EntityConfig, IndexDefinition, TableConfig } from "./types";
 import { Entity } from "./entity";
 import {
@@ -11,15 +17,17 @@ import {
   lt,
   lte,
   type Condition,
+  type ConditionOperator,
   type ExpressionParams,
   type KeyConditionOperator,
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
 } from "./conditions";
 import { buildExpression, generateAttributeName, prepareExpressionParams } from "./expression";
-import { QueryBuilder, type QueryOptions } from "./query-builder";
-import { PutBuilder, type PutOptions } from "./put-builder";
-import { DeleteBuilder, type DeleteOptions } from "./delete-builder";
+import { QueryBuilder, type QueryOptions } from "./builders/query-builder";
+import { PutBuilder, type PutOptions } from "./builders/put-builder";
+import { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder";
+import { UpdateBuilder, type UpdateOptions, type UpdateAction } from "./builders/update-builder";
 import type { Path } from "./builders/types";
 
 export interface GetBuilder<T> {
@@ -55,7 +63,7 @@ export class Table {
    * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
   create<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
-    return this.put(item).condition((op) => op.attributeNotExists(this.partitionKey as Path<T>));
+    return this.put(item).condition((op: ConditionOperator<T>) => op.attributeNotExists(this.partitionKey as Path<T>));
   }
 
   get<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
@@ -227,5 +235,138 @@ export class Table {
     };
 
     return new DeleteBuilder(executor);
+  }
+
+  /**
+   * Updates an item in the table
+   *
+   * @param keyCondition The primary key of the item to update
+   * @returns An UpdateBuilder instance for chaining update operations and conditions
+   */
+  update<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
+    const executor = async (updates: UpdateAction[], options: UpdateOptions) => {
+      if (updates.length === 0) {
+        throw new Error("No update actions specified");
+      }
+
+      const expressionParams: ExpressionParams = {
+        expressionAttributeNames: {},
+        expressionAttributeValues: {},
+        valueCounter: { count: 0 },
+      };
+
+      // Build the update expression
+      let updateExpression = "";
+
+      // Group updates by type
+      const setUpdates: UpdateAction[] = [];
+      const removeUpdates: UpdateAction[] = [];
+      const addUpdates: UpdateAction[] = [];
+      const deleteUpdates: UpdateAction[] = [];
+
+      for (const update of updates) {
+        switch (update.type) {
+          case "SET":
+            setUpdates.push(update);
+            break;
+          case "REMOVE":
+            removeUpdates.push(update);
+            break;
+          case "ADD":
+            addUpdates.push(update);
+            break;
+          case "DELETE":
+            deleteUpdates.push(update);
+            break;
+        }
+      }
+
+      // Build SET clause
+      if (setUpdates.length > 0) {
+        updateExpression += "SET ";
+        updateExpression += setUpdates
+          .map((update) => {
+            const attrName = generateAttributeName(expressionParams, update.path);
+            const valueName = `:v${expressionParams.valueCounter.count++}`;
+            expressionParams.expressionAttributeValues[valueName] = update.value;
+            return `${attrName} = ${valueName}`;
+          })
+          .join(", ");
+      }
+
+      // Build REMOVE clause
+      if (removeUpdates.length > 0) {
+        if (updateExpression) updateExpression += " ";
+        updateExpression += "REMOVE ";
+        updateExpression += removeUpdates
+          .map((update) => {
+            return generateAttributeName(expressionParams, update.path);
+          })
+          .join(", ");
+      }
+
+      // Build ADD clause
+      if (addUpdates.length > 0) {
+        if (updateExpression) updateExpression += " ";
+        updateExpression += "ADD ";
+        updateExpression += addUpdates
+          .map((update) => {
+            const attrName = generateAttributeName(expressionParams, update.path);
+            const valueName = `:v${expressionParams.valueCounter.count++}`;
+            expressionParams.expressionAttributeValues[valueName] = update.value;
+            return `${attrName} ${valueName}`;
+          })
+          .join(", ");
+      }
+
+      // Build DELETE clause
+      if (deleteUpdates.length > 0) {
+        if (updateExpression) updateExpression += " ";
+        updateExpression += "DELETE ";
+        updateExpression += deleteUpdates
+          .map((update) => {
+            const attrName = generateAttributeName(expressionParams, update.path);
+            const valueName = `:v${expressionParams.valueCounter.count++}`;
+            expressionParams.expressionAttributeValues[valueName] = update.value;
+            return `${attrName} ${valueName}`;
+          })
+          .join(", ");
+      }
+
+      // Build condition expression if provided
+      let conditionExpression: string | undefined;
+      if (options.condition) {
+        conditionExpression = buildExpression(options.condition, expressionParams);
+      }
+
+      const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
+
+      const params: UpdateCommandInput = {
+        TableName: this.tableName,
+        Key: {
+          pk: keyCondition.pk,
+          sk: keyCondition.sk,
+        },
+        UpdateExpression: updateExpression,
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames:
+          Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+        ExpressionAttributeValues:
+          Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined,
+        ReturnValues: options.returnValues,
+      };
+
+      try {
+        const result = await this.dynamoClient.update(params);
+        return {
+          item: result.Attributes as T,
+        };
+      } catch (error) {
+        console.error("Error updating item:", error);
+        throw error;
+      }
+    };
+
+    return new UpdateBuilder<T>(executor);
   }
 }

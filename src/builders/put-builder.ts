@@ -1,4 +1,4 @@
-import type { Condition, ConditionOperator } from "./conditions";
+import type { Condition, ConditionOperator } from "../conditions";
 import {
   eq,
   ne,
@@ -14,7 +14,7 @@ import {
   and,
   or,
   not,
-} from "./conditions";
+} from "../conditions";
 
 export interface PutOptions {
   condition?: Condition;

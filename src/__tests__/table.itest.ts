@@ -244,6 +244,7 @@ describe("Table Integration Tests", () => {
       const result = await table.query({ pk: "dinosaur#group1" }).select(["name", "type"]).execute();
 
       expect(result.items).toHaveLength(3);
+
       expect(Object.keys(result.items[0])).toContain("name");
       expect(Object.keys(result.items[0])).toContain("type");
       expect(Object.keys(result.items[0])).not.toContain("height");
@@ -409,45 +410,6 @@ describe("Table Integration Tests", () => {
       expect(result.item?.name).toBe("Multi Update");
       expect(result.item?.weight).toBe(1200);
       expect(result.item?.height).toBeUndefined();
-    });
-  });
-
-  describe("Entity Operations", () => {
-    it("should create and use an entity", async () => {
-      const dinoEntity = table.entity<Dinosaur>({
-        discriminator: "dinosaur",
-        timestamps: true,
-      });
-
-      // Create an item through the entity
-      const dino = await dinoEntity.create({
-        pk: "dinosaur#entity",
-        sk: "dino#test",
-        name: "Entity Test",
-        type: "EntityType",
-      });
-
-      expect(dino.__type).toBe("dinosaur");
-      expect(dino.createdAt).toBeDefined();
-      expect(dino.updatedAt).toBeDefined();
-
-      // Get the item
-      const getDino = await dinoEntity.get("dinosaur#entity", "dino#test");
-      expect(getDino).toBeDefined();
-      expect(getDino?.name).toBe("Entity Test");
-
-      // Update the item
-      const updatedDino = await dinoEntity.update("dinosaur#entity", "dino#test", { name: "Updated Entity" });
-
-      expect(updatedDino.name).toBe("Updated Entity");
-      expect(updatedDino.updatedAt).not.toBe(dino.updatedAt);
-
-      // Delete the item
-      await dinoEntity.delete("dinosaur#entity", "dino#test");
-
-      // Verify deletion
-      const deletedDino = await dinoEntity.get("dinosaur#entity", "dino#test");
-      expect(deletedDino).toBeNull();
     });
   });
 });

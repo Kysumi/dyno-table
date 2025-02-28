@@ -1,4 +1,4 @@
-import type { Path, PathType } from "./builders/types";
+import type { Path, PathType } from "./types";
 import {
   eq,
   ne,
@@ -16,7 +16,7 @@ import {
   not,
   type Condition,
   type ConditionOperator,
-} from "./conditions";
+} from "../conditions";
 
 export interface QueryOptions {
   sortKeyCondition?: Condition;

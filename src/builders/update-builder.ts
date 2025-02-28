@@ -1,4 +1,4 @@
-import type { Condition, ConditionOperator } from "./conditions";
+import type { Condition, ConditionOperator } from "../conditions";
 import {
   eq,
   ne,
@@ -14,8 +14,8 @@ import {
   and,
   or,
   not,
-} from "./conditions";
-import type { Path, PathType } from "./builders/types";
+} from "../conditions";
+import type { Path, PathType } from "./types";
 
 export interface UpdateOptions {
   condition?: Condition;
@@ -45,14 +45,30 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
   }
 
   /**
-   * Set an attribute to a value
+   * Assign all attributes in the object to the item
    */
-  set<K extends Path<T>>(path: K, value: PathType<T, K>): UpdateBuilder<T> {
-    this.updates.push({
-      type: "SET",
-      path,
-      value,
-    });
+  set(values: T): UpdateBuilder<T>;
+  /**
+   * Set specific attribute to a value
+   */
+  set<K extends Path<T>>(path: K, value: PathType<T, K>): UpdateBuilder<T>;
+  set<K extends Path<T>>(valuesOrPath: K | T, value?: PathType<T, K>): UpdateBuilder<T> {
+    if (typeof valuesOrPath === "object") {
+      for (const [key, value] of Object.entries(valuesOrPath)) {
+        this.updates.push({
+          type: "SET",
+          path: key,
+          value,
+        });
+      }
+    } else {
+      this.updates.push({
+        type: "SET",
+        path: valuesOrPath,
+        value,
+      });
+    }
+
     return this;
   }
 
