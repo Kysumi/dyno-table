@@ -245,9 +245,13 @@ describe("Table Integration Tests", () => {
 
       expect(result.items).toHaveLength(3);
 
+      // @ts-expect-error
       expect(Object.keys(result.items[0])).toContain("name");
+      // @ts-expect-error
       expect(Object.keys(result.items[0])).toContain("type");
+      // @ts-expect-error
       expect(Object.keys(result.items[0])).not.toContain("height");
+      // @ts-expect-error
       expect(Object.keys(result.items[0])).not.toContain("weight");
     });
 
