@@ -24,40 +24,6 @@ describe("TransactionBuilder Integration Tests", () => {
     },
   });
 
-  // Clean up test data before each test
-  beforeEach(async () => {
-    const queryResult = await table.query({ pk: "txn-cmd-test" }).execute();
-
-    if (queryResult.items.length > 0) {
-      const deletePromises = queryResult.items.map((item) =>
-        table
-          .delete({
-            pk: item.pk as string,
-            sk: item.sk as string,
-          })
-          .execute(),
-      );
-      await Promise.all(deletePromises);
-    }
-  });
-
-  // Final cleanup after all tests
-  afterAll(async () => {
-    const queryResult = await table.query({ pk: "txn-cmd-test" }).execute();
-
-    if (queryResult.items.length > 0) {
-      const deletePromises = queryResult.items.map((item) =>
-        table
-          .delete({
-            pk: item.pk as string,
-            sk: item.sk as string,
-          })
-          .execute(),
-      );
-      await Promise.all(deletePromises);
-    }
-  });
-
   describe("Command-based transaction operations", () => {
     it("should execute a transaction with builder-generated commands", async () => {
       await table
