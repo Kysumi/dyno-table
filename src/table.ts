@@ -30,7 +30,7 @@ import { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder";
 import { UpdateBuilder, type UpdateOptions, type UpdateAction } from "./builders/update-builder";
 import type { Path } from "./builders/types";
 import type { BatchWriteOperation } from "./operation-types";
-import type { chunkArray } from "./utils/chunk-array";
+import { chunkArray } from "./utils/chunk-array";
 
 export interface GetBuilder<T> {
   execute: () => Promise<{ item?: T }>;
