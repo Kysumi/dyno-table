@@ -18,13 +18,14 @@ import {
 import type { Path, PathType } from "./types";
 import type { TransactionBuilder } from "./transaction-builder";
 import { buildExpression, generateAttributeName, generateValueName } from "../expression";
+import { debugCommand, type DynamoCommandWithExpressions } from "../utils/debug-expression";
 
 export interface UpdateOptions {
   condition?: Condition;
   returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
 }
 
-export interface UpdateCommandParams {
+export interface UpdateCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   key: PrimaryKeyWithoutExpression;
   updateExpression: string;
@@ -305,6 +306,18 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
     transaction.updateWithCommand(command);
 
     return this;
+  }
+
+  /**
+   * Get a human-readable representation of the update command
+   * with all expression placeholders replaced by their actual values.
+   * This is useful for debugging complex update operations.
+   *
+   * @returns A readable representation of the update command
+   */
+  debug(): Record<string, unknown> {
+    const command = this.toDynamoCommand();
+    return debugCommand(command);
   }
 
   /**

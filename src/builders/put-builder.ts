@@ -17,13 +17,15 @@ import {
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
 import { buildExpression, prepareExpressionParams } from "../expression";
+import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
+import { debugCommand } from "../utils/debug-expression";
 
 export interface PutOptions {
   condition?: Condition;
   returnValues?: "ALL_OLD" | "NONE";
 }
 
-export interface PutCommandParams {
+export interface PutCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   item: Record<string, unknown>;
   conditionExpression?: string;
@@ -116,5 +118,17 @@ export class PutBuilder<T extends Record<string, unknown>> {
   async execute(): Promise<T> {
     const params = this.toDynamoCommand();
     return this.executor(params);
+  }
+
+  /**
+   * Get a human-readable representation of the put command
+   * with all expression placeholders replaced by their actual values.
+   * This is useful for debugging complex put operations.
+   *
+   * @returns A readable representation of the put command
+   */
+  debug(): Record<string, unknown> {
+    const command = this.toDynamoCommand();
+    return debugCommand(command);
   }
 }

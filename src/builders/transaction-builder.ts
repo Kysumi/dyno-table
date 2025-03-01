@@ -6,6 +6,7 @@ import type { PutCommandParams } from "./put-builder";
 import type { UpdateCommandParams } from "./update-builder";
 import type { DeleteCommandParams } from "./delete-builder";
 import type { ConditionCheckCommandParams } from "./condition-check-builder";
+import { debugTransaction } from "../utils/debug-transaction";
 
 export type TransactionItem =
   | { type: "Put"; params: PutCommandParams }
@@ -206,6 +207,17 @@ export class TransactionBuilder {
   withOptions(options: TransactionOptions): TransactionBuilder {
     this.options = { ...this.options, ...options };
     return this;
+  }
+
+  /**
+   * Get a human-readable representation of the transaction items
+   * with all expression placeholders replaced by their actual values.
+   * This is useful for debugging complex transactions.
+   *
+   * @returns An array of readable representations of the transaction items
+   */
+  debug(): Record<string, unknown>[] {
+    return debugTransaction(this.items);
   }
 
   /**

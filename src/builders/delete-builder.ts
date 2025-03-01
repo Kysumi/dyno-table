@@ -17,13 +17,15 @@ import {
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
+import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
+import { debugCommand } from "../utils/debug-expression";
 
 export interface DeleteOptions {
   condition?: Condition;
   returnValues?: "ALL_OLD";
 }
 
-export interface DeleteCommandParams {
+export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   key: PrimaryKeyWithoutExpression;
   conditionExpression?: string;
@@ -117,5 +119,17 @@ export class DeleteBuilder {
   public async execute(): Promise<{ item?: Record<string, unknown> }> {
     const params = this.toDynamoCommand();
     return this.executor(params);
+  }
+
+  /**
+   * Get a human-readable representation of the delete command
+   * with all expression placeholders replaced by their actual values.
+   * This is useful for debugging complex delete operations.
+   *
+   * @returns A readable representation of the delete command
+   */
+  debug(): Record<string, unknown> {
+    const command = this.toDynamoCommand();
+    return debugCommand(command);
   }
 }

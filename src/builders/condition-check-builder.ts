@@ -17,8 +17,10 @@ import {
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
+import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
+import { debugCommand } from "../utils/debug-expression";
 
-export interface ConditionCheckCommandParams {
+export interface ConditionCheckCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   key: PrimaryKeyWithoutExpression;
   conditionExpression: string;
@@ -101,5 +103,17 @@ export class ConditionCheckBuilder {
     transaction.conditionCheckWithCommand(command);
 
     return this;
+  }
+
+  /**
+   * Get a human-readable representation of the condition check command
+   * with all expression placeholders replaced by their actual values.
+   * This is useful for debugging complex condition check operations.
+   *
+   * @returns A readable representation of the condition check command
+   */
+  debug(): Record<string, unknown> {
+    const command = this.toDynamoCommand();
+    return debugCommand(command);
   }
 }
