@@ -1,13 +1,13 @@
 import type { ComparisonOperator, Condition, ExpressionParams, LogicalOperator } from "./conditions";
 
 export const generateAttributeName = (params: ExpressionParams, attr: string): string => {
-  const attrName = `#attr${Object.keys(params.expressionAttributeNames).length}`;
+  const attrName = `#${Object.keys(params.expressionAttributeNames).length}`;
   params.expressionAttributeNames[attrName] = attr;
   return attrName;
 };
 
 export const generateValueName = (params: ExpressionParams, value: unknown): string => {
-  const valueName = `:val${params.valueCounter.count++}`;
+  const valueName = `:${params.valueCounter.count++}`;
   params.expressionAttributeValues[valueName] = value;
   return valueName;
 };

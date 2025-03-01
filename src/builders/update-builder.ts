@@ -17,7 +17,7 @@ import {
 } from "../conditions";
 import type { Path, PathType } from "./types";
 import type { TransactionBuilder } from "./transaction-builder";
-import { buildExpression, generateAttributeName } from "../expression";
+import { buildExpression, generateAttributeName, generateValueName } from "../expression";
 
 export interface UpdateOptions {
   condition?: Condition;
@@ -223,7 +223,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
       updateExpression += setUpdates
         .map((update) => {
           const attrName = generateAttributeName(expressionParams, update.path);
-          const valueName = `:v${expressionParams.valueCounter.count++}`;
+          const valueName = generateValueName(expressionParams, update.value);
           expressionParams.expressionAttributeValues[valueName] = update.value;
           return `${attrName} = ${valueName}`;
         })
@@ -232,7 +232,9 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
     // Build REMOVE clause
     if (removeUpdates.length > 0) {
-      if (updateExpression) updateExpression += " ";
+      if (updateExpression) {
+        updateExpression += " ";
+      }
       updateExpression += "REMOVE ";
       updateExpression += removeUpdates
         .map((update) => {
@@ -243,13 +245,15 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
     // Build ADD clause
     if (addUpdates.length > 0) {
-      if (updateExpression) updateExpression += " ";
+      if (updateExpression) {
+        updateExpression += " ";
+      }
       updateExpression += "ADD ";
       updateExpression += addUpdates
         .map((update) => {
           const attrName = generateAttributeName(expressionParams, update.path);
-          const valueName = `:v${expressionParams.valueCounter.count++}`;
-          expressionParams.expressionAttributeValues[valueName] = update.value;
+          const valueName = generateValueName(expressionParams, update.value);
+
           return `${attrName} ${valueName}`;
         })
         .join(", ");
@@ -257,13 +261,16 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
     // Build DELETE clause
     if (deleteUpdates.length > 0) {
-      if (updateExpression) updateExpression += " ";
+      if (updateExpression) {
+        updateExpression += " ";
+      }
+
       updateExpression += "DELETE ";
       updateExpression += deleteUpdates
         .map((update) => {
           const attrName = generateAttributeName(expressionParams, update.path);
-          const valueName = `:v${expressionParams.valueCounter.count++}`;
-          expressionParams.expressionAttributeValues[valueName] = update.value;
+          const valueName = generateValueName(expressionParams, update.value);
+
           return `${attrName} ${valueName}`;
         })
         .join(", ");
