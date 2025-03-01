@@ -1,6 +1,14 @@
 import type { ComparisonOperator, Condition, ExpressionParams, LogicalOperator } from "./conditions";
 
 export const generateAttributeName = (params: ExpressionParams, attr: string): string => {
+  // Check if the attribute already exists in the expressionAttributeNames
+  for (const [existingName, existingAttr] of Object.entries(params.expressionAttributeNames)) {
+    if (existingAttr === attr) {
+      return existingName;
+    }
+  }
+
+  // If not found, create a new attribute name
   const attrName = `#${Object.keys(params.expressionAttributeNames).length}`;
   params.expressionAttributeNames[attrName] = attr;
   return attrName;
@@ -87,9 +95,24 @@ export const buildExpression = (condition: Condition, params: ExpressionParams):
       contains: () => buildFunctionExpression("contains", condition, params),
       attributeExists: () => buildAttributeFunction("attribute_exists", condition, params),
       attributeNotExists: () => buildAttributeFunction("attribute_not_exists", condition, params),
-      and: () => buildLogicalExpression("AND", condition.conditions!, params),
-      or: () => buildLogicalExpression("OR", condition.conditions!, params),
-      not: () => `NOT (${buildExpression(condition.condition!, params)})`,
+      and: () => {
+        if (!condition.conditions) {
+          throw new Error("Conditions array is required for AND operator");
+        }
+        return buildLogicalExpression("AND", condition.conditions, params);
+      },
+      or: () => {
+        if (!condition.conditions) {
+          throw new Error("Conditions array is required for OR operator");
+        }
+        return buildLogicalExpression("OR", condition.conditions, params);
+      },
+      not: () => {
+        if (!condition.condition) {
+          throw new Error("Condition is required for NOT operator");
+        }
+        return `NOT (${buildExpression(condition.condition, params)})`;
+      },
     };
 
     const builder = expressionBuilders[condition.type];
