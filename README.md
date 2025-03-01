@@ -155,24 +155,72 @@ await dinoTable
 
 **Atomic updates across multiple entities**
 ```ts
-// TODO: Update with new transaction API
-await dinoTable.withTransaction(async (trx) => {
-  // Move dinosaur between enclosures
-  dinoTable
-    .update<Dinosaur>(trexKey)
-    .set("enclosure", "NW-SECTOR")
-    .withTransaction(trx);
-
-  dinoTable
-    .update<Dinosaur>(raptorKey)
-    .set("enclosure", "SW-SECTOR")
-    .withTransaction(trx);
-
-  // Update tracking system
-  dinoTable
-    .put(newTrackingRecord)
-    .withTransaction(trx);
+// Start a transaction session
+await dinoTable.transaction(async (tx) => {
+  // Use familiar table methods with transaction context
+  // All operations are collected and executed as a single transaction
+  
+  // Create a new dinosaur
+  await dinoTable
+    .create<Dinosaur>({
+      pk: "SPECIES#trex",
+      sk: "PROFILE#001",
+      name: "Tyrannosaurus Rex",
+      diet: "carnivore",
+      length: 12.3,
+      discoveryYear: 1902
+    })
+    .withTransaction(tx);
+  
+  // Update enclosure occupancy
+  await dinoTable
+    .update<Enclosure>({ 
+      pk: "ENCLOSURE#NW", 
+      sk: "STATUS#current" 
+    })
+    .set("occupants", 1)
+    .set("lastUpdated", new Date().toISOString())
+    .withTransaction(tx);
+  
+  // Remove from waitlist with condition
+  await dinoTable
+    .delete({ 
+      pk: "WAITLIST#trex", 
+      sk: "PROFILE#001" 
+    })
+    .condition(op => op.eq("status", "PENDING"))
+    .withTransaction(tx);
+    
+  // Add a condition check without modifying data
+  await dinoTable
+    .conditionCheck({ 
+      pk: "PARK#main", 
+      sk: "STATUS#current" 
+    })
+    .condition(op => op.eq("status", "OPEN"))
+    .withTransaction(tx);
 });
+
+// You can also set transaction options
+await dinoTable.transaction(
+  async (tx) => {
+    await dinoTable.create(newDino).withTransaction(tx);
+    await dinoTable.delete(oldDinoKey).withTransaction(tx);
+  },
+  {
+    clientRequestToken: "unique-request-id",
+    returnConsumedCapacity: "TOTAL"
+  }
+);
+```
+
+**Benefits of this transaction approach:**
+- 🔄 Uses the same familiar API as non-transactional operations
+- 🧠 Maintains consistent mental model for developers
+- 🔒 All operations within the callback are executed as a single transaction
+- ✅ All-or-nothing operations (ACID compliance)
+- 🛡️ Prevents race conditions and data inconsistencies
+- 📊 Supports up to 100 actions per transaction
 ```
 
 ### Batch Processing
