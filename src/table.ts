@@ -1,6 +1,5 @@
 import type { DynamoDBDocument, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
-import type { EntityConfig, IndexDefinition, TableConfig } from "./types";
-import { Entity } from "./entity";
+import type { EntityConfig, Index, TableConfig } from "./types";
 import {
   and,
   beginsWith,
@@ -17,16 +16,11 @@ import {
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
 } from "./conditions";
-import { buildExpression, generateAttributeName, prepareExpressionParams } from "./expression";
+import { buildExpression, generateAttributeName } from "./expression";
 import { QueryBuilder, type QueryOptions } from "./builders/query-builder";
-import { PutBuilder, type PutOptions, type PutCommandParams } from "./builders/put-builder";
-import { DeleteBuilder, type DeleteOptions, type DeleteCommandParams } from "./builders/delete-builder";
-import {
-  UpdateBuilder,
-  type UpdateOptions,
-  type UpdateAction,
-  type UpdateCommandParams,
-} from "./builders/update-builder";
+import { PutBuilder, type PutCommandParams } from "./builders/put-builder";
+import { DeleteBuilder, type DeleteCommandParams } from "./builders/delete-builder";
+import { UpdateBuilder, type UpdateCommandParams } from "./builders/update-builder";
 import type { Path } from "./builders/types";
 import { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
 import type { BatchWriteOperation } from "./operation-types";
@@ -47,21 +41,16 @@ export class Table {
   readonly tableName: string;
   readonly partitionKey: string;
   readonly sortKey?: string;
-  readonly gsis: IndexDefinition[];
-  readonly lsis: IndexDefinition[];
+  readonly gsis: Record<string, Index>;
 
-  constructor(client: DynamoDBDocument, config: TableConfig) {
-    this.dynamoClient = client;
+  constructor(config: TableConfig) {
+    this.dynamoClient = config.client;
 
-    this.tableName = config.name;
-    this.partitionKey = config.partitionKey;
-    this.sortKey = config.sortKey;
-    this.gsis = config.gsis || [];
-    this.lsis = config.lsis || [];
-  }
+    this.tableName = config.tableName;
+    this.partitionKey = config.indexes.partitionKey;
+    this.sortKey = config.indexes.sortKey;
 
-  entity<T extends Record<string, unknown>>(entityConfig: EntityConfig<T>): Entity<T> {
-    return new Entity<T>(this, entityConfig);
+    this.gsis = config.indexes.gsis || {};
   }
 
   /**

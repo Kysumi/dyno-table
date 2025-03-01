@@ -20,10 +20,13 @@ describe("Table Integration Tests", () => {
   let table: Table;
 
   beforeAll(async () => {
-    table = new Table(docClient, {
-      name: "TestTable",
-      partitionKey: "pk",
-      sortKey: "sk",
+    table = new Table({
+      client: docClient,
+      tableName: "TestTable",
+      indexes: {
+        partitionKey: "pk",
+        sortKey: "sk",
+      },
     });
   });
 

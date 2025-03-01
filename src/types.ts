@@ -1,18 +1,21 @@
-export interface IndexDefinition {
-  name: string;
-  keySchema: { pk: string; sk: string };
-  projection?: {
-    type: "ALL" | "KEYS_ONLY" | "INCLUDE";
-    nonKeyAttributes?: string[];
-  };
+import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+
+export interface Index {
+  partitionKey: string;
+  sortKey: string;
+}
+
+interface IndexConfig {
+  partitionKey: string;
+  sortKey: string;
+
+  gsis?: Record<string, Index>;
 }
 
 export interface TableConfig {
-  name: string;
-  partitionKey: string;
-  sortKey?: string;
-  gsis?: IndexDefinition[];
-  lsis?: IndexDefinition[];
+  client: DynamoDBDocument;
+  tableName: string;
+  indexes: IndexConfig;
 }
 
 export interface EntityConfig<T> {

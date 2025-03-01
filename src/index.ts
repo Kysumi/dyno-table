@@ -1,6 +1,5 @@
 // Main classes
 export { Table } from "./table";
-export { Entity } from "./entity";
 
 // Builders
 export { QueryBuilder } from "./builders/query-builder";

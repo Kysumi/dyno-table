@@ -15,10 +15,13 @@ type TestItem = {
 
 describe("TransactionBuilder Integration Tests", () => {
   // Create DynamoDB client and table
-  const table = new Table(docClient, {
-    name: "TestTable",
-    partitionKey: "pk",
-    sortKey: "sk",
+  const table = new Table({
+    client: docClient,
+    tableName: "TestTable",
+    indexes: {
+      partitionKey: "pk",
+      sortKey: "sk",
+    },
   });
 
   // Clean up test data before each test

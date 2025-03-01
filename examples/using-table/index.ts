@@ -2,19 +2,13 @@ import { and, eq, or } from "../../src/conditions";
 import { Table } from "../../src/table";
 import { dbClient } from "../db-client";
 
-const table = new Table(dbClient, {
-  name: "le-table",
-  partitionKey: "pk",
-  sortKey: "sk",
-  gsis: [
-    {
-      name: "gsi1",
-      keySchema: {
-        pk: "gsi1pk",
-        sk: "gsi1sk",
-      },
-    },
-  ],
+const table = new Table({
+  client: dbClient,
+  tableName: "dinosaurs",
+  indexes: {
+    partitionKey: "pk",
+    sortKey: "sk",
+  },
 });
 
 type TDinosaur = {
