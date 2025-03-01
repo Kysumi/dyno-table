@@ -29,10 +29,16 @@ import { PutBuilder, type PutOptions } from "./builders/put-builder";
 import { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder";
 import { UpdateBuilder, type UpdateOptions, type UpdateAction } from "./builders/update-builder";
 import type { Path } from "./builders/types";
+import type { BatchWriteOperation } from "./operation-types";
 
 export interface GetBuilder<T> {
   execute: () => Promise<{ item?: T }>;
 }
+
+const DDB_BATCH_WRITE_LIMIT = 25;
+const DDB_BATCH_GET_LIMIT = 100;
+const DDB_TRANSACT_GET_LIMIT = 100;
+const DDB_TRANSACT_WRITE_LIMIT = 100;
 
 export class Table {
   private dynamoClient: DynamoDBDocument;
@@ -369,5 +375,141 @@ export class Table {
     };
 
     return new UpdateBuilder<T>(executor);
+  }
+  /**
+   * Performs a batch get operation to retrieve multiple items at once
+   *
+   * @param keys Array of primary keys to retrieve
+   * @returns A promise that resolves to the retrieved items
+   */
+  async batchGet<T extends Record<string, unknown>>(
+    keys: Array<PrimaryKeyWithoutExpression>,
+  ): Promise<{ items: T[]; unprocessedKeys: PrimaryKeyWithoutExpression[] }> {
+    const allItems: T[] = [];
+    const allUnprocessedKeys: PrimaryKeyWithoutExpression[] = [];
+
+    // Process each chunk from the generator
+    for (const chunk of chunkArray(keys, DDB_BATCH_GET_LIMIT)) {
+      const formattedKeys = chunk.map((key) => ({
+        pk: key.pk,
+        sk: key.sk,
+      }));
+
+      const params = {
+        RequestItems: {
+          [this.tableName]: {
+            Keys: formattedKeys,
+          },
+        },
+      };
+
+      try {
+        const result = await this.dynamoClient.batchGet(params);
+
+        // Add the retrieved items to our result
+        if (result.Responses?.[this.tableName]) {
+          allItems.push(...(result.Responses[this.tableName] as T[]));
+        }
+
+        // Track any unprocessed keys
+        const unprocessedKeysArray = result.UnprocessedKeys?.[this.tableName]?.Keys || [];
+        const unprocessedKeys = unprocessedKeysArray.map((key) => ({
+          pk: key.pk as string,
+          sk: key.sk as string,
+        }));
+
+        if (unprocessedKeys.length > 0) {
+          allUnprocessedKeys.push(...unprocessedKeys);
+        }
+      } catch (error) {
+        console.error("Error in batch get operation:", error);
+        throw error;
+      }
+    }
+
+    return {
+      items: allItems,
+      unprocessedKeys: allUnprocessedKeys,
+    };
+  }
+
+  /**
+   * Performs a batch write operation to put or delete multiple items at once
+   *
+   * @param operations Array of put or delete operations
+   * @returns A promise that resolves to any unprocessed operations
+   */
+  async batchWrite<T extends Record<string, unknown>>(
+    operations: Array<BatchWriteOperation<T>>,
+  ): Promise<{ unprocessedItems: Array<BatchWriteOperation<T>> }> {
+    const allUnprocessedItems: Array<BatchWriteOperation<T>> = [];
+
+    // Process each chunk from the generator
+    for (const chunk of chunkArray(operations, DDB_BATCH_WRITE_LIMIT)) {
+      const writeRequests = chunk.map((operation) => {
+        if (operation.type === "put") {
+          return {
+            PutRequest: {
+              Item: operation.item,
+            },
+          };
+        }
+
+        return {
+          DeleteRequest: {
+            Key: {
+              pk: operation.key.pk,
+              sk: operation.key.sk,
+            },
+          },
+        };
+      });
+
+      const params = {
+        RequestItems: {
+          [this.tableName]: writeRequests,
+        },
+      };
+
+      try {
+        const result = await this.dynamoClient.batchWrite(params);
+
+        // Track any unprocessed items
+        const unprocessedRequestsArray = result.UnprocessedItems?.[this.tableName] || [];
+
+        if (unprocessedRequestsArray.length > 0) {
+          const unprocessedItems = unprocessedRequestsArray.map((request) => {
+            if (request?.PutRequest?.Item) {
+              return {
+                type: "put" as const,
+                item: request.PutRequest.Item as T,
+              };
+            }
+
+            if (request?.DeleteRequest?.Key) {
+              return {
+                type: "delete" as const,
+                key: {
+                  pk: request.DeleteRequest.Key.pk as string,
+                  sk: request.DeleteRequest.Key.sk as string,
+                },
+              };
+            }
+
+            // This should never happen, but TypeScript needs a fallback
+            throw new Error("Invalid unprocessed item format returned from DynamoDB");
+          });
+
+          allUnprocessedItems.push(...unprocessedItems);
+        }
+      } catch (error) {
+        console.error("Error in batch write operation:", error);
+        throw error;
+      }
+    }
+
+    return {
+      unprocessedItems: allUnprocessedItems,
+    };
   }
 }

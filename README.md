@@ -179,27 +179,40 @@ await dinoTable.withTransaction(async (trx) => {
 
 **Efficient bulk operations with automatic chunking**
 ```ts
-// Batch create 250 dinosaurs
-const fossils = await loadPaleontologyData(); 
+// Batch get multiple items at once
+const keys = [
+  { pk: "SPECIES#trex", sk: "PROFILE#001" },
+  { pk: "SPECIES#raptor", sk: "PROFILE#001" },
+  { pk: "SPECIES#stego", sk: "PROFILE#001" }
+];
 
-// Batches will automatically be chunked into the maximum allowed amount of 25 items
+const { items, unprocessedKeys } = await dinoTable.batchGet<Dinosaur>(keys);
+console.log(`Retrieved ${items.length} dinosaurs`);
+
+// Batch write (create/update) multiple items
+const newDinos = [
+  { pk: "SPECIES#anky", sk: "PROFILE#001", name: "Ankylosaurus", diet: "herbivore" },
+  { pk: "SPECIES#brach", sk: "PROFILE#001", name: "Brachiosaurus", diet: "herbivore" }
+];
+
 await dinoTable.batchWrite(
-  fossils.map(fossil => ({
+  newDinos.map(dino => ({
     type: "put",
-    item: {
-      pk: `SPECIES#${fossil.id}`,
-      sk: `PROFILE#${fossil.id}`,
-      ...fossil
-    }
+    item: dino
   }))
 );
 
 // Batch write with mixed operations
 await dinoTable.batchWrite([
-  { type: "delete", key: rexKey },
-  { type: "put", item: newVelociraptor },
-  { type: "delete", key: stegoKey }
+  { type: "delete", key: { pk: "SPECIES#trex", sk: "PROFILE#001" } },
+  { type: "put", item: { pk: "SPECIES#raptor", sk: "PROFILE#002", name: "Velociraptor 2" } },
+  { type: "delete", key: { pk: "SPECIES#stego", sk: "PROFILE#001" } }
 ]);
+
+// Large batches are automatically chunked to respect DynamoDB limits
+// (25 items per batch write, 100 items per batch get)
+const manyOperations = generateManyOperations(); // Even if this has hundreds of operations
+await dinoTable.batchWrite(manyOperations); // Will be automatically chunked
 ```
 
 ### Pagination Made Simple
