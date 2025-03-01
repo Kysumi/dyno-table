@@ -1,20 +1,22 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import { Table } from "../table";
-import { eq, attributeExists, attributeNotExists } from "../conditions";
+import { eq } from "../conditions";
 import { docClient } from "../../tests/ddb-client";
 
-// Define test item type
-type TestItem = {
+type Dinosaur = {
   pk: string;
   sk: string;
-  data?: string;
+  name: string;
+  species: string;
+  diet: string;
   status?: string;
-  counter?: number;
+  health?: number;
+  enclosureId?: string;
+  lastFed?: string;
   tags?: Set<string>;
 };
 
 describe("TransactionBuilder Integration Tests", () => {
-  // Create DynamoDB client and table
   const table = new Table({
     client: docClient,
     tableName: "TestTable",
@@ -25,90 +27,144 @@ describe("TransactionBuilder Integration Tests", () => {
   });
 
   describe("Command-based transaction operations", () => {
-    it("should execute a transaction with builder-generated commands", async () => {
+    it("should execute a transaction to transfer a dinosaur between enclosures", async () => {
+      // Create a dinosaur in the source enclosure
       await table
-        .put<TestItem>({
-          pk: "txn-cmd-test",
-          sk: "delete-item",
-          data: "to be deleted",
+        .put<Dinosaur>({
+          pk: "ENCLOSURE#A",
+          sk: "DINO#001",
+          name: "Rex",
+          species: "Tyrannosaurus",
+          diet: "Carnivore",
+          status: "HEALTHY",
+          health: 100,
+          enclosureId: "A",
+          lastFed: new Date().toISOString(),
         })
         .execute();
 
+      // Create the destination enclosure status
       await table
-        .put<TestItem>({
-          pk: "txn-cmd-test",
-          sk: "update-item",
-          data: "original data",
-          status: "active",
+        .put<Dinosaur>({
+          pk: "ENCLOSURE#B",
+          sk: "STATUS",
+          status: "READY",
+          name: "Carnivore Enclosure B",
+          species: "ENCLOSURE",
+          diet: "N/A",
         })
         .execute();
 
       const transaction = table.transactionBuilder();
 
+      // Remove dinosaur from source enclosure
       table
         .delete({
-          pk: "txn-cmd-test",
-          sk: "delete-item",
+          pk: "ENCLOSURE#A",
+          sk: "DINO#001",
         })
         .withTransaction(transaction);
 
-      // Condition check, only delete the above item if this items exist and
+      // Check if destination enclosure is ready
       table
         .conditionCheck({
-          pk: "txn-cmd-test",
-          sk: "update-item",
+          pk: "ENCLOSURE#B",
+          sk: "STATUS",
         })
-        .condition((op) => op.and(op.attributeExists("pk"), op.eq("status", "active")))
+        .condition((op) => op.and(
+          op.attributeExists("pk"),
+          op.eq("status", "READY")
+        ))
+        .withTransaction(transaction);
+
+      // Add dinosaur to new enclosure
+      table
+        .put<Dinosaur>({
+          pk: "ENCLOSURE#B",
+          sk: "DINO#001",
+          name: "Rex",
+          species: "Tyrannosaurus",
+          diet: "Carnivore",
+          status: "HEALTHY",
+          health: 100,
+          enclosureId: "B",
+          lastFed: new Date().toISOString(),
+        })
         .withTransaction(transaction);
 
       // Execute the transaction
       await transaction.execute();
 
       // Verify results
-      const queryResult = await table.query<TestItem>({ pk: "txn-cmd-test" }).execute();
+      const sourceEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#A" }).execute();
+      const destEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#B" }).execute();
 
-      // Should have 1 item (update, delete should be gone)
-      expect(queryResult.items.length).toBe(1);
+      // Source enclosure should be empty (except for status)
+      expect(sourceEnclosure.items.filter(item => item.sk.startsWith("DINO#"))).toHaveLength(0);
 
-      // Verify check condition item is present
-      const updatedItem = queryResult.items.find((item) => item.sk === "update-item");
-      expect(updatedItem).toBeDefined();
-
-      // Verify deleted item is gone
-      const deletedItem = queryResult.items.find((item) => item.sk === "delete-item");
-      expect(deletedItem).toBeUndefined();
+      // Destination enclosure should have the dinosaur
+      const transferredDino = destEnclosure.items.find(item => item.sk === "DINO#001");
+      expect(transferredDino).toBeDefined();
+      expect(transferredDino?.name).toBe("Rex");
+      expect(transferredDino?.enclosureId).toBe("B");
     });
 
-    it("should roll back a transaction when a condition fails", async () => {
-      // First create an item with a specific status
+    it("should roll back a dinosaur transfer when health check fails", async () => {
+      // Create a dinosaur that's not healthy enough for transfer
       await table
-        .put<TestItem>({
-          pk: "txn-cmd-test",
-          sk: "condition-item",
-          status: "active",
-          data: "original data",
+        .put<Dinosaur>({
+          pk: "ENCLOSURE#C",
+          sk: "DINO#002",
+          name: "Veloci",
+          species: "Velociraptor",
+          diet: "Carnivore",
+          status: "INJURED",  // Not healthy enough for transfer
+          health: 60,
+          enclosureId: "C",
+          lastFed: new Date().toISOString(),
+        })
+        .execute();
+
+      // Create the destination quarantine enclosure
+      await table
+        .put<Dinosaur>({
+          pk: "ENCLOSURE#QUARANTINE",
+          sk: "STATUS",
+          status: "READY",
+          name: "Quarantine Enclosure",
+          species: "ENCLOSURE",
+          diet: "N/A",
         })
         .execute();
 
       // Create a transaction
       const transaction = table.transactionBuilder();
 
-      // Add a put operation that should succeed
-      const putBuilder = table.put<TestItem>({
-        pk: "txn-cmd-test",
-        sk: "should-not-exist",
-        data: "should not be created",
+      // Try to add entry to quarantine enclosure (this should not succeed)
+      const putBuilder = table.put<Dinosaur>({
+        pk: "ENCLOSURE#QUARANTINE",
+        sk: "DINO#002",
+        name: "Veloci",
+        species: "Velociraptor",
+        diet: "Carnivore",
+        status: "INJURED",
+        health: 60,
+        enclosureId: "QUARANTINE",
+        lastFed: new Date().toISOString(),
       });
       putBuilder.withTransaction(transaction);
 
-      // Add a condition check that will fail
-      const conditionBuilder = table.conditionCheck({
-        pk: "txn-cmd-test",
-        sk: "condition-item",
+      // Add a health check condition that will fail
+      const healthCheckBuilder = table.conditionCheck({
+        pk: "ENCLOSURE#C",
+        sk: "DINO#002",
       });
 
-      conditionBuilder
-        .condition(eq("status", "inactive")) // This will fail because status is "active"
+      healthCheckBuilder
+        .condition(op => op.and(
+          op.eq("status", "HEALTHY"),  // This will fail because status is "INJURED"
+          op.gte("health", 80)         // This will fail because health is 60
+        ))
         .withTransaction(transaction);
 
       // Execute the transaction and expect it to fail
@@ -121,45 +177,54 @@ describe("TransactionBuilder Integration Tests", () => {
         expect(error).toBeDefined();
       }
 
-      // Verify that no items were created
-      const queryResult = await table.query<TestItem>({ pk: "txn-cmd-test" }).execute();
+      // Verify that no transfer occurred
+      const sourceEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#C" }).execute();
+      const quarantineEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#QUARANTINE" }).execute();
 
-      // Only the original item should exist
-      expect(queryResult.items.length).toBe(1);
+      // The dinosaur should still be in the original enclosure
+      const originalDino = sourceEnclosure.items.find(item => item.sk === "DINO#002");
+      expect(originalDino).toBeDefined();
+      expect(originalDino?.status).toBe("INJURED");
+      expect(originalDino?.enclosureId).toBe("C");
 
-      // The item that should not exist should not be there
-      const shouldNotExistItem = queryResult.items.find((item) => item.sk === "should-not-exist");
-      expect(shouldNotExistItem).toBeUndefined();
-
-      // The condition item should still have its original data
-      const conditionItem = queryResult.items.find((item) => item.sk === "condition-item");
-      expect(conditionItem).toBeDefined();
-      expect(conditionItem?.status).toBe("active");
-      expect(conditionItem?.data).toBe("original data");
+      // The quarantine enclosure should not have the dinosaur
+      const quarantineDino = quarantineEnclosure.items.find(item => item.sk === "DINO#002");
+      expect(quarantineDino).toBeUndefined();
     });
 
-    it("should handle complex update operations in a transaction", async () => {
-      // Create an item with a counter and tags
+    it("should handle complex dinosaur feeding and health monitoring updates in a transaction", async () => {
+      // Create a hungry dinosaur with monitoring tags
       await table
-        .put<TestItem>({
-          pk: "txn-cmd-test",
-          sk: "complex-item",
-          counter: 5,
-          tags: new Set(["tag1", "tag2"]),
+        .put<Dinosaur>({
+          pk: "ENCLOSURE#D",
+          sk: "DINO#003",
+          name: "Spiky",
+          species: "Stegosaurus",
+          diet: "Herbivore",
+          status: "HUNGRY",
+          health: 85,
+          enclosureId: "D",
+          lastFed: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Last fed 24 hours ago
+          tags: new Set(["needs_feeding", "routine_check", "herbivore"]),
         })
         .execute();
 
-      // Create a transaction
+      // Create a transaction for feeding and health update
       const transaction = table.transactionBuilder();
 
       const updateBuilder = table
-        .update<TestItem>({
-          pk: "txn-cmd-test",
-          sk: "complex-item",
+        .update<Dinosaur>({
+          pk: "ENCLOSURE#D",
+          sk: "DINO#003",
         })
-        .add("counter", 10)
-        .deleteElementsFromSet("tags", ["tag1"])
-        .set("status", "new status");
+        .set("status", "HEALTHY")
+        .set("lastFed", new Date().toISOString())
+        .add("health", 15)  // Increase health after feeding
+        .deleteElementsFromSet("tags", ["needs_feeding"])  // Remove feeding tag
+        .set({
+          "diet": "Herbivore",  // Confirm diet type
+          "enclosureId": "D"    // Maintain enclosure tracking
+        });
 
       updateBuilder.withTransaction(transaction);
 
@@ -167,38 +232,52 @@ describe("TransactionBuilder Integration Tests", () => {
       await transaction.execute();
 
       const result = await table
-        .get<TestItem>({
-          pk: "txn-cmd-test",
-          sk: "complex-item",
+        .get<Dinosaur>({
+          pk: "ENCLOSURE#D",
+          sk: "DINO#003",
         })
         .execute();
 
-      const item = result.item;
-      expect(item).toBeDefined();
-      expect(item?.counter).toBe(15); // 5 + 10
+      const dino = result.item;
+      expect(dino).toBeDefined();
+      expect(dino?.health).toBe(100); // 85 + 15
+      expect(dino?.status).toBe("HEALTHY");
 
-      // Check tags - tag1 should be removed, tag3 should be added
-      expect(item?.tags).toBeDefined();
-      expect(item?.tags?.has("tag1")).toBe(false);
-      expect(item?.tags?.has("tag2")).toBe(true);
-      expect(item?.status).toBe("new status");
+      // Verify feeding status
+      expect(new Date(dino?.lastFed || "").getTime()).toBeGreaterThan(
+        new Date(Date.now() - 60000).getTime()
+      ); // Fed within the last minute
+
+      // Check tags - needs_feeding should be removed, other tags retained
+      expect(dino?.tags).toBeDefined();
+      expect(dino?.tags?.has("needs_feeding")).toBe(false);
+      expect(dino?.tags?.has("routine_check")).toBe(true);
+      expect(dino?.tags?.has("herbivore")).toBe(true);
     });
 
-    it("should support multiple condition checks in a transaction", async () => {
-      // Create test items
+    it("should verify multiple safety conditions before adding dinosaur to enclosure", async () => {
+      // Create enclosure status and occupancy records
       await Promise.all([
         table
-          .put<TestItem>({
-            pk: "txn-cmd-test",
-            sk: "check-item-1",
-            status: "active",
+          .put<Dinosaur>({
+            pk: "ENCLOSURE#E",
+            sk: "STATUS",
+            name: "Herbivore Enclosure E",
+            species: "ENCLOSURE",
+            diet: "Herbivore",
+            status: "ACTIVE",
+            tags: new Set(["herbivore_only", "capacity_available"]),
           })
           .execute(),
         table
-          .put<TestItem>({
-            pk: "txn-cmd-test",
-            sk: "check-item-2",
-            status: "active",
+          .put<Dinosaur>({
+            pk: "ENCLOSURE#E",
+            sk: "OCCUPANCY",
+            name: "Enclosure E Occupancy",
+            species: "ENCLOSURE",
+            diet: "N/A",
+            status: "AVAILABLE",
+            tags: new Set(["max_capacity_4", "current_occupants_2"]),
           })
           .execute(),
       ]);
@@ -206,40 +285,63 @@ describe("TransactionBuilder Integration Tests", () => {
       // Create a transaction
       const transaction = table.transactionBuilder();
 
-      // Add multiple condition checks
-      const check1 = table.conditionCheck({
-        pk: "txn-cmd-test",
-        sk: "check-item-1",
+      // Check enclosure status (must be ACTIVE)
+      const statusCheck = table.conditionCheck({
+        pk: "ENCLOSURE#E",
+        sk: "STATUS",
       });
-      check1.condition(eq("status", "active")).withTransaction(transaction);
+      statusCheck
+        .condition(op => op.and(
+          op.eq("status", "ACTIVE"),
+          op.eq("diet", "Herbivore")
+        ))
+        .withTransaction(transaction);
 
-      const check2 = table.conditionCheck({
-        pk: "txn-cmd-test",
-        sk: "check-item-2",
+      // Check occupancy (must be AVAILABLE)
+      const occupancyCheck = table.conditionCheck({
+        pk: "ENCLOSURE#E",
+        sk: "OCCUPANCY",
       });
-      check2.condition(eq("status", "active")).withTransaction(transaction);
+      occupancyCheck
+        .condition(op => op.and(
+          op.eq("status", "AVAILABLE"),
+          op.contains("tags", "current_occupants_2")  // Verify current occupancy
+        ))
+        .withTransaction(transaction);
 
-      // Add a put operation that depends on both conditions
-      const putBuilder = table.put<TestItem>({
-        pk: "txn-cmd-test",
-        sk: "dependent-item",
-        data: "depends on conditions",
-      });
+      // Add new dinosaur if all conditions pass
+      const newDino: Dinosaur = {
+        pk: "ENCLOSURE#E",
+        sk: "DINO#004",
+        name: "Tri",
+        species: "Triceratops",
+        diet: "Herbivore",
+        status: "HEALTHY",
+        health: 100,
+        enclosureId: "E",
+        lastFed: new Date().toISOString(),
+        tags: new Set(["herbivore", "new_arrival"]),
+      };
+
+      const putBuilder = table.put<Dinosaur>(newDino);
       putBuilder.withTransaction(transaction);
 
       // Execute the transaction
       await transaction.execute();
 
-      // Verify the dependent item was created
+      // Verify the new dinosaur was added
       const result = await table
-        .get<TestItem>({
-          pk: "txn-cmd-test",
-          sk: "dependent-item",
+        .get<Dinosaur>({
+          pk: "ENCLOSURE#E",
+          sk: "DINO#004",
         })
         .execute();
 
       expect(result.item).toBeDefined();
-      expect(result.item?.data).toBe("depends on conditions");
+      expect(result.item?.name).toBe("Tri");
+      expect(result.item?.species).toBe("Triceratops");
+      expect(result.item?.diet).toBe("Herbivore");
+      expect(result.item?.enclosureId).toBe("E");
     });
   });
 });
