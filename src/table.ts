@@ -1,5 +1,5 @@
 import type { DynamoDBDocument, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
-import type { EntityConfig, Index, TableConfig } from "./types";
+import type { GSINames, Index, TableConfig } from "./types";
 import {
   and,
   beginsWith,
@@ -26,6 +26,7 @@ import { TransactionBuilder, type TransactionOptions } from "./builders/transact
 import type { BatchWriteOperation } from "./operation-types";
 import { chunkArray } from "./utils/chunk-array";
 import { ConditionCheckBuilder } from "./builders/condition-check-builder";
+import { debugCommand } from "./utils/debug-expression";
 
 export interface GetBuilder<T> {
   execute: () => Promise<{ item?: T }>;
@@ -36,14 +37,14 @@ const DDB_BATCH_GET_LIMIT = 100;
 const DDB_TRANSACT_GET_LIMIT = 100;
 const DDB_TRANSACT_WRITE_LIMIT = 100;
 
-export class Table {
+export class Table<TConfig extends TableConfig = TableConfig> {
   private dynamoClient: DynamoDBDocument;
   readonly tableName: string;
   readonly partitionKey: string;
   readonly sortKey?: string;
   readonly gsis: Record<string, Index>;
 
-  constructor(config: TableConfig) {
+  constructor(config: TConfig) {
     this.dynamoClient = config.client;
 
     this.tableName = config.tableName;
@@ -111,11 +112,14 @@ export class Table {
 
   /**
    * Creates a query builder for complex queries
+   * If useIndex is called on the returned QueryBuilder, it will use the GSI configuration
    */
-  query<T extends Record<string, unknown>>(keyCondition: PrimaryKey): QueryBuilder<T> {
+  query<T extends Record<string, unknown>>(keyCondition: PrimaryKey): QueryBuilder<T, TConfig> {
+    // Default to main table's partition and sort keys
     const pkAttributeName = "pk";
     const skAttributeName = "sk";
 
+    // Create the key condition expression using the main table's keys
     let keyConditionExpression = eq(pkAttributeName, keyCondition.pk);
 
     if (keyCondition.sk) {
@@ -136,7 +140,86 @@ export class Table {
       keyConditionExpression = and(eq(pkAttributeName, keyCondition.pk), skCondition);
     }
 
-    const executor = async (keyCondition: Condition, options: QueryOptions) => {
+    const executor = async (originalKeyCondition: Condition, options: QueryOptions) => {
+      // Start with the original key condition
+      let finalKeyCondition = originalKeyCondition;
+
+      // If an index is specified, we need to adjust the query based on the GSI configuration
+      if (options.indexName) {
+        const gsiName = String(options.indexName);
+        const gsi = this.gsis[gsiName];
+
+        if (!gsi) {
+          throw new Error(`GSI with name "${gsiName}" does not exist on table "${this.tableName}"`);
+        }
+
+        // For GSI queries, we need to rebuild the key condition expression using the GSI's keys
+        const gsiPkAttributeName = gsi.partitionKey;
+        const gsiSkAttributeName = gsi.sortKey;
+
+        // Extract the partition key value from the original condition
+        // This is a simplification - in a real implementation, you might need more complex logic
+        // to extract the correct values from the original condition
+        let pkValue: unknown | undefined;
+        let skValue: unknown | undefined;
+        let extractedSkCondition: Condition | undefined;
+
+        // Extract values from the original key condition
+        if (originalKeyCondition.type === "eq") {
+          pkValue = originalKeyCondition.value;
+        } else if (originalKeyCondition.type === "and" && originalKeyCondition.conditions) {
+          // Find the partition key condition
+          const pkCondition = originalKeyCondition.conditions.find(
+            (c) => c.type === "eq" && c.attr === pkAttributeName,
+          );
+          if (pkCondition && pkCondition.type === "eq") {
+            pkValue = pkCondition.value;
+          }
+
+          // Find any sort key conditions
+          const skConditions = originalKeyCondition.conditions.filter((c) => c.attr === skAttributeName);
+          if (skConditions.length > 0) {
+            if (skConditions.length === 1) {
+              extractedSkCondition = skConditions[0];
+              if (extractedSkCondition && extractedSkCondition.type === "eq") {
+                skValue = extractedSkCondition.value;
+              }
+            } else if (skConditions.length > 1) {
+              extractedSkCondition = and(...skConditions);
+            }
+          }
+        }
+
+        if (!pkValue) {
+          throw new Error("Could not extract partition key value from key condition");
+        }
+
+        // Build a new key condition expression for the GSI
+        let gsiKeyCondition = eq(gsiPkAttributeName, pkValue);
+
+        // Add sort key condition if applicable
+        if (skValue && gsiSkAttributeName) {
+          gsiKeyCondition = and(gsiKeyCondition, eq(gsiSkAttributeName, skValue));
+        } else if (extractedSkCondition && gsiSkAttributeName) {
+          // Replace the attribute name in the condition with the GSI sort key
+          // We need to create a deep copy to avoid modifying the original condition
+          // This is a simplified approach - a real implementation would need to handle all condition types
+          if (extractedSkCondition.attr === skAttributeName) {
+            const updatedSkCondition = {
+              ...extractedSkCondition,
+              attr: gsiSkAttributeName,
+            };
+            gsiKeyCondition = and(gsiKeyCondition, updatedSkCondition);
+          } else {
+            // If the attribute name doesn't match the table's sort key, use it as is
+            gsiKeyCondition = and(gsiKeyCondition, extractedSkCondition);
+          }
+        }
+
+        // Use the GSI-specific key condition
+        finalKeyCondition = gsiKeyCondition;
+      }
+
       // Implementation of the query execution logic
       const expressionParams: ExpressionParams = {
         expressionAttributeNames: {},
@@ -144,7 +227,7 @@ export class Table {
         valueCounter: { count: 0 },
       };
 
-      const keyConditionExpression = buildExpression(keyCondition, expressionParams);
+      const keyConditionExpression = buildExpression(finalKeyCondition, expressionParams);
 
       let filterExpression: string | undefined;
       if (options.filter) {
@@ -179,12 +262,13 @@ export class Table {
           lastEvaluatedKey: result.LastEvaluatedKey,
         };
       } catch (error) {
+        console.log(debugCommand(params));
         console.error("Error querying items:", error);
         throw error;
       }
     };
 
-    return new QueryBuilder<T>(executor, keyConditionExpression);
+    return new QueryBuilder<T, TConfig>(executor, keyConditionExpression);
   }
 
   delete(keyCondition: PrimaryKeyWithoutExpression): DeleteBuilder {

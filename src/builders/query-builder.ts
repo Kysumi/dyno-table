@@ -18,6 +18,7 @@ import {
   type ConditionOperator,
 } from "../conditions";
 import { Paginator } from "./paginator";
+import type { GSINames, TableConfig } from "../types";
 
 export interface QueryOptions {
   sortKeyCondition?: Condition;
@@ -36,7 +37,7 @@ type QueryExecutor<T extends Record<string, unknown>> = (
   options: QueryOptions,
 ) => Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
 
-export class QueryBuilder<T extends Record<string, unknown>> {
+export class QueryBuilder<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
   private keyCondition: Condition;
   private options: QueryOptions = {};
   private selectedFields: Set<string> = new Set();
@@ -61,8 +62,13 @@ export class QueryBuilder<T extends Record<string, unknown>> {
     return this.options.limit;
   }
 
-  useIndex(indexName: string): QueryBuilder<T> {
-    this.options.indexName = indexName;
+  /**
+   * Specify a GSI to use for the query in a type-safe manner
+   * @param indexName The name of the GSI to use
+   * @returns The QueryBuilder instance for chaining
+   */
+  useIndex<I extends GSINames<TConfig>>(indexName: I): QueryBuilder<T, TConfig> {
+    this.options.indexName = indexName as string;
     return this;
   }
 
@@ -124,8 +130,8 @@ export class QueryBuilder<T extends Record<string, unknown>> {
    * @param pageSize The number of items to return per page
    * @returns A Paginator instance
    */
-  paginate(pageSize: number): Paginator<T> {
-    return new Paginator<T>(this, pageSize);
+  paginate(pageSize: number): Paginator<T, TConfig> {
+    return new Paginator<T, TConfig>(this, pageSize);
   }
 
   startFrom(lastEvaluatedKey: Record<string, unknown>): QueryBuilder<T> {
@@ -137,8 +143,8 @@ export class QueryBuilder<T extends Record<string, unknown>> {
    * Creates a clone of this QueryBuilder
    * @returns A new QueryBuilder with the same options
    */
-  clone(): QueryBuilder<T> {
-    const clone = new QueryBuilder<T>(this.executor, this.keyCondition);
+  clone(): QueryBuilder<T, TConfig> {
+    const clone = new QueryBuilder<T, TConfig>(this.executor, this.keyCondition);
     clone.options = { ...this.options };
     clone.selectedFields = new Set(this.selectedFields);
     return clone;

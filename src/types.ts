@@ -2,12 +2,12 @@ import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 
 export interface Index {
   partitionKey: string;
-  sortKey: string;
+  sortKey?: string;
 }
 
 interface IndexConfig {
   partitionKey: string;
-  sortKey: string;
+  sortKey?: string;
 
   gsis?: Record<string, Index>;
 }
@@ -17,6 +17,8 @@ export interface TableConfig {
   tableName: string;
   indexes: IndexConfig;
 }
+
+export type GSINames<T extends TableConfig> = keyof NonNullable<T["indexes"]["gsis"]>;
 
 export interface EntityConfig<T> {
   name: string;

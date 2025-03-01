@@ -1,4 +1,5 @@
 import type { QueryBuilder } from "./query-builder";
+import type { TableConfig } from "../types";
 
 export interface PaginationResult<T> {
   items: T[];
@@ -7,8 +8,8 @@ export interface PaginationResult<T> {
   page: number;
 }
 
-export class Paginator<T extends Record<string, unknown>> {
-  private queryBuilder: QueryBuilder<T>;
+export class Paginator<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
+  private queryBuilder: QueryBuilder<T, TConfig>;
   private pageSize: number;
   private currentPage = 0;
   private lastEvaluatedKey?: Record<string, unknown>;
@@ -16,7 +17,7 @@ export class Paginator<T extends Record<string, unknown>> {
   private totalItemsRetrieved = 0;
   private overallLimit?: number;
 
-  constructor(queryBuilder: QueryBuilder<T>, pageSize: number) {
+  constructor(queryBuilder: QueryBuilder<T, TConfig>, pageSize: number) {
     this.queryBuilder = queryBuilder;
     this.pageSize = pageSize;
     // Store the overall limit from the query builder if it exists
