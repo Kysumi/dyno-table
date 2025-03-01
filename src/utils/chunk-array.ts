@@ -7,6 +7,9 @@
  * @returns A generator that yields chunks of the array
  */
 export function* chunkArray<T>(array: T[], size: number): Generator<T[], void, unknown> {
+  if (size <= 0) {
+    throw new Error('Chunk size must be greater than 0');
+  }
   for (let i = 0; i < array.length; i += size) {
     yield array.slice(i, i + size);
   }
