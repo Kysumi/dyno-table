@@ -642,23 +642,6 @@ describe("Table Integration Tests", () => {
   });
 
   describe("Transaction Operations", () => {
-    beforeEach(async () => {
-      // Clean up any existing test data
-      const queryResult = await table.query({ pk: "transaction#test" }).execute();
-
-      if (queryResult.items.length > 0) {
-        const deletePromises = queryResult.items.map((item) =>
-          table
-            .delete({
-              pk: item.pk as string,
-              sk: item.sk as string,
-            })
-            .execute(),
-        );
-        await Promise.all(deletePromises);
-      }
-    });
-
     it("should execute a transaction with multiple operations", async () => {
       // Create transaction with multiple operations
       await table.transaction(async (transaction) => {
