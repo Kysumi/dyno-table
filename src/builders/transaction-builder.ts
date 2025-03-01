@@ -289,6 +289,7 @@ export class TransactionBuilder {
     try {
       await this.dynamoClient.transactWrite(params);
     } catch (error) {
+      console.log(this.debug());
       console.error("Error executing transaction:", error);
       throw error;
     }

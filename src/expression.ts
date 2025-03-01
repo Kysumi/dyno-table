@@ -33,7 +33,11 @@ const validateCondition = (condition: Condition, requiresAttr = true, requiresVa
 const buildComparisonExpression = (condition: Condition, operator: string, params: ExpressionParams): string => {
   validateCondition(condition);
 
-  const attrName = generateAttributeName(params, condition.attr!);
+  if (!condition.attr) {
+    throw new Error(`Attribute is required for ${condition.type} condition`);
+  }
+
+  const attrName = generateAttributeName(params, condition.attr);
   const valueName = generateValueName(params, condition.value);
 
   return `${attrName} ${operator} ${valueName}`;
@@ -42,11 +46,15 @@ const buildComparisonExpression = (condition: Condition, operator: string, param
 const buildBetweenExpression = (condition: Condition, params: ExpressionParams): string => {
   validateCondition(condition);
 
+  if (!condition.attr) {
+    throw new Error(`Attribute is required for ${condition.type} condition`);
+  }
+
   if (!Array.isArray(condition.value) || condition.value.length !== 2) {
     throw new Error("Between condition requires an array of two values");
   }
 
-  const attrName = generateAttributeName(params, condition.attr!);
+  const attrName = generateAttributeName(params, condition.attr);
   const lowerName = generateValueName(params, condition.value[0]);
   const upperName = generateValueName(params, condition.value[1]);
 
@@ -56,7 +64,11 @@ const buildBetweenExpression = (condition: Condition, params: ExpressionParams):
 const buildFunctionExpression = (functionName: string, condition: Condition, params: ExpressionParams): string => {
   validateCondition(condition);
 
-  const attrName = generateAttributeName(params, condition.attr!);
+  if (!condition.attr) {
+    throw new Error(`Attribute is required for ${condition.type} condition`);
+  }
+
+  const attrName = generateAttributeName(params, condition.attr);
   const valueName = generateValueName(params, condition.value);
 
   return `${functionName}(${attrName}, ${valueName})`;
@@ -65,7 +77,11 @@ const buildFunctionExpression = (functionName: string, condition: Condition, par
 const buildAttributeFunction = (functionName: string, condition: Condition, params: ExpressionParams): string => {
   validateCondition(condition, true, false);
 
-  const attrName = generateAttributeName(params, condition.attr!);
+  if (!condition.attr) {
+    throw new Error(`Attribute is required for ${condition.type} condition`);
+  }
+
+  const attrName = generateAttributeName(params, condition.attr);
   return `${functionName}(${attrName})`;
 };
 

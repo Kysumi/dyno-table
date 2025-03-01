@@ -1,5 +1,5 @@
 import type { TransactionItem } from "../builders/transaction-builder";
-import { debugExpression } from "./debug-expression";
+import { debugCommand } from "./debug-expression";
 
 /**
  * Utility function to create a human-readable representation of a transaction item
@@ -29,29 +29,10 @@ export function debugTransactionItem(item: TransactionItem): Record<string, unkn
     case "Put":
     case "Delete":
     case "ConditionCheck":
-      if (item.params.conditionExpression) {
-        result.readableCondition = debugExpression(
-          item.params.conditionExpression,
-          item.params.expressionAttributeNames,
-          item.params.expressionAttributeValues,
-        );
-      }
+      result.readable = debugCommand(item.params).readable;
       break;
     case "Update":
-      if (item.params.updateExpression) {
-        result.readableUpdate = debugExpression(
-          item.params.updateExpression,
-          item.params.expressionAttributeNames,
-          item.params.expressionAttributeValues,
-        );
-      }
-      if (item.params.conditionExpression) {
-        result.readableCondition = debugExpression(
-          item.params.conditionExpression,
-          item.params.expressionAttributeNames,
-          item.params.expressionAttributeValues,
-        );
-      }
+      result.readable = debugCommand(item.params).readable;
       break;
   }
 

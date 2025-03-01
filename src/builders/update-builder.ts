@@ -302,10 +302,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    */
   withTransaction(transaction: TransactionBuilder): UpdateBuilder<T> {
     const command = this.toDynamoCommand();
-
     transaction.updateWithCommand(command);
-
-    return this;
   }
 
   /**
