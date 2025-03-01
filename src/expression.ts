@@ -98,8 +98,12 @@ export const buildExpression = (condition: Condition, params: ExpressionParams):
     }
 
     return builder();
-  } catch (error: any) {
-    console.error(`Error building expression for condition type ${condition.type}:`, error.message);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(`Error building expression for condition type ${condition.type}:`, error.message);
+    } else {
+      console.error(`Error building expression for condition type ${condition.type}:`, error);
+    }
     throw error;
   }
 };

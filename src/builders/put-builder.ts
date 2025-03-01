@@ -15,22 +15,35 @@ import {
   or,
   not,
 } from "../conditions";
+import type { TransactionBuilder } from "./transaction-builder";
+import { buildExpression, prepareExpressionParams } from "../expression";
 
 export interface PutOptions {
   condition?: Condition;
-  returnValues?: "ALL_OLD";
+  returnValues?: "ALL_OLD" | "NONE";
 }
 
-type PutExecutor<T extends Record<string, unknown>> = (item: T, options: PutOptions) => Promise<T>;
+export interface PutCommandParams {
+  tableName: string;
+  item: Record<string, unknown>;
+  conditionExpression?: string;
+  expressionAttributeNames?: Record<string, string>;
+  expressionAttributeValues?: Record<string, unknown>;
+  returnValues?: "ALL_OLD" | "NONE";
+}
+
+type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams) => Promise<T>;
 
 export class PutBuilder<T extends Record<string, unknown>> {
   private item: T;
   private options: PutOptions = {};
   private executor: PutExecutor<T>;
+  private tableName: string;
 
-  constructor(executor: PutExecutor<T>, item: T) {
+  constructor(executor: PutExecutor<T>, item: T, tableName: string) {
     this.executor = executor;
     this.item = item;
+    this.tableName = tableName;
   }
 
   /**
@@ -63,9 +76,37 @@ export class PutBuilder<T extends Record<string, unknown>> {
 
   /**
    * Set the return values option for the put operation
+   *
+   * NONE is the default
    */
-  returnValues(returnValues: "ALL_OLD"): PutBuilder<T> {
+  returnValues(returnValues: "ALL_OLD" | "NONE"): PutBuilder<T> {
     this.options.returnValues = returnValues;
+    return this;
+  }
+
+  /**
+   * Generate the DynamoDB command parameters
+   */
+  toDynamoCommand(): PutCommandParams {
+    const { expression, names, values } = prepareExpressionParams(this.options.condition);
+
+    return {
+      tableName: this.tableName,
+      item: this.item,
+      conditionExpression: expression,
+      expressionAttributeNames: names,
+      expressionAttributeValues: values,
+      returnValues: this.options.returnValues,
+    };
+  }
+
+  /**
+   * Add this operation to a transaction
+   */
+  withTransaction(transaction: TransactionBuilder): PutBuilder<T> {
+    const command = this.toDynamoCommand();
+    transaction.putWithCommand(command);
+
     return this;
   }
 
@@ -73,6 +114,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * Execute the put operation
    */
   async execute(): Promise<T> {
-    return this.executor(this.item, this.options);
+    const params = this.toDynamoCommand();
+    return this.executor(params);
   }
 }

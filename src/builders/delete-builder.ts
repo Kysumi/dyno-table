@@ -1,4 +1,4 @@
-import type { Condition, ConditionOperator } from "../conditions";
+import type { Condition, ConditionOperator, PrimaryKeyWithoutExpression } from "../conditions";
 import {
   eq,
   ne,
@@ -15,28 +15,43 @@ import {
   or,
   not,
 } from "../conditions";
+import type { TransactionBuilder } from "./transaction-builder";
+import { prepareExpressionParams } from "../expression";
 
 export interface DeleteOptions {
   condition?: Condition;
   returnValues?: "ALL_OLD";
 }
 
-type DeleteExecutor = (options: DeleteOptions) => Promise<{ item?: Record<string, unknown> }>;
+export interface DeleteCommandParams {
+  tableName: string;
+  key: PrimaryKeyWithoutExpression;
+  conditionExpression?: string;
+  expressionAttributeNames?: Record<string, string>;
+  expressionAttributeValues?: Record<string, unknown>;
+  returnValues?: "ALL_OLD";
+}
+
+type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: Record<string, unknown> }>;
 
 export class DeleteBuilder {
   private options: DeleteOptions = {
     returnValues: "ALL_OLD",
   };
   private executor: DeleteExecutor;
+  private tableName: string;
+  private key: PrimaryKeyWithoutExpression;
 
-  constructor(executor: DeleteExecutor) {
+  constructor(executor: DeleteExecutor, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;
+    this.tableName = tableName;
+    this.key = key;
   }
 
   /**
    * Add a condition expression that must be satisfied for the delete operation to succeed
    */
-  condition<T extends Record<string, unknown>>(
+  public condition<T extends Record<string, unknown>>(
     condition: Condition | ((op: ConditionOperator<T>) => Condition),
   ): DeleteBuilder {
     if (typeof condition === "function") {
@@ -64,9 +79,43 @@ export class DeleteBuilder {
   }
 
   /**
+   * Set the return values option for the delete operation
+   */
+  public returnValues(returnValues: "ALL_OLD"): DeleteBuilder {
+    this.options.returnValues = returnValues;
+    return this;
+  }
+
+  /**
+   * Generate the DynamoDB command parameters
+   */
+  private toDynamoCommand(): DeleteCommandParams {
+    const { expression, names, values } = prepareExpressionParams(this.options.condition);
+
+    return {
+      tableName: this.tableName,
+      key: this.key,
+      conditionExpression: expression,
+      expressionAttributeNames: names,
+      expressionAttributeValues: values,
+      returnValues: this.options.returnValues,
+    };
+  }
+
+  /**
+   * Add this operation to a transaction
+   */
+  public withTransaction(transaction: TransactionBuilder) {
+    const command = this.toDynamoCommand();
+
+    transaction.deleteWithCommand(command);
+  }
+
+  /**
    * Execute the delete operation
    */
-  async execute(): Promise<{ item?: Record<string, unknown> }> {
-    return this.executor(this.options);
+  public async execute(): Promise<{ item?: Record<string, unknown> }> {
+    const params = this.toDynamoCommand();
+    return this.executor(params);
   }
 }

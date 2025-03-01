@@ -1,10 +1,4 @@
-import type {
-  DynamoDBDocument,
-  DeleteCommandInput,
-  PutCommandInput,
-  QueryCommandInput,
-  UpdateCommandInput,
-} from "@aws-sdk/lib-dynamodb";
+import type { DynamoDBDocument, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
 import type { EntityConfig, IndexDefinition, TableConfig } from "./types";
 import { Entity } from "./entity";
 import {
@@ -25,12 +19,19 @@ import {
 } from "./conditions";
 import { buildExpression, generateAttributeName, prepareExpressionParams } from "./expression";
 import { QueryBuilder, type QueryOptions } from "./builders/query-builder";
-import { PutBuilder, type PutOptions } from "./builders/put-builder";
-import { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder";
-import { UpdateBuilder, type UpdateOptions, type UpdateAction } from "./builders/update-builder";
+import { PutBuilder, type PutOptions, type PutCommandParams } from "./builders/put-builder";
+import { DeleteBuilder, type DeleteOptions, type DeleteCommandParams } from "./builders/delete-builder";
+import {
+  UpdateBuilder,
+  type UpdateOptions,
+  type UpdateAction,
+  type UpdateCommandParams,
+} from "./builders/update-builder";
 import type { Path } from "./builders/types";
+import { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
 import type { BatchWriteOperation } from "./operation-types";
 import { chunkArray } from "./utils/chunk-array";
+import { ConditionCheckBuilder } from "./builders/condition-check-builder";
 
 export interface GetBuilder<T> {
   execute: () => Promise<{ item?: T }>;
@@ -99,41 +100,24 @@ export class Table {
    */
   put<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
     // Define the executor function that will be called when execute() is called on the builder
-    const executor = async (item: T, options: PutOptions): Promise<T> => {
-      const expressionParams: ExpressionParams = {
-        expressionAttributeNames: {},
-        expressionAttributeValues: {},
-        valueCounter: { count: 0 },
-      };
-
-      let conditionExpression: string | undefined;
-      if (options.condition) {
-        conditionExpression = buildExpression(options.condition, expressionParams);
-      }
-
-      const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
-
-      const params: PutCommandInput = {
-        TableName: this.tableName,
-        Item: item,
-        ConditionExpression: conditionExpression,
-        ExpressionAttributeNames:
-          Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
-        ExpressionAttributeValues:
-          Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined,
-        ReturnValues: options.returnValues,
-      };
-
+    const executor = async (params: PutCommandParams): Promise<T> => {
       try {
-        await this.dynamoClient.put(params);
-        return item;
+        await this.dynamoClient.put({
+          TableName: params.tableName,
+          Item: params.item,
+          ConditionExpression: params.conditionExpression,
+          ExpressionAttributeNames: params.expressionAttributeNames,
+          ExpressionAttributeValues: params.expressionAttributeValues,
+          ReturnValues: params.returnValues,
+        });
+        return params.item as T;
       } catch (error) {
         console.error("Error creating item:", error);
         throw error;
       }
     };
 
-    return new PutBuilder<T>(executor, item);
+    return new PutBuilder<T>(executor, item, this.tableName);
   }
 
   /**
@@ -215,24 +199,16 @@ export class Table {
   }
 
   delete(keyCondition: PrimaryKeyWithoutExpression): DeleteBuilder {
-    const executor = async (options: DeleteOptions) => {
-      const { expression, names, values } = prepareExpressionParams(options.condition);
-
-      // Create a properly typed params object for the delete operation
-      const params: DeleteCommandInput = {
-        TableName: this.tableName,
-        Key: {
-          pk: keyCondition.pk,
-          sk: keyCondition.sk,
-        },
-        ConditionExpression: expression,
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: values,
-        ReturnValues: options.returnValues,
-      };
-
+    const executor = async (params: DeleteCommandParams) => {
       try {
-        const result = await this.dynamoClient.delete(params);
+        const result = await this.dynamoClient.delete({
+          TableName: params.tableName,
+          Key: params.key,
+          ConditionExpression: params.conditionExpression,
+          ExpressionAttributeNames: params.expressionAttributeNames,
+          ExpressionAttributeValues: params.expressionAttributeValues,
+          ReturnValues: params.returnValues,
+        });
         return {
           item: result.Attributes as Record<string, unknown>,
         };
@@ -242,7 +218,7 @@ export class Table {
       }
     };
 
-    return new DeleteBuilder(executor);
+    return new DeleteBuilder(executor, this.tableName, keyCondition);
   }
 
   /**
@@ -252,120 +228,17 @@ export class Table {
    * @returns An UpdateBuilder instance for chaining update operations and conditions
    */
   update<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
-    const executor = async (updates: UpdateAction[], options: UpdateOptions) => {
-      if (updates.length === 0) {
-        throw new Error("No update actions specified");
-      }
-
-      const expressionParams: ExpressionParams = {
-        expressionAttributeNames: {},
-        expressionAttributeValues: {},
-        valueCounter: { count: 0 },
-      };
-
-      // Build the update expression
-      let updateExpression = "";
-
-      // Group updates by type
-      const setUpdates: UpdateAction[] = [];
-      const removeUpdates: UpdateAction[] = [];
-      const addUpdates: UpdateAction[] = [];
-      const deleteUpdates: UpdateAction[] = [];
-
-      for (const update of updates) {
-        switch (update.type) {
-          case "SET":
-            setUpdates.push(update);
-            break;
-          case "REMOVE":
-            removeUpdates.push(update);
-            break;
-          case "ADD":
-            addUpdates.push(update);
-            break;
-          case "DELETE":
-            deleteUpdates.push(update);
-            break;
-        }
-      }
-
-      // Build SET clause
-      if (setUpdates.length > 0) {
-        updateExpression += "SET ";
-        updateExpression += setUpdates
-          .map((update) => {
-            const attrName = generateAttributeName(expressionParams, update.path);
-            const valueName = `:v${expressionParams.valueCounter.count++}`;
-            expressionParams.expressionAttributeValues[valueName] = update.value;
-            return `${attrName} = ${valueName}`;
-          })
-          .join(", ");
-      }
-
-      // Build REMOVE clause
-      if (removeUpdates.length > 0) {
-        if (updateExpression) updateExpression += " ";
-        updateExpression += "REMOVE ";
-        updateExpression += removeUpdates
-          .map((update) => {
-            return generateAttributeName(expressionParams, update.path);
-          })
-          .join(", ");
-      }
-
-      // Build ADD clause
-      if (addUpdates.length > 0) {
-        if (updateExpression) updateExpression += " ";
-        updateExpression += "ADD ";
-        updateExpression += addUpdates
-          .map((update) => {
-            const attrName = generateAttributeName(expressionParams, update.path);
-            const valueName = `:v${expressionParams.valueCounter.count++}`;
-            expressionParams.expressionAttributeValues[valueName] = update.value;
-            return `${attrName} ${valueName}`;
-          })
-          .join(", ");
-      }
-
-      // Build DELETE clause
-      if (deleteUpdates.length > 0) {
-        if (updateExpression) updateExpression += " ";
-        updateExpression += "DELETE ";
-        updateExpression += deleteUpdates
-          .map((update) => {
-            const attrName = generateAttributeName(expressionParams, update.path);
-            const valueName = `:v${expressionParams.valueCounter.count++}`;
-            expressionParams.expressionAttributeValues[valueName] = update.value;
-            return `${attrName} ${valueName}`;
-          })
-          .join(", ");
-      }
-
-      // Build condition expression if provided
-      let conditionExpression: string | undefined;
-      if (options.condition) {
-        conditionExpression = buildExpression(options.condition, expressionParams);
-      }
-
-      const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
-
-      const params: UpdateCommandInput = {
-        TableName: this.tableName,
-        Key: {
-          pk: keyCondition.pk,
-          sk: keyCondition.sk,
-        },
-        UpdateExpression: updateExpression,
-        ConditionExpression: conditionExpression,
-        ExpressionAttributeNames:
-          Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
-        ExpressionAttributeValues:
-          Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined,
-        ReturnValues: options.returnValues,
-      };
-
+    const executor = async (params: UpdateCommandParams) => {
       try {
-        const result = await this.dynamoClient.update(params);
+        const result = await this.dynamoClient.update({
+          TableName: params.tableName,
+          Key: params.key,
+          UpdateExpression: params.updateExpression,
+          ConditionExpression: params.conditionExpression,
+          ExpressionAttributeNames: params.expressionAttributeNames,
+          ExpressionAttributeValues: params.expressionAttributeValues,
+          ReturnValues: params.returnValues,
+        });
         return {
           item: result.Attributes as T,
         };
@@ -375,8 +248,51 @@ export class Table {
       }
     };
 
-    return new UpdateBuilder<T>(executor);
+    return new UpdateBuilder<T>(executor, this.tableName, keyCondition);
   }
+
+  /**
+   * Creates a transaction builder for performing multiple operations atomically
+   */
+  transactionBuilder(): TransactionBuilder {
+    return new TransactionBuilder(this.dynamoClient);
+  }
+
+  /**
+   * Executes a transaction using a callback function
+   *
+   * @param callback A function that receives a transaction context and performs operations on it
+   * @param options Optional transaction options
+   * @returns A promise that resolves when the transaction is complete
+   */
+  transaction<T>(callback: (tx: TransactionBuilder) => Promise<T>, options?: TransactionOptions): Promise<T> {
+    const executor = async (): Promise<T> => {
+      const transaction = new TransactionBuilder(this.dynamoClient);
+
+      if (options) {
+        transaction.withOptions(options);
+      }
+
+      const result = await callback(transaction);
+      await transaction.execute();
+      return result;
+    };
+
+    return executor();
+  }
+
+  /**
+   * Creates a condition check operation for use in transactions
+   *
+   * This is useful for when you require a transaction to succeed only when a specific condition is met on a
+   * a record within the database that you are not directly updating.
+   *
+   * For example, you are updating a record and you want to ensure that another record exists and/or has a specific value before proceeding.
+   */
+  conditionCheck(keyCondition: PrimaryKeyWithoutExpression): ConditionCheckBuilder {
+    return new ConditionCheckBuilder(this.tableName, keyCondition);
+  }
+
   /**
    * Performs a batch get operation to retrieve multiple items at once
    *
