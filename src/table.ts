@@ -1,5 +1,5 @@
 import type { DynamoDBDocument, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
-import type { GSINames, Index, TableConfig } from "./types";
+import type { Index, TableConfig } from "./types";
 import {
   and,
   beginsWith,
@@ -27,11 +27,8 @@ import type { BatchWriteOperation } from "./operation-types";
 import { chunkArray } from "./utils/chunk-array";
 import { ConditionCheckBuilder } from "./builders/condition-check-builder";
 import { debugCommand } from "./utils/debug-expression";
+import { GetBuilder, type GetCommandParams } from "./builders/get-builder";
 import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
-
-export interface GetBuilder<T> {
-  execute: () => Promise<{ item?: T }>;
-}
 
 const DDB_BATCH_WRITE_LIMIT = 25;
 const DDB_BATCH_GET_LIMIT = 100;
@@ -66,21 +63,26 @@ export class Table<TConfig extends TableConfig = TableConfig> {
   }
 
   get<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
-    return {
-      execute: async () => {
+    const executor = async (params: GetCommandParams): Promise<{ item: T | undefined }> => {
+      try {
         const result = await this.dynamoClient.get({
-          TableName: this.tableName,
-          Key: {
-            pk: keyCondition.pk,
-            sk: keyCondition.sk,
-          },
+          TableName: params.tableName,
+          Key: params.key,
+          ProjectionExpression: params.projectionExpression,
+          ExpressionAttributeNames: params.expressionAttributeNames,
+          ConsistentRead: params.consistentRead,
         });
 
         return {
           item: result.Item ? (result.Item as T) : undefined,
         };
-      },
+      } catch (error) {
+        console.error("Error getting item:", error);
+        throw error;
+      }
     };
+
+    return new GetBuilder<T>(executor, keyCondition, this.tableName);
   }
 
   /**

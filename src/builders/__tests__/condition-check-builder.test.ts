@@ -1,8 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { ConditionCheckBuilder } from "../condition-check-builder";
-import { TransactionBuilder } from "../transaction-builder";
 import { eq } from "../../conditions";
-import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 
 describe("ConditionCheckBuilder", () => {
   const tableName = "TestTable";
