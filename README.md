@@ -234,7 +234,6 @@ await dinoTable.transaction(
 - ✅ All-or-nothing operations (ACID compliance)
 - 🛡️ Prevents race conditions and data inconsistencies
 - 📊 Supports up to 100 actions per transaction
-```
 
 ### Batch Processing
 
