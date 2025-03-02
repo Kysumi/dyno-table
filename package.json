@@ -21,12 +21,7 @@
     "check-types": "tsc --noEmit",
     "ddb:start": "docker compose up -d dynamodb"
   },
-  "keywords": [
-    "dynamodb",
-    "aws",
-    "typescript",
-    "database"
-  ],
+  "keywords": ["dynamodb", "aws", "typescript", "database"],
   "author": "Maunder",
   "license": "ISC",
   "repository": {
@@ -46,8 +41,6 @@
     "@aws-sdk/client-dynamodb": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "packageManager": "pnpm@10.5.2"
 }
