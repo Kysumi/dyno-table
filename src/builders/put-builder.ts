@@ -20,11 +20,20 @@ import { buildExpression, prepareExpressionParams } from "../expression";
 import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
 import { debugCommand } from "../utils/debug-expression";
 
+/**
+ * Configuration options for DynamoDB put operations.
+ */
 export interface PutOptions {
+  /** Optional condition that must be satisfied for the put operation to succeed */
   condition?: Condition;
+  /** Determines whether to return the item's previous state (if it existed) */
   returnValues?: "ALL_OLD" | "NONE";
 }
 
+/**
+ * Parameters for the DynamoDB put command.
+ * These parameters are used when executing the operation against DynamoDB.
+ */
 export interface PutCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   item: Record<string, unknown>;
@@ -36,6 +45,70 @@ export interface PutCommandParams extends DynamoCommandWithExpressions {
 
 type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams) => Promise<T>;
 
+/**
+ * Builder for creating DynamoDB put operations.
+ * Use this builder when you need to:
+ * - Insert new items into a DynamoDB table
+ * - Replace existing items completely
+ * - Conditionally put items based on their current state
+ * - Put items as part of a transaction
+ *
+ * The builder supports:
+ * - Conditional puts with complex conditions
+ * - Retrieving old item values
+ * - Transaction integration
+ *
+ * @example
+ * ```ts
+ * // Simple put
+ * const result = await new PutBuilder(executor, { id: '123', status: 'ACTIVE' }, 'myTable')
+ *   .execute();
+ *
+ * // Conditional put with old value retrieval
+ * const result = await new PutBuilder(executor, newItem, 'myTable')
+ *   .condition(op => op.attributeNotExists('id'))
+ *   .returnValues('ALL_OLD')
+ *   .execute();
+ * ```
+ *
+ * @typeParam T - The type of item being put into the table
+ */
+/**
+ * Builder for creating DynamoDB put operations.
+ * Use this builder when you need to:
+ * - Add new dinosaurs to the registry
+ * - Create new habitats
+ * - Update dinosaur profiles completely
+ * - Initialize tracking records
+ * 
+ * @example
+ * ```typescript
+ * // Add new dinosaur
+ * const result = await new PutBuilder(executor, {
+ *   id: 'RAPTOR-001',
+ *   species: 'Velociraptor',
+ *   status: 'ACTIVE',
+ *   stats: {
+ *     health: 100,
+ *     age: 5,
+ *     threatLevel: 8
+ *   }
+ * }, 'dinosaurs').execute();
+ * 
+ * // Create new habitat with conditions
+ * const result = await new PutBuilder(executor, {
+ *   id: 'PADDOCK-C',
+ *   type: 'CARNIVORE',
+ *   securityLevel: 'MAXIMUM',
+ *   capacity: 3,
+ *   environmentType: 'TROPICAL'
+ * }, 'habitats')
+ *   .condition(op => op.attributeNotExists('id'))
+ *   .execute();
+ * ```
+ * 
+ * @typeParam T - The type of item being put into the table
+ */
 export class PutBuilder<T extends Record<string, unknown>> {
   private readonly item: T;
   private options: PutOptions = {};
@@ -49,9 +122,67 @@ export class PutBuilder<T extends Record<string, unknown>> {
   }
 
   /**
-   * Add a condition expression that must be satisfied for the put operation to succeed
+   * Adds a condition that must be satisfied for the put operation to succeed.
+   * Use this method when you need to:
+   * - Prevent overwriting existing items (optimistic locking)
+   * - Ensure items meet certain criteria before replacement
+   * - Implement complex business rules for item updates
+   *
+   * @example
+   * ```ts
+   * // Ensure item doesn't exist (insert only)
+   * builder.condition(op => op.attributeNotExists('id'))
+   *
+   * // Complex condition with version check
+   * builder.condition(op =>
+   *   op.and([
+   *     op.attributeExists('id'),
+   *     op.eq('version', currentVersion),
+   *     op.eq('status', 'ACTIVE')
+   *   ])
+   * )
+   * ```
+   *
+   * @param condition - Either a Condition object or a callback function that builds the condition
+   * @returns The builder instance for method chaining
    */
-  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): PutBuilder<T> {
+  /**
+   * Adds a condition that must be satisfied for the put operation to succeed.
+   * Use this method when you need to:
+   * - Prevent duplicate dinosaur entries
+   * - Ensure habitat requirements
+   * - Validate security protocols
+   * 
+   * @example
+   * ```typescript
+   * // Ensure unique dinosaur ID
+   * builder.condition(op => 
+   *   op.attributeNotExists('id')
+   * );
+   * 
+   * // Verify habitat requirements
+   * builder.condition(op => 
+   *   op.and([
+   *     op.eq('securityStatus', 'READY'),
+   *     op.attributeExists('lastInspection'),
+   *     op.gt('securityLevel', 5)
+   *   ])
+   * );
+   * 
+   * // Check breeding facility conditions
+   * builder.condition(op => 
+   *   op.and([
+   *     op.between('temperature', 25, 30),
+   *     op.between('humidity', 60, 80),
+   *     op.eq('quarantineStatus', 'CLEAR')
+   *   ])
+   * );
+   * ```
+   * 
+   * @param condition - Either a Condition object or a callback function that builds the condition
+   * @returns The builder instance for method chaining
+   */
+  public condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): PutBuilder<T> {
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -77,11 +208,35 @@ export class PutBuilder<T extends Record<string, unknown>> {
   }
 
   /**
-   * Set the return values option for the put operation
-   *
-   * NONE is the default
+   * Sets whether to return the item's previous values (if it existed).
+   * Use this method when you need to:
+   * - Track dinosaur profile updates
+   * - Monitor habitat modifications
+   * - Maintain change history
+   * 
+   * @example
+   * ```ts
+   * // Get previous dinosaur state
+   * const result = await builder
+   *   .returnValues('ALL_OLD')
+   *   .execute();
+   * 
+   * if (result) {
+   *   console.log('Previous profile:', {
+   *     species: result.species,
+   *     status: result.status,
+   *     stats: {
+   *       health: result.stats.health,
+   *       threatLevel: result.stats.threatLevel
+   *     }
+   *   });
+   * }
+   * ```
+   * 
+   * @param returnValues - Use 'ALL_OLD' to return previous values, or 'NONE' (default)
+   * @returns The builder instance for method chaining
    */
-  returnValues(returnValues: "ALL_OLD" | "NONE"): PutBuilder<T> {
+  public returnValues(returnValues: "ALL_OLD" | "NONE"): PutBuilder<T> {
     this.options.returnValues = returnValues;
     return this;
   }
@@ -89,7 +244,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
   /**
    * Generate the DynamoDB command parameters
    */
-  toDynamoCommand(): PutCommandParams {
+  private toDynamoCommand(): PutCommandParams {
     const { expression, names, values } = prepareExpressionParams(this.options.condition);
 
     return {
@@ -103,9 +258,39 @@ export class PutBuilder<T extends Record<string, unknown>> {
   }
 
   /**
-   * Add this operation to a transaction
+   * Adds this put operation to a transaction.
+   * Use this method when you need to:
+   * - Transfer dinosaurs between habitats
+   * - Initialize new breeding programs
+   * - Update multiple facility records
+   * 
+   * @example
+   * ```ts
+   * const transaction = new TransactionBuilder();
+   * 
+   * // Add dinosaur to new habitat
+   * new PutBuilder(executor, {
+   *   id: 'TREX-002',
+   *   location: 'PADDOCK-B',
+   *   status: 'ACTIVE',
+   *   transferDate: new Date().toISOString()
+   * }, 'dinosaurs')
+   *   .withTransaction(transaction);
+   * 
+   * // Update habitat records
+   * new UpdateBuilder(executor, 'habitats', { id: 'PADDOCK-B' })
+   *   .add('occupants', 1)
+   *   .set('lastTransfer', new Date().toISOString())
+   *   .withTransaction(transaction);
+   * 
+   * // Execute transfer atomically
+   * await transaction.execute();
+   * ```
+   * 
+   * @param transaction - The transaction builder to add this operation to
+   * @returns The builder instance for method chaining
    */
-  withTransaction(transaction: TransactionBuilder): PutBuilder<T> {
+  public withTransaction(transaction: TransactionBuilder): PutBuilder<T> {
     const command = this.toDynamoCommand();
     transaction.putWithCommand(command);
 
@@ -113,21 +298,68 @@ export class PutBuilder<T extends Record<string, unknown>> {
   }
 
   /**
-   * Execute the put operation
+   * Executes the put operation against DynamoDB.
+   *
+   * @example
+   * ```ts
+   * try {
+   *   // Put with condition and return old values
+   *   const result = await new PutBuilder(executor, newItem, 'myTable')
+   *     .condition(op => op.eq('version', 1))
+   *     .returnValues('ALL_OLD')
+   *     .execute();
+   *
+   *   console.log('Put successful, old item:', result);
+   * } catch (error) {
+   *   // Handle condition check failure or other errors
+   *   console.error('Put failed:', error);
+   * }
+   * ```
+   *
+   * @returns A promise that resolves to the operation result (type depends on returnValues setting)
+   * @throws Will throw an error if the condition check fails or other DynamoDB errors occur
    */
-  async execute(): Promise<T> {
+  public async execute(): Promise<T> {
     const params = this.toDynamoCommand();
     return this.executor(params);
   }
 
   /**
-   * Get a human-readable representation of the put command
+   * Gets a human-readable representation of the put command
    * with all expression placeholders replaced by their actual values.
-   * This is useful for debugging complex put operations.
-   *
-   * @returns A readable representation of the put command
+   * Use this method when you need to:
+   * - Debug complex dinosaur transfers
+   * - Verify habitat assignments
+   * - Log security protocols
+   * - Troubleshoot breeding program conditions
+   * 
+   * @example
+   * ```ts
+   * const debugInfo = new PutBuilder(executor, {
+   *   id: 'RAPTOR-003',
+   *   species: 'Velociraptor',
+   *   status: 'QUARANTINE',
+   *   stats: {
+   *     health: 100,
+   *     aggressionLevel: 7,
+   *     age: 2
+   *   }
+   * }, 'dinosaurs')
+   *   .condition(op =>
+   *     op.and([
+   *       op.attributeNotExists('id'),
+   *       op.eq('quarantineStatus', 'READY'),
+   *       op.gt('securityLevel', 8)
+   *     ])
+   *   )
+   *   .debug();
+   * 
+   * console.log('Dinosaur transfer command:', debugInfo);
+   * ```
+   * 
+   * @returns A readable representation of the put command with resolved expressions
    */
-  debug(): Record<string, unknown> {
+  public debug(): Record<string, unknown> {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }

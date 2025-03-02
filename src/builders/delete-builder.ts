@@ -36,6 +36,49 @@ export interface DeleteCommandParams extends DynamoCommandWithExpressions {
 
 type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: Record<string, unknown> }>;
 
+/**
+ * Builder for creating DynamoDB delete operations.
+ * Use this builder when you need to:
+ * - Delete items from a DynamoDB table
+ * - Conditionally delete items based on attribute values
+ * - Delete items as part of a transaction
+ * - Retrieve the old item values after deletion
+ *
+ * @example
+ * ```ts
+ * const result = await new DeleteBuilder(executor, 'myTable', { id: '123' })
+ *   .condition(op => op.attributeExists('status'))
+ *   .returnValues('ALL_OLD')
+ *   .execute();
+ * ```
+ */
+/**
+ * Builder for creating DynamoDB delete operations.
+ * Use this builder when you need to:
+ * - Remove dinosaurs from the registry
+ * - Clean up abandoned habitats
+ * - Delete historical tracking data
+ * - Remove deprecated classifications
+ * 
+ * @example
+ * ```typescript
+ * // Simple delete
+ * const result = await new DeleteBuilder(executor, 'dinosaurs', { id: 'TREX-001' })
+ *   .execute();
+ * 
+ * // Conditional delete with old value retrieval
+ * const result = await new DeleteBuilder(executor, 'habitats', { id: 'PADDOCK-A' })
+ *   .condition(op => 
+ *     op.and([
+ *       op.eq('status', 'DECOMMISSIONED'),
+ *       op.eq('occupants', 0),
+ *       op.lt('securityIncidents', 1)
+ *     ])
+ *   )
+ *   .returnValues('ALL_OLD')
+ *   .execute();
+ * ```
+ */
 export class DeleteBuilder {
   private options: DeleteOptions = {
     returnValues: "ALL_OLD",
@@ -51,7 +94,59 @@ export class DeleteBuilder {
   }
 
   /**
-   * Add a condition expression that must be satisfied for the delete operation to succeed
+   * Adds a condition that must be satisfied for the delete operation to succeed.
+   * Use this method when you need to:
+   * - Implement optimistic locking (e.g., version check)
+   * - Ensure item exists before deletion
+   * - Validate item state before deletion
+   *
+   * @example
+   * ```ts
+   * // Simple condition
+   * builder.condition(op => op.attributeExists('id'))
+   *
+   * // Complex condition with version check
+   * builder.condition(op =>
+   *   op.and([
+   *     op.eq('version', 1),
+   *     op.eq('status', 'ACTIVE')
+   *   ])
+   * )
+   * ```
+   *
+   * @param condition - Either a Condition object or a callback function that builds the condition
+   * @returns The builder instance for method chaining
+   */
+  /**
+   * Adds a condition that must be satisfied for the delete operation to succeed.
+   * Use this method when you need to:
+   * - Ensure safe removal conditions
+   * - Verify habitat status before deletion
+   * - Implement safety protocols
+   * 
+   * @example
+   * ```typescript
+   * // Ensure dinosaur can be safely removed
+   * builder.condition(op => 
+   *   op.and([
+   *     op.eq('status', 'SEDATED'),
+   *     op.eq('location', 'MEDICAL_BAY'),
+   *     op.attributeExists('lastCheckup')
+   *   ])
+   * );
+   * 
+   * // Verify habitat is empty
+   * builder.condition(op => 
+   *   op.and([
+   *     op.eq('occupants', 0),
+   *     op.eq('maintenanceStatus', 'COMPLETE'),
+   *     op.not(op.attributeExists('activeAlerts'))
+   *   ])
+   * );
+   * ```
+   * 
+   * @param condition - Either a Condition object or a callback function that builds the condition
+   * @returns The builder instance for method chaining
    */
   public condition<T extends Record<string, unknown>>(
     condition: Condition | ((op: ConditionOperator<T>) => Condition),
@@ -81,7 +176,30 @@ export class DeleteBuilder {
   }
 
   /**
-   * Set the return values option for the delete operation
+   * Sets whether to return the item's attribute values before deletion.
+   * Use this method when you need to:
+   * - Archive removed dinosaur data
+   * - Track habitat decommissioning history
+   * - Maintain removal audit logs
+   * 
+   * @example
+   * ```ts
+   * // Archive dinosaur data before removal
+   * const result = await builder
+   *   .returnValues('ALL_OLD')
+   *   .execute();
+   * 
+   * if (result.item) {
+   *   console.log('Removed dinosaur data:', {
+   *     species: result.item.species,
+   *     age: result.item.age,
+   *     lastLocation: result.item.location
+   *   });
+   * }
+   * ```
+   * 
+   * @param returnValues - Use 'ALL_OLD' to return all attributes of the deleted item
+   * @returns The builder instance for method chaining
    */
   public returnValues(returnValues: "ALL_OLD"): DeleteBuilder {
     this.options.returnValues = returnValues;
@@ -105,7 +223,31 @@ export class DeleteBuilder {
   }
 
   /**
-   * Add this operation to a transaction
+   * Adds this delete operation to a transaction.
+   * Use this method when you need to:
+   * - Coordinate dinosaur transfers
+   * - Manage habitat decommissioning
+   * - Handle species relocations
+   *
+   * @example
+   * ```ts
+   * const transaction = new TransactionBuilder();
+   *
+   * // Remove dinosaur from old habitat
+   * new DeleteBuilder(executor, 'dinosaurs', { id: 'RAPTOR-001' })
+   *   .condition(op => op.eq('status', 'SEDATED'))
+   *   .withTransaction(transaction);
+   *
+   * // Update old habitat occupancy
+   * new UpdateBuilder(executor, 'habitats', { id: 'PADDOCK-A' })
+   *   .add('occupants', -1)
+   *   .withTransaction(transaction);
+   *
+   * // Execute transfer atomically
+   * await transaction.execute();
+   * ```
+   *
+   * @param transaction - The transaction builder to add this operation to
    */
   public withTransaction(transaction: TransactionBuilder) {
     const command = this.toDynamoCommand();
@@ -114,7 +256,22 @@ export class DeleteBuilder {
   }
 
   /**
-   * Execute the delete operation
+   * Executes the delete operation against DynamoDB.
+   *
+   * @example
+   * ```ts
+   * // Delete with condition and retrieve old values
+   * const result = await new DeleteBuilder(executor, 'myTable', { id: '123' })
+   *   .condition(op => op.eq('status', 'INACTIVE'))
+   *   .returnValues('ALL_OLD')
+   *   .execute();
+   *
+   * if (result.item) {
+   *   console.log('Deleted item:', result.item);
+   * }
+   * ```
+   *
+   * @returns A promise that resolves to an object containing the deleted item's attributes (if returnValues is 'ALL_OLD')
    */
   public async execute(): Promise<{ item?: Record<string, unknown> }> {
     const params = this.toDynamoCommand();
@@ -122,11 +279,30 @@ export class DeleteBuilder {
   }
 
   /**
-   * Get a human-readable representation of the delete command
+   * Gets a human-readable representation of the delete command
    * with all expression placeholders replaced by their actual values.
-   * This is useful for debugging complex delete operations.
+   * Use this method when you need to:
+   * - Debug complex deletion conditions
+   * - Verify safety checks
+   * - Log removal operations
+   * - Troubleshoot failed deletions
+   * 
+   * @example
+   * ```ts
+   * const debugInfo = new DeleteBuilder(executor, 'dinosaurs', { id: 'TREX-001' })
+   *   .condition(op => op.and([
+   *     op.eq('status', 'SEDATED'),
+   *     op.eq('location', 'MEDICAL_BAY'),
+   *     op.gt('sedationLevel', 8)
+   *     op.eq('version', 1),
+   *     op.attributeExists('status')
+   *   ]))
+   *   .debug();
    *
-   * @returns A readable representation of the delete command
+   * console.log('Delete command:', debugInfo);
+   * ```
+   *
+   * @returns A readable representation of the delete command with resolved expressions
    */
   debug(): Record<string, unknown> {
     const command = this.toDynamoCommand();
