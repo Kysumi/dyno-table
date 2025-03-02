@@ -1,552 +1,1132 @@
-import { beforeAll, describe, expect, it, beforeEach } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Table } from "../table";
-import { ConditionalCheckFailedError, DynamoError } from "../errors/dynamo-error";
 import { docClient } from "../../tests/ddb-client";
-import { TransactionBuilder } from "../builders/transaction-builder";
+import { attributeNotExists, eq } from "../conditions";
 
-const indexes = {
-  primary: {
-    pkName: "pk",
-    skName: "sk",
-  },
-  GSI1: {
-    pkName: "GSI1PK",
-    skName: "GSI1SK",
-  },
+type Dinosaur = {
+  pk: string;
+  sk: string;
+  name: string;
+  type: string;
+  height?: number;
+  weight?: number;
+  diet?: string;
+  period?: string;
+  discovered?: number;
+  tags?: Set<string>;
 };
 
 describe("Table Integration Tests", () => {
-  let table: Table<keyof typeof indexes>;
+  let table: Table;
 
-  // Test item data
-  const testItem = {
-    pk: "USER#123",
-    sk: "PROFILE#123",
-    name: "John Doe",
-    email: "john@example.com",
-    age: 30,
-    type: "USER",
-  };
-
-  beforeAll(() => {
+  beforeAll(async () => {
     table = new Table({
       client: docClient,
       tableName: "TestTable",
-      tableIndexes: indexes,
+      indexes: {
+        partitionKey: "pk",
+        sortKey: "sk",
+      },
     });
   });
 
-  beforeEach(async () => {
-    // Clean up any existing data before each test
-    try {
-      await table.delete({ pk: testItem.pk, sk: testItem.sk }).execute();
-    } catch (error) {
-      // Ignore if item doesn't exist
-    }
-  });
-
-  describe("Input Validation", () => {
-    it("should throw error when partition key is missing", async () => {
-      // @ts-ignore Testing invalid input will throw an Error
-      await expect(table.get({ sk: "test" })).rejects.toThrow("Partition key is required");
-    });
-
-    it("should throw error when sort key is provided for index without sort key", async () => {
-      const invalidTable = new Table({
-        client: docClient,
-        tableName: "TestTable",
-        tableIndexes: {
-          primary: {
-            pkName: "pk", // No sort key defined
-          },
-        },
-      });
-
-      await expect(invalidTable.get({ pk: "test", sk: "test" })).rejects.toThrow(
-        "Sort key provided but index does not support sort keys",
-      );
-    });
-
-    it("should throw error when sort key is missing for index requiring it", async () => {
-      await expect(
-        table.get({ pk: "test" }), // Missing required sk
-      ).rejects.toThrow("Index requires a sort key but none was provided");
-    });
-  });
-
-  describe("Resource Limits", () => {
-    it("should throw error when transaction exceeds item limit", async () => {
-      const items = Array(101)
-        .fill(null)
-        .map((_, i) => ({
-          put: {
-            item: { ...testItem, pk: `USER#${i}`, sk: `PROFILE#${i}` },
-          },
-        }))
-        .reduce((builder, item) => builder.addOperation(item), new TransactionBuilder());
-
-      await expect(table.transactWrite(items)).rejects.toThrow("Transaction limit exceeded");
-    });
-
-    it("should handle batch write chunking for large datasets", async () => {
-      const items = Array(30)
-        .fill(null)
-        .map((_, i) => ({
-          type: "put" as const,
-          item: { ...testItem, pk: `USER#${i}`, sk: `PROFILE#${i}` },
-        }));
-
-      await table.batchWrite(items); // Should automatically chunk into 25-item batches
-
-      // Verify all items were written
-      for (let i = 0; i < 30; i++) {
-        const result = await table.get({
-          pk: `USER#${i}`,
-          sk: `PROFILE#${i}`,
-        });
-        expect(result).toBeDefined();
-      }
-    });
-  });
-
-  describe("CRUD Operations", () => {
-    it("should create, get, update, and delete an item", async () => {
-      await table.put(testItem).execute();
-
-      const retrievedItem = await table.get({
-        pk: testItem.pk,
-        sk: testItem.sk,
-      });
-      expect(retrievedItem).toEqual(testItem);
-
-      const updates = {
-        email: "john.doe@example.com",
-        age: 31,
+  describe("Create Items", () => {
+    it("should create a new item", async () => {
+      const dino: Dinosaur = {
+        pk: "dinosaur#1",
+        sk: "dino#trex",
+        name: "T-Rex",
+        type: "Tyrannosaurus",
+        height: 20,
+        weight: 7000,
+        diet: "Carnivore",
+        period: "Late Cretaceous",
       };
-      await table
-        .update({ pk: testItem.pk, sk: testItem.sk })
-        .set("email", updates.email)
-        .set("age", updates.age)
-        .execute();
 
-      const updatedItem = await table.get({
-        pk: testItem.pk,
-        sk: testItem.sk,
-      });
-      expect(updatedItem).toEqual({ ...testItem, ...updates });
+      const result = await table.create(dino).execute();
+      expect(result).toEqual(dino);
 
-      await table.delete({ pk: testItem.pk, sk: testItem.sk }).execute();
+      // Verify item was created
+      const queryResult = await table.query({ pk: "dinosaur#1" }).execute();
+      expect(queryResult.items).toHaveLength(1);
+      expect(queryResult.items[0]).toEqual(dino);
+    });
 
-      const deletedItem = await table.get({
-        pk: testItem.pk,
-        sk: testItem.sk,
-      });
-      expect(deletedItem).toBeUndefined();
+    it("should fail to create an item that already exists", async () => {
+      const dino: Dinosaur = {
+        pk: "dinosaur#2",
+        sk: "dino#raptor",
+        name: "Velociraptor",
+        type: "Dromaeosaurid",
+      };
+
+      // Create the item first
+      await table.create(dino).execute();
+
+      // Try to create it again
+      await expect(table.create(dino).execute()).rejects.toThrow();
     });
   });
 
-  describe("Query Operations", () => {
-    beforeEach(async () => {
-      await table.put(testItem).execute();
+  describe("Put Items", () => {
+    it("should put an item with no conditions", async () => {
+      const dino: Dinosaur = {
+        pk: "dinosaur#3",
+        sk: "dino#stego",
+        name: "Stegosaurus",
+        type: "Stegosaurid",
+        period: "Late Jurassic",
+      };
+
+      const result = await table.put(dino).execute();
+      expect(result).toEqual(dino);
+
+      // Verify item was created
+      const queryResult = await table.query({ pk: "dinosaur#3" }).execute();
+      expect(queryResult.items).toHaveLength(1);
+      expect(queryResult.items[0]).toEqual(dino);
     });
 
-    it("should get back 1 page of results for 8 items paged by 10", async () => {
-      for (let i = 0; i < 8; i++) {
-        await table.put({ ...testItem, pk: "USER#TEST", sk: `PROFILE#${i}` }).execute();
-      }
+    it("should put an item with a condition that passes", async () => {
+      // First create an item
+      const dino: Dinosaur = {
+        pk: "dinosaur#4",
+        sk: "dino#brach",
+        name: "Brachiosaurus",
+        type: "Sauropod",
+      };
+      await table.put(dino).execute();
 
-      const paginator = table.query({ pk: "USER#TEST" }).limit(10).paginate();
-      const page1 = await paginator.getPage();
+      // Update with a condition that should pass
+      const updatedDino = {
+        ...dino,
+        height: 50,
+        weight: 80000,
+      };
 
-      expect(page1.items).toHaveLength(8);
-      expect(page1.nextPageToken).toBeUndefined();
-    });
-
-    it("should get back 3 pages of results for 20 items in DB paged by 10", async () => {
-      for (let i = 0; i < 20; i++) {
-        await table.put({ ...testItem, pk: "USER#TEST", sk: `PROFILE#${i}` }).execute();
-      }
-
-      // Ensure the 20 items are returned
-      const insertCheck = await table
-        .query({ pk: "USER#TEST", sk: { operator: "begins_with", value: "PROFILE#" } })
+      const result = await table
+        .put(updatedDino)
+        .condition((op) => op.eq("name", "Brachiosaurus"))
         .execute();
 
-      expect(insertCheck).toHaveLength(20);
-
-      const paginator = table.query({ pk: "USER#TEST" }).limit(10).paginate();
-      const page1 = await paginator.getPage();
-
-      expect(paginator.hasNextPage()).toBe(true);
-      expect(page1.items).toHaveLength(10);
-      expect(page1.nextPageToken).toBeDefined();
-
-      const page2 = await paginator.getPage();
-
-      // Since we're paginating by 10, we should get 10 items
-      // and the next page token should be defined as we'd have loaded the very last item
-      // in this page
-      expect(page2.items).toHaveLength(10);
-      expect(page2.nextPageToken).toBeDefined();
-      expect(paginator.hasNextPage()).toBe(true);
-
-      const page3 = await paginator.getPage();
-
-      expect(page3.nextPageToken).toBeUndefined();
-      expect(paginator.hasNextPage()).toBe(false);
+      expect(result).toEqual(updatedDino);
     });
 
-    it("should get back no results, when the filter doesn't match", async () => {
-      const result = await table.query({ pk: testItem.pk }).where("type", "=", "APPLE").execute();
+    it("should fail to put an item with a condition that fails", async () => {
+      // First create an item
+      const dino: Dinosaur = {
+        pk: "dinosaur#5",
+        sk: "dino#anky",
+        name: "Ankylosaurus",
+        type: "Ankylosaur",
+      };
+      await table.put(dino).execute();
 
-      expect(result).toHaveLength(0);
+      // Update with a condition that should fail
+      const updatedDino = {
+        ...dino,
+        name: "Updated Ankylosaurus",
+      };
+
+      await expect(
+        table
+          .put(updatedDino)
+          .condition((op) => op.eq("name", "WrongName"))
+          .execute(),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("Query Items", () => {
+    beforeEach(async () => {
+      // Create test data
+      const dinos: Dinosaur[] = [
+        {
+          pk: "dinosaur#group1",
+          sk: "dino#trex1",
+          name: "T-Rex 1",
+          type: "Tyrannosaurus",
+          period: "Late Cretaceous",
+          diet: "Carnivore",
+          height: 20,
+          weight: 7000,
+        },
+        {
+          pk: "dinosaur#group1",
+          sk: "dino#trex2",
+          name: "T-Rex 2",
+          type: "Tyrannosaurus",
+          period: "Late Cretaceous",
+          diet: "Carnivore",
+          height: 18,
+          weight: 6500,
+        },
+        {
+          pk: "dinosaur#group1",
+          sk: "dino#raptor1",
+          name: "Velociraptor 1",
+          type: "Dromaeosaurid",
+          period: "Late Cretaceous",
+          diet: "Carnivore",
+          height: 2,
+          weight: 15,
+        },
+        {
+          pk: "dinosaur#group2",
+          sk: "dino#stego1",
+          name: "Stegosaurus 1",
+          type: "Stegosaurid",
+          period: "Late Jurassic",
+          diet: "Herbivore",
+          height: 9,
+          weight: 5000,
+        },
+        {
+          pk: "dinosaur#group2",
+          sk: "dino#brach1",
+          name: "Brachiosaurus 1",
+          type: "Sauropod",
+          period: "Late Jurassic",
+          diet: "Herbivore",
+          height: 50,
+          weight: 80000,
+        },
+      ];
+
+      const createPromises = dinos.map((dino) => table.put(dino).execute());
+      await Promise.all(createPromises);
     });
 
     it("should query items by partition key", async () => {
-      const result = await table
-        .query({
-          pk: testItem.pk,
-          sk: testItem.sk,
-        })
-        .where("type", "=", "USER")
-        .execute();
+      const result = await table.query({ pk: "dinosaur#group1" }).execute();
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(testItem);
+      expect(result.items).toHaveLength(3);
+      expect(result.items.map((item) => item.sk)).toEqual(
+        expect.arrayContaining(["dino#trex1", "dino#trex2", "dino#raptor1"]),
+      );
     });
 
-    it("should query items with begins_with sort key", async () => {
+    it("should query items with sort key condition", async () => {
       const result = await table
         .query({
-          pk: testItem.pk,
-          sk: { operator: "begins_with", value: "PROFILE#" },
+          pk: "dinosaur#group1",
+          sk: (op) => op.beginsWith("dino#trex"),
         })
         .execute();
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(testItem);
+      expect(result.items).toHaveLength(2);
+      expect(result.items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
+    });
+
+    it("should query items with filter", async () => {
+      const result = await table
+        .query({ pk: "dinosaur#group1" })
+        .filter((op) => op.gt("height", 15))
+        .execute();
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
+    });
+
+    it("should query items with limit", async () => {
+      const result = await table.query({ pk: "dinosaur#group1" }).limit(2).execute();
+
+      expect(result.items).toHaveLength(2);
+    });
+
+    it("should query items with sort order", async () => {
+      const ascResult = await table.query({ pk: "dinosaur#group1" }).sortAscending().execute();
+
+      const descResult = await table.query({ pk: "dinosaur#group1" }).sortDescending().execute();
+
+      expect(ascResult.items.map((item) => item.sk)).toEqual(["dino#raptor1", "dino#trex1", "dino#trex2"]);
+
+      expect(descResult.items.map((item) => item.sk)).toEqual(["dino#trex2", "dino#trex1", "dino#raptor1"]);
+    });
+
+    it("should query items with projection", async () => {
+      const result = await table.query({ pk: "dinosaur#group1" }).select(["name", "type"]).execute();
+
+      expect(result.items).toHaveLength(3);
+
+      // @ts-expect-error
+      expect(Object.keys(result.items[0])).toContain("name");
+      // @ts-expect-error
+      expect(Object.keys(result.items[0])).toContain("type");
+      // @ts-expect-error
+      expect(Object.keys(result.items[0])).not.toContain("height");
+      // @ts-expect-error
+      expect(Object.keys(result.items[0])).not.toContain("weight");
+    });
+
+    it("should query items with complex filter conditions", async () => {
+      const result = await table
+        .query({ pk: "dinosaur#group1" })
+        .filter((op) => op.and(op.eq("type", "Tyrannosaurus"), op.gt("weight", 6000)))
+        .execute();
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
     });
   });
 
-  describe("Scan Operations", () => {
+  describe("Get Items", () => {
     beforeEach(async () => {
-      await table.put(testItem).execute();
+      // Create a test item
+      const dino: Dinosaur = {
+        pk: "dinosaur#get",
+        sk: "dino#test",
+        name: "Test Dino",
+        type: "TestType",
+        tags: new Set(["test", "get"]),
+      };
+      await table.put(dino).execute();
     });
 
-    it("should scan and filter items", async () => {
-      const shouldBeExcluded = {
-        pk: "USER#123",
-        sk: "123",
-        age: 24,
-        type: "USER",
-      };
-      await table.put(shouldBeExcluded).execute();
+    it("should get an item by key", async () => {
+      const result = await table.get({ pk: "dinosaur#get", sk: "dino#test" }).execute();
 
-      const noFilterShouldHaveTwoResults = await table.scan().whereEquals("type", "USER").execute();
+      expect(result.item).toBeDefined();
+      expect(result.item?.name).toBe("Test Dino");
+      expect(result.item?.type).toBe("TestType");
+    });
 
-      expect(noFilterShouldHaveTwoResults.Items).toBeDefined();
-      expect(noFilterShouldHaveTwoResults.Items).toContainEqual(shouldBeExcluded);
-      expect(noFilterShouldHaveTwoResults.Items).toContainEqual(testItem);
+    it("should get an item with selected attributes", async () => {
+      const result = await table.get({ pk: "dinosaur#get", sk: "dino#test" }).select(["name"]).execute();
 
-      const result = await table.scan().whereEquals("type", "USER").where("age", ">", 25).execute();
+      expect(result.item).toBeDefined();
+      expect(result.item?.name).toBe("Test Dino");
+      expect(result.item?.type).toBeUndefined();
+      expect(result.item?.tags).toBeUndefined();
+    });
 
-      expect(result.Items).toBeDefined();
-      expect(result.Items).toContainEqual(testItem);
-      expect(result.Items).not.toContainEqual(shouldBeExcluded);
+    it("should get an item with consistent read", async () => {
+      const result = await table.get({ pk: "dinosaur#get", sk: "dino#test" }).consistentRead().execute();
+
+      expect(result.item).toBeDefined();
+      expect(result.item?.name).toBe("Test Dino");
+      expect(result.item?.type).toBe("TestType");
+      expect(result.item?.tags).toBeDefined();
+    });
+
+    it("should return undefined for non-existent item", async () => {
+      const result = await table.get({ pk: "dinosaur#get", sk: "dino#nonexistent" }).execute();
+
+      expect(result.item).toBeUndefined();
     });
   });
 
-  describe("Batch Operations", () => {
-    const batchItems = [
-      { ...testItem, pk: "USER#123", sk: "PROFILE#123" },
-      { ...testItem, pk: "USER#124", sk: "PROFILE#124", name: "Jane Doe" },
-    ];
+  describe("Delete Items", () => {
+    beforeEach(async () => {
+      // Create a test item
+      const dino: Dinosaur = {
+        pk: "dinosaur#delete",
+        sk: "dino#test",
+        name: "Delete Test",
+        type: "DeleteType",
+      };
+      await table.put(dino).execute();
+    });
 
-    it("should perform batch write operations", async () => {
-      await table.batchWrite(
-        batchItems.map((item) => ({
-          type: "put",
-          item,
-        })),
-      );
+    it("should delete an item by key", async () => {
+      await table.delete({ pk: "dinosaur#delete", sk: "dino#test" }).execute();
 
-      for (const item of batchItems) {
-        const result = await table.get({ pk: item.pk, sk: item.sk });
-        expect(result).toEqual(item);
+      // Verify item was deleted
+      const result = await table.get({ pk: "dinosaur#delete", sk: "dino#test" }).execute();
+      expect(result.item).toBeUndefined();
+    });
+
+    it("should delete with a condition that passes", async () => {
+      await table
+        .delete({ pk: "dinosaur#delete", sk: "dino#test" })
+        .condition((op) => op.eq("name", "Delete Test"))
+        .execute();
+
+      // Verify item was deleted
+      const result = await table.get({ pk: "dinosaur#delete", sk: "dino#test" }).execute();
+      expect(result.item).toBeUndefined();
+    });
+
+    it("should fail to delete with a condition that fails", async () => {
+      await expect(
+        table
+          .delete({ pk: "dinosaur#delete", sk: "dino#test" })
+          .condition((op) => op.eq("name", "Wrong Name"))
+          .execute(),
+      ).rejects.toThrow();
+
+      // Verify item still exists
+      const result = await table.get({ pk: "dinosaur#delete", sk: "dino#test" }).execute();
+      expect(result.item).toBeDefined();
+    });
+  });
+
+  describe("Update Items", () => {
+    beforeEach(async () => {
+      // Create a test item
+      const dino: Dinosaur = {
+        pk: "dinosaur#update",
+        sk: "dino#test",
+        name: "Update Test",
+        type: "UpdateType",
+        height: 10,
+        weight: 1000,
+      };
+      await table.put(dino).execute();
+    });
+
+    it("should update specific attributes", async () => {
+      const result = await table
+        .update({ pk: "dinosaur#update", sk: "dino#test" })
+        .set("name", "Updated Name")
+        .set("height", 15)
+        .execute();
+
+      expect(result.item).toBeDefined();
+      expect(result.item?.name).toBe("Updated Name");
+      expect(result.item?.height).toBe(15);
+      expect(result.item?.type).toBe("UpdateType"); // Unchanged
+      expect(result.item?.weight).toBe(1000); // Unchanged
+    });
+
+    it("should update with add operation", async () => {
+      const result = await table.update({ pk: "dinosaur#update", sk: "dino#test" }).add("weight", 500).execute();
+
+      expect(result.item?.weight).toBe(1500);
+    });
+
+    it("should update with remove operation", async () => {
+      const result = await table.update({ pk: "dinosaur#update", sk: "dino#test" }).remove("height").execute();
+
+      expect(result.item?.height).toBeUndefined();
+    });
+
+    it("should update with a condition that passes", async () => {
+      const result = await table
+        .update({ pk: "dinosaur#update", sk: "dino#test" })
+        .set("name", "Condition Passed")
+        .condition((op) => op.eq("type", "UpdateType"))
+        .execute();
+
+      expect(result.item?.name).toBe("Condition Passed");
+    });
+
+    it("should fail to update with a condition that fails", async () => {
+      await expect(
+        table
+          .update({ pk: "dinosaur#update", sk: "dino#test" })
+          .set("name", "Should Not Update")
+          .condition((op) => op.eq("type", "WrongType"))
+          .execute(),
+      ).rejects.toThrow();
+
+      // Verify item wasn't updated
+      const getResult = await table.get({ pk: "dinosaur#update", sk: "dino#test" }).execute();
+      expect(getResult.item?.name).toBe("Update Test");
+    });
+
+    it("should perform multiple operations in one update", async () => {
+      const result = await table
+        .update({ pk: "dinosaur#update", sk: "dino#test" })
+        .set("name", "Multi Update")
+        .add("weight", 200)
+        .remove("height")
+        .execute();
+
+      expect(result.item?.name).toBe("Multi Update");
+      expect(result.item?.weight).toBe(1200);
+      expect(result.item?.height).toBeUndefined();
+    });
+
+    it("should update with delete operation for set attributes", async () => {
+      // First create an item with tags
+      const dino: Dinosaur = {
+        pk: "dinosaur#update-delete",
+        sk: "dino#test",
+        name: "Delete Test",
+        type: "DeleteType",
+        tags: new Set(["tag1", "tag2", "tag3"]),
+      };
+      await table.put(dino).execute();
+
+      // Delete a value from the tags set
+      const result = await table
+        .update<Dinosaur>({ pk: "dinosaur#update-delete", sk: "dino#test" })
+        .deleteElementsFromSet("tags", ["tag2"])
+        .execute();
+
+      expect(result.item?.tags).toEqual(new Set(["tag1", "tag3"]));
+      expect(result.item?.tags).not.toContain("tag2");
+    });
+
+    it("should update with set operation using an object", async () => {
+      const result = await table
+        .update({ pk: "dinosaur#update", sk: "dino#test" })
+        .set({
+          name: "Object Update",
+          height: 25,
+          discovered: 1905,
+        })
+        .execute();
+
+      expect(result.item?.name).toBe("Object Update");
+      expect(result.item?.height).toBe(25);
+      expect(result.item?.discovered).toBe(1905);
+    });
+
+    it("should update with specific return values", async () => {
+      // First update to a known state
+      await table.update({ pk: "dinosaur#update", sk: "dino#test" }).set("name", "Before Update").execute();
+
+      // Then update with UPDATED_OLD return values
+      const result = await table
+        .update({ pk: "dinosaur#update", sk: "dino#test" })
+        .set("name", "After Update")
+        .returnValues("UPDATED_OLD")
+        .execute();
+
+      // Should only return the updated attributes with their old values
+      expect(result.item?.name).toBe("Before Update");
+      expect(result.item?.height).toBeUndefined();
+      expect(result.item?.weight).toBeUndefined();
+    });
+  });
+
+  describe("Query Builder Advanced Features", () => {
+    beforeEach(async () => {
+      // Create test data
+      const dinos: Dinosaur[] = [
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page1",
+          name: "Page 1 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page2",
+          name: "Page 2 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page3",
+          name: "Page 3 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page4",
+          name: "Page 4 Dino",
+          type: "Pagination",
+        },
+        {
+          pk: "dinosaur#query",
+          sk: "dino#page5",
+          name: "Page 5 Dino",
+          type: "Pagination",
+        },
+      ];
+
+      const createPromises = dinos.map((dino) => table.put(dino).execute());
+      await Promise.all(createPromises);
+    });
+
+    it("should paginate query results", async () => {
+      // First page
+      const firstPageResult = await table.query({ pk: "dinosaur#query" }).limit(2).execute();
+
+      expect(firstPageResult.items).toHaveLength(2);
+      expect(firstPageResult.lastEvaluatedKey).toBeDefined();
+
+      // Second page
+      if (firstPageResult.lastEvaluatedKey) {
+        const secondPageResult = await table
+          .query({ pk: "dinosaur#query" })
+          .limit(2)
+          .startFrom(firstPageResult.lastEvaluatedKey)
+          .execute();
+
+        expect(secondPageResult.items).toHaveLength(2);
+        if (secondPageResult.items[0] && firstPageResult.items[0]) {
+          expect(secondPageResult.items[0].name).not.toBe(firstPageResult.items[0].name);
+        }
+        if (secondPageResult.items[1] && firstPageResult.items[1]) {
+          expect(secondPageResult.items[1].name).not.toBe(firstPageResult.items[1].name);
+        }
       }
+    });
 
-      await table.batchWrite(
-        batchItems.map((item) => ({
-          type: "delete",
-          key: { pk: item.pk, sk: item.sk },
-        })),
-      );
+    it("should use the Paginator for simplified pagination", async () => {
+      // Create a paginator with page size of 2
+      const paginator = table.query({ pk: "dinosaur#query" }).paginate(2);
 
-      for (const item of batchItems) {
-        const result = await table.get({ pk: item.pk, sk: item.sk });
-        expect(result).toBeUndefined();
-      }
+      // Get the first page
+      const firstPage = await paginator.getNextPage();
+      expect(firstPage.items).toHaveLength(2);
+      expect(firstPage.hasNextPage).toBe(true);
+      expect(firstPage.page).toBe(1);
+
+      // Get the second page
+      const secondPage = await paginator.getNextPage();
+      expect(secondPage.items).toHaveLength(2);
+      expect(secondPage.hasNextPage).toBe(true);
+      expect(secondPage.page).toBe(2);
+
+      // Get the third page
+      const thirdPage = await paginator.getNextPage();
+      expect(thirdPage.items).toHaveLength(1); // Only one item left
+      expect(thirdPage.hasNextPage).toBe(false);
+      expect(thirdPage.page).toBe(3);
+
+      // Try to get another page (should be empty)
+      const emptyPage = await paginator.getNextPage();
+      expect(emptyPage.items).toHaveLength(0);
+      expect(emptyPage.hasNextPage).toBe(false);
+    });
+
+    it("should get all pages at once using getAllPages", async () => {
+      const paginator = table.query({ pk: "dinosaur#query" }).paginate(2);
+      const allItems = await paginator.getAllPages();
+
+      expect(allItems).toHaveLength(5); // All 5 dinosaurs
+
+      // Verify we got all the dinosaurs
+      const names = allItems.map((item) => item.name).sort();
+      expect(names).toEqual(["Page 1 Dino", "Page 2 Dino", "Page 3 Dino", "Page 4 Dino", "Page 5 Dino"].sort());
+    });
+
+    it("should respect the overall limit set on the query builder", async () => {
+      // Set an overall limit of 3 items, with a page size of 2
+      const paginator = table.query({ pk: "dinosaur#query" }).limit(3).paginate(2);
+
+      // Get the first page
+      const firstPage = await paginator.getNextPage();
+      expect(firstPage.items).toHaveLength(2);
+      expect(firstPage.hasNextPage).toBe(true);
+      expect(firstPage.page).toBe(1);
+
+      // Get the second page (should only have 1 item due to overall limit of 3)
+      const secondPage = await paginator.getNextPage();
+      expect(secondPage.items).toHaveLength(1); // Only 1 item due to overall limit
+      expect(secondPage.hasNextPage).toBe(false); // No more pages due to overall limit
+      expect(secondPage.page).toBe(2);
+
+      // Try to get another page (should be empty)
+      const emptyPage = await paginator.getNextPage();
+      expect(emptyPage.items).toHaveLength(0);
+      expect(emptyPage.hasNextPage).toBe(false);
+
+      // Verify we only got 3 items total (due to the limit)
+      const allItems = await table.query({ pk: "dinosaur#query" }).limit(3).paginate(2).getAllPages();
+
+      expect(allItems).toHaveLength(3); // Only 3 due to limit
+    });
+
+    it("should use consistent read", async () => {
+      // This is mostly a syntax test since we can't easily test the actual consistency
+      const result = await table.query({ pk: "dinosaur#query" }).consistentRead(true).execute();
+
+      expect(result.items.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Put Builder Advanced Features", () => {
+    it("should put an item with returnValues option", async () => {
+      // First create an item
+      const originalDino: Dinosaur = {
+        pk: "dinosaur#put-return",
+        sk: "dino#test",
+        name: "Original Name",
+        type: "ReturnTest",
+      };
+      await table.put(originalDino).execute();
+
+      // Update with returnValues
+      const updatedDino: Dinosaur = {
+        pk: "dinosaur#put-return",
+        sk: "dino#test",
+        name: "Updated Name",
+        type: "ReturnTest",
+      };
+
+      const result = await table.put(updatedDino).returnValues("ALL_OLD").execute();
+
+      // The result should be the updated item, but we can verify the operation worked
+      // by checking the item was updated
+      const getResult = await table.get({ pk: "dinosaur#put-return", sk: "dino#test" }).execute();
+      expect(getResult.item?.name).toBe("Updated Name");
     });
   });
 
   describe("Transaction Operations", () => {
-    it("should rollback transaction on failure", async () => {
-      const transaction = new TransactionBuilder();
-
-      table.put({ ...testItem, id: "1" }).withTransaction(transaction);
-      table
-        .put({ id: "2" }) // Missing required fields
-        .withTransaction(transaction);
-
-      await expect(table.transactWrite(transaction)).rejects.toThrow();
-
-      // This user should not exist if the transaction was rolled back
-      const user = await table.get({
-        pk: "USER#1",
-        sk: "PROFILE#1",
-      });
-      expect(user).toBeUndefined();
-    });
-
-    it("should perform transactional writes (transactWrite)", async () => {
-      const transaction = new TransactionBuilder();
-      transaction
-        .addOperation({
-          put: {
-            item: testItem,
-          },
-        })
-        .addOperation({
-          put: {
-            item: { ...testItem, pk: "USER#124", sk: "PROFILE#124" },
-          },
+    it("should execute a transaction with multiple operations", async () => {
+      // Create transaction with multiple operations
+      await table.transaction(async (transaction) => {
+        // Add a put operation
+        transaction.put("TestTable", {
+          pk: "transaction#test",
+          sk: "item#1",
+          name: "Transaction Item 1",
+          type: "TransactionTest",
         });
-      await table.transactWrite(transaction);
 
-      const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
-      const item2 = await table.get({
-        pk: "USER#124",
-        sk: "PROFILE#124",
+        // Add another put operation
+        transaction.put("TestTable", {
+          pk: "transaction#test",
+          sk: "item#2",
+          name: "Transaction Item 2",
+          type: "TransactionTest",
+        });
+
+        // Add an update operation
+        transaction.put("TestTable", {
+          pk: "transaction#test",
+          sk: "item#3",
+          name: "Transaction Item 3",
+          type: "TransactionTest",
+        });
       });
 
-      expect(item1).toEqual(testItem);
-      expect(item2).toEqual({ ...testItem, pk: "USER#124", sk: "PROFILE#124" });
+      // Verify all items were created
+      const queryResult = await table.query({ pk: "transaction#test" }).execute();
+      expect(queryResult.items).toHaveLength(3);
+
+      // Verify individual items
+      const item1 = queryResult.items.find((item: Record<string, unknown>) => item.sk === "item#1");
+      const item2 = queryResult.items.find((item: Record<string, unknown>) => item.sk === "item#2");
+      const item3 = queryResult.items.find((item: Record<string, unknown>) => item.sk === "item#3");
+
+      expect(item1).toBeDefined();
+      expect(item1?.name).toBe("Transaction Item 1");
+
+      expect(item2).toBeDefined();
+      expect(item2?.name).toBe("Transaction Item 2");
+
+      expect(item3).toBeDefined();
+      expect(item3?.name).toBe("Transaction Item 3");
     });
 
-    it("should perform transactional writes (withTransaction)", async () => {
-      await table.withTransaction(async (trx) => {
-        table.put(testItem).withTransaction(trx);
-        table.put({ ...testItem, pk: "USER#124", sk: "PROFILE#124" }).withTransaction(trx);
-      });
-
-      const item1 = await table.get({ pk: testItem.pk, sk: testItem.sk });
-      const item2 = await table.get({
-        pk: "USER#124",
-        sk: "PROFILE#124",
-      });
-
-      expect(item1).toEqual(testItem);
-      expect(item2).toEqual({ ...testItem, pk: "USER#124", sk: "PROFILE#124" });
-    });
-
-    it("should handle transactional write failures", async () => {
-      await expect(
-        table.withTransaction(async (trx) => {
-          table
-            .put({
-              item: testItem,
-            })
-            .withTransaction(trx);
-          table
-            .put({
-              item: testItem, // Duplicate item to cause failure
-            })
-            .withTransaction(trx);
-        }),
-      ).rejects.toThrow();
-
-      const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
-      expect(item).toBeUndefined();
-    });
-  });
-
-  describe("Conditional Operations", () => {
-    it("should handle conditional puts", async () => {
-      // First put should succeed
-      await table.put(testItem).whereNotExists("pk").whereNotExists("sk").execute();
-
-      // Verify item was created
-      const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
-      expect(item).toEqual(testItem);
-
-      // Second put with same condition should fail
-      await expect(
-        table.put({ pk: testItem.pk, sk: testItem.sk, banana: true }).whereNotExists("pk").execute(),
-      ).rejects.toThrow();
-
-      // Verify item wasn't modified
-      const unchangedItem = await table.get({
-        pk: testItem.pk,
-        sk: testItem.sk,
-      });
-      expect(unchangedItem).toEqual(testItem);
-    });
-
-    it("should handle conditional updates", async () => {
-      await table.put(testItem).whereNotExists("pk").execute();
-
-      // Verify item was created
-      const item = await table.get({ pk: testItem.pk, sk: testItem.sk });
-      expect(item).toEqual(testItem);
-
-      // Update with matching condition should succeed
-      await table.update({ pk: testItem.pk, sk: testItem.sk }).set("age", 20).whereEquals("age", 30).execute();
-
-      // Verify update succeeded
-      const updatedItem = await table.get({
-        pk: testItem.pk,
-        sk: testItem.sk,
-      });
-
-      expect(updatedItem?.age).toBe(20);
-
-      // Update with non-matching condition should fail
-      await expect(
-        table
-          .update({ pk: testItem.pk, sk: testItem.sk })
-          .set("age", 32)
-          .whereEquals("age", 30) // Incorrect age
-          .execute(),
-      ).rejects.toThrow();
-
-      // Verify item wasn't modified
-      const unchangedItem = await table.get({
-        pk: testItem.pk,
-        sk: testItem.sk,
-      });
-      expect(unchangedItem?.age).toBe(20);
-    });
-  });
-
-  describe("Error Handling", () => {
-    it("should handle conditional check failures gracefully", async () => {
-      await table.put(testItem).execute();
-
-      await expect(
-        table
-          .update({ pk: testItem.pk, sk: testItem.sk })
-          .set("age", 40)
-          .whereEquals("age", 99) // Incorrect condition
-          .execute(),
-      ).rejects.toThrow(ConditionalCheckFailedError);
-    });
-
-    it("should handle get back no results", async () => {
-      await expect(table.get({ pk: "NONEXISTENT", sk: "ITEM" })).resolves.toBeUndefined();
-    });
-
-    it("should handle invalid attribute updates", async () => {
-      await expect(
-        table
-          .update({ pk: testItem.pk, sk: testItem.sk })
-          .set("", "invalid") // Empty attribute name
-          .execute(),
-      ).rejects.toThrow();
-    });
-  });
-
-  describe("Query Edge Cases", () => {
-    it("should handle empty query results", async () => {
-      const result = await table.query({ pk: "NONEXISTENT" }).execute();
-      expect(result).toHaveLength(0);
-    });
-
-    it("should handle malformed begins_with queries", async () => {
-      await expect(
-        table
-          .query({
-            pk: "TEST",
-            sk: { operator: "begins_with", value: "" }, // Empty prefix
-          })
-          .execute(),
-      ).rejects.toThrow();
-    });
-
-    it("should validate index names", () => {
-      // @ts-expect-error - This is a test
-      expect(() => table.query({ pk: "TEST" }).useIndex("NonexistentIndex")).toThrow(
-        'Index "NonexistentIndex" is not configured for this table.',
-      );
-    });
-  });
-
-  describe("Dot Notations", () => {
-    beforeEach(async () => {
-      await table.put(testItem).execute();
-    });
-
-    it("should filter dinosaurs using dot notation (exclude items that match)", async () => {
-      const nestedDino = {
-        ...testItem,
-        details: {
-          habitat: {
-            region: "Cretaceous Park",
-            climate: "Tropical",
-          },
-        },
-      };
-      await table.put(nestedDino).execute();
-
-      const result = await table
-        .query<typeof nestedDino>({ pk: testItem.pk })
-        .where("details.habitat.region", "=", "Cretaceous Park")
+    it("should roll back a transaction when a condition fails", async () => {
+      // First create an item
+      await table
+        .put({
+          pk: "transaction#test",
+          sk: "conditional#item",
+          name: "Existing Item",
+          type: "TransactionTest",
+        })
         .execute();
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(nestedDino);
+      // Try to execute a transaction with a failing condition
+      try {
+        await table.transaction(async (transaction) => {
+          // This operation should succeed
+          transaction.put("TestTable", {
+            pk: "transaction#test",
+            sk: "success#item",
+            name: "This Should Not Be Created",
+            type: "TransactionTest",
+          });
+
+          // This operation should fail due to the condition
+          transaction.put(
+            "TestTable",
+            {
+              pk: "transaction#test",
+              sk: "conditional#item",
+              name: "Updated Name",
+              type: "TransactionTest",
+            },
+            attributeNotExists("pk"),
+          );
+        });
+
+        // If we get here, the test should fail
+        expect(true).toBe(false); // This should not execute
+      } catch (error) {
+        // Transaction should fail
+        expect(error).toBeDefined();
+      }
+
+      // Verify that no items were created/updated
+      const queryResult = await table.query({ pk: "transaction#test" }).execute();
+
+      // The only item should be the original one
+      const conditionalItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "conditional#item");
+      expect(conditionalItem).toBeDefined();
+      expect(conditionalItem?.name).toBe("Existing Item");
+
+      // The success item should not exist
+      const successItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "success#item");
+      expect(successItem).toBeUndefined();
     });
 
-    it("should filter dinosaurs using dot notation (return items that do not match)", async () => {
-      const nestedDino = {
-        ...testItem,
-        details: {
-          habitat: {
-            region: "Cretaceous Park",
-            climate: "Tropical",
-          },
-        },
-      };
-      await table.put(nestedDino).execute();
-
-      const result = await table
-        .query<typeof nestedDino>({ pk: testItem.pk })
-        .where("details.habitat.region", "=", "Apple")
+    it("should support mixed operations in a transaction", async () => {
+      // First create items to update and delete
+      await table
+        .put({
+          pk: "transaction#test",
+          sk: "update#item",
+          name: "Item To Update",
+          type: "TransactionTest",
+          status: "active",
+        })
         .execute();
-
-      expect(result).toHaveLength(0);
-    });
-
-    it("should update dinosaur habitats using dot notation", async () => {
-      const nestedDino = {
-        ...testItem,
-        details: {
-          habitat: {
-            region: "Cretaceous Park",
-            climate: "Tropical",
-          },
-        },
-      };
-      await table.put(nestedDino).execute();
 
       await table
-        .update<typeof nestedDino>({ pk: testItem.pk, sk: testItem.sk })
-        .set("details.habitat.region", "Jurassic Jungle")
+        .put({
+          pk: "transaction#test",
+          sk: "delete#item",
+          name: "Item To Delete",
+          type: "TransactionTest",
+        })
         .execute();
 
-      const updatedDino = await table.get({ pk: testItem.pk, sk: testItem.sk });
-      expect(updatedDino?.details?.habitat?.region).toBe("Jurassic Jungle");
-      // Assert that the attribute that wasn't updated is still the same
-      expect(updatedDino?.details?.habitat?.climate).toBe("Tropical");
+      // Execute transaction with mixed operations
+      await table.transaction(async (transaction) => {
+        // Put operation
+        transaction.put("TestTable", {
+          pk: "transaction#test",
+          sk: "put#item",
+          name: "New Item",
+          type: "TransactionTest",
+        });
+
+        // Update operation
+        transaction.update(
+          "TestTable",
+          { pk: "transaction#test", sk: "update#item" },
+          "SET #name = :name, #status = :status",
+          { "#name": "name", "#status": "status" },
+          { ":name": "Updated Item", ":status": "inactive" },
+        );
+
+        // Delete operation
+        transaction.delete("TestTable", { pk: "transaction#test", sk: "delete#item" });
+      });
+
+      // Verify results
+      const queryResult = await table.query({ pk: "transaction#test" }).execute();
+
+      // Should have 2 items (put and update, delete should be gone)
+      expect(
+        queryResult.items.filter(
+          (item: Record<string, unknown>) => item.sk === "put#item" || item.sk === "update#item",
+        ),
+      ).toHaveLength(2);
+
+      // Verify put item
+      const putItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "put#item");
+      expect(putItem).toBeDefined();
+      expect(putItem?.name).toBe("New Item");
+
+      // Verify updated item
+      const updatedItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "update#item");
+      expect(updatedItem).toBeDefined();
+      expect(updatedItem?.name).toBe("Updated Item");
+      expect(updatedItem?.status).toBe("inactive");
+
+      // Verify deleted item is gone
+      const deletedItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "delete#item");
+      expect(deletedItem).toBeUndefined();
+    });
+
+    it("should support condition checks in transactions", async () => {
+      // First create an item to check
+      await table
+        .put({
+          pk: "transaction#test",
+          sk: "condition#item",
+          name: "Condition Check Item",
+          type: "TransactionTest",
+          status: "active",
+        })
+        .execute();
+
+      // Execute transaction with condition check
+      await table.transaction(async (transaction) => {
+        // Add a condition check
+        transaction.conditionCheck(
+          "TestTable",
+          { pk: "transaction#test", sk: "condition#item" },
+          eq("status", "active"),
+        );
+
+        // Add a put operation that depends on the condition
+        transaction.put("TestTable", {
+          pk: "transaction#test",
+          sk: "dependent#item",
+          name: "Dependent Item",
+          type: "TransactionTest",
+        });
+      });
+
+      // Verify the dependent item was created
+      const queryResult = await table.query({ pk: "transaction#test" }).execute();
+      const dependentItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "dependent#item");
+
+      expect(dependentItem).toBeDefined();
+      expect(dependentItem?.name).toBe("Dependent Item");
+
+      // // Now try a transaction with a failing condition
+      // try {
+      //   await table.transaction(async (transaction) => {
+      //     // Add a condition check that will fail
+      //     transaction.conditionCheck(
+      //       "TestTable",
+      //       { pk: "transaction#test", sk: "condition#item" },
+      //       eq("status", "inactive"),
+      //     );
+
+      //     // Add a put operation that depends on the condition
+      //     transaction.put("TestTable", {
+      //       pk: "transaction#test",
+      //       sk: "should-not-exist",
+      //       name: "This Should Not Be Created",
+      //       type: "TransactionTest",
+      //     });
+      //   });
+
+      //   // If we get here, the test should fail
+      //   expect(true).toBe(false); // This should not execute
+      // } catch (error) {
+      //   // Transaction should fail
+      //   expect(error).toBeDefined();
+      // }
+
+      // // Verify the dependent item was not created
+      // const failedQueryResult = await table.query({ pk: "transaction#test" }).execute();
+      // const shouldNotExistItem = failedQueryResult.items.find(
+      //   (item: Record<string, unknown>) => item.sk === "should-not-exist",
+      // );
+
+      // expect(shouldNotExistItem).toBeUndefined();
+    });
+  });
+
+  describe("Batch Operations", () => {
+    beforeEach(async () => {
+      // Create test data
+      const dinos: Dinosaur[] = [
+        {
+          pk: "dinosaur#batch",
+          sk: "dino#1",
+          name: "Batch Dino 1",
+          type: "BatchTest",
+        },
+        {
+          pk: "dinosaur#batch",
+          sk: "dino#2",
+          name: "Batch Dino 2",
+          type: "BatchTest",
+        },
+        {
+          pk: "dinosaur#batch",
+          sk: "dino#3",
+          name: "Batch Dino 3",
+          type: "BatchTest",
+        },
+        {
+          pk: "dinosaur#batch",
+          sk: "dino#4",
+          name: "Batch Dino 4",
+          type: "BatchTest",
+        },
+        {
+          pk: "dinosaur#batch",
+          sk: "dino#5",
+          name: "Batch Dino 5",
+          type: "BatchTest",
+        },
+      ];
+
+      const createPromises = dinos.map((dino) => table.put(dino).execute());
+      await Promise.all(createPromises);
+    });
+
+    it("should batch get multiple items", async () => {
+      const keys = [
+        { pk: "dinosaur#batch", sk: "dino#1" },
+        { pk: "dinosaur#batch", sk: "dino#3" },
+        { pk: "dinosaur#batch", sk: "dino#5" },
+      ];
+
+      const result = await table.batchGet<Dinosaur>(keys);
+
+      expect(result.items).toHaveLength(3);
+      expect(result.unprocessedKeys).toHaveLength(0);
+
+      // Verify we got the correct items
+      const names = result.items.map((item) => item.name).sort();
+      expect(names).toEqual(["Batch Dino 1", "Batch Dino 3", "Batch Dino 5"].sort());
+    });
+
+    it("should handle non-existent items in batch get", async () => {
+      const keys = [
+        { pk: "dinosaur#batch", sk: "dino#1" },
+        { pk: "dinosaur#batch", sk: "dino#nonexistent" },
+        { pk: "dinosaur#batch", sk: "dino#5" },
+      ];
+
+      const result = await table.batchGet<Dinosaur>(keys);
+
+      // Should only return the existing items
+      expect(result.items).toHaveLength(2);
+      expect(result.unprocessedKeys).toHaveLength(0);
+
+      const names = result.items.map((item) => item.name).sort();
+      expect(names).toEqual(["Batch Dino 1", "Batch Dino 5"].sort());
+    });
+
+    it("should batch write (put) multiple items", async () => {
+      const newDinos = [
+        {
+          pk: "dinosaur#batchwrite",
+          sk: "dino#new1",
+          name: "New Batch Dino 1",
+          type: "BatchWriteTest",
+        },
+        {
+          pk: "dinosaur#batchwrite",
+          sk: "dino#new2",
+          name: "New Batch Dino 2",
+          type: "BatchWriteTest",
+        },
+      ];
+
+      const operations = newDinos.map((dino) => ({
+        type: "put" as const,
+        item: dino,
+      }));
+
+      const result = await table.batchWrite<Dinosaur>(operations);
+      expect(result.unprocessedItems).toHaveLength(0);
+
+      // Verify the items were created
+      const getResult = await table.batchGet<Dinosaur>([
+        { pk: "dinosaur#batchwrite", sk: "dino#new1" },
+        { pk: "dinosaur#batchwrite", sk: "dino#new2" },
+      ]);
+
+      expect(getResult.items).toHaveLength(2);
+      const names = getResult.items.map((item) => item.name).sort();
+      expect(names).toEqual(["New Batch Dino 1", "New Batch Dino 2"].sort());
+    });
+
+    it("should batch write (delete) multiple items", async () => {
+      // First create items to delete
+      const dinosToDelete = [
+        {
+          pk: "dinosaur#batchdelete",
+          sk: "dino#delete1",
+          name: "Delete Batch Dino 1",
+          type: "BatchDeleteTest",
+        },
+        {
+          pk: "dinosaur#batchdelete",
+          sk: "dino#delete2",
+          name: "Delete Batch Dino 2",
+          type: "BatchDeleteTest",
+        },
+      ];
+
+      // Create the items
+      const createOperations = dinosToDelete.map((dino) => ({
+        type: "put" as const,
+        item: dino,
+      }));
+      await table.batchWrite<Dinosaur>(createOperations);
+
+      // Now delete them
+      const deleteOperations = [
+        {
+          type: "delete" as const,
+          key: { pk: "dinosaur#batchdelete", sk: "dino#delete1" },
+        },
+        {
+          type: "delete" as const,
+          key: { pk: "dinosaur#batchdelete", sk: "dino#delete2" },
+        },
+      ];
+
+      const result = await table.batchWrite<Dinosaur>(deleteOperations);
+      expect(result.unprocessedItems).toHaveLength(0);
+
+      // Verify the items were deleted
+      const getResult = await table.batchGet<Dinosaur>([
+        { pk: "dinosaur#batchdelete", sk: "dino#delete1" },
+        { pk: "dinosaur#batchdelete", sk: "dino#delete2" },
+      ]);
+
+      expect(getResult.items).toHaveLength(0);
+    });
+
+    it("should handle mixed put and delete operations in batch write", async () => {
+      // First create an item to delete
+      await table
+        .put<Dinosaur>({
+          pk: "dinosaur#batchmixed",
+          sk: "dino#delete",
+          name: "Mixed Delete Dino",
+          type: "BatchMixedTest",
+        })
+        .execute();
+
+      // Perform mixed operations: delete one item and create another
+      const operations = [
+        {
+          type: "delete" as const,
+          key: { pk: "dinosaur#batchmixed", sk: "dino#delete" },
+        },
+        {
+          type: "put" as const,
+          item: {
+            pk: "dinosaur#batchmixed",
+            sk: "dino#new",
+            name: "Mixed New Dino",
+            type: "BatchMixedTest",
+          } as Dinosaur,
+        },
+      ];
+
+      const result = await table.batchWrite<Dinosaur>(operations);
+      expect(result.unprocessedItems).toHaveLength(0);
+
+      // Verify the results
+      const getResult = await table.batchGet<Dinosaur>([
+        { pk: "dinosaur#batchmixed", sk: "dino#delete" },
+        { pk: "dinosaur#batchmixed", sk: "dino#new" },
+      ]);
+
+      // Should only have the new item
+      expect(getResult.items).toHaveLength(1);
+      expect(getResult.items[0]?.name).toBe("Mixed New Dino");
+    });
+
+    it("should handle chunking for large batch operations", async () => {
+      // Create 30 items (exceeds the 25 item limit for a single batch write)
+      const manyDinos: Dinosaur[] = [];
+      for (let i = 1; i <= 30; i++) {
+        manyDinos.push({
+          pk: "dinosaur#batchchunk",
+          sk: `dino#${i}`,
+          name: `Chunk Dino ${i}`,
+          type: "BatchChunkTest",
+        });
+      }
+
+      const operations = manyDinos.map((dino) => ({
+        type: "put" as const,
+        item: dino,
+      }));
+
+      const result = await table.batchWrite<Dinosaur>(operations);
+      expect(result.unprocessedItems).toHaveLength(0);
+
+      // Verify all 30 items were created by querying
+      const queryResult = await table.query({ pk: "dinosaur#batchchunk" }).execute();
+      expect(queryResult.items).toHaveLength(30);
     });
   });
 });

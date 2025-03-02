@@ -1,16 +1,34 @@
+// Main classes
 export { Table } from "./table";
-export { BaseRepository } from "./repository/base-repository";
-export { ExponentialBackoffStrategy } from "./retry/exponential-backoff-strategy";
-export type { RetryStrategy } from "./retry/retry-strategy";
-export type { TableIndexConfig } from "./builders/operators";
-export {
-  DynamoError,
-  ConditionalCheckFailedError,
-  ResourceNotFoundError,
-} from "./errors/dynamo-error";
 
-export type {
-  PrimaryKey,
-  FilterOperator,
-  FilterCondition,
-} from "./builders/operators";
+// Builders
+export { QueryBuilder } from "./builders/query-builder";
+export { Paginator, type PaginationResult } from "./builders/paginator";
+export { PutBuilder } from "./builders/put-builder";
+export { UpdateBuilder } from "./builders/update-builder";
+export { DeleteBuilder } from "./builders/delete-builder";
+export { TransactionBuilder } from "./builders/transaction-builder";
+export { ConditionCheckBuilder } from "./builders/condition-check-builder";
+
+// Conditions
+export {
+  eq,
+  ne,
+  lt,
+  lte,
+  gt,
+  gte,
+  between,
+  beginsWith,
+  contains,
+  attributeExists,
+  attributeNotExists,
+  and,
+  or,
+  not,
+  type Condition,
+  type ConditionOperator,
+} from "./conditions";
+
+// Types
+export * from "./types";
