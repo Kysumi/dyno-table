@@ -1,21 +1,5 @@
-import type { QueryBuilder } from "./query-builder";
 import type { TableConfig } from "../types";
-
-/**
- * Represents the result of a single page query operation.
- * This interface provides all necessary information about the current page
- * and the availability of subsequent pages.
- */
-export interface PaginationResult<T> {
-  /** The items (dinosaurs, habitats, etc.) retrieved for the current page */
-  items: T[];
-  /** DynamoDB's last evaluated key, used internally for pagination */
-  lastEvaluatedKey?: Record<string, unknown>;
-  /** Indicates whether there are more pages available */
-  hasNextPage: boolean;
-  /** The current page number (1-indexed) */
-  page: number;
-}
+import type { PaginationResult, QueryBuilderInterface } from "./builder-types";
 
 /**
  * A utility class for handling DynamoDB pagination.
@@ -41,7 +25,7 @@ export interface PaginationResult<T> {
  * while (paginator.hasNextPage()) {
  *   const page = await paginator.getNextPage();
  *   console.log(`Processing page ${page.page} of velociraptors`);
- *   
+ *
  *   for (const raptor of page.items) {
  *     console.log(`- ${raptor.id}: Health=${raptor.stats.health}`);
  *   }
@@ -52,7 +36,7 @@ export interface PaginationResult<T> {
  * @typeParam TConfig - The table configuration type
  */
 export class Paginator<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
-  private queryBuilder: QueryBuilder<T, TConfig>;
+  private queryBuilder: QueryBuilderInterface<T, TConfig>;
   private readonly pageSize: number;
   private currentPage = 0;
   private lastEvaluatedKey?: Record<string, unknown>;
@@ -60,7 +44,7 @@ export class Paginator<T extends Record<string, unknown>, TConfig extends TableC
   private totalItemsRetrieved = 0;
   private readonly overallLimit?: number;
 
-  constructor(queryBuilder: QueryBuilder<T, TConfig>, pageSize: number) {
+  constructor(queryBuilder: QueryBuilderInterface<T, TConfig>, pageSize: number) {
     this.queryBuilder = queryBuilder;
     this.pageSize = pageSize;
     // Store the overall limit from the query builder if it exists
@@ -73,16 +57,16 @@ export class Paginator<T extends Record<string, unknown>, TConfig extends TableC
    * - Track progress through dinosaur lists
    * - Display habitat inspection status
    * - Monitor security sweep progress
-   * 
+   *
    * @example
    * ```ts
    * const paginator = new QueryBuilder(executor, eq('species', 'Tyrannosaurus'))
    *   .paginate(5);
-   * 
+   *
    * await paginator.getNextPage();
    * console.log(`Reviewing T-Rex group ${paginator.getCurrentPage()}`);
    * ```
-   * 
+   *
    * @returns The current page number, starting from 1
    */
   public getCurrentPage(): number {
@@ -96,18 +80,18 @@ export class Paginator<T extends Record<string, unknown>, TConfig extends TableC
    * - Continue habitat inspections
    * - Process security incidents
    * - Complete feeding schedules
-   * 
+   *
    * This method takes into account both:
    * - DynamoDB's lastEvaluatedKey mechanism
    * - Any overall limit set on the query
-   * 
+   *
    * @example
    * ```ts
    * // Process all security incidents
    * const paginator = new QueryBuilder(executor, eq('type', 'SECURITY_BREACH'))
    *   .sortDescending()
    *   .paginate(10);
-   * 
+   *
    * while (paginator.hasNextPage()) {
    *   const page = await paginator.getNextPage();
    *   for (const incident of page.items) {
@@ -116,7 +100,7 @@ export class Paginator<T extends Record<string, unknown>, TConfig extends TableC
    *   console.log(`Processed incidents page ${page.page}`);
    * }
    * ```
-   * 
+   *
    * @returns true if there are more pages available, false otherwise
    */
   public hasNextPage(): boolean {
@@ -134,33 +118,33 @@ export class Paginator<T extends Record<string, unknown>, TConfig extends TableC
    * - Review habitat inspections in batches
    * - Monitor security incidents in sequence
    * - Schedule feeding rotations
-   * 
+   *
    * This method handles:
    * - Automatic continuation between groups
    * - Respect for park capacity limits
    * - Group size adjustments for safety
-   * 
+   *
    * @example
    * ```ts
    * const paginator = new QueryBuilder(executor, eq('species', 'Velociraptor'))
    *   .filter(op => op.eq('status', 'ACTIVE'))
    *   .paginate(5);
-   * 
+   *
    * // Check first raptor group
    * const page1 = await paginator.getNextPage();
    * console.log(`Found ${page1.items.length} active raptors`);
-   * 
+   *
    * // Continue inspection if more groups exist
    * if (page1.hasNextPage) {
    *   const page2 = await paginator.getNextPage();
    *   console.log(`Inspecting raptor group ${page2.page}`);
-   *   
+   *
    *   for (const raptor of page2.items) {
    *     await performHealthCheck(raptor);
    *   }
    * }
    * ```
-   * 
+   *
    * @returns A promise that resolves to a PaginationResult containing:
    *          - items: The dinosaurs/habitats for this page
    *          - hasNextPage: Whether more groups exist
@@ -230,23 +214,23 @@ export class Paginator<T extends Record<string, unknown>, TConfig extends TableC
    * - Perform full security audit
    * - Create comprehensive feeding schedule
    * - Run park-wide health checks
-   * 
+   *
    * Note: Use with caution! This method:
    * - Could overwhelm systems with large dinosaur populations
    * - Makes multiple database requests
    * - May cause system strain during peak hours
-   * 
+   *
    * @example
    * ```ts
    * // Get complete carnivore inventory
    * const paginator = new QueryBuilder(executor, eq('diet', 'CARNIVORE'))
    *   .filter(op => op.eq('status', 'ACTIVE'))
    *   .paginate(10);
-   * 
+   *
    * try {
    *   const allCarnivores = await paginator.getAllPages();
    *   console.log(`Park contains ${allCarnivores.length} active carnivores`);
-   *   
+   *
    *   // Calculate total threat level
    *   const totalThreat = allCarnivores.reduce(
    *     (sum, dino) => sum + dino.stats.threatLevel,
@@ -257,7 +241,7 @@ export class Paginator<T extends Record<string, unknown>, TConfig extends TableC
    *   console.error('Failed to complete carnivore census:', error);
    * }
    * ```
-   * 
+   *
    * @returns A promise that resolves to an array containing all remaining items
    */
   public async getAllPages(): Promise<T[]> {

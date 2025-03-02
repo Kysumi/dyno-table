@@ -3,7 +3,7 @@ export { Table } from "./table";
 
 // Builders
 export { QueryBuilder } from "./builders/query-builder";
-export { Paginator, type PaginationResult } from "./builders/paginator";
+export { Paginator } from "./builders/paginator";
 export { PutBuilder } from "./builders/put-builder";
 export { UpdateBuilder } from "./builders/update-builder";
 export { DeleteBuilder } from "./builders/delete-builder";

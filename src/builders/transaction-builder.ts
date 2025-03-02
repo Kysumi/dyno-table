@@ -2,25 +2,14 @@ import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
 import type { Condition } from "../conditions";
 import { prepareExpressionParams } from "../expression";
 import type { PrimaryKeyWithoutExpression } from "../conditions";
-import type { PutCommandParams } from "./put-builder";
-import type { UpdateCommandParams } from "./update-builder";
-import type { DeleteCommandParams } from "./delete-builder";
-import type { ConditionCheckCommandParams } from "./condition-check-builder";
 import { debugTransaction } from "../utils/debug-transaction";
-
-/**
- * Represents a single operation within a DynamoDB transaction.
- * Each operation can be one of:
- * - Put: Insert or replace an item
- * - Update: Modify an existing item
- * - Delete: Remove an item
- * - ConditionCheck: Verify item state without modification
- */
-export type TransactionItem =
-  | { type: "Put"; params: PutCommandParams }
-  | { type: "Update"; params: UpdateCommandParams }
-  | { type: "Delete"; params: DeleteCommandParams }
-  | { type: "ConditionCheck"; params: ConditionCheckCommandParams };
+import type {
+  ConditionCheckCommandParams,
+  DeleteCommandParams,
+  PutCommandParams,
+  TransactionItem,
+  UpdateCommandParams,
+} from "./builder-types";
 
 /**
  * Configuration options for DynamoDB transactions.
@@ -59,7 +48,7 @@ export type TransactionExecutor = (params: TransactWriteCommandInput) => Promise
  * - Ensure data consistency across operations
  * - Implement complex business logic that requires atomic updates
  * - Prevent duplicate items across tables
- * 
+ *
  * The builder supports:
  * - Put operations (insert/replace items)
  * - Delete operations
@@ -67,7 +56,7 @@ export type TransactionExecutor = (params: TransactWriteCommandInput) => Promise
  * - Condition checks
  * - Duplicate detection
  * - Transaction-wide options
- * 
+ *
  * @example
  * ```typescript
  * // Create a transaction with multiple operations
@@ -75,13 +64,13 @@ export type TransactionExecutor = (params: TransactWriteCommandInput) => Promise
  *   partitionKey: 'id',
  *   sortKey: 'type'
  * });
- * 
+ *
  * // Add a new order
  * transaction.put('orders', {
  *   orderId: '123',
  *   status: 'PENDING'
  * });
- * 
+ *
  * // Update inventory with condition
  * transaction.update(
  *   'inventory',
@@ -90,11 +79,11 @@ export type TransactionExecutor = (params: TransactWriteCommandInput) => Promise
  *   { ':amount': 1 },
  *   op => op.gte('quantity', 1)
  * );
- * 
+ *
  * // Execute the transaction atomically
  * await transaction.execute();
  * ```
- * 
+ *
  * Note: DynamoDB transactions have some limitations:
  * - Maximum 25 operations per transaction
  * - All operations must be in the same AWS region
@@ -178,10 +167,10 @@ export class TransactionBuilder {
    * - Insert new items as part of a transaction
    * - Replace existing items atomically
    * - Ensure items meet certain conditions before insertion
-   * 
+   *
    * The method automatically checks for duplicate items within the transaction
    * to prevent multiple operations on the same item.
-   * 
+   *
    * @example
    * ```typescript
    * // Simple put operation
@@ -190,14 +179,14 @@ export class TransactionBuilder {
    *   status: 'PENDING',
    *   amount: 100
    * });
-   * 
+   *
    * // Conditional put operation
    * transaction.put(
    *   'inventory',
    *   { productId: 'ABC', quantity: 50 },
    *   op => op.attributeNotExists('productId')
    * );
-   * 
+   *
    * // Put with complex condition
    * transaction.put(
    *   'users',
@@ -208,7 +197,7 @@ export class TransactionBuilder {
    *   ])
    * );
    * ```
-   * 
+   *
    * @param tableName - The name of the DynamoDB table
    * @param item - The item to put into the table
    * @param condition - Optional condition that must be satisfied
@@ -244,21 +233,21 @@ export class TransactionBuilder {
    * - Reuse put commands from PutBuilder
    * - Add complex put operations with pre-configured parameters
    * - Integrate with existing put command configurations
-   * 
+   *
    * This method is particularly useful when working with PutBuilder
    * to maintain consistency in put operations across your application.
-   * 
+   *
    * @example
    * ```typescript
    * // Create a put command with PutBuilder
    * const putCommand = new PutBuilder(executor, newItem, 'users')
    *   .condition(op => op.attributeNotExists('userId'))
    *   .toDynamoCommand();
-   * 
+   *
    * // Add the command to the transaction
    * transaction.putWithCommand(putCommand);
    * ```
-   * 
+   *
    * @param command - The complete put command configuration
    * @returns The transaction builder for method chaining
    * @throws {Error} If a duplicate item is detected in the transaction
@@ -283,10 +272,10 @@ export class TransactionBuilder {
    * - Remove items as part of a transaction
    * - Conditionally delete items
    * - Ensure items exist before deletion
-   * 
+   *
    * The method automatically checks for duplicate items within the transaction
    * to prevent multiple operations on the same item.
-   * 
+   *
    * @example
    * ```typescript
    * // Simple delete operation
@@ -294,14 +283,14 @@ export class TransactionBuilder {
    *   pk: 'ORDER#123',
    *   sk: 'METADATA'
    * });
-   * 
+   *
    * // Conditional delete operation
    * transaction.delete(
    *   'users',
    *   { pk: 'USER#123' },
    *   op => op.eq('status', 'INACTIVE')
    * );
-   * 
+   *
    * // Delete with complex condition
    * transaction.delete(
    *   'products',
@@ -312,7 +301,7 @@ export class TransactionBuilder {
    *   ])
    * );
    * ```
-   * 
+   *
    * @param tableName - The name of the DynamoDB table
    * @param key - The primary key of the item to delete
    * @param condition - Optional condition that must be satisfied
@@ -351,10 +340,10 @@ export class TransactionBuilder {
    * - Reuse delete commands from DeleteBuilder
    * - Add complex delete operations with pre-configured parameters
    * - Integrate with existing delete command configurations
-   * 
+   *
    * This method is particularly useful when working with DeleteBuilder
    * to maintain consistency in delete operations across your application.
-   * 
+   *
    * @example
    * ```typescript
    * // Create a delete command with DeleteBuilder
@@ -364,11 +353,11 @@ export class TransactionBuilder {
    *     op.eq('status', 'INACTIVE')
    *   ]))
    *   .toDynamoCommand();
-   * 
+   *
    * // Add the command to the transaction
    * transaction.deleteWithCommand(deleteCommand);
    * ```
-   * 
+   *
    * @param command - The complete delete command configuration
    * @returns The transaction builder for method chaining
    * @throws {Error} If a duplicate item is detected in the transaction
@@ -393,13 +382,13 @@ export class TransactionBuilder {
    * - Update multiple attributes atomically
    * - Apply conditional updates
    * - Perform complex attribute manipulations
-   * 
+   *
    * The method supports all DynamoDB update expressions:
    * - SET: Modify or add attributes
    * - REMOVE: Delete attributes
    * - ADD: Update numbers and sets
    * - DELETE: Remove elements from a set
-   * 
+   *
    * @example
    * ```typescript
    * // Simple update
@@ -410,7 +399,7 @@ export class TransactionBuilder {
    *   { '#status': 'status' },
    *   { ':status': 'PROCESSING' }
    * );
-   * 
+   *
    * // Complex update with multiple operations
    * transaction.update(
    *   'products',
@@ -419,7 +408,7 @@ export class TransactionBuilder {
    *   { '#qty': 'quantity', '#status': 'status', '#oldAttr': 'deprecated_field' },
    *   { ':amount': 1, ':status': 'LOW_STOCK' }
    * );
-   * 
+   *
    * // Conditional update
    * transaction.update(
    *   'users',
@@ -430,7 +419,7 @@ export class TransactionBuilder {
    *   op => op.attributeExists('pk')
    * );
    * ```
-   * 
+   *
    * @param tableName - The name of the DynamoDB table
    * @param key - The primary key of the item to update
    * @param updateExpression - The update expression (SET, REMOVE, ADD, DELETE)
@@ -491,10 +480,10 @@ export class TransactionBuilder {
    * - Reuse update commands from UpdateBuilder
    * - Add complex update operations with pre-configured parameters
    * - Integrate with existing update command configurations
-   * 
+   *
    * This method is particularly useful when working with UpdateBuilder
    * to maintain consistency in update operations across your application.
-   * 
+   *
    * @example
    * ```typescript
    * // Create an update command with UpdateBuilder
@@ -507,11 +496,11 @@ export class TransactionBuilder {
    *   })
    *   .condition(op => op.gt('quantity', 0))
    *   .toDynamoCommand();
-   * 
+   *
    * // Add the command to the transaction
    * transaction.updateWithCommand(updateCommand);
    * ```
-   * 
+   *
    * @param command - The complete update command configuration
    * @returns The transaction builder for method chaining
    * @throws {Error} If a duplicate item is detected in the transaction
@@ -537,12 +526,12 @@ export class TransactionBuilder {
    * - Ensure data consistency across tables
    * - Implement complex business rules
    * - Verify preconditions for other operations
-   * 
+   *
    * Condition checks are particularly useful for:
    * - Implementing optimistic locking
    * - Ensuring referential integrity
    * - Validating business rules atomically
-   * 
+   *
    * @example
    * ```typescript
    * // Check if order is in correct state
@@ -551,7 +540,7 @@ export class TransactionBuilder {
    *   { pk: 'ORDER#123' },
    *   op => op.eq('status', 'PENDING')
    * );
-   * 
+   *
    * // Complex condition check
    * transaction.conditionCheck(
    *   'inventory',
@@ -562,7 +551,7 @@ export class TransactionBuilder {
    *     op.attributeExists('lastRestockDate')
    *   ])
    * );
-   * 
+   *
    * // Check with multiple attributes
    * transaction.conditionCheck(
    *   'users',
@@ -573,7 +562,7 @@ export class TransactionBuilder {
    *   ])
    * );
    * ```
-   * 
+   *
    * @param tableName - The name of the DynamoDB table
    * @param key - The primary key of the item to check
    * @param condition - The condition that must be satisfied
@@ -615,10 +604,10 @@ export class TransactionBuilder {
    * - Reuse condition checks from ConditionCheckBuilder
    * - Add complex condition checks with pre-configured parameters
    * - Integrate with existing condition check configurations
-   * 
+   *
    * This method is particularly useful when working with ConditionCheckBuilder
    * to maintain consistency in condition checks across your application.
-   * 
+   *
    * @example
    * ```typescript
    * // Create a condition check with ConditionCheckBuilder
@@ -629,11 +618,11 @@ export class TransactionBuilder {
    *     op.attributeExists('lastAuditDate')
    *   ]))
    *   .toDynamoCommand();
-   * 
+   *
    * // Add the command to the transaction
    * transaction.conditionCheckWithCommand(checkCommand);
    * ```
-   * 
+   *
    * @param command - The complete condition check command configuration
    * @returns The transaction builder for method chaining
    * @throws {Error} If a duplicate item is detected in the transaction
@@ -657,7 +646,7 @@ export class TransactionBuilder {
    * - Enable idempotent transactions
    * - Track consumed capacity
    * - Monitor item collection metrics
-   * 
+   *
    * @example
    * ```typescript
    * // Enable idempotency and capacity tracking
@@ -665,16 +654,16 @@ export class TransactionBuilder {
    *   clientRequestToken: 'unique-request-id-123',
    *   returnConsumedCapacity: 'TOTAL'
    * });
-   * 
+   *
    * // Track item collection metrics
    * transaction.withOptions({
    *   returnItemCollectionMetrics: 'SIZE'
    * });
    * ```
-   * 
+   *
    * Note: ClientRequestToken can be used to make transactions idempotent,
    * ensuring the same transaction is not executed multiple times.
-   * 
+   *
    * @param options - Configuration options for the transaction
    * @returns The transaction builder for method chaining
    */
@@ -690,27 +679,27 @@ export class TransactionBuilder {
    * - Verify operation parameters
    * - Log transaction details
    * - Troubleshoot condition expressions
-   * 
+   *
    * The method resolves all expression placeholders with their actual values,
    * making it easier to understand the transaction's operations.
-   * 
+   *
    * @example
    * ```typescript
    * // Add multiple operations
    * transaction
    *   .put('orders', { orderId: '123', status: 'PENDING' })
-   *   .update('inventory', 
+   *   .update('inventory',
    *     { productId: 'ABC' },
    *     'SET quantity = quantity - :amount',
    *     undefined,
    *     { ':amount': 1 }
    *   );
-   * 
+   *
    * // Debug the transaction
    * const debugInfo = transaction.debug();
    * console.log('Transaction operations:', debugInfo);
    * ```
-   * 
+   *
    * @returns An array of readable representations of the transaction items
    */
   debug(): Record<string, unknown>[] {
@@ -723,17 +712,17 @@ export class TransactionBuilder {
    * - Perform multiple operations atomically
    * - Ensure all-or-nothing execution
    * - Maintain data consistency across operations
-   * 
+   *
    * The transaction will only succeed if all operations succeed.
    * If any operation fails, the entire transaction is rolled back.
-   * 
+   *
    * @example
    * ```typescript
    * try {
    *   // Build and execute transaction
    *   await transaction
    *     .put('orders', newOrder)
-   *     .update('inventory', 
+   *     .update('inventory',
    *       { productId: 'ABC' },
    *       'SET quantity = quantity - :qty',
    *       undefined,
@@ -744,14 +733,14 @@ export class TransactionBuilder {
    *       op => op.eq('status', 'ACTIVE')
    *     )
    *     .execute();
-   *     
+   *
    *   console.log('Transaction completed successfully');
    * } catch (error) {
    *   // Handle transaction failure
    *   console.error('Transaction failed:', error);
    * }
    * ```
-   * 
+   *
    * @throws {Error} If no transaction items are specified
    * @throws {Error} If any operation in the transaction fails
    * @returns A promise that resolves when the transaction completes

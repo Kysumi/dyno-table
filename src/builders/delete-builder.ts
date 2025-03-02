@@ -17,20 +17,11 @@ import {
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
-import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
 import { debugCommand } from "../utils/debug-expression";
+import type { DeleteCommandParams } from "./builder-types";
 
 export interface DeleteOptions {
   condition?: Condition;
-  returnValues?: "ALL_OLD";
-}
-
-export interface DeleteCommandParams extends DynamoCommandWithExpressions {
-  tableName: string;
-  key: PrimaryKeyWithoutExpression;
-  conditionExpression?: string;
-  expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, unknown>;
   returnValues?: "ALL_OLD";
 }
 

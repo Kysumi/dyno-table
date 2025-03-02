@@ -16,9 +16,9 @@ import {
   not,
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
-import { buildExpression, prepareExpressionParams } from "../expression";
-import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
+import { prepareExpressionParams } from "../expression";
 import { debugCommand } from "../utils/debug-expression";
+import type { PutCommandParams } from "./builder-types";
 
 /**
  * Configuration options for DynamoDB put operations.
@@ -27,19 +27,6 @@ export interface PutOptions {
   /** Optional condition that must be satisfied for the put operation to succeed */
   condition?: Condition;
   /** Determines whether to return the item's previous state (if it existed) */
-  returnValues?: "ALL_OLD" | "NONE";
-}
-
-/**
- * Parameters for the DynamoDB put command.
- * These parameters are used when executing the operation against DynamoDB.
- */
-export interface PutCommandParams extends DynamoCommandWithExpressions {
-  tableName: string;
-  item: Record<string, unknown>;
-  conditionExpression?: string;
-  expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, unknown>;
   returnValues?: "ALL_OLD" | "NONE";
 }
 
