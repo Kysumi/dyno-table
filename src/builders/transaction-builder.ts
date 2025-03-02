@@ -1,6 +1,6 @@
-import type { DynamoDBDocument, TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
+import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
 import type { Condition } from "../conditions";
-import { buildExpression, prepareExpressionParams } from "../expression";
+import { prepareExpressionParams } from "../expression";
 import type { PrimaryKeyWithoutExpression } from "../conditions";
 import type { PutCommandParams } from "./put-builder";
 import type { UpdateCommandParams } from "./update-builder";
@@ -20,19 +20,92 @@ export interface TransactionOptions {
   returnItemCollectionMetrics?: "SIZE" | "NONE";
 }
 
+interface IndexConfig {
+  partitionKey: string;
+  sortKey?: string;
+}
+
+export type TransactionExecutor = (params: TransactWriteCommandInput) => Promise<void>;
+
 export class TransactionBuilder {
   private items: TransactionItem[] = [];
-  private dynamoClient: DynamoDBDocument;
   private options: TransactionOptions = {};
+  private indexConfig: IndexConfig;
+  private executor: TransactionExecutor;
 
-  constructor(client: DynamoDBDocument) {
-    this.dynamoClient = client;
+  constructor(executor: TransactionExecutor, indexConfig: IndexConfig) {
+    this.executor = executor;
+    this.indexConfig = indexConfig;
+  }
+
+  /**
+   * Checks if an item with the same primary key already exists in the transaction
+   * @private
+   */
+  private checkForDuplicateItem(tableName: string, newItem: Record<string, unknown>): void {
+    const pkName = this.indexConfig.partitionKey;
+    const skName = this.indexConfig.sortKey || "";
+
+    // Extract the primary key values from the provided key
+    const pkValue = newItem[pkName];
+    const skValue = skName ? newItem[skName] : undefined;
+
+    if (!pkValue) {
+      throw new Error(`Primary key value for '${pkName}' is missing`);
+    }
+
+    const duplicateItem = this.items.find((item) => {
+      // Get the key from the item based on its type
+      let itemKey: Record<string, unknown> | undefined;
+      let itemTableName: string | undefined;
+
+      switch (item.type) {
+        case "Put":
+          itemTableName = item.params.tableName;
+          // For Put operations, the key is part of the item
+          itemKey = item.params.item;
+          break;
+        case "Update":
+        case "Delete":
+        case "ConditionCheck":
+          itemTableName = item.params.tableName;
+          itemKey = item.params.key;
+          break;
+      }
+
+      // Check if the table name and keys match
+      if (itemTableName === tableName && itemKey) {
+        const itemPkValue = itemKey[pkName];
+        const itemSkValue = skName ? itemKey[skName] : undefined;
+
+        // Match if partition keys match and either both sort keys match or both are undefined
+        if (itemPkValue === pkValue) {
+          if (skValue === undefined && itemSkValue === undefined) {
+            return true;
+          }
+          if (skValue !== undefined && itemSkValue !== undefined && skValue === itemSkValue) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    });
+
+    if (duplicateItem) {
+      throw new Error(
+        `Duplicate item detected in transaction: Table=${tableName}, ${pkName}=${String(pkValue)}, ${skName}=${skValue !== undefined ? String(skValue) : "undefined"}. DynamoDB transactions do not allow multiple operations on the same item.`,
+      );
+    }
   }
 
   /**
    * Add a put operation to the transaction
    */
   put<T extends Record<string, unknown>>(tableName: string, item: T, condition?: Condition): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(tableName, item);
+
     const transactionItem: TransactionItem = {
       type: "Put",
       params: {
@@ -56,6 +129,9 @@ export class TransactionBuilder {
    * Add a put operation to the transaction using a command object
    */
   putWithCommand(command: PutCommandParams): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(command.tableName, command.item);
+
     const transactionItem: TransactionItem = {
       type: "Put",
       params: command,
@@ -69,6 +145,9 @@ export class TransactionBuilder {
    * Add a delete operation to the transaction
    */
   delete(tableName: string, key: PrimaryKeyWithoutExpression, condition?: Condition): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(tableName, key);
+
     const transactionItem: TransactionItem = {
       type: "Delete",
       params: {
@@ -95,6 +174,9 @@ export class TransactionBuilder {
    * Add a delete operation to the transaction using a command object
    */
   deleteWithCommand(command: DeleteCommandParams): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(command.tableName, command.key);
+
     const transactionItem: TransactionItem = {
       type: "Delete",
       params: command,
@@ -114,6 +196,9 @@ export class TransactionBuilder {
     expressionAttributeValues?: Record<string, unknown>,
     condition?: Condition,
   ): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(tableName, key);
+
     const transactionItem: TransactionItem = {
       type: "Update",
       params: {
@@ -152,6 +237,9 @@ export class TransactionBuilder {
    * Add an update operation to the transaction using a command object
    */
   updateWithCommand(command: UpdateCommandParams): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(command.tableName, command.key);
+
     const transactionItem: TransactionItem = {
       type: "Update",
       params: command,
@@ -165,6 +253,9 @@ export class TransactionBuilder {
    * Add a condition check operation to the transaction
    */
   conditionCheck(tableName: string, key: PrimaryKeyWithoutExpression, condition: Condition): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(tableName, key);
+
     const { expression, names, values } = prepareExpressionParams(condition);
 
     if (!expression) {
@@ -193,6 +284,9 @@ export class TransactionBuilder {
    * Add a condition check operation to the transaction using a command object
    */
   conditionCheckWithCommand(command: ConditionCheckCommandParams): TransactionBuilder {
+    // Check for duplicate item
+    this.checkForDuplicateItem(command.tableName, command.key);
+
     const transactionItem: TransactionItem = {
       type: "ConditionCheck",
       params: command,
@@ -287,7 +381,7 @@ export class TransactionBuilder {
     };
 
     try {
-      await this.dynamoClient.transactWrite(params);
+      await this.executor(params);
     } catch (error) {
       console.log(this.debug());
       console.error("Error executing transaction:", error);

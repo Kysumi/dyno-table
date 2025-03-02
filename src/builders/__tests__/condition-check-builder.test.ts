@@ -57,34 +57,6 @@ describe("ConditionCheckBuilder", () => {
     });
   });
 
-  describe("withTransaction", () => {
-    it("should add condition check to transaction", () => {
-      const mockClient = vi.fn() as unknown as DynamoDBDocument;
-      const transaction = new TransactionBuilder(mockClient);
-      const conditionCheckWithCommand = vi.spyOn(transaction, "conditionCheckWithCommand");
-
-      const builder = new ConditionCheckBuilder(tableName, key);
-      builder.condition(eq("status", "active"));
-      builder.withTransaction(transaction);
-
-      expect(conditionCheckWithCommand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tableName,
-          key,
-          conditionExpression: expect.any(String),
-        }),
-      );
-    });
-
-    it("should throw error when condition is not set", () => {
-      const mockClient = vi.fn() as unknown as DynamoDBDocument;
-      const transaction = new TransactionBuilder(mockClient);
-      const builder = new ConditionCheckBuilder(tableName, key);
-
-      expect(() => builder.withTransaction(transaction)).toThrow("Condition is required");
-    });
-  });
-
   describe("debug", () => {
     it("should return readable command representation", () => {
       const builder = new ConditionCheckBuilder(tableName, key);

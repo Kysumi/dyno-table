@@ -27,6 +27,7 @@ import type { BatchWriteOperation } from "./operation-types";
 import { chunkArray } from "./utils/chunk-array";
 import { ConditionCheckBuilder } from "./builders/condition-check-builder";
 import { debugCommand } from "./utils/debug-expression";
+import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
 
 export interface GetBuilder<T> {
   execute: () => Promise<{ item?: T }>;
@@ -328,7 +329,16 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * Creates a transaction builder for performing multiple operations atomically
    */
   transactionBuilder(): TransactionBuilder {
-    return new TransactionBuilder(this.dynamoClient);
+    // Create an executor function for the transaction
+    const executor = async (params: TransactWriteCommandInput): Promise<void> => {
+      await this.dynamoClient.transactWrite(params);
+    };
+
+    // Create a transaction builder with the executor and table's index configuration
+    return new TransactionBuilder(executor, {
+      partitionKey: this.partitionKey,
+      sortKey: this.sortKey,
+    });
   }
 
   /**
@@ -340,7 +350,16 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    */
   transaction<T>(callback: (tx: TransactionBuilder) => Promise<T>, options?: TransactionOptions): Promise<T> {
     const executor = async (): Promise<T> => {
-      const transaction = new TransactionBuilder(this.dynamoClient);
+      // Create an executor function for the transaction
+      const transactionExecutor = async (params: TransactWriteCommandInput): Promise<void> => {
+        await this.dynamoClient.transactWrite(params);
+      };
+
+      // Create a transaction builder with the executor and table's index configuration
+      const transaction = new TransactionBuilder(transactionExecutor, {
+        partitionKey: this.partitionKey,
+        sortKey: this.sortKey,
+      });
 
       if (options) {
         transaction.withOptions(options);
