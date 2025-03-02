@@ -39,36 +39,20 @@ type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: Record<s
 /**
  * Builder for creating DynamoDB delete operations.
  * Use this builder when you need to:
- * - Delete items from a DynamoDB table
- * - Conditionally delete items based on attribute values
- * - Delete items as part of a transaction
- * - Retrieve the old item values after deletion
- *
- * @example
- * ```ts
- * const result = await new DeleteBuilder(executor, 'myTable', { id: '123' })
- *   .condition(op => op.attributeExists('status'))
- *   .returnValues('ALL_OLD')
- *   .execute();
- * ```
- */
-/**
- * Builder for creating DynamoDB delete operations.
- * Use this builder when you need to:
  * - Remove dinosaurs from the registry
  * - Clean up abandoned habitats
  * - Delete historical tracking data
  * - Remove deprecated classifications
- * 
+ *
  * @example
  * ```typescript
  * // Simple delete
  * const result = await new DeleteBuilder(executor, 'dinosaurs', { id: 'TREX-001' })
  *   .execute();
- * 
+ *
  * // Conditional delete with old value retrieval
  * const result = await new DeleteBuilder(executor, 'habitats', { id: 'PADDOCK-A' })
- *   .condition(op => 
+ *   .condition(op =>
  *     op.and([
  *       op.eq('status', 'DECOMMISSIONED'),
  *       op.eq('occupants', 0),
@@ -96,47 +80,23 @@ export class DeleteBuilder {
   /**
    * Adds a condition that must be satisfied for the delete operation to succeed.
    * Use this method when you need to:
-   * - Implement optimistic locking (e.g., version check)
-   * - Ensure item exists before deletion
-   * - Validate item state before deletion
-   *
-   * @example
-   * ```ts
-   * // Simple condition
-   * builder.condition(op => op.attributeExists('id'))
-   *
-   * // Complex condition with version check
-   * builder.condition(op =>
-   *   op.and([
-   *     op.eq('version', 1),
-   *     op.eq('status', 'ACTIVE')
-   *   ])
-   * )
-   * ```
-   *
-   * @param condition - Either a Condition object or a callback function that builds the condition
-   * @returns The builder instance for method chaining
-   */
-  /**
-   * Adds a condition that must be satisfied for the delete operation to succeed.
-   * Use this method when you need to:
    * - Ensure safe removal conditions
    * - Verify habitat status before deletion
    * - Implement safety protocols
-   * 
+   *
    * @example
    * ```typescript
    * // Ensure dinosaur can be safely removed
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.eq('status', 'SEDATED'),
    *     op.eq('location', 'MEDICAL_BAY'),
    *     op.attributeExists('lastCheckup')
    *   ])
    * );
-   * 
+   *
    * // Verify habitat is empty
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.eq('occupants', 0),
    *     op.eq('maintenanceStatus', 'COMPLETE'),
@@ -144,7 +104,7 @@ export class DeleteBuilder {
    *   ])
    * );
    * ```
-   * 
+   *
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
@@ -181,14 +141,14 @@ export class DeleteBuilder {
    * - Archive removed dinosaur data
    * - Track habitat decommissioning history
    * - Maintain removal audit logs
-   * 
+   *
    * @example
    * ```ts
    * // Archive dinosaur data before removal
    * const result = await builder
    *   .returnValues('ALL_OLD')
    *   .execute();
-   * 
+   *
    * if (result.item) {
    *   console.log('Removed dinosaur data:', {
    *     species: result.item.species,
@@ -197,7 +157,7 @@ export class DeleteBuilder {
    *   });
    * }
    * ```
-   * 
+   *
    * @param returnValues - Use 'ALL_OLD' to return all attributes of the deleted item
    * @returns The builder instance for method chaining
    */
@@ -286,7 +246,7 @@ export class DeleteBuilder {
    * - Verify safety checks
    * - Log removal operations
    * - Troubleshoot failed deletions
-   * 
+   *
    * @example
    * ```ts
    * const debugInfo = new DeleteBuilder(executor, 'dinosaurs', { id: 'TREX-001' })

@@ -48,39 +48,11 @@ type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams)
 /**
  * Builder for creating DynamoDB put operations.
  * Use this builder when you need to:
- * - Insert new items into a DynamoDB table
- * - Replace existing items completely
- * - Conditionally put items based on their current state
- * - Put items as part of a transaction
- *
- * The builder supports:
- * - Conditional puts with complex conditions
- * - Retrieving old item values
- * - Transaction integration
- *
- * @example
- * ```ts
- * // Simple put
- * const result = await new PutBuilder(executor, { id: '123', status: 'ACTIVE' }, 'myTable')
- *   .execute();
- *
- * // Conditional put with old value retrieval
- * const result = await new PutBuilder(executor, newItem, 'myTable')
- *   .condition(op => op.attributeNotExists('id'))
- *   .returnValues('ALL_OLD')
- *   .execute();
- * ```
- *
- * @typeParam T - The type of item being put into the table
- */
-/**
- * Builder for creating DynamoDB put operations.
- * Use this builder when you need to:
  * - Add new dinosaurs to the registry
  * - Create new habitats
  * - Update dinosaur profiles completely
  * - Initialize tracking records
- * 
+ *
  * @example
  * ```typescript
  * // Add new dinosaur
@@ -94,7 +66,7 @@ type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams)
  *     threatLevel: 8
  *   }
  * }, 'dinosaurs').execute();
- * 
+ *
  * // Create new habitat with conditions
  * const result = await new PutBuilder(executor, {
  *   id: 'PADDOCK-C',
@@ -106,7 +78,7 @@ type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams)
  *   .condition(op => op.attributeNotExists('id'))
  *   .execute();
  * ```
- * 
+ *
  * @typeParam T - The type of item being put into the table
  */
 export class PutBuilder<T extends Record<string, unknown>> {
@@ -152,25 +124,25 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * - Prevent duplicate dinosaur entries
    * - Ensure habitat requirements
    * - Validate security protocols
-   * 
+   *
    * @example
    * ```typescript
    * // Ensure unique dinosaur ID
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.attributeNotExists('id')
    * );
-   * 
+   *
    * // Verify habitat requirements
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.eq('securityStatus', 'READY'),
    *     op.attributeExists('lastInspection'),
    *     op.gt('securityLevel', 5)
    *   ])
    * );
-   * 
+   *
    * // Check breeding facility conditions
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.between('temperature', 25, 30),
    *     op.between('humidity', 60, 80),
@@ -178,7 +150,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    *   ])
    * );
    * ```
-   * 
+   *
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
@@ -213,14 +185,14 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * - Track dinosaur profile updates
    * - Monitor habitat modifications
    * - Maintain change history
-   * 
+   *
    * @example
    * ```ts
    * // Get previous dinosaur state
    * const result = await builder
    *   .returnValues('ALL_OLD')
    *   .execute();
-   * 
+   *
    * if (result) {
    *   console.log('Previous profile:', {
    *     species: result.species,
@@ -232,7 +204,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    *   });
    * }
    * ```
-   * 
+   *
    * @param returnValues - Use 'ALL_OLD' to return previous values, or 'NONE' (default)
    * @returns The builder instance for method chaining
    */
@@ -263,11 +235,11 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * - Transfer dinosaurs between habitats
    * - Initialize new breeding programs
    * - Update multiple facility records
-   * 
+   *
    * @example
    * ```ts
    * const transaction = new TransactionBuilder();
-   * 
+   *
    * // Add dinosaur to new habitat
    * new PutBuilder(executor, {
    *   id: 'TREX-002',
@@ -276,17 +248,17 @@ export class PutBuilder<T extends Record<string, unknown>> {
    *   transferDate: new Date().toISOString()
    * }, 'dinosaurs')
    *   .withTransaction(transaction);
-   * 
+   *
    * // Update habitat records
    * new UpdateBuilder(executor, 'habitats', { id: 'PADDOCK-B' })
    *   .add('occupants', 1)
    *   .set('lastTransfer', new Date().toISOString())
    *   .withTransaction(transaction);
-   * 
+   *
    * // Execute transfer atomically
    * await transaction.execute();
    * ```
-   * 
+   *
    * @param transaction - The transaction builder to add this operation to
    * @returns The builder instance for method chaining
    */
@@ -332,7 +304,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * - Verify habitat assignments
    * - Log security protocols
    * - Troubleshoot breeding program conditions
-   * 
+   *
    * @example
    * ```ts
    * const debugInfo = new PutBuilder(executor, {
@@ -353,10 +325,10 @@ export class PutBuilder<T extends Record<string, unknown>> {
    *     ])
    *   )
    *   .debug();
-   * 
+   *
    * console.log('Dinosaur transfer command:', debugInfo);
    * ```
-   * 
+   *
    * @returns A readable representation of the put command with resolved expressions
    */
   public debug(): Record<string, unknown> {
