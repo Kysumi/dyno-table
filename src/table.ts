@@ -119,13 +119,17 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    */
   query<T extends Record<string, unknown>>(keyCondition: PrimaryKey): QueryBuilder<T, TConfig> {
     // Default to main table's partition and sort keys
-    const pkAttributeName = "pk";
-    const skAttributeName = "sk";
+    const pkAttributeName = this.partitionKey;
+    const skAttributeName = this.sortKey;
 
     // Create the key condition expression using the main table's keys
     let keyConditionExpression = eq(pkAttributeName, keyCondition.pk);
 
     if (keyCondition.sk) {
+      if (!skAttributeName) {
+        throw new Error("Sort key is not defined for Index");
+      }
+
       const keyConditionOperator: KeyConditionOperator = {
         eq: (value) => eq(skAttributeName, value),
         lt: (value) => lt(skAttributeName, value),
@@ -402,8 +406,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     // Process each chunk from the generator
     for (const chunk of chunkArray(keys, DDB_BATCH_GET_LIMIT)) {
       const formattedKeys = chunk.map((key) => ({
-        pk: key.pk,
-        sk: key.sk,
+        [this.partitionKey]: key.pk,
+        ...(this.sortKey ? { [this.sortKey]: key.sk } : {}),
       }));
 
       const params = {
@@ -425,8 +429,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         // Track any unprocessed keys
         const unprocessedKeysArray = result.UnprocessedKeys?.[this.tableName]?.Keys || [];
         const unprocessedKeys = unprocessedKeysArray.map((key) => ({
-          pk: key.pk as string,
-          sk: key.sk as string,
+          pk: key[this.partitionKey] as string,
+          sk: this.sortKey ? (key[this.sortKey] as string) : undefined,
         }));
 
         if (unprocessedKeys.length > 0) {
@@ -469,8 +473,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         return {
           DeleteRequest: {
             Key: {
-              pk: operation.key.pk,
-              sk: operation.key.sk,
+              [this.partitionKey]: operation.key.pk,
+              ...(this.sortKey ? { [this.sortKey]: operation.key.sk } : {}),
             },
           },
         };
@@ -501,8 +505,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
               return {
                 type: "delete" as const,
                 key: {
-                  pk: request.DeleteRequest.Key.pk as string,
-                  sk: request.DeleteRequest.Key.sk as string,
+                  pk: request.DeleteRequest.Key[this.partitionKey] as string,
+                  sk: this.sortKey ? (request.DeleteRequest.Key[this.sortKey] as string) : undefined,
                 },
               };
             }
