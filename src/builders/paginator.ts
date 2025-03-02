@@ -10,12 +10,12 @@ export interface PaginationResult<T> {
 
 export class Paginator<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
   private queryBuilder: QueryBuilder<T, TConfig>;
-  private pageSize: number;
+  private readonly pageSize: number;
   private currentPage = 0;
   private lastEvaluatedKey?: Record<string, unknown>;
   private hasMorePages = true;
   private totalItemsRetrieved = 0;
-  private overallLimit?: number;
+  private readonly overallLimit?: number;
 
   constructor(queryBuilder: QueryBuilder<T, TConfig>, pageSize: number) {
     this.queryBuilder = queryBuilder;

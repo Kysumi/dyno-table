@@ -31,7 +31,7 @@ export class TransactionBuilder {
   private items: TransactionItem[] = [];
   private options: TransactionOptions = {};
   private indexConfig: IndexConfig;
-  private executor: TransactionExecutor;
+  private readonly executor: TransactionExecutor;
 
   constructor(executor: TransactionExecutor, indexConfig: IndexConfig) {
     this.executor = executor;

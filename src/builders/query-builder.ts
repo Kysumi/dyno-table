@@ -38,7 +38,7 @@ type QueryExecutor<T extends Record<string, unknown>> = (
 ) => Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
 
 export class QueryBuilder<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
-  private keyCondition: Condition;
+  private readonly keyCondition: Condition;
   private options: QueryOptions = {};
   private selectedFields: Set<string> = new Set();
 

@@ -29,8 +29,8 @@ export interface ConditionCheckCommandParams extends DynamoCommandWithExpression
 }
 
 export class ConditionCheckBuilder {
-  private key: PrimaryKeyWithoutExpression;
-  private tableName: string;
+  private readonly key: PrimaryKeyWithoutExpression;
+  private readonly tableName: string;
   private conditionExpression?: Condition;
 
   constructor(tableName: string, key: PrimaryKeyWithoutExpression) {

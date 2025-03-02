@@ -40,9 +40,9 @@ export class DeleteBuilder {
   private options: DeleteOptions = {
     returnValues: "ALL_OLD",
   };
-  private executor: DeleteExecutor;
-  private tableName: string;
-  private key: PrimaryKeyWithoutExpression;
+  private readonly executor: DeleteExecutor;
+  private readonly tableName: string;
+  private readonly key: PrimaryKeyWithoutExpression;
 
   constructor(executor: DeleteExecutor, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;

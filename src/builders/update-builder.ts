@@ -54,9 +54,9 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
   private options: UpdateOptions = {
     returnValues: "ALL_NEW",
   };
-  private executor: UpdateExecutor<T>;
-  private tableName: string;
-  private key: PrimaryKeyWithoutExpression;
+  private readonly executor: UpdateExecutor<T>;
+  private readonly tableName: string;
+  private readonly key: PrimaryKeyWithoutExpression;
 
   constructor(executor: UpdateExecutor<T>, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;

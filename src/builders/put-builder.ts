@@ -37,10 +37,10 @@ export interface PutCommandParams extends DynamoCommandWithExpressions {
 type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams) => Promise<T>;
 
 export class PutBuilder<T extends Record<string, unknown>> {
-  private item: T;
+  private readonly item: T;
   private options: PutOptions = {};
-  private executor: PutExecutor<T>;
-  private tableName: string;
+  private readonly executor: PutExecutor<T>;
+  private readonly tableName: string;
 
   constructor(executor: PutExecutor<T>, item: T, tableName: string) {
     this.executor = executor;
