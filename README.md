@@ -72,19 +72,19 @@ const client = new DynamoDBClient({ region: "us-west-2" });
 const docClient = DynamoDBDocument.from(client);
 
 // Initialize table with single-table design schema
-const dinoTable = new Table(docClient, {
-  name: "DinosaurPark",
-  partitionKey: "pk",
-  sortKey: "sk",
-  gsis: [
-    {
-      name: "GSI1",
-      keySchema: {
-        pk: "GSI1PK",
-        sk: "GSI1SK",
+const dinoTable = new Table({
+  client: docClient,
+  tableName: "DinosaurPark",
+  indexes: {
+    partitionKey: "pk",
+    sortKey: "sk",
+    gsis: {
+      speciesId: {
+        partitionKey: "gsi1pk",
+        sortKey: "gsi1sk",
       },
     },
-  ],
+  },
 });
 ```
 
