@@ -18,9 +18,9 @@ import {
 } from "./conditions";
 import { buildExpression, generateAttributeName } from "./expression";
 import { QueryBuilder, type QueryOptions } from "./builders/query-builder";
-import { PutBuilder, type PutCommandParams } from "./builders/put-builder";
-import { DeleteBuilder, type DeleteCommandParams } from "./builders/delete-builder";
-import { UpdateBuilder, type UpdateCommandParams } from "./builders/update-builder";
+import { PutBuilder } from "./builders/put-builder";
+import { DeleteBuilder } from "./builders/delete-builder";
+import { UpdateBuilder } from "./builders/update-builder";
 import type { Path } from "./builders/types";
 import { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
 import type { BatchWriteOperation } from "./operation-types";
@@ -29,6 +29,7 @@ import { ConditionCheckBuilder } from "./builders/condition-check-builder";
 import { debugCommand } from "./utils/debug-expression";
 import { GetBuilder, type GetCommandParams } from "./builders/get-builder";
 import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
+import type { PutCommandParams, DeleteCommandParams, UpdateCommandParams } from "./builders/builder-types";
 
 const DDB_BATCH_WRITE_LIMIT = 25;
 const DDB_BATCH_GET_LIMIT = 100;

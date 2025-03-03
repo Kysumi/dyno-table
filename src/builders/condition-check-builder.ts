@@ -19,14 +19,7 @@ import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
 import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
 import { debugCommand } from "../utils/debug-expression";
-
-export interface ConditionCheckCommandParams extends DynamoCommandWithExpressions {
-  tableName: string;
-  key: PrimaryKeyWithoutExpression;
-  conditionExpression: string;
-  expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, unknown>;
-}
+import type { ConditionCheckCommandParams } from "./builder-types";
 
 /**
  * Builder for creating DynamoDB condition check operations.
@@ -35,12 +28,12 @@ export interface ConditionCheckCommandParams extends DynamoCommandWithExpression
  * - Ensure preconditions in transactions
  * - Implement optimistic locking patterns
  * - Validate business rules
- * 
+ *
  * @example
  * ```typescript
  * // Check if dinosaur is ready for feeding
  * const check = new ConditionCheckBuilder('dinosaurs', { id: 'TREX-001' })
- *   .condition(op => 
+ *   .condition(op =>
  *     op.and([
  *       op.eq('status', 'HUNTING'),
  *       op.gt('stats.hunger', 80),
@@ -48,10 +41,10 @@ export interface ConditionCheckCommandParams extends DynamoCommandWithExpression
  *     ])
  *   )
  *   .toDynamoCommand();
- * 
+ *
  * // Check habitat security status
  * const securityCheck = new ConditionCheckBuilder('habitats', { id: 'PADDOCK-A' })
- *   .condition(op => 
+ *   .condition(op =>
  *     op.and([
  *       op.eq('securityStatus', 'ACTIVE'),
  *       op.attributeExists('lastInspection'),
@@ -77,29 +70,29 @@ export class ConditionCheckBuilder {
    * - Validate complex item states
    * - Check multiple attributes together
    * - Ensure safety conditions are met
-   * 
+   *
    * @example
    * ```typescript
    * // Check dinosaur health and behavior
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.gt('stats.health', 50),
    *     op.not(op.eq('status', 'SEDATED')),
    *     op.lt('aggressionLevel', 8)
    *   ])
    * );
-   * 
+   *
    * // Verify habitat conditions
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.eq('powerStatus', 'ONLINE'),
    *     op.between('temperature', 20, 30),
    *     op.attributeExists('lastMaintenance')
    *   ])
    * );
-   * 
+   *
    * // Check breeding conditions
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.eq('species', 'VELOCIRAPTOR'),
    *     op.gte('age', 3),
@@ -107,7 +100,7 @@ export class ConditionCheckBuilder {
    *   ])
    * );
    * ```
-   * 
+   *
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */

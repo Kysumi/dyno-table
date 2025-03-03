@@ -1,4 +1,3 @@
-import { generateAttributeName } from "../expression";
 import type { PrimaryKeyWithoutExpression } from "../conditions";
 
 /**

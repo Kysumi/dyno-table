@@ -19,6 +19,7 @@ import type { Path, PathType } from "./types";
 import type { TransactionBuilder } from "./transaction-builder";
 import { buildExpression, generateAttributeName, generateValueName } from "../expression";
 import { debugCommand, type DynamoCommandWithExpressions } from "../utils/debug-expression";
+import type { UpdateCommandParams } from "./builder-types";
 
 /**
  * Configuration options for DynamoDB update operations.
@@ -27,27 +28,6 @@ export interface UpdateOptions {
   /** Optional condition that must be satisfied for the update to succeed */
   condition?: Condition;
   /** Determines which item attributes to include in the response */
-  returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
-}
-
-/**
- * Parameters for the DynamoDB update command.
- * These parameters are used when executing the operation against DynamoDB.
- */
-export interface UpdateCommandParams extends DynamoCommandWithExpressions {
-  /** The name of the DynamoDB table */
-  tableName: string;
-  /** The primary key of the item to update */
-  key: PrimaryKeyWithoutExpression;
-  /** The update expression (SET, REMOVE, ADD, DELETE clauses) */
-  updateExpression: string;
-  /** Optional condition expression that must be satisfied */
-  conditionExpression?: string;
-  /** Map of expression attribute name placeholders to actual names */
-  expressionAttributeNames?: Record<string, string>;
-  /** Map of expression attribute value placeholders to actual values */
-  expressionAttributeValues?: Record<string, unknown>;
-  /** Which item attributes to include in the response */
   returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
 }
 
@@ -97,13 +77,13 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
  * - Perform conditional updates
  * - Work with nested attributes
  * - Update sets and lists
- * 
+ *
  * The builder supports all DynamoDB update operations:
  * - SET: Modify or add attributes
  * - REMOVE: Delete attributes
  * - ADD: Update numbers and sets
  * - DELETE: Remove elements from a set
- * 
+ *
  * @example
  * ```typescript
  * // Simple update
@@ -111,7 +91,7 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
  *   .set('status', 'HUNTING')
  *   .set('lastFed', new Date().toISOString())
  *   .execute();
- * 
+ *
  * // Complex update with multiple operations
  * const result = await new UpdateBuilder(executor, 'habitats', { id: 'PADDOCK-A' })
  *   .set({
@@ -125,7 +105,7 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
  *   .returnValues('ALL_NEW')
  *   .execute();
  * ```
- * 
+ *
  * @typeParam T - The type of item being updated
  */
 export class UpdateBuilder<T extends Record<string, unknown>> {
@@ -149,7 +129,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Update multiple attributes at once
    * - Set nested attribute values
    * - Modify complex data structures
-   * 
+   *
    * @example
    * ```typescript
    * // Update multiple attributes
@@ -169,14 +149,14 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Update one attribute at a time
    * - Set values with type safety
    * - Update nested attributes
-   * 
+   *
    * @example
    * ```typescript
    * // Set simple attributes
    * builder
    *   .set('status', 'SLEEPING')
    *   .set('lastFeeding', new Date().toISOString());
-   * 
+   *
    * // Set nested attributes
    * builder
    *   .set('location.zone', 'RESTRICTED')
@@ -210,20 +190,20 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Delete attributes completely
    * - Remove nested attributes
    * - Clean up deprecated fields
-   * 
+   *
    * @example
    * ```typescript
    * // Remove simple attributes
    * builder
    *   .remove('temporaryTag')
    *   .remove('previousLocation');
-   * 
+   *
    * // Remove nested attributes
    * builder
    *   .remove('metadata.testData')
    *   .remove('stats.experimentalMetrics');
    * ```
-   * 
+   *
    * @param path - The path to the attribute to remove
    * @returns The builder instance for method chaining
    */
@@ -241,20 +221,20 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Increment counters
    * - Add elements to a set atomically
    * - Update numerical statistics
-   * 
+   *
    * @example
    * ```typescript
    * // Increment counters
    * builder
    *   .add('escapeAttempts', 1)
    *   .add('feedingCount', 1);
-   * 
+   *
    * // Add to sets
    * builder
    *   .add('knownBehaviors', new Set(['PACK_HUNTING', 'AMBUSH_TACTICS']))
    *   .add('visitedZones', new Set(['ZONE_A', 'ZONE_B']));
    * ```
-   * 
+   *
    * @param path - The path to the attribute to update
    * @param value - The value to add (number or set)
    * @returns The builder instance for method chaining
@@ -274,7 +254,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Remove specific elements from a set
    * - Update set-based attributes atomically
    * - Maintain set membership
-   * 
+   *
    * @example
    * ```typescript
    * // Remove from sets using arrays
@@ -282,20 +262,20 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *   'allowedHabitats',
    *   ['JUNGLE', 'COASTAL']
    * );
-   * 
+   *
    * // Remove from sets using Set objects
    * builder.deleteElementsFromSet(
    *   'knownBehaviors',
    *   new Set(['NOCTURNAL', 'TERRITORIAL'])
    * );
-   * 
+   *
    * // Remove from nested sets
    * builder.deleteElementsFromSet(
    *   'stats.compatibleSpecies',
    *   ['VELOCIRAPTOR', 'DILOPHOSAURUS']
    * );
    * ```
-   * 
+   *
    * @param path - The path to the set attribute
    * @param value - Elements to remove (array or Set)
    * @returns The builder instance for method chaining
@@ -327,37 +307,37 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Ensure item state before update
    * - Validate business rules
    * - Prevent concurrent modifications
-   * 
+   *
    * @example
    * ```typescript
    * // Simple condition
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.eq('status', 'ACTIVE')
    * );
-   * 
+   *
    * // Health check condition
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.gt('health', 50),
    *     op.eq('status', 'HUNTING')
    *   ])
    * );
-   * 
+   *
    * // Complex security condition
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.and([
    *     op.attributeExists('securitySystem'),
    *     op.eq('containmentStatus', 'SECURE'),
    *     op.lt('aggressionLevel', 8)
    *   ])
    * );
-   * 
+   *
    * // Version check (optimistic locking)
-   * builder.condition(op => 
+   * builder.condition(op =>
    *   op.eq('version', currentVersion)
    * );
    * ```
-   * 
+   *
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
@@ -393,14 +373,14 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Track changes to specific attributes
    * - Compare old and new values
    * - Monitor attribute modifications
-   * 
+   *
    * Available options:
    * - ALL_NEW: All attributes after the update
    * - UPDATED_NEW: Only updated attributes, new values
    * - ALL_OLD: All attributes before the update
    * - UPDATED_OLD: Only updated attributes, old values
    * - NONE: No attributes returned (default)
-   * 
+   *
    * @example
    * ```typescript
    * // Get complete updated dinosaur
@@ -408,7 +388,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *   .set('status', 'SLEEPING')
    *   .returnValues('ALL_NEW')
    *   .execute();
-   * 
+   *
    * // Track specific attribute changes
    * const result = await builder
    *   .set({
@@ -417,12 +397,12 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *   })
    *   .returnValues('UPDATED_OLD')
    *   .execute();
-   * 
+   *
    * if (result.item) {
    *   console.log('Previous health:', result.item.stats?.health);
    * }
    * ```
-   * 
+   *
    * @param returnValues - Which attributes to return in the response
    * @returns The builder instance for method chaining
    */
@@ -560,26 +540,26 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Update items as part of a larger transaction
    * - Ensure multiple updates are atomic
    * - Coordinate updates across multiple items
-   * 
+   *
    * @example
    * ```typescript
    * const transaction = new TransactionBuilder(executor);
-   * 
+   *
    * // Update dinosaur status and habitat occupancy atomically
    * new UpdateBuilder(executor, 'dinosaurs', { id: 'TREX-001' })
    *   .set('location', 'PADDOCK_A')
    *   .set('status', 'CONTAINED')
    *   .withTransaction(transaction);
-   * 
+   *
    * new UpdateBuilder(executor, 'habitats', { id: 'PADDOCK-A' })
    *   .add('occupants', 1)
    *   .set('lastOccupied', new Date().toISOString())
    *   .withTransaction(transaction);
-   * 
+   *
    * // Execute all operations atomically
    * await transaction.execute();
    * ```
-   * 
+   *
    * @param transaction - The transaction builder to add this operation to
    * @returns The builder instance for method chaining
    */
@@ -595,7 +575,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Verify attribute names and values
    * - Log update operations
    * - Troubleshoot condition expressions
-   * 
+   *
    * @example
    * ```typescript
    * // Create complex update
@@ -607,12 +587,12 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *   })
    *   .add('huntingSuccesses', 1)
    *   .condition(op => op.gt('health', 50));
-   * 
+   *
    * // Debug the update
    * const debugInfo = builder.debug();
    * console.log('Update operation:', debugInfo);
    * ```
-   * 
+   *
    * @returns A readable representation of the update command with resolved expressions
    */
   debug(): Record<string, unknown> {
@@ -626,7 +606,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Apply updates immediately
    * - Get the updated item values
    * - Handle conditional update failures
-   * 
+   *
    * @example
    * ```typescript
    * try {
@@ -638,7 +618,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *       'stats.hunger': 0
    *     })
    *     .add('feedingCount', 1)
-   *     .condition(op => 
+   *     .condition(op =>
    *       op.and([
    *         op.gt('stats.hunger', 80),
    *         op.eq('status', 'HUNTING')
@@ -646,7 +626,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *     )
    *     .returnValues('ALL_NEW')
    *     .execute();
-   * 
+   *
    *   if (result.item) {
    *     console.log('Updated dinosaur:', result.item);
    *   }
@@ -659,7 +639,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *   }
    * }
    * ```
-   * 
+   *
    * @returns A promise that resolves to an object containing the updated item (if returnValues is set)
    * @throws {ConditionalCheckFailedException} If the condition check fails
    * @throws {Error} If the update operation fails for other reasons

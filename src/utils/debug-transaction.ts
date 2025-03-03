@@ -1,4 +1,4 @@
-import type { TransactionItem } from "../builders/transaction-builder";
+import type { TransactionItem } from "../builders/builder-types";
 import { debugCommand } from "./debug-expression";
 
 /**
