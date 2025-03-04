@@ -69,6 +69,63 @@ describe("Table Integration Tests", () => {
   });
 
   describe("Put Items", () => {
+    it("Put an item with an empty attributes", async () => {
+      const dino = {
+        pk: "dinosaur#3",
+        sk: "dino#stego",
+        name: "",
+        type: null,
+        period: "",
+      };
+
+      const result = await table.put<typeof dino>(dino).execute();
+      expect(result).toEqual(dino);
+
+      // Verify item was created
+      const queryResult = await table.query<typeof dino>({ pk: "dinosaur#3" }).execute();
+      const dinoResult = queryResult.items[0];
+
+      console.log(JSON.stringify(dinoResult));
+
+      expect(queryResult.items).toHaveLength(1);
+      expect(dinoResult).toEqual(dino);
+      expect(dinoResult?.name).toBe("");
+    });
+
+    it("Nested objects with empty strings and nulls", async () => {
+      const dino = {
+        pk: "dinosaur#3",
+        sk: "dino#stego",
+        name: "",
+        type: {
+          size: "",
+          wow: null,
+          help: {
+            please: null,
+            another: "",
+          },
+        },
+        period: "",
+      };
+
+      const result = await table.put<typeof dino>(dino).execute();
+      expect(result).toEqual(dino);
+
+      // Verify item was created
+      const queryResult = await table.query<typeof dino>({ pk: "dinosaur#3" }).execute();
+      const dinoResult = queryResult.items[0];
+
+      console.log(JSON.stringify(dinoResult));
+
+      expect(queryResult.items).toHaveLength(1);
+      expect(dinoResult).toEqual(dino);
+      expect(dinoResult?.name).toBe("");
+
+      expect(dinoResult?.type.wow).toBe(null);
+      expect(dinoResult?.type.help.please).toBe(null);
+      expect(dinoResult?.type.help.another).toBe("");
+    });
+
     it("should put an item with no conditions", async () => {
       const dino: Dinosaur = {
         pk: "dinosaur#3",
@@ -650,7 +707,7 @@ describe("Table Integration Tests", () => {
         type: "ReturnTest",
       };
 
-      const result = await table.put(updatedDino).returnValues("ALL_OLD").execute();
+      await table.put(updatedDino).returnValues("ALL_OLD").execute();
 
       // The result should be the updated item, but we can verify the operation worked
       // by checking the item was updated
