@@ -553,10 +553,11 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    *   .useIndex('species-index')
    *   .paginate(10);
    *
-   * // Process pages of security incidents
+   * // Will return a maximum of 10 items even though the page size is 25
    * const paginator = new QueryBuilder(executor, eq('type', 'SECURITY_BREACH'))
    *   .filter(op => op.gt('severityLevel', 7))
    *   .sortDescending()
+   *   .limit(10)
    *   .paginate(25);
    *
    * while (paginator.hasNextPage()) {
