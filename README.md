@@ -28,23 +28,44 @@ await table
 
 ## 📑 Table of Contents
 
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Query](#-type-safe-query-building)
-- [Update](#update-operations)
-  - [Condition Operators](#condition-operators)
-  - [Multiple Operations](#multiple-operations)
-- [Type Safety Features](#-type-safety-features)
-  - [Nested Object Support](#nested-object-support)
-  - [Type-Safe Conditions](#type-safe-conditions)
-- [Batch Operations](#-batch-operations)
-  - [Batch Get](#batch-get)
-  - [Batch Write](#batch-write)
-- [Transaction Operations](#-transaction-operations)
-  - [Transaction Builder](#transaction-builder)
-  - [Transaction Options](#transaction-options)
-- [Error Handling](#-error-handling)
-- [API Reference](#-api-reference)
+- [🦖 dyno-table  ](#-dyno-table--)
+  - [🌟 Why dyno-table?](#-why-dyno-table)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [📦 Installation](#-installation)
+  - [🚀 Quick Start](#-quick-start)
+    - [1. Configure Your Table](#1-configure-your-table)
+    - [2. Perform Type-Safe Operations](#2-perform-type-safe-operations)
+  - [🧩 Advanced Features](#-advanced-features)
+    - [Transactional Operations](#transactional-operations)
+    - [Batch Processing](#batch-processing)
+    - [Pagination Made Simple](#pagination-made-simple)
+  - [🛡️ Type-Safe Query Building](#️-type-safe-query-building)
+    - [Comparison Operators](#comparison-operators)
+    - [Logical Operators](#logical-operators)
+    - [Query Operations](#query-operations)
+    - [Update Operations](#update-operations)
+      - [Condition Operators](#condition-operators)
+      - [Multiple Operations](#multiple-operations)
+  - [🔄 Type Safety Features](#-type-safety-features)
+    - [Nested Object Support](#nested-object-support)
+    - [Type-Safe Conditions](#type-safe-conditions)
+  - [🔄 Batch Operations](#-batch-operations)
+    - [Batch Get](#batch-get)
+    - [Batch Write](#batch-write)
+  - [🔒 Transaction Operations](#-transaction-operations)
+    - [Transaction Builder](#transaction-builder)
+    - [Transaction Options](#transaction-options)
+  - [🏗️ Entity Pattern Best Practices (Coming Soon TM)](#️-entity-pattern-best-practices-coming-soon-tm)
+  - [🚨 Error Handling](#-error-handling)
+  - [📚 API Reference](#-api-reference)
+    - [Condition Operators](#condition-operators-1)
+      - [Comparison Operators](#comparison-operators-1)
+      - [Attribute Operators](#attribute-operators)
+      - [Logical Operators](#logical-operators-1)
+    - [Key Condition Operators](#key-condition-operators)
+  - [🔮 Future Roadmap](#-future-roadmap)
+  - [🤝 Contributing](#-contributing)
+  - [🦔 Running Examples](#-running-examples)
 
 ## 📦 Installation
 
@@ -781,4 +802,34 @@ pnpm test
 
 # Build the project
 pnpm build
+```
+
+## 🦔 Running Examples
+
+There's a few pre-configured example scripts in the `examples` directory.
+
+First you'll need to install the dependencies:
+
+```bash
+pnpm install
+```
+Then setup the test table in local DynamoDB by running the following command:
+
+```bash
+pnpm run local:setup
+```
+
+To run the examples, you can use the following command:
+
+```bash
+npx tsx examples/[EXAMPLE_NAME].ts
+```
+
+A good viewer to see the test table in action: [DynamoDB Admin](https://github.com/aaronshaf/dynamodb-admin)
+
+<br />
+To teardown the test table when you're done, run the following command:
+
+```bash
+pnpm run local:teardown
 ```

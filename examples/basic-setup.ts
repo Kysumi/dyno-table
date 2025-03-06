@@ -17,14 +17,11 @@ import { Table } from "../src";
 // Initialize the DynamoDB client
 const client = new DynamoDBClient({
   region: "us-east-1",
-  // For local development with DynamoDB local
-  ...(process.env.NODE_ENV === "development" && {
-    endpoint: "http://localhost:8000",
-    credentials: {
-      accessKeyId: "local",
-      secretAccessKey: "local",
-    },
-  }),
+  endpoint: "http://localhost:8897",
+  credentials: {
+    accessKeyId: "local",
+    secretAccessKey: "local",
+  },
 });
 
 const docClient = DynamoDBDocument.from(client);
@@ -34,7 +31,7 @@ const docClient = DynamoDBDocument.from(client);
 // parameters as they may differ from what's shown in the examples
 const dinoTable = new Table({
   client: docClient,
-  tableName: "JurassicPark",
+  tableName: "TestTable",
   indexes: {
     partitionKey: "pk",
     sortKey: "sk",
@@ -162,6 +159,4 @@ const main = async () => {
   }
 };
 
-if (require.main === module) {
-  main();
-}
+main();
