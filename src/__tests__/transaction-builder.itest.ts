@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { Table } from "../table";
-import { eq } from "../conditions";
 import { docClient } from "../../tests/ddb-client";
 
 type Dinosaur = {
@@ -71,10 +70,7 @@ describe("TransactionBuilder Integration Tests", () => {
           pk: "ENCLOSURE#B",
           sk: "STATUS",
         })
-        .condition((op) => op.and(
-          op.attributeExists("pk"),
-          op.eq("status", "READY")
-        ))
+        .condition((op) => op.and(op.attributeExists("pk"), op.eq("status", "READY")))
         .withTransaction(transaction);
 
       // Add dinosaur to new enclosure
@@ -100,10 +96,10 @@ describe("TransactionBuilder Integration Tests", () => {
       const destEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#B" }).execute();
 
       // Source enclosure should be empty (except for status)
-      expect(sourceEnclosure.items.filter(item => item.sk.startsWith("DINO#"))).toHaveLength(0);
+      expect(sourceEnclosure.items.filter((item) => item.sk.startsWith("DINO#"))).toHaveLength(0);
 
       // Destination enclosure should have the dinosaur
-      const transferredDino = destEnclosure.items.find(item => item.sk === "DINO#001");
+      const transferredDino = destEnclosure.items.find((item) => item.sk === "DINO#001");
       expect(transferredDino).toBeDefined();
       expect(transferredDino?.name).toBe("Rex");
       expect(transferredDino?.enclosureId).toBe("B");
@@ -118,7 +114,7 @@ describe("TransactionBuilder Integration Tests", () => {
           name: "Veloci",
           species: "Velociraptor",
           diet: "Carnivore",
-          status: "INJURED",  // Not healthy enough for transfer
+          status: "INJURED", // Not healthy enough for transfer
           health: 60,
           enclosureId: "C",
           lastFed: new Date().toISOString(),
@@ -161,10 +157,12 @@ describe("TransactionBuilder Integration Tests", () => {
       });
 
       healthCheckBuilder
-        .condition(op => op.and(
-          op.eq("status", "HEALTHY"),  // This will fail because status is "INJURED"
-          op.gte("health", 80)         // This will fail because health is 60
-        ))
+        .condition((op) =>
+          op.and(
+            op.eq("status", "HEALTHY"), // This will fail because status is "INJURED"
+            op.gte("health", 80), // This will fail because health is 60
+          ),
+        )
         .withTransaction(transaction);
 
       // Execute the transaction and expect it to fail
@@ -182,13 +180,13 @@ describe("TransactionBuilder Integration Tests", () => {
       const quarantineEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#QUARANTINE" }).execute();
 
       // The dinosaur should still be in the original enclosure
-      const originalDino = sourceEnclosure.items.find(item => item.sk === "DINO#002");
+      const originalDino = sourceEnclosure.items.find((item) => item.sk === "DINO#002");
       expect(originalDino).toBeDefined();
       expect(originalDino?.status).toBe("INJURED");
       expect(originalDino?.enclosureId).toBe("C");
 
       // The quarantine enclosure should not have the dinosaur
-      const quarantineDino = quarantineEnclosure.items.find(item => item.sk === "DINO#002");
+      const quarantineDino = quarantineEnclosure.items.find((item) => item.sk === "DINO#002");
       expect(quarantineDino).toBeUndefined();
     });
 
@@ -219,11 +217,11 @@ describe("TransactionBuilder Integration Tests", () => {
         })
         .set("status", "HEALTHY")
         .set("lastFed", new Date().toISOString())
-        .add("health", 15)  // Increase health after feeding
-        .deleteElementsFromSet("tags", ["needs_feeding"])  // Remove feeding tag
+        .add("health", 15) // Increase health after feeding
+        .deleteElementsFromSet("tags", ["needs_feeding"]) // Remove feeding tag
         .set({
-          "diet": "Herbivore",  // Confirm diet type
-          "enclosureId": "D"    // Maintain enclosure tracking
+          diet: "Herbivore", // Confirm diet type
+          enclosureId: "D", // Maintain enclosure tracking
         });
 
       updateBuilder.withTransaction(transaction);
@@ -244,9 +242,7 @@ describe("TransactionBuilder Integration Tests", () => {
       expect(dino?.status).toBe("HEALTHY");
 
       // Verify feeding status
-      expect(new Date(dino?.lastFed || "").getTime()).toBeGreaterThan(
-        new Date(Date.now() - 60000).getTime()
-      ); // Fed within the last minute
+      expect(new Date(dino?.lastFed || "").getTime()).toBeGreaterThan(new Date(Date.now() - 60000).getTime()); // Fed within the last minute
 
       // Check tags - needs_feeding should be removed, other tags retained
       expect(dino?.tags).toBeDefined();
@@ -291,10 +287,7 @@ describe("TransactionBuilder Integration Tests", () => {
         sk: "STATUS",
       });
       statusCheck
-        .condition(op => op.and(
-          op.eq("status", "ACTIVE"),
-          op.eq("diet", "Herbivore")
-        ))
+        .condition((op) => op.and(op.eq("status", "ACTIVE"), op.eq("diet", "Herbivore")))
         .withTransaction(transaction);
 
       // Check occupancy (must be AVAILABLE)
@@ -303,10 +296,12 @@ describe("TransactionBuilder Integration Tests", () => {
         sk: "OCCUPANCY",
       });
       occupancyCheck
-        .condition(op => op.and(
-          op.eq("status", "AVAILABLE"),
-          op.contains("tags", "current_occupants_2")  // Verify current occupancy
-        ))
+        .condition((op) =>
+          op.and(
+            op.eq("status", "AVAILABLE"),
+            op.contains("tags", "current_occupants_2"), // Verify current occupancy
+          ),
+        )
         .withTransaction(transaction);
 
       // Add new dinosaur if all conditions pass
