@@ -55,11 +55,6 @@ type QueryExecutor<T extends Record<string, unknown>> = (
 
 /**
  * Builder for creating DynamoDB query operations.
- * Use this builder when you need to:
- * - Find dinosaurs by species or status
- * - Search habitats by type or region
- * - List incidents by date range
- * - Retrieve feeding schedules
  *
  * The builder supports:
  * - Complex filtering conditions
@@ -108,10 +103,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Sets the maximum number of items to return from the query.
-   * Use this method when you need to:
-   * - Limit the result set size
-   * - Implement manual pagination
-   * - Control data transfer size
    *
    * Note: This limit applies to the items that match the key condition
    * before any filter expressions are applied.
@@ -144,11 +135,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Specifies a Global Secondary Index (GSI) to use for the query.
-   * Use this method when you need to:
-   * - Query dinosaurs by species or status
-   * - Search habitats by security level
-   * - Find incidents by date
-   * - List feeding schedules by time
    *
    * @example
    * ```ts
@@ -178,12 +164,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Sets whether to use strongly consistent reads for the query.
-   * Use this method when you need to:
-   * - Get real-time dinosaur status updates
-   * - Monitor critical security systems
-   * - Track immediate habitat changes
-   * - Verify containment protocols
-   *
    * Note:
    * - Consistent reads are not available on GSIs
    * - Consistent reads consume twice the throughput
@@ -214,11 +194,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Adds a filter expression to refine the query results.
-   * Use this method when you need to:
-   * - Filter dinosaurs by behavior patterns
-   * - Find habitats with specific conditions
-   * - Search for security incidents
-   * - Monitor feeding patterns
    *
    * @example
    * ```ts
@@ -271,11 +246,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Specifies which attributes to return in the query results.
-   * Use this method when you need to:
-   * - Get specific dinosaur attributes
-   * - Retrieve habitat statistics
-   * - Monitor security metrics
-   * - Optimize response size
    *
    * @example
    * ```ts
@@ -315,11 +285,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Sets the query to return items in ascending order by sort key.
-   * Use this method when you need to:
-   * - List dinosaurs by age (youngest first)
-   * - View incidents chronologically
-   * - Track feeding schedule progression
-   * - Monitor habitat inspections
    *
    * @example
    * ```ts
@@ -345,11 +310,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Sets the query to return items in descending order by sort key.
-   * Use this method when you need to:
-   * - Get most recent security breaches
-   * - Find oldest dinosaurs first
-   * - Check latest habitat modifications
-   * - Monitor recent feeding events
    *
    * @example
    * ```ts
@@ -377,11 +337,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Creates a paginator that handles DynamoDB pagination automatically.
-   * Use this method when you need to:
-   * - Browse large dinosaur collections
-   * - View habitat inspection history
-   * - Monitor security incidents
-   * - Track feeding patterns
    *
    * The paginator handles:
    * - Tracking the last evaluated key
@@ -419,11 +374,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Sets the starting point for the query using a previous lastEvaluatedKey.
-   * Use this method when you need to:
-   * - Implement manual dinosaur list pagination
-   * - Resume habitat inspection reviews
-   * - Continue security incident analysis
-   * - Store query position between sessions
    *
    * Note: This method is typically used for manual pagination.
    * For automatic pagination, use the paginate() method instead.
@@ -458,11 +408,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Creates a deep clone of this QueryBuilder instance.
-   * Use this method when you need to:
-   * - Query different dinosaur statuses
-   * - Check multiple habitat conditions
-   * - Monitor various security levels
-   * - Create report templates
    *
    * This is particularly useful when:
    * - Implementing pagination (used internally by paginate())
@@ -503,11 +448,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
 
   /**
    * Executes the query against DynamoDB.
-   * Use this method when you need to:
-   * - Find specific dinosaur groups
-   * - Check habitat conditions
-   * - Monitor security incidents
-   * - Track feeding patterns
    *
    * The method returns both the matched items and, if there are more results,
    * a lastEvaluatedKey that can be used with startFrom() to continue the query.
