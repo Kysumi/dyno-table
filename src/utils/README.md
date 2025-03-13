@@ -8,7 +8,7 @@ The `debug-expression.ts` file provides utilities to make DynamoDB expressions m
 
 ### Example Usage
 
-```typescript
+```ts
 import { debugExpression, debugCommand } from './utils/debug-expression';
 
 // Example with a simple expression
@@ -70,7 +70,7 @@ The `debug-transaction.ts` file provides utilities to make DynamoDB transaction 
 
 ### Example Usage
 
-```typescript
+```ts
 import { Table } from '../table';
 import { dynamoClient } from '../config';
 

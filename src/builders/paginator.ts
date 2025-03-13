@@ -15,7 +15,7 @@ import type { PaginationResult, QueryBuilderInterface } from "./builder-types";
  * - Continuation tokens
  *
  * @example
- * ```typescript
+ * ```ts
  * // List all velociraptors with pagination
  * const paginator = new QueryBuilder(executor, eq('species', 'Velociraptor'))
  *   .filter(op => op.eq('status', 'ACTIVE'))

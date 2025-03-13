@@ -58,7 +58,7 @@ export type TransactionExecutor = (params: TransactWriteCommandInput) => Promise
  * - Transaction-wide options
  *
  * @example
- * ```typescript
+ * ```ts
  * // Create a transaction with multiple operations
  * const transaction = new TransactionBuilder(executor, {
  *   partitionKey: 'id',
@@ -172,7 +172,7 @@ export class TransactionBuilder {
    * to prevent multiple operations on the same item.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Simple put operation
    * transaction.put('orders', {
    *   orderId: '123',
@@ -238,7 +238,7 @@ export class TransactionBuilder {
    * to maintain consistency in put operations across your application.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Create a put command with PutBuilder
    * const putCommand = new PutBuilder(executor, newItem, 'users')
    *   .condition(op => op.attributeNotExists('userId'))
@@ -277,7 +277,7 @@ export class TransactionBuilder {
    * to prevent multiple operations on the same item.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Simple delete operation
    * transaction.delete('orders', {
    *   pk: 'ORDER#123',
@@ -345,7 +345,7 @@ export class TransactionBuilder {
    * to maintain consistency in delete operations across your application.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Create a delete command with DeleteBuilder
    * const deleteCommand = new DeleteBuilder(executor, 'users', { pk: 'USER#123' })
    *   .condition(op => op.and([
@@ -390,7 +390,7 @@ export class TransactionBuilder {
    * - DELETE: Remove elements from a set
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Simple update
    * transaction.update(
    *   'orders',
@@ -485,7 +485,7 @@ export class TransactionBuilder {
    * to maintain consistency in update operations across your application.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Create an update command with UpdateBuilder
    * const updateCommand = new UpdateBuilder(executor, 'inventory', { pk: 'PROD#ABC' })
    *   .set('quantity', ':qty')
@@ -533,7 +533,7 @@ export class TransactionBuilder {
    * - Validating business rules atomically
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Check if order is in correct state
    * transaction.conditionCheck(
    *   'orders',
@@ -609,7 +609,7 @@ export class TransactionBuilder {
    * to maintain consistency in condition checks across your application.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Create a condition check with ConditionCheckBuilder
    * const checkCommand = new ConditionCheckBuilder('inventory', { pk: 'PROD#ABC' })
    *   .condition(op => op.and([
@@ -648,7 +648,7 @@ export class TransactionBuilder {
    * - Monitor item collection metrics
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Enable idempotency and capacity tracking
    * transaction.withOptions({
    *   clientRequestToken: 'unique-request-id-123',
@@ -684,7 +684,7 @@ export class TransactionBuilder {
    * making it easier to understand the transaction's operations.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Add multiple operations
    * transaction
    *   .put('orders', { orderId: '123', status: 'PENDING' })
@@ -717,7 +717,7 @@ export class TransactionBuilder {
    * If any operation fails, the entire transaction is rolled back.
    *
    * @example
-   * ```typescript
+   * ```ts
    * try {
    *   // Build and execute transaction
    *   await transaction

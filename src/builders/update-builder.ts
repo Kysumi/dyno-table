@@ -85,7 +85,7 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
  * - DELETE: Remove elements from a set
  *
  * @example
- * ```typescript
+ * ```ts
  * // Simple update
  * const result = await new UpdateBuilder(executor, 'dinosaurs', { id: 'TREX-001' })
  *   .set('status', 'HUNTING')
@@ -131,7 +131,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Modify complex data structures
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Update multiple attributes
    * builder.set({
    *   species: 'Tyrannosaurus Rex',
@@ -151,7 +151,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Update nested attributes
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Set simple attributes
    * builder
    *   .set('status', 'SLEEPING')
@@ -192,7 +192,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Clean up deprecated fields
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Remove simple attributes
    * builder
    *   .remove('temporaryTag')
@@ -223,7 +223,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Update numerical statistics
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Increment counters
    * builder
    *   .add('escapeAttempts', 1)
@@ -256,7 +256,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Maintain set membership
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Remove from sets using arrays
    * builder.deleteElementsFromSet(
    *   'allowedHabitats',
@@ -309,7 +309,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Prevent concurrent modifications
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Simple condition
    * builder.condition(op =>
    *   op.eq('status', 'ACTIVE')
@@ -382,7 +382,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - NONE: No attributes returned (default)
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Get complete updated dinosaur
    * const result = await builder
    *   .set('status', 'SLEEPING')
@@ -542,7 +542,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Coordinate updates across multiple items
    *
    * @example
-   * ```typescript
+   * ```ts
    * const transaction = new TransactionBuilder(executor);
    *
    * // Update dinosaur status and habitat occupancy atomically
@@ -577,7 +577,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Troubleshoot condition expressions
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Create complex update
    * const builder = new UpdateBuilder(executor, 'dinosaurs', { id: 'RAPTOR-001' })
    *   .set({
@@ -608,7 +608,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * - Handle conditional update failures
    *
    * @example
-   * ```typescript
+   * ```ts
    * try {
    *   // Update dinosaur status with conditions
    *   const result = await new UpdateBuilder(executor, 'dinosaurs', { id: 'TREX-001' })

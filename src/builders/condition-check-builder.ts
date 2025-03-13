@@ -30,7 +30,7 @@ import type { ConditionCheckCommandParams } from "./builder-types";
  * - Validate business rules
  *
  * @example
- * ```typescript
+ * ```ts
  * // Check if dinosaur is ready for feeding
  * const check = new ConditionCheckBuilder('dinosaurs', { id: 'TREX-001' })
  *   .condition(op =>
@@ -72,7 +72,7 @@ export class ConditionCheckBuilder {
    * - Ensure safety conditions are met
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Check dinosaur health and behavior
    * builder.condition(op =>
    *   op.and([

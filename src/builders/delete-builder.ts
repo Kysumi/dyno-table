@@ -36,7 +36,7 @@ type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: Record<s
  * - Remove deprecated classifications
  *
  * @example
- * ```typescript
+ * ```ts
  * // Simple delete
  * const result = await new DeleteBuilder(executor, 'dinosaurs', { id: 'TREX-001' })
  *   .execute();
@@ -76,7 +76,7 @@ export class DeleteBuilder {
    * - Implement safety protocols
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Ensure dinosaur can be safely removed
    * builder.condition(op =>
    *   op.and([

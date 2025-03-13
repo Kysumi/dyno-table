@@ -41,7 +41,7 @@ type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams)
  * - Initialize tracking records
  *
  * @example
- * ```typescript
+ * ```ts
  * // Add new dinosaur
  * const result = await new PutBuilder(executor, {
  *   id: 'RAPTOR-001',
@@ -83,37 +83,12 @@ export class PutBuilder<T extends Record<string, unknown>> {
   /**
    * Adds a condition that must be satisfied for the put operation to succeed.
    * Use this method when you need to:
-   * - Prevent overwriting existing items (optimistic locking)
-   * - Ensure items meet certain criteria before replacement
-   * - Implement complex business rules for item updates
-   *
-   * @example
-   * ```ts
-   * // Ensure item doesn't exist (insert only)
-   * builder.condition(op => op.attributeNotExists('id'))
-   *
-   * // Complex condition with version check
-   * builder.condition(op =>
-   *   op.and([
-   *     op.attributeExists('id'),
-   *     op.eq('version', currentVersion),
-   *     op.eq('status', 'ACTIVE')
-   *   ])
-   * )
-   * ```
-   *
-   * @param condition - Either a Condition object or a callback function that builds the condition
-   * @returns The builder instance for method chaining
-   */
-  /**
-   * Adds a condition that must be satisfied for the put operation to succeed.
-   * Use this method when you need to:
    * - Prevent duplicate dinosaur entries
    * - Ensure habitat requirements
    * - Validate security protocols
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Ensure unique dinosaur ID
    * builder.condition(op =>
    *   op.attributeNotExists('id')

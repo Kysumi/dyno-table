@@ -40,7 +40,7 @@ type GetExecutor<T extends Record<string, unknown>> = (params: GetCommandParams)
  * - Use consistent reads for critical dinosaur data
  *
  * @example
- * ```typescript
+ * ```ts
  * // Simple get
  * const result = await new GetBuilder(executor, { pk: 'dinosaur#123', sk: 'profile' })
  *   .execute();
@@ -85,7 +85,7 @@ export class GetBuilder<T extends Record<string, unknown>> {
    * - Focus on relevant dinosaur characteristics only
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Select single attribute
    * builder.select('species')
    *
@@ -124,7 +124,7 @@ export class GetBuilder<T extends Record<string, unknown>> {
    * Note: Consistent reads consume twice the throughput
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Get the latest T-Rex data
    * const result = await new GetBuilder(executor, { pk: 'dinosaur#123', sk: 'profile' })
    *   .consistentRead()
@@ -143,7 +143,7 @@ export class GetBuilder<T extends Record<string, unknown>> {
    * Executes the get operation against DynamoDB.
    *
    * @example
-   * ```typescript
+   * ```ts
    * try {
    *   const result = await new GetBuilder(executor, { pk: 'dinosaur#123', sk: 'profile' })
    *     .select(['species', 'name', 'diet'])

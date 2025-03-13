@@ -56,51 +56,6 @@ type QueryExecutor<T extends Record<string, unknown>> = (
 /**
  * Builder for creating DynamoDB query operations.
  * Use this builder when you need to:
- * - Query items using partition key (and optionally sort key)
- * - Filter results based on non-key attributes
- * - Use Global Secondary Indexes (GSIs)
- * - Implement pagination
- * - Control result ordering
- * - Project specific attributes
- *
- * The builder supports:
- * - Type-safe GSI selection
- * - Complex filter conditions
- * - Automatic pagination handling
- * - Consistent reads
- * - Forward and reverse sorting
- *
- * @example
- * ```ts
- * // Simple query
- * const result = await new QueryBuilder(executor, eq('userId', '123'))
- *   .execute();
- *
- * // Complex query with GSI and filtering
- * const result = await new QueryBuilder(executor, eq('status', 'ACTIVE'))
- *   .useIndex('status-index')
- *   .filter(op => op.beginsWith('name', 'John'))
- *   .select(['id', 'name', 'email'])
- *   .sortDescending()
- *   .limit(10)
- *   .execute();
- *
- * // Query with pagination
- * const paginator = new QueryBuilder(executor, eq('type', 'order'))
- *   .paginate(25);
- *
- * while (paginator.hasNextPage()) {
- *   const page = await paginator.getNextPage();
- *   // Process page.items
- * }
- * ```
- *
- * @typeParam T - The type of items being queried
- * @typeParam TConfig - The table configuration type for type-safe GSI selection
- */
-/**
- * Builder for creating DynamoDB query operations.
- * Use this builder when you need to:
  * - Find dinosaurs by species or status
  * - Search habitats by type or region
  * - List incidents by date range
@@ -113,7 +68,7 @@ type QueryExecutor<T extends Record<string, unknown>> = (
  * - Attribute projection
  *
  * @example
- * ```typescript
+ * ```ts
  * // Find active carnivores
  * const result = await new QueryBuilder(executor, eq('species', 'Tyrannosaurus'))
  *   .filter(op => op.eq('status', 'ACTIVE'))
@@ -190,45 +145,13 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
   /**
    * Specifies a Global Secondary Index (GSI) to use for the query.
    * Use this method when you need to:
-   * - Query data using non-primary key attributes
-   * - Access data through alternate access patterns
-   * - Optimize query performance for specific access patterns
-   *
-   * This method provides type safety by only allowing valid GSI names
-   * defined in your table configuration.
-   *
-   * @example
-   * ```ts
-   * // Query by status using a GSI
-   * const result = await new QueryBuilder(executor, eq('status', 'ACTIVE'))
-   *   .useIndex('status-index')
-   *   .execute();
-   *
-   * // Query by category and date range
-   * const result = await new QueryBuilder(executor, eq('category', 'books'))
-   *   .useIndex('category-date-index')
-   *   .filter(op => op.between('date', startDate, endDate))
-   *   .execute();
-   * ```
-   *
-   * Note: Be aware that GSIs:
-   * - May have different projected attributes
-   * - Have eventually consistent reads only
-   * - May have different provisioned throughput
-   *
-   * @param indexName - The name of the GSI to use (type-safe based on table configuration)
-   * @returns The builder instance for method chaining
-   */
-  /**
-   * Specifies a Global Secondary Index (GSI) to use for the query.
-   * Use this method when you need to:
    * - Query dinosaurs by species or status
    * - Search habitats by security level
    * - Find incidents by date
    * - List feeding schedules by time
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Find all dinosaurs of a specific species
    * builder
    *   .useIndex('species-status-index')
@@ -290,34 +213,6 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
   }
 
   /**
-   * Adds a filter expression to the query.
-   * Use this method when you need to:
-   * - Filter results based on non-key attributes
-   * - Apply complex filtering conditions
-   * - Combine multiple filter conditions
-   *
-   * Note: Filter expressions are applied after the key condition,
-   * so they don't reduce the amount of data read from DynamoDB.
-   *
-   * @example
-   * ```ts
-   * // Simple filter
-   * builder.filter(op => op.eq('status', 'ACTIVE'))
-   *
-   * // Complex filter with multiple conditions
-   * builder.filter(op =>
-   *   op.and([
-   *     op.gt('amount', 1000),
-   *     op.beginsWith('category', 'ELECTRONICS'),
-   *     op.attributeExists('reviewDate')
-   *   ])
-   * )
-   * ```
-   *
-   * @param condition - Either a Condition object or a callback function that builds the condition
-   * @returns The builder instance for method chaining
-   */
-  /**
    * Adds a filter expression to refine the query results.
    * Use this method when you need to:
    * - Filter dinosaurs by behavior patterns
@@ -326,7 +221,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    * - Monitor feeding patterns
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Find aggressive carnivores
    * builder.filter(op =>
    *   op.and([
@@ -377,40 +272,13 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
   /**
    * Specifies which attributes to return in the query results.
    * Use this method when you need to:
-   * - Reduce data transfer by selecting specific attributes
-   * - Optimize response size
-   * - Focus on relevant attributes only
-   *
-   * Note: Using projection can significantly reduce the amount
-   * of data returned and lower your costs.
-   *
-   * @example
-   * ```ts
-   * // Select single attribute
-   * builder.select('email')
-   *
-   * // Select multiple attributes
-   * builder.select(['id', 'name', 'email'])
-   *
-   * // Chain multiple select calls
-   * builder
-   *   .select('id')
-   *   .select(['name', 'email'])
-   * ```
-   *
-   * @param fields - A single field name or an array of field names to return
-   * @returns The builder instance for method chaining
-   */
-  /**
-   * Specifies which attributes to return in the query results.
-   * Use this method when you need to:
    * - Get specific dinosaur attributes
    * - Retrieve habitat statistics
    * - Monitor security metrics
    * - Optimize response size
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Get basic dinosaur info
    * builder.select([
    *   'species',
@@ -448,38 +316,13 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
   /**
    * Sets the query to return items in ascending order by sort key.
    * Use this method when you need to:
-   * - Retrieve items in natural order (e.g., timestamps, versions)
-   * - Implement chronological ordering
-   * - Get oldest items first
-   *
-   * Note: This is the default behavior if no sort order is specified.
-   *
-   * @example
-   * ```typescript
-   * // Get orders in chronological order
-   * const result = await new QueryBuilder(executor, eq('userId', '123'))
-   *   .sortAscending()
-   *   .execute();
-   *
-   * // Get events from oldest to newest
-   * const result = await new QueryBuilder(executor, eq('entityId', 'order-123'))
-   *   .useIndex('entity-timestamp-index')
-   *   .sortAscending()
-   *   .execute();
-   * ```
-   *
-   * @returns The builder instance for method chaining
-   */
-  /**
-   * Sets the query to return items in ascending order by sort key.
-   * Use this method when you need to:
    * - List dinosaurs by age (youngest first)
    * - View incidents chronologically
    * - Track feeding schedule progression
    * - Monitor habitat inspections
    *
    * @example
-   * ```typescript
+   * ```ts
    * // List dinosaurs by age
    * const result = await new QueryBuilder(executor, eq('species', 'Velociraptor'))
    *   .useIndex('age-index')
@@ -509,7 +352,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    * - Monitor recent feeding events
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Get most recent security incidents
    * const result = await new QueryBuilder(executor, eq('type', 'SECURITY_BREACH'))
    *   .useIndex('date-index')
@@ -546,7 +389,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    * - Respecting overall query limits
    *
    * @example
-   * ```typescript
+   * ```ts
    * // List dinosaurs by species
    * const paginator = new QueryBuilder(executor, eq('species', 'Velociraptor'))
    *   .filter(op => op.eq('status', 'ACTIVE'))
@@ -586,7 +429,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    * For automatic pagination, use the paginate() method instead.
    *
    * @example
-   * ```typescript
+   * ```ts
    * // First batch of dinosaurs
    * const result1 = await new QueryBuilder(executor, eq('species', 'Velociraptor'))
    *   .filter(op => op.eq('status', 'ACTIVE'))
@@ -627,7 +470,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    * - Running multiple variations of a query
    *
    * @example
-   * ```typescript
+   * ```ts
    * // Create base dinosaur query
    * const baseQuery = new QueryBuilder(executor, eq('species', 'Velociraptor'))
    *   .useIndex('status-index')
@@ -670,7 +513,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    * a lastEvaluatedKey that can be used with startFrom() to continue the query.
    *
    * @example
-   * ```typescript
+   * ```ts
    * try {
    *   // Find active carnivores in specific habitat
    *   const result = await new QueryBuilder(executor, eq('habitatId', 'PADDOCK-A'))
