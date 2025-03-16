@@ -66,6 +66,30 @@ export interface QueryBuilderInterface<T extends Record<string, unknown>, TConfi
 }
 
 /**
+ * Interface for the ScanBuilder class to be used by Paginator
+ * without creating a circular dependency.
+ */
+export interface ScanBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
+  clone(): ScanBuilderInterface<T, TConfig>;
+  limit(limit: number): ScanBuilderInterface<T, TConfig>;
+  getLimit(): number | undefined;
+  startFrom(lastEvaluatedKey: Record<string, unknown>): ScanBuilderInterface<T, TConfig>;
+  execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
+}
+
+/**
+ * Interface for the FilterBuilder class to be used by Paginator
+ * without creating a circular dependency.
+ */
+export interface FilterBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
+  clone(): FilterBuilderInterface<T, TConfig>;
+  limit(limit: number): FilterBuilderInterface<T, TConfig>;
+  getLimit(): number | undefined;
+  startFrom(lastEvaluatedKey: Record<string, unknown>): FilterBuilderInterface<T, TConfig>;
+  execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
+}
+
+/**
  * Represents the result of a single page query operation.
  * This interface provides all necessary information about the current page
  * and the availability of subsequent pages.

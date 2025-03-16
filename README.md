@@ -816,6 +816,7 @@ pnpm install
 Then setup the test table in local DynamoDB by running the following command:
 
 ```bash
+pnpm run ddb:start
 pnpm run local:setup
 ```
 

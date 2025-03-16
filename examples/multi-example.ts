@@ -288,6 +288,20 @@ const getDinosaursByName = async (species: DinosaurSpecies, firstName: DinosaurN
   }
 };
 
-// seedData();
+const scanData = async () => {
+  const dinosaurs = await dinoTable.scan<Dinosaur>().select(["firstName", "lastName"]).limit(50).paginate(10);
+  let total = 0;
+  do {
+    const page = await dinosaurs.getNextPage();
+    for (const dinosaur of page.items) {
+      console.log(`👋 Mr. ${dinosaur.firstName} ${dinosaur.lastName}`);
+    }
+    total += page.items.length;
+  } while (dinosaurs.hasNextPage());
+  console.log(`Scanned ${total} dinosaurs`);
+};
+
+seedData();
 // cleanData();
-getDinosaursByName("Tyrannosaurus", "Geoff");
+// getDinosaursByName("Tyrannosaurus", "Geoff");
+// scanData();
