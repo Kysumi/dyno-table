@@ -54,40 +54,41 @@ export interface ConditionCheckCommandParams extends DynamoCommandWithExpression
 }
 
 /**
+ * Base interface for all builder classes that support pagination
+ * to be used by Paginator without creating circular dependencies.
+ */
+export interface BaseBuilderInterface<
+  T extends Record<string, unknown>,
+  TConfig extends TableConfig = TableConfig,
+  B = unknown,
+> {
+  clone(): B;
+  limit(limit: number): B;
+  getLimit(): number | undefined;
+  startFrom(lastEvaluatedKey: Record<string, unknown>): B;
+  execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
+}
+
+/**
  * Interface for the QueryBuilder class to be used by Paginator
  * without creating a circular dependency.
  */
-export interface QueryBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
-  clone(): QueryBuilderInterface<T, TConfig>;
-  limit(limit: number): QueryBuilderInterface<T, TConfig>;
-  getLimit(): number | undefined;
-  startFrom(lastEvaluatedKey: Record<string, unknown>): QueryBuilderInterface<T, TConfig>;
-  execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
-}
+export interface QueryBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+  extends BaseBuilderInterface<T, TConfig, QueryBuilderInterface<T, TConfig>> {}
 
 /**
  * Interface for the ScanBuilder class to be used by Paginator
  * without creating a circular dependency.
  */
-export interface ScanBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
-  clone(): ScanBuilderInterface<T, TConfig>;
-  limit(limit: number): ScanBuilderInterface<T, TConfig>;
-  getLimit(): number | undefined;
-  startFrom(lastEvaluatedKey: Record<string, unknown>): ScanBuilderInterface<T, TConfig>;
-  execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
-}
+export interface ScanBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+  extends BaseBuilderInterface<T, TConfig, ScanBuilderInterface<T, TConfig>> {}
 
 /**
  * Interface for the FilterBuilder class to be used by Paginator
  * without creating a circular dependency.
  */
-export interface FilterBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
-  clone(): FilterBuilderInterface<T, TConfig>;
-  limit(limit: number): FilterBuilderInterface<T, TConfig>;
-  getLimit(): number | undefined;
-  startFrom(lastEvaluatedKey: Record<string, unknown>): FilterBuilderInterface<T, TConfig>;
-  execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
-}
+export interface FilterBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+  extends BaseBuilderInterface<T, TConfig, FilterBuilderInterface<T, TConfig>> {}
 
 /**
  * Represents the result of a single page query operation.
