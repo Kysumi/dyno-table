@@ -1,4 +1,4 @@
-import type { DynamoDBDocument, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
+import type { DynamoDBDocument, QueryCommandInput, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
 import type { Index, TableConfig } from "./types";
 import {
   and,
@@ -30,6 +30,8 @@ import { debugCommand } from "./utils/debug-expression";
 import { GetBuilder, type GetCommandParams } from "./builders/get-builder";
 import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
 import type { PutCommandParams, DeleteCommandParams, UpdateCommandParams } from "./builders/builder-types";
+import { ScanBuilder } from "./builders/scan-builder";
+import type { ScanOptions } from "./builders/scan-builder";
 
 const DDB_BATCH_WRITE_LIMIT = 25;
 const DDB_BATCH_GET_LIMIT = 100;
@@ -277,6 +279,66 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     };
 
     return new QueryBuilder<T, TConfig>(executor, keyConditionExpression);
+  }
+
+  /**
+   * Creates a scan builder for scanning the entire table
+   * Use this when you need to:
+   * - Process all items in a table
+   * - Apply filters to a large dataset
+   * - Use a GSI for scanning
+   *
+   * @returns A ScanBuilder instance for chaining operations
+   */
+  scan<T extends Record<string, unknown>>(): ScanBuilder<T, TConfig> {
+    const executor = async (options: ScanOptions) => {
+      // Implementation of the scan execution logic
+      const expressionParams: ExpressionParams = {
+        expressionAttributeNames: {},
+        expressionAttributeValues: {},
+        valueCounter: { count: 0 },
+      };
+
+      let filterExpression: string | undefined;
+      if (options.filter) {
+        filterExpression = buildExpression(options.filter, expressionParams);
+      }
+
+      const projectionExpression = options.projection
+        ?.map((p) => generateAttributeName(expressionParams, p))
+        .join(", ");
+
+      const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
+      const { indexName, limit, consistentRead, lastEvaluatedKey } = options;
+
+      const params: ScanCommandInput = {
+        TableName: this.tableName,
+        FilterExpression: filterExpression,
+        ExpressionAttributeNames:
+          Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+        ExpressionAttributeValues:
+          Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined,
+        IndexName: indexName,
+        Limit: limit,
+        ConsistentRead: consistentRead,
+        ProjectionExpression: projectionExpression,
+        ExclusiveStartKey: lastEvaluatedKey,
+      };
+
+      try {
+        const result = await this.dynamoClient.scan(params);
+        return {
+          items: result.Items as T[],
+          lastEvaluatedKey: result.LastEvaluatedKey,
+        };
+      } catch (error) {
+        console.log(debugCommand(params));
+        console.error("Error scanning items:", error);
+        throw error;
+      }
+    };
+
+    return new ScanBuilder<T, TConfig>(executor);
   }
 
   delete(keyCondition: PrimaryKeyWithoutExpression): DeleteBuilder {
