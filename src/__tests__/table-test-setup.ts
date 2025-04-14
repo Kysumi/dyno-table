@@ -12,6 +12,9 @@ export type Dinosaur = {
   period?: string;
   discovered?: number;
   tags?: Set<string>;
+  species?: {
+    name: string | null;
+  };
 };
 
 export function createTestTable(): Table {
