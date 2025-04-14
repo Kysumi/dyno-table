@@ -75,4 +75,51 @@ describe("Table Integration Tests - Put Items", () => {
         .execute(),
     ).rejects.toThrow();
   });
+
+  it("should ensure keys with undefined values are retained", async () => {
+    const dino: Dinosaur = {
+      pk: "dinosaur#6",
+      sk: "dino#spino",
+      name: "Spinosaurus",
+      type: "Theropod",
+      period: undefined, // Undefined value
+      species: {
+        name: "",
+      },
+    };
+
+    const result = await table.put(dino).execute();
+    expect(result).toEqual(dino);
+
+    // Verify item was created and undefined keys are retained as `undefined` in the stored object
+    const getResult = await table.get<Dinosaur>({ pk: "dinosaur#6", sk: "dino#spino" }).execute();
+    expect(getResult.item).toBeDefined();
+
+    expect(getResult.item).toEqual(dino);
+    expect(getResult.item?.period).toBeUndefined(); // Explicitly checking the undefined value
+    expect(getResult.item?.species?.name).toEqual("");
+  });
+
+  it("should ensure keys with empty strings are retained", async () => {
+    const dino: Dinosaur = {
+      pk: "dinosaur#7",
+      sk: "dino#rex",
+      name: "Tyrannosaurus Rex",
+      type: "",
+      period: "Cretaceous",
+      species: {
+        name: null,
+      },
+    };
+
+    const result = await table.put(dino).execute();
+    expect(result).toEqual(dino);
+
+    // Verify item was created and empty string keys are retained in the stored object
+    const queryResult = await table.get<Dinosaur>({ pk: "dinosaur#7", sk: "dino#rex" }).execute();
+    expect(queryResult.item).toBeDefined();
+    expect(queryResult.item).toEqual(dino);
+    expect(queryResult.item?.type).toBe(""); // Explicitly checking the empty string value
+    expect(queryResult.item?.species?.name).toBe(null);
+  });
 });
