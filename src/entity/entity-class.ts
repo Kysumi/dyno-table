@@ -1,10 +1,9 @@
 import type { Table } from "../table";
 import type { EntityDefinition, EntityRepository, QueryMethods, IndexProjection } from "./types";
-import type { GenerateType } from "../utils/sort-key-template";
-import type { StrictGenerateType } from "../utils/partition-key-template";
+import type { GenerateType, sortKey } from "../utils/sort-key-template";
+import type { partitionKey, StrictGenerateType } from "../utils/partition-key-template";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Condition } from "../conditions";
-import type { partitionKey, sortKey } from "./templates";
 import type { TableConfig } from "../types";
 
 export type LifecycleHook<T> = (data: T) => Promise<T> | T;
