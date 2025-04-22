@@ -37,9 +37,14 @@ export function partitionKey<T extends readonly string[]>(
 
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
-      if (key) {
-        result += params[key as T[number]] + (strings[i + 1] ?? "");
+      const value = params[key as T[number]];
+
+      // We may want to remove this in the future, but it's a good sanity check for now
+      if (value === undefined) {
+        throw new Error(`Partition key template parameter ${key} is undefined`);
       }
+
+      result += value + (strings[i + 1] ?? "");
     }
 
     return result;
