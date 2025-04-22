@@ -4,33 +4,34 @@ import type { Table } from "../src/table";
 import { partitionKey } from "../src/utils/partition-key-template";
 import { sortKey } from "../src/utils/sort-key-template";
 
-interface Animal extends Record<string, unknown> {
+interface Dinosaur extends Record<string, unknown> {
   id: string;
   species: string;
   name: string;
   enclosureId: string;
   diet: string;
-  age: number;
+  height: number;
+  weight: number;
   createdAt?: string;
   updatedAt?: string;
 }
 
 // Define the indexes type
-const AnimalIndexes = {
+const DinosaurIndexes = {
   byEnclosure: {
     gsi: "gsi2",
     partitionKey: partitionKey`ENCLOSURE#${"enclosureId"}`,
-    sortKey: sortKey`ANIMAL#${"id"}#SPECIES#${"species"}`,
+    sortKey: sortKey`DINOSAUR#${"id"}#SPECIES#${"species"}`,
   },
   bySpeciesAndDiet: {
     gsi: "gsi1",
     partitionKey: partitionKey`SPECIES#${"species"}`,
-    sortKey: sortKey`DIET#${"diet"}#ANIMAL#${"id"}`,
+    sortKey: sortKey`DIET#${"diet"}#DINOSAUR#${"id"}`,
   },
 } as const;
 
 // This could be Zod, Valibot, or a Arktype schema, anything that implements the StandardSchemaV1 interface
-const animalSchema: StandardSchemaV1<Animal, Animal> = {
+const dinosaurSchema: StandardSchemaV1<Dinosaur, Dinosaur> = {
   "~standard": {
     version: 1,
     vendor: "dyno-table",
@@ -41,44 +42,47 @@ const animalSchema: StandardSchemaV1<Animal, Animal> = {
         };
       }
 
-      const animal = value as Animal;
+      const dinosaur = value as Dinosaur;
       const issues: StandardSchemaV1.Issue[] = [];
 
-      if (typeof animal.id !== "string") {
+      if (typeof dinosaur.id !== "string") {
         issues.push({ message: "id must be a string" });
       }
-      if (typeof animal.species !== "string") {
+      if (typeof dinosaur.species !== "string") {
         issues.push({ message: "species must be a string" });
       }
-      if (typeof animal.name !== "string") {
+      if (typeof dinosaur.name !== "string") {
         issues.push({ message: "name must be a string" });
       }
-      if (typeof animal.enclosureId !== "string") {
+      if (typeof dinosaur.enclosureId !== "string") {
         issues.push({ message: "enclosureId must be a string" });
       }
-      if (typeof animal.diet !== "string") {
+      if (typeof dinosaur.diet !== "string") {
         issues.push({ message: "diet must be a string" });
       }
-      if (typeof animal.age !== "number") {
-        issues.push({ message: "age must be a number" });
+      if (typeof dinosaur.height !== "number") {
+        issues.push({ message: "height must be a number" });
+      }
+      if (typeof dinosaur.weight !== "number") {
+        issues.push({ message: "weight must be a number" });
       }
 
       if (issues.length > 0) {
         return { issues };
       }
 
-      return { value: animal };
+      return { value: dinosaur };
     },
     types: {
-      input: {} as Animal,
-      output: {} as Animal,
+      input: {} as Dinosaur,
+      output: {} as Dinosaur,
     },
   },
 };
 
 // Define lifecycle hooks
-const animalHooks = {
-  beforeCreate: async (data: Animal) => {
+const dinosaurHooks = {
+  beforeCreate: async (data: Dinosaur) => {
     // Add timestamps before creation
     return {
       ...data,
@@ -86,14 +90,14 @@ const animalHooks = {
       updatedAt: new Date().toISOString(),
     };
   },
-  beforeUpdate: async (data: Partial<Animal>) => {
+  beforeUpdate: async (data: Partial<Dinosaur>) => {
     // Update timestamp before update
     return {
       ...data,
       updatedAt: new Date().toISOString(),
     };
   },
-  afterGet: async (data: Animal | null) => {
+  afterGet: async (data: Dinosaur | null) => {
     // Transform data after retrieval
     if (data) {
       return {
@@ -105,72 +109,73 @@ const animalHooks = {
   },
 };
 
-const AnimalEntity = defineEntity<Animal, typeof AnimalIndexes>(
+const DinosaurEntity = defineEntity<Dinosaur, typeof DinosaurIndexes>(
   {
-    name: "Animal",
-    schema: animalSchema,
+    name: "Dinosaur",
+    schema: dinosaurSchema,
     primaryKey: {
-      partitionKey: partitionKey`ANIMAL#${"id"}`,
+      partitionKey: partitionKey`DINOSAUR#${"id"}`,
       sortKey: sortKey`METADATA#${"species"}`,
     },
-    indexes: AnimalIndexes,
+    indexes: DinosaurIndexes,
   },
-  animalHooks,
+  dinosaurHooks,
 );
 
 // Example usage
 export async function exampleUsage(table: Table) {
   // Create repository
-  const animalRepository = AnimalEntity.createRepository(table);
+  const dinosaurRepository = DinosaurEntity.createRepository(table);
 
-  // Create an animal (will have timestamps added by beforeCreate hook)
-  const tiger = await animalRepository.create({
-    id: "a123",
-    species: "tiger",
-    name: "Raja",
+  // Create a dinosaur (will have timestamps added by beforeCreate hook)
+  const rex = await dinosaurRepository.create({
+    id: "d123",
+    species: "Tyrannosaurus",
+    name: "Rex",
     enclosureId: "E5",
     diet: "carnivore",
-    age: 5,
+    height: 4.5,
+    weight: 8000,
   });
 
   // Query by species and diet
-  const carnivores = await animalRepository.query.bySpeciesAndDiet({
-    species: "tiger",
+  const carnivores = await dinosaurRepository.query.bySpeciesAndDiet({
+    species: "Tyrannosaurus",
     diet: "carnivore",
-    id: "123",
+    id: "d123",
   });
 
   // Query by enclosure
-  const enclosureAnimals = await animalRepository.query.byEnclosure({
+  const enclosureDinosaurs = await dinosaurRepository.query.byEnclosure({
     enclosureId: "E5",
-    id: "a123", // Required by the sort key
-    species: "tiger", // Required by the sort key
+    id: "d123", // Required by the sort key
+    species: "Tyrannosaurus", // Required by the sort key
   });
 
-  // Get a specific animal (name will be transformed to uppercase by afterGet hook)
-  const animal = await animalRepository.get({
-    pk: "ANIMAL#a123",
-    sk: "METADATA#tiger",
+  // Get a specific dinosaur (name will be transformed to uppercase by afterGet hook)
+  const dinosaur = await dinosaurRepository.get({
+    pk: "DINOSAUR#d123",
+    sk: "METADATA#Tyrannosaurus",
   });
 
-  // Update an animal (updatedAt will be set by beforeUpdate hook)
-  const updatedAnimal = await animalRepository.update({
-    id: "a123",
-    species: "tiger",
-    age: 6,
+  // Update a dinosaur (updatedAt will be set by beforeUpdate hook)
+  const updatedDinosaur = await dinosaurRepository.update({
+    id: "d123",
+    species: "Tyrannosaurus",
+    weight: 8500,
   });
 
-  // Delete an animal
-  await animalRepository.delete({
-    pk: "ANIMAL#a123",
-    sk: "METADATA#tiger",
+  // Delete a dinosaur
+  await dinosaurRepository.delete({
+    pk: "DINOSAUR#d123",
+    sk: "METADATA#Tyrannosaurus",
   });
 
   return {
-    tiger,
+    rex,
     carnivores,
-    enclosureAnimals,
-    animal,
-    updatedAnimal,
+    enclosureDinosaurs,
+    dinosaur,
+    updatedDinosaur,
   };
 }
