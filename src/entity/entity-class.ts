@@ -4,6 +4,7 @@ import type { GenerateType } from "../utils/sort-key-template";
 import type { StrictGenerateType } from "../utils/partition-key-template";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Condition } from "../conditions";
+import type { partitionKey, sortKey } from "../entity/templates";
 
 export type LifecycleHook<T> = (data: T) => Promise<T> | T;
 
@@ -18,11 +19,11 @@ export interface EntityLifecycleHooks<T extends Record<string, unknown>> {
   afterGet?: LifecycleHook<T | null>;
 }
 
-export class Entity<T extends Record<string, unknown>, I extends NonNullable<EntityDefinition<T>["indexes"]>> {
-  private definition: EntityDefinition<T>;
+export class Entity<T extends Record<string, unknown>, I extends Record<string, unknown> = Record<string, never>> {
+  private definition: EntityDefinition<T, I>;
   private hooks: EntityLifecycleHooks<T>;
 
-  constructor(definition: EntityDefinition<T>, hooks: EntityLifecycleHooks<T> = {}) {
+  constructor(definition: EntityDefinition<T, I>, hooks: EntityLifecycleHooks<T> = {}) {
     this.definition = definition;
     this.hooks = hooks;
   }
@@ -104,9 +105,15 @@ export class Entity<T extends Record<string, unknown>, I extends NonNullable<Ent
     if (this.definition.indexes) {
       for (const [indexName, index] of Object.entries(this.definition.indexes)) {
         const typedIndexName = indexName as keyof I;
+        const typedIndex = index as {
+          gsi?: string;
+          lsi?: string;
+          partitionKey: ReturnType<typeof partitionKey>;
+          sortKey: ReturnType<typeof sortKey>;
+        };
         const queryMethod = (async (params) => {
-          const pk = index.partitionKey(params as StrictGenerateType<readonly string[]>);
-          const sk = index.sortKey(params as GenerateType<readonly string[]>);
+          const pk = typedIndex.partitionKey(params as StrictGenerateType<readonly string[]>);
+          const sk = typedIndex.sortKey(params as GenerateType<readonly string[]>);
 
           // If sort key is empty (no sort key parameters provided), use beginsWith with empty string
           const skCondition =
@@ -116,8 +123,8 @@ export class Entity<T extends Record<string, unknown>, I extends NonNullable<Ent
 
           const queryBuilder = table.query({ pk, sk: skCondition });
 
-          if (index.gsi) {
-            queryBuilder.useIndex(index.gsi);
+          if (typedIndex.gsi) {
+            queryBuilder.useIndex(typedIndex.gsi);
           }
 
           const result = await queryBuilder.execute();
@@ -184,9 +191,9 @@ export class Entity<T extends Record<string, unknown>, I extends NonNullable<Ent
 /**
  * Factory function to create a new entity
  */
-export function defineEntity<T extends Record<string, unknown>, I extends NonNullable<EntityDefinition<T>["indexes"]>>(
-  definition: EntityDefinition<T>,
-  hooks?: EntityLifecycleHooks<T>,
-): Entity<T, I> {
+export function defineEntity<
+  T extends Record<string, unknown>,
+  I extends Record<string, unknown> = Record<string, never>,
+>(definition: EntityDefinition<T, I>, hooks?: EntityLifecycleHooks<T>): Entity<T, I> {
   return new Entity<T, I>(definition, hooks);
 }

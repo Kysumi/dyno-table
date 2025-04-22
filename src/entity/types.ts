@@ -1,28 +1,23 @@
 import type { StandardSchemaV1 } from "../standard-schema";
-import type { Index } from "../types";
-import type { GenerateType, sortKey } from "../utils/sort-key-template";
-import type { partitionKey, StrictGenerateType } from "../utils/partition-key-template";
+import type { GenerateType } from "../utils/sort-key-template";
+import type { StrictGenerateType } from "../utils/partition-key-template";
 
 export interface KeyTemplate {
   template: string;
   variables: string[];
 }
 
-export interface EntityDefinition<T extends Record<string, unknown>> {
+export interface EntityDefinition<
+  T extends Record<string, unknown>,
+  I extends Record<string, unknown> = Record<string, never>,
+> {
   name: string;
   schema: StandardSchemaV1;
   primaryKey: {
     partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
     sortKey: (params: GenerateType<readonly string[]>) => string;
   };
-  indexes?: {
-    [key: string]: {
-      gsi?: string;
-      lsi?: string;
-      partitionKey: ReturnType<typeof partitionKey>;
-      sortKey: ReturnType<typeof sortKey>;
-    };
-  };
+  indexes?: I;
 }
 
 // Helper type to extract the parameter types from a key function
@@ -35,14 +30,11 @@ type IndexParams<T> = {
 };
 
 // Type for query methods that maps index names to their parameter types
-export type QueryMethods<T extends Record<string, unknown>, I extends NonNullable<EntityDefinition<T>["indexes"]>> = {
+export type QueryMethods<T extends Record<string, unknown>, I extends Record<string, unknown>> = {
   [K in keyof I]: (params: IndexParams<I>[K]) => Promise<T[]>;
 };
 
-export interface EntityRepository<
-  T extends Record<string, unknown>,
-  I extends NonNullable<EntityDefinition<T>["indexes"]>,
-> {
+export interface EntityRepository<T extends Record<string, unknown>, I extends Record<string, unknown>> {
   create: (data: T) => Promise<T>;
   update: (data: Partial<T>) => Promise<T>;
   delete: (key: { pk: string; sk: string }) => Promise<void>;

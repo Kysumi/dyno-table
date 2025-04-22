@@ -16,20 +16,6 @@ interface Dinosaur extends Record<string, unknown> {
   updatedAt?: string;
 }
 
-// Define the indexes type
-const DinosaurIndexes = {
-  byEnclosure: {
-    gsi: "gsi2",
-    partitionKey: partitionKey`ENCLOSURE#${"enclosureId"}`,
-    sortKey: sortKey`DINOSAUR#${"id"}#SPECIES#${"species"}`,
-  },
-  bySpeciesAndDiet: {
-    gsi: "gsi1",
-    partitionKey: partitionKey`SPECIES#${"species"}`,
-    sortKey: sortKey`DIET#${"diet"}#DINOSAUR#${"id"}`,
-  },
-} as const;
-
 // This could be Zod, Valibot, or a Arktype schema, anything that implements the StandardSchemaV1 interface
 const dinosaurSchema: StandardSchemaV1<Dinosaur, Dinosaur> = {
   "~standard": {
@@ -109,7 +95,7 @@ const dinosaurHooks = {
   },
 };
 
-const DinosaurEntity = defineEntity<Dinosaur, typeof DinosaurIndexes>(
+const DinosaurEntity = defineEntity(
   {
     name: "Dinosaur",
     schema: dinosaurSchema,
@@ -117,7 +103,18 @@ const DinosaurEntity = defineEntity<Dinosaur, typeof DinosaurIndexes>(
       partitionKey: partitionKey`DINOSAUR#${"id"}`,
       sortKey: sortKey`METADATA#${"species"}`,
     },
-    indexes: DinosaurIndexes,
+    indexes: {
+      byEnclosure: {
+        gsi: "gsi2",
+        partitionKey: partitionKey`ENCLOSURE#${"enclosureId"}`,
+        sortKey: sortKey`DINOSAUR#${"id"}#SPECIES#${"species"}`,
+      },
+      bySpeciesAndDiet: {
+        gsi: "gsi1",
+        partitionKey: partitionKey`SPECIES#${"species"}`,
+        sortKey: sortKey`DIET#${"diet"}#DINOSAUR#${"id"}`,
+      },
+    },
   },
   dinosaurHooks,
 );
