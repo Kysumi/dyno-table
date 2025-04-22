@@ -1,10 +1,11 @@
 import type { Table } from "../table";
-import type { EntityDefinition, EntityRepository, QueryMethods } from "./types";
+import type { EntityDefinition, EntityRepository, QueryMethods, IndexProjection } from "./types";
 import type { GenerateType } from "../utils/sort-key-template";
 import type { StrictGenerateType } from "../utils/partition-key-template";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Condition } from "../conditions";
-import type { partitionKey, sortKey } from "../entity/templates";
+import type { partitionKey, sortKey } from "./templates";
+import type { TableConfig } from "../types";
 
 export type LifecycleHook<T> = (data: T) => Promise<T> | T;
 
@@ -21,7 +22,7 @@ export interface EntityLifecycleHooks<T extends Record<string, unknown>> {
 
 export class Entity<T extends Record<string, unknown>, I extends Record<string, unknown> = Record<string, never>> {
   private definition: EntityDefinition<T, I>;
-  private hooks: EntityLifecycleHooks<T>;
+  private readonly hooks: EntityLifecycleHooks<T>;
 
   constructor(definition: EntityDefinition<T, I>, hooks: EntityLifecycleHooks<T> = {}) {
     this.definition = definition;
@@ -31,8 +32,8 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
   /**
    * Creates a repository for this entity with the given table
    */
-  createRepository(table: Table): EntityRepository<T, I> {
-    const repository: EntityRepository<T, I> = {
+  createRepository<TConfig extends TableConfig = TableConfig>(table: Table<TConfig>): EntityRepository<T, I, TConfig> {
+    const repository: EntityRepository<T, I, TConfig> = {
       create: async (data: T) => {
         // Run beforeCreate hook if exists
         const preCreateData = this.hooks.beforeCreate ? await this.hooks.beforeCreate(data) : data;
@@ -110,8 +111,9 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
           lsi?: string;
           partitionKey: ReturnType<typeof partitionKey>;
           sortKey: ReturnType<typeof sortKey>;
+          projection?: IndexProjection;
         };
-        const queryMethod = (async (params) => {
+        const queryMethod = ((params) => {
           const pk = typedIndex.partitionKey(params as StrictGenerateType<readonly string[]>);
           const sk = typedIndex.sortKey(params as GenerateType<readonly string[]>);
 
@@ -121,15 +123,20 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
               ? (op: { beginsWith: (value: string) => Condition }) => op.beginsWith("")
               : (op: { eq: (value: string) => Condition }) => op.eq(sk);
 
-          const queryBuilder = table.query({ pk, sk: skCondition });
+          const queryBuilder = table.query<T>({ pk, sk: skCondition });
 
           if (typedIndex.gsi) {
             queryBuilder.useIndex(typedIndex.gsi);
           }
 
-          const result = await queryBuilder.execute();
-          return result.items as T[];
-        }) as QueryMethods<T, I>[keyof I];
+          // If projection is specified in the index definition and it's of type INCLUDE,
+          // set the projection on the QueryBuilder
+          if (typedIndex.projection?.projectionType === "INCLUDE") {
+            queryBuilder.select(typedIndex.projection.nonKeyAttributes);
+          }
+
+          return queryBuilder;
+        }) as QueryMethods<T, I, TConfig>[keyof I];
 
         repository.query[typedIndexName] = queryMethod;
       }

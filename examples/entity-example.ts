@@ -119,9 +119,7 @@ const DinosaurEntity = defineEntity(
   dinosaurHooks,
 );
 
-// Example usage
 export async function exampleUsage(table: Table) {
-  // Create repository
   const dinosaurRepository = DinosaurEntity.createRepository(table);
 
   // Create a dinosaur (will have timestamps added by beforeCreate hook)
@@ -135,19 +133,21 @@ export async function exampleUsage(table: Table) {
     weight: 8000,
   });
 
-  // Query by species and diet
-  const carnivores = await dinosaurRepository.query.bySpeciesAndDiet({
-    species: "Tyrannosaurus",
-    diet: "carnivore",
-    id: "d123",
-  });
+  const carnivores = await dinosaurRepository.query
+    .bySpeciesAndDiet({
+      species: "Tyrannosaurus",
+      diet: "carnivore",
+    })
+    .execute();
 
   // Query by enclosure
-  const enclosureDinosaurs = await dinosaurRepository.query.byEnclosure({
-    enclosureId: "E5",
-    id: "d123", // Required by the sort key
-    species: "Tyrannosaurus", // Required by the sort key
-  });
+  const enclosureDinosaurs = await dinosaurRepository.query
+    .byEnclosure({
+      enclosureId: "E5",
+      id: "d123",
+      species: "Tyrannosaurus",
+    })
+    .execute();
 
   // Get a specific dinosaur (name will be transformed to uppercase by afterGet hook)
   const dinosaur = await dinosaurRepository.get({
