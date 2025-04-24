@@ -1,5 +1,12 @@
 import type { Table } from "../table";
-import type { EntityDefinition, EntityRepository, QueryMethods, IndexProjection } from "./types";
+import type {
+  EntityDefinition,
+  EntityRepository,
+  QueryMethods,
+  IndexProjection,
+  PrimaryKeyParams,
+  IndexParams,
+} from "./types";
 import type { GenerateType, sortKey } from "../utils/sort-key-template";
 import type { partitionKey, StrictGenerateType } from "../utils/partition-key-template";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -8,22 +15,29 @@ import type { TableConfig } from "../types";
 
 export type LifecycleHook<T> = (data: T) => Promise<T> | T;
 
-export interface EntityLifecycleHooks<T extends Record<string, unknown>> {
+export interface EntityLifecycleHooks<T extends Record<string, unknown>, PKDef> {
   beforeCreate?: LifecycleHook<T>;
   afterCreate?: LifecycleHook<T>;
   beforeUpdate?: LifecycleHook<Partial<T>>;
   afterUpdate?: LifecycleHook<T>;
-  beforeDelete?: LifecycleHook<{ pk: string; sk: string }>;
-  afterDelete?: LifecycleHook<{ pk: string; sk: string }>;
-  beforeGet?: LifecycleHook<{ pk: string; sk: string }>;
+  beforeDelete?: LifecycleHook<PrimaryKeyParams<PKDef>>;
+  afterDelete?: LifecycleHook<PrimaryKeyParams<PKDef>>;
+  beforeGet?: LifecycleHook<PrimaryKeyParams<PKDef>>;
   afterGet?: LifecycleHook<T | null>;
 }
 
-export class Entity<T extends Record<string, unknown>, I extends Record<string, unknown> = Record<string, never>> {
-  private definition: EntityDefinition<T, I>;
-  private readonly hooks: EntityLifecycleHooks<T>;
+export class Entity<
+  T extends Record<string, unknown>,
+  PKDef extends {
+    partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
+    sortKey: (params: GenerateType<readonly string[]>) => string;
+  },
+  I extends Record<string, unknown> = Record<string, never>,
+> {
+  private definition: EntityDefinition<T, PKDef, I>;
+  private readonly hooks: EntityLifecycleHooks<T, PKDef>;
 
-  constructor(definition: EntityDefinition<T, I>, hooks: EntityLifecycleHooks<T> = {}) {
+  constructor(definition: EntityDefinition<T, PKDef, I>, hooks: EntityLifecycleHooks<T, PKDef> = {}) {
     this.definition = definition;
     this.hooks = hooks;
   }
@@ -31,8 +45,10 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
   /**
    * Creates a repository for this entity with the given table
    */
-  createRepository<TConfig extends TableConfig = TableConfig>(table: Table<TConfig>): EntityRepository<T, I, TConfig> {
-    const repository: EntityRepository<T, I, TConfig> = {
+  createRepository<TConfig extends TableConfig = TableConfig>(
+    table: Table<TConfig>,
+  ): EntityRepository<T, I, PKDef, TConfig> {
+    const repository: EntityRepository<T, I, PKDef, TConfig> = {
       create: async (data: T) => {
         // Run beforeCreate hook if exists
         const preCreateData = this.hooks.beforeCreate ? await this.hooks.beforeCreate(data) : data;
@@ -64,7 +80,7 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
         const sk = this.definition.primaryKey.sortKey(preUpdateData as GenerateType<readonly string[]>);
 
         if (!pk || !sk) {
-          throw new Error("Cannot update without complete key information");
+          throw new Error("Cannot update without complete key information in the provided data");
         }
 
         const result = await table.update({ pk, sk }).set(preUpdateData).execute();
@@ -75,11 +91,15 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
         return this.hooks.afterUpdate ? await this.hooks.afterUpdate(updatedItem) : updatedItem;
       },
 
-      delete: async (key: { pk: string; sk: string }) => {
+      delete: async (key: PrimaryKeyParams<PKDef>) => {
         // Run beforeDelete hook if exists
         const preDeleteKey = this.hooks.beforeDelete ? await this.hooks.beforeDelete(key) : key;
 
-        await table.delete(preDeleteKey).execute();
+        // Generate pk/sk from the inferred key object
+        const pk = this.definition.primaryKey.partitionKey(preDeleteKey as StrictGenerateType<readonly string[]>);
+        const sk = this.definition.primaryKey.sortKey(preDeleteKey as GenerateType<readonly string[]>);
+
+        await table.delete({ pk, sk }).execute();
 
         // Run afterDelete hook if exists
         if (this.hooks.afterDelete) {
@@ -87,11 +107,15 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
         }
       },
 
-      get: async (key: { pk: string; sk: string }) => {
+      get: async (key: PrimaryKeyParams<PKDef>) => {
         // Run beforeGet hook if exists
         const preGetKey = this.hooks.beforeGet ? await this.hooks.beforeGet(key) : key;
 
-        const result = await table.get(preGetKey).execute();
+        // Generate pk/sk from the inferred key object
+        const pk = this.definition.primaryKey.partitionKey(preGetKey as StrictGenerateType<readonly string[]>);
+        const sk = this.definition.primaryKey.sortKey(preGetKey as GenerateType<readonly string[]>);
+
+        const result = await table.get({ pk, sk }).execute();
         const item = result?.item as T | null;
 
         // Run afterGet hook if exists
@@ -112,26 +136,33 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
           sortKey: ReturnType<typeof sortKey>;
           projection?: IndexProjection;
         };
-        const queryMethod = ((params) => {
+        const queryMethod = ((params: IndexParams<I>[keyof I]) => {
           const pk = typedIndex.partitionKey(params as StrictGenerateType<readonly string[]>);
           const sk = typedIndex.sortKey(params as GenerateType<readonly string[]>);
 
-          // If sort key is empty (no sort key parameters provided), use beginsWith with empty string
-          const skCondition =
-            sk === ""
-              ? (op: { beginsWith: (value: string) => Condition }) => op.beginsWith("")
-              : (op: { eq: (value: string) => Condition }) => op.eq(sk);
+          const keyCondition = {
+            pk: pk,
+            sk:
+              sk === ""
+                ? (op: { beginsWith: (value: string) => Condition }) => op.beginsWith("")
+                : (op: { eq: (value: string) => Condition }) => op.eq(sk),
+          };
 
-          const queryBuilder = table.query<T>({ pk, sk: skCondition });
+          const queryBuilder = table.query<T>(keyCondition);
 
           if (typedIndex.gsi) {
             queryBuilder.useIndex(typedIndex.gsi);
+          } else if (typedIndex.lsi) {
+            // LSI doesn't need useIndex, it's implicitly used with the base table PK
           }
 
-          // If projection is specified in the index definition and it's of type INCLUDE,
-          // set the projection on the QueryBuilder
           if (typedIndex.projection?.projectionType === "INCLUDE") {
             queryBuilder.select(typedIndex.projection.nonKeyAttributes);
+          } else if (typedIndex.projection?.projectionType === "KEYS_ONLY") {
+            // For KEYS_ONLY, we might need to explicitly select the base table keys + index keys
+            // This depends on the exact behavior desired and DynamoDB specifics.
+            // queryBuilder.select([...baseTableKeys, ...indexKeys]);
+            // For simplicity, we'll rely on DynamoDB's default KEYS_ONLY behavior for now.
           }
 
           return queryBuilder;
@@ -189,7 +220,7 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
   /**
    * Gets the entity's lifecycle hooks
    */
-  getHooks(): EntityLifecycleHooks<T> {
+  getHooks(): EntityLifecycleHooks<T, PKDef> {
     return this.hooks;
   }
 }
@@ -199,7 +230,11 @@ export class Entity<T extends Record<string, unknown>, I extends Record<string, 
  */
 export function defineEntity<
   T extends Record<string, unknown>,
+  PKDef extends {
+    partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
+    sortKey: (params: GenerateType<readonly string[]>) => string;
+  },
   I extends Record<string, unknown> = Record<string, never>,
->(definition: EntityDefinition<T, I>, hooks?: EntityLifecycleHooks<T>): Entity<T, I> {
-  return new Entity<T, I>(definition, hooks);
+>(definition: EntityDefinition<T, PKDef, I>, hooks?: EntityLifecycleHooks<T, PKDef>): Entity<T, PKDef, I> {
+  return new Entity<T, PKDef, I>(definition, hooks);
 }

@@ -151,8 +151,7 @@ export async function exampleUsage(table: Table) {
 
   // Get a specific dinosaur (name will be transformed to uppercase by afterGet hook)
   const dinosaur = await dinosaurRepository.get({
-    pk: "DINOSAUR#d123",
-    sk: "METADATA#Tyrannosaurus",
+    species: "asd",
   });
 
   // Update a dinosaur (updatedAt will be set by beforeUpdate hook)
@@ -164,8 +163,8 @@ export async function exampleUsage(table: Table) {
 
   // Delete a dinosaur
   await dinosaurRepository.delete({
-    pk: "DINOSAUR#d123",
-    sk: "METADATA#Tyrannosaurus",
+    id: "d123",
+    species: "Tyrannosaurus",
   });
 
   return {
