@@ -8,10 +8,14 @@ services:
 
   dynamodb-admin:
     container_name: "dynamodb-gui"
-    image: aaronshaf/dynamodb-admin
+    image: "aaronshaf/dynamodb-admin"
     depends_on:
       - dynamodb
     environment:
-      - DYNAMO_ENDPOINT=http://host.docker.internal:8897
+      - DYNAMO_ENDPOINT=http://dynamodb:8000
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001" ]
+      interval: 10s
+      retries: 5
     ports:
       - "8001:8001"
