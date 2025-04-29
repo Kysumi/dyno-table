@@ -1,7 +1,7 @@
 export type GenerateType<T extends readonly string[], U extends string = never> = T extends [infer F, ...infer R]
   ? F extends string
     ? R extends string[]
-      ? ({ [K in F | U]: string } & Partial<Record<Exclude<T[number], F | U>, never>>) | GenerateType<R, F | U>
+      ? ({ [K in F | U]: unknown } & Partial<Record<Exclude<T[number], F | U>, never>>) | GenerateType<R, F | U>
       : never
     : never
   : never;
@@ -46,7 +46,7 @@ export function sortKey<T extends readonly string[]>(
       const key = keys[i];
 
       if (key && params && key in params) {
-        result += params[key] + (strings[i + 1] ?? "");
+        result += String(params[key]) + (strings[i + 1] ?? "");
       }
     }
 

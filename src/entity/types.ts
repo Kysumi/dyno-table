@@ -16,42 +16,65 @@ export type IndexProjection =
   | { projectionType: "INCLUDE"; nonKeyAttributes: string[] };
 
 /**
+ * Extract input and output types from a schema
+ */
+export type SchemaTypes<S> = S extends StandardSchemaV1<infer I, infer O>
+  ? {
+      input: I;
+      output: O;
+    }
+  : never;
+
+/**
  * Interface for entity definition
  */
+export interface QueryDefinition<TSchema> {
+  index: string;
+  partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
+  sortKey: {
+    condition: string;
+    value: (params: GenerateType<readonly string[]>) => string;
+  };
+}
+
 export interface EntityDefinition<
-  T extends Record<string, unknown>,
+  TSchema extends StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>,
   PKDef extends {
     partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
     sortKey: (params: GenerateType<readonly string[]>) => string;
   },
   I extends Record<string, unknown> = Record<string, never>,
+  Q extends Record<string, QueryDefinition<TSchema>> = Record<string, never>,
 > {
   name: string;
-  schema: StandardSchemaV1;
+  schema: TSchema;
   primaryKey: PKDef;
   indexes?: I;
+  query?: Q;
 }
 
-// Helper type to extract the parameter types from a key function
-type KeyParams<T> = T extends (params: infer P) => string ? P : never;
+// Extract key parameter types - used internally
+type ExtractParams<F> = F extends (params: infer P) => string ? P : never;
+
+// Helper type to get the parameters for the partition key
+export type PartitionKeyParams<PKDef> = PKDef extends { partitionKey: infer PK } ? ExtractParams<PK> : never;
 
 // Helper type to get the combined parameters for the primary key
-type PrimaryKeyParams<PKDef> = PKDef extends { partitionKey: infer PK; sortKey: infer SK }
-  ? PK extends (params: infer P) => string
-    ? SK extends (params: infer S) => string
-      ? P & S
-      : never
-    : never
+export type PrimaryKeyParams<PKDef> = PKDef extends { partitionKey: infer PK; sortKey: infer SK }
+  ? ExtractParams<PK> & ExtractParams<SK>
   : never;
 
-// Helper type to get the combined parameters for an index (Restored)
-type IndexParams<T> = {
+// Helper type for index parameters
+export type IndexParams<T> = {
   [K in keyof T]: T[K] extends { partitionKey: infer PK; sortKey: infer SK }
-    ? PK extends (params: infer P) => string
-      ? SK extends (params: infer S) => string
-        ? P & S
-        : never
-      : never
+    ? ExtractParams<PK> & ExtractParams<SK>
+    : never;
+};
+
+// Helper type for query parameters
+export type QueryParams<Q> = {
+  [K in keyof Q]: Q[K] extends { partitionKey: infer PK; sortKey: { value: infer SK } }
+    ? ExtractParams<PK> & ExtractParams<SK>
     : never;
 };
 
@@ -59,37 +82,47 @@ type IndexParams<T> = {
 import type { QueryBuilder } from "../builders/query-builder";
 import type { TableConfig } from "../types";
 
-// Export PrimaryKeyParams and IndexParams using export type
-export type { PrimaryKeyParams, IndexParams };
-
-// Type for query methods that maps index names to their parameter types
+// Type for query methods
 export type QueryMethods<
-  T extends Record<string, unknown>,
+  TSchema extends StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>,
   I extends Record<string, unknown>,
+  Q extends Record<string, QueryDefinition<TSchema>> = Record<string, never>,
   TConfig extends TableConfig = TableConfig,
 > = {
-  [K in keyof I]: (params: IndexParams<I>[K]) => QueryBuilder<T, TConfig>;
+  [K in keyof I]: (
+    params: IndexParams<I>[K],
+  ) => QueryBuilder<Extract<SchemaTypes<TSchema>["output"], Record<string, unknown>>, TConfig>;
+} & {
+  [K in keyof Q]: (
+    params: QueryParams<Q>[K],
+  ) => QueryBuilder<Extract<SchemaTypes<TSchema>["output"], Record<string, unknown>>, TConfig>;
 };
 
 export interface EntityRepository<
-  T extends Record<string, unknown>,
+  TSchema extends StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>,
   I extends Record<string, unknown>,
   PKDef,
+  Q extends Record<string, QueryDefinition<TSchema>> = Record<string, never>,
   TConfig extends TableConfig = TableConfig,
 > {
-  create: (data: T) => Promise<T>;
-  update: (data: Partial<T>) => Promise<T>;
+  create: (data: SchemaTypes<TSchema>["input"]) => Promise<SchemaTypes<TSchema>["output"]>;
+  update: (
+    data: Partial<SchemaTypes<TSchema>["input"]> & PrimaryKeyParams<PKDef>,
+  ) => Promise<SchemaTypes<TSchema>["output"]>;
   delete: (key: PrimaryKeyParams<PKDef>) => Promise<void>;
-  get: (key: PrimaryKeyParams<PKDef>) => Promise<T | null>;
-  query: QueryMethods<T, I, TConfig>;
+  get: (key: PrimaryKeyParams<PKDef>) => Promise<SchemaTypes<TSchema>["output"] | null>;
+  query: QueryMethods<TSchema, I, Q, TConfig>;
 }
 
 export type EntityQueryBuilder<
-  T extends Record<string, unknown>,
+  TSchema extends StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>,
   PKDef extends {
     partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
     sortKey: (params: GenerateType<readonly string[]>) => string;
   },
-  I extends NonNullable<EntityDefinition<T, PKDef, Record<string, unknown>>["indexes"]>,
+  I extends NonNullable<EntityDefinition<TSchema, PKDef, Record<string, unknown>>["indexes"]>,
+  Q extends NonNullable<
+    EntityDefinition<TSchema, PKDef, Record<string, unknown>, Record<string, QueryDefinition<TSchema>>>["query"]
+  >,
   TConfig extends TableConfig = TableConfig,
-> = QueryMethods<T, I, TConfig>;
+> = QueryMethods<TSchema, I, Q, TConfig>;

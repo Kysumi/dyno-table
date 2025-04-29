@@ -5,39 +5,63 @@ import type {
   QueryMethods,
   IndexProjection,
   PrimaryKeyParams,
+  PartitionKeyParams,
   IndexParams,
+  QueryParams,
+  QueryDefinition,
+  SchemaTypes,
 } from "./types";
 import type { GenerateType, sortKey } from "../utils/sort-key-template";
 import type { partitionKey, StrictGenerateType } from "../utils/partition-key-template";
 import type { StandardSchemaV1 } from "../standard-schema";
-import type { Condition } from "../conditions";
+import type { Condition, KeyConditionOperator } from "../conditions";
 import type { TableConfig } from "../types";
 
 export type LifecycleHook<T> = (data: T) => Promise<T> | T;
 
-export interface EntityLifecycleHooks<T extends Record<string, unknown>, PKDef> {
-  beforeCreate?: LifecycleHook<T>;
-  afterCreate?: LifecycleHook<T>;
-  beforeUpdate?: LifecycleHook<Partial<T>>;
-  afterUpdate?: LifecycleHook<T>;
+export interface EntityLifecycleHooks<
+  TSchema extends StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>,
+  PKDef,
+> {
+  beforeCreate?: LifecycleHook<SchemaTypes<TSchema>["input"]>;
+  afterCreate?: LifecycleHook<SchemaTypes<TSchema>["output"]>;
+  beforeUpdate?: LifecycleHook<Partial<SchemaTypes<TSchema>["input"]>>;
+  afterUpdate?: LifecycleHook<SchemaTypes<TSchema>["output"]>;
   beforeDelete?: LifecycleHook<PrimaryKeyParams<PKDef>>;
   afterDelete?: LifecycleHook<PrimaryKeyParams<PKDef>>;
   beforeGet?: LifecycleHook<PrimaryKeyParams<PKDef>>;
-  afterGet?: LifecycleHook<T | null>;
+  afterGet?: LifecycleHook<SchemaTypes<TSchema>["output"] | null>;
+}
+
+// Helper function to suppress type errors when we know the correct keys are present
+function applyPartitionKey<T extends Record<string, unknown>, K extends readonly string[]>(
+  keyFn: (params: StrictGenerateType<K>) => string,
+  data: T,
+): string {
+  return keyFn(data as unknown as StrictGenerateType<K>);
+}
+
+// Helper function to suppress type errors when we know the correct keys are present
+function applySortKey<T extends Record<string, unknown>, K extends readonly string[]>(
+  keyFn: (params: GenerateType<K>) => string,
+  data: T,
+): string {
+  return keyFn(data as unknown as GenerateType<K>);
 }
 
 export class Entity<
-  T extends Record<string, unknown>,
+  TSchema extends StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>,
   PKDef extends {
     partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
     sortKey: (params: GenerateType<readonly string[]>) => string;
   },
   I extends Record<string, unknown> = Record<string, never>,
+  Q extends Record<string, QueryDefinition<TSchema>> = Record<string, never>,
 > {
-  private definition: EntityDefinition<T, PKDef, I>;
-  private readonly hooks: EntityLifecycleHooks<T, PKDef>;
+  private definition: EntityDefinition<TSchema, PKDef, I, Q>;
+  private readonly hooks: EntityLifecycleHooks<TSchema, PKDef>;
 
-  constructor(definition: EntityDefinition<T, PKDef, I>, hooks: EntityLifecycleHooks<T, PKDef> = {}) {
+  constructor(definition: EntityDefinition<TSchema, PKDef, I, Q>, hooks: EntityLifecycleHooks<TSchema, PKDef> = {}) {
     this.definition = definition;
     this.hooks = hooks;
   }
@@ -47,15 +71,15 @@ export class Entity<
    */
   createRepository<TConfig extends TableConfig = TableConfig>(
     table: Table<TConfig>,
-  ): EntityRepository<T, I, PKDef, TConfig> {
-    const repository: EntityRepository<T, I, PKDef, TConfig> = {
-      create: async (data: T) => {
+  ): EntityRepository<TSchema, I, PKDef, Q, TConfig> {
+    const repository: EntityRepository<TSchema, I, PKDef, Q, TConfig> = {
+      create: async (data: SchemaTypes<TSchema>["input"]) => {
         // Run beforeCreate hook if exists
         const preCreateData = this.hooks.beforeCreate ? await this.hooks.beforeCreate(data) : data;
 
         // Generate keys
-        const pk = this.definition.primaryKey.partitionKey(preCreateData as StrictGenerateType<readonly string[]>);
-        const sk = this.definition.primaryKey.sortKey(preCreateData as GenerateType<readonly string[]>);
+        const pk = applyPartitionKey(this.definition.primaryKey.partitionKey, preCreateData as Record<string, unknown>);
+        const sk = applySortKey(this.definition.primaryKey.sortKey, preCreateData as Record<string, unknown>);
 
         // Create item with keys
         const item = {
@@ -63,29 +87,30 @@ export class Entity<
           pk,
           sk,
           entityType: this.definition.name,
-        };
+        } as Record<string, unknown>;
 
         await table.put(item).execute();
 
         // Run afterCreate hook if exists
-        return this.hooks.afterCreate ? await this.hooks.afterCreate(item) : item;
+        return this.hooks.afterCreate
+          ? await this.hooks.afterCreate(item as SchemaTypes<TSchema>["output"])
+          : (item as SchemaTypes<TSchema>["output"]);
       },
 
-      update: async (data: Partial<T>) => {
+      update: async (data: Partial<SchemaTypes<TSchema>["input"]> & PrimaryKeyParams<PKDef>) => {
         // Run beforeUpdate hook if exists
         const preUpdateData = this.hooks.beforeUpdate ? await this.hooks.beforeUpdate(data) : data;
 
-        // Generate keys from partial data
-        const pk = this.definition.primaryKey.partitionKey(preUpdateData as StrictGenerateType<readonly string[]>);
-        const sk = this.definition.primaryKey.sortKey(preUpdateData as GenerateType<readonly string[]>);
+        // Generate keys
+        const pk = applyPartitionKey(this.definition.primaryKey.partitionKey, preUpdateData as Record<string, unknown>);
+        const sk = applySortKey(this.definition.primaryKey.sortKey, preUpdateData as Record<string, unknown>);
 
-        if (!pk || !sk) {
-          throw new Error("Cannot update without complete key information in the provided data");
-        }
+        const result = await table
+          .update({ pk, sk })
+          .set(preUpdateData as Record<string, unknown>)
+          .execute();
 
-        const result = await table.update({ pk, sk }).set(preUpdateData).execute();
-
-        const updatedItem = result as T;
+        const updatedItem = result as SchemaTypes<TSchema>["output"];
 
         // Run afterUpdate hook if exists
         return this.hooks.afterUpdate ? await this.hooks.afterUpdate(updatedItem) : updatedItem;
@@ -95,9 +120,9 @@ export class Entity<
         // Run beforeDelete hook if exists
         const preDeleteKey = this.hooks.beforeDelete ? await this.hooks.beforeDelete(key) : key;
 
-        // Generate pk/sk from the inferred key object
-        const pk = this.definition.primaryKey.partitionKey(preDeleteKey as StrictGenerateType<readonly string[]>);
-        const sk = this.definition.primaryKey.sortKey(preDeleteKey as GenerateType<readonly string[]>);
+        // Generate keys
+        const pk = applyPartitionKey(this.definition.primaryKey.partitionKey, preDeleteKey);
+        const sk = applySortKey(this.definition.primaryKey.sortKey, preDeleteKey);
 
         await table.delete({ pk, sk }).execute();
 
@@ -111,18 +136,18 @@ export class Entity<
         // Run beforeGet hook if exists
         const preGetKey = this.hooks.beforeGet ? await this.hooks.beforeGet(key) : key;
 
-        // Generate pk/sk from the inferred key object
-        const pk = this.definition.primaryKey.partitionKey(preGetKey as StrictGenerateType<readonly string[]>);
-        const sk = this.definition.primaryKey.sortKey(preGetKey as GenerateType<readonly string[]>);
+        // Generate keys
+        const pk = applyPartitionKey(this.definition.primaryKey.partitionKey, preGetKey);
+        const sk = applySortKey(this.definition.primaryKey.sortKey, preGetKey);
 
         const result = await table.get({ pk, sk }).execute();
-        const item = result?.item as T | null;
+        const item = result?.item as SchemaTypes<TSchema>["output"] | null;
 
         // Run afterGet hook if exists
         return this.hooks.afterGet ? await this.hooks.afterGet(item) : item;
       },
 
-      query: {} as QueryMethods<T, I>,
+      query: {} as QueryMethods<TSchema, I, Q, TConfig>,
     };
 
     // Add query methods for each index
@@ -136,19 +161,17 @@ export class Entity<
           sortKey: ReturnType<typeof sortKey>;
           projection?: IndexProjection;
         };
-        const queryMethod = ((params: IndexParams<I>[keyof I]) => {
-          const pk = typedIndex.partitionKey(params as StrictGenerateType<readonly string[]>);
-          const sk = typedIndex.sortKey(params as GenerateType<readonly string[]>);
+        const queryMethod = ((params: IndexParams<I>[typeof typedIndexName]) => {
+          const pk = applyPartitionKey(typedIndex.partitionKey, params);
+          const sk = applySortKey(typedIndex.sortKey, params);
 
           const keyCondition = {
             pk: pk,
-            sk:
-              sk === ""
-                ? (op: { beginsWith: (value: string) => Condition }) => op.beginsWith("")
-                : (op: { eq: (value: string) => Condition }) => op.eq(sk),
+            sk: sk === "" ? (op: KeyConditionOperator) => op.beginsWith("") : (op: KeyConditionOperator) => op.eq(sk),
           };
 
-          const queryBuilder = table.query<T>(keyCondition);
+          const queryBuilder =
+            table.query<Extract<SchemaTypes<TSchema>["output"], Record<string, unknown>>>(keyCondition);
 
           if (typedIndex.gsi) {
             queryBuilder.useIndex(typedIndex.gsi);
@@ -159,16 +182,51 @@ export class Entity<
           if (typedIndex.projection?.projectionType === "INCLUDE") {
             queryBuilder.select(typedIndex.projection.nonKeyAttributes);
           } else if (typedIndex.projection?.projectionType === "KEYS_ONLY") {
-            // For KEYS_ONLY, we might need to explicitly select the base table keys + index keys
-            // This depends on the exact behavior desired and DynamoDB specifics.
-            // queryBuilder.select([...baseTableKeys, ...indexKeys]);
-            // For simplicity, we'll rely on DynamoDB's default KEYS_ONLY behavior for now.
+            // For KEYS_ONLY projection, we'll rely on DynamoDB's default behavior
           }
 
           return queryBuilder;
-        }) as QueryMethods<T, I, TConfig>[keyof I];
+        }) as QueryMethods<TSchema, I, Q, TConfig>[keyof I];
 
         repository.query[typedIndexName] = queryMethod;
+      }
+    }
+
+    // Add custom query methods
+    if (this.definition.query) {
+      for (const [queryName, queryDef] of Object.entries(this.definition.query)) {
+        const typedQueryName = queryName as keyof Q;
+        const typedQueryDef = queryDef as QueryDefinition<TSchema>;
+
+        const queryMethod = ((params: QueryParams<Q>[typeof typedQueryName]) => {
+          const pk = applyPartitionKey(typedQueryDef.partitionKey, params);
+          const sk = applySortKey(typedQueryDef.sortKey.value, params);
+
+          const keyCondition = {
+            pk: pk,
+            sk: (op: KeyConditionOperator) => {
+              const condition = typedQueryDef.sortKey.condition;
+              if (condition === "beginsWith") {
+                return op.beginsWith(sk);
+              }
+              if (condition === "eq") {
+                return op.eq(sk);
+              }
+              throw new Error(`Unsupported condition: ${condition}`);
+            },
+          };
+
+          const queryBuilder =
+            table.query<Extract<SchemaTypes<TSchema>["output"], Record<string, unknown>>>(keyCondition);
+
+          if (typedQueryDef.index !== "primary") {
+            queryBuilder.useIndex(typedQueryDef.index);
+          }
+
+          return queryBuilder;
+        }) as QueryMethods<TSchema, I, Q, TConfig>[keyof Q];
+
+        repository.query[typedQueryName] = queryMethod;
       }
     }
 
@@ -199,7 +257,7 @@ export class Entity<
   /**
    * Gets the entity's schema
    */
-  getSchema(): StandardSchemaV1 {
+  getSchema(): TSchema {
     return this.definition.schema;
   }
 
@@ -220,7 +278,7 @@ export class Entity<
   /**
    * Gets the entity's lifecycle hooks
    */
-  getHooks(): EntityLifecycleHooks<T, PKDef> {
+  getHooks(): EntityLifecycleHooks<TSchema, PKDef> {
     return this.hooks;
   }
 }
@@ -229,12 +287,16 @@ export class Entity<
  * Factory function to create a new entity
  */
 export function defineEntity<
-  T extends Record<string, unknown>,
+  TSchema extends StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>,
   PKDef extends {
     partitionKey: (params: StrictGenerateType<readonly string[]>) => string;
     sortKey: (params: GenerateType<readonly string[]>) => string;
   },
   I extends Record<string, unknown> = Record<string, never>,
->(definition: EntityDefinition<T, PKDef, I>, hooks?: EntityLifecycleHooks<T, PKDef>): Entity<T, PKDef, I> {
-  return new Entity<T, PKDef, I>(definition, hooks);
+  Q extends Record<string, QueryDefinition<TSchema>> = Record<string, never>,
+>(
+  definition: EntityDefinition<TSchema, PKDef, I, Q>,
+  hooks?: EntityLifecycleHooks<TSchema, PKDef>,
+): Entity<TSchema, PKDef, I, Q> {
+  return new Entity<TSchema, PKDef, I, Q>(definition, hooks);
 }

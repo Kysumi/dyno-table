@@ -5,7 +5,7 @@ import { partitionKey } from "../src/utils/partition-key-template";
 import { sortKey } from "../src/utils/sort-key-template";
 
 interface Dinosaur extends Record<string, unknown> {
-  id: string;
+  id: number;
   species: string;
   name: string;
   enclosureId: string;
@@ -95,6 +95,7 @@ const dinosaurHooks = {
   },
 };
 
+// Now we can define the entity using our schema
 const DinosaurEntity = defineEntity(
   {
     name: "Dinosaur",
@@ -104,15 +105,31 @@ const DinosaurEntity = defineEntity(
       sortKey: sortKey`METADATA#${"species"}`,
     },
     indexes: {
-      byEnclosure: {
-        gsi: "gsi2",
+      gsi1: {
         partitionKey: partitionKey`ENCLOSURE#${"enclosureId"}`,
         sortKey: sortKey`DINOSAUR#${"id"}#SPECIES#${"species"}`,
       },
-      bySpeciesAndDiet: {
-        gsi: "gsi1",
+      gsi2: {
         partitionKey: partitionKey`SPECIES#${"species"}`,
         sortKey: sortKey`DIET#${"diet"}#DINOSAUR#${"id"}`,
+      },
+    },
+    query: {
+      byId: {
+        index: "primary",
+        partitionKey: partitionKey`DINOSAUR#${"id"}`,
+        sortKey: {
+          condition: "beginsWith",
+          value: sortKey`METADATA#${"species"}`,
+        },
+      },
+      byEnclosureId: {
+        index: "gsi1",
+        partitionKey: partitionKey`ENCLOSURE#${"enclosureId"}`,
+        sortKey: {
+          condition: "eq",
+          value: sortKey`DINOSAUR#${"id"}#SPECIES#${"species"}`,
+        },
       },
     },
   },
@@ -124,7 +141,7 @@ export async function exampleUsage(table: Table) {
 
   // Create a dinosaur (will have timestamps added by beforeCreate hook)
   const rex = await dinosaurRepository.create({
-    id: "d123",
+    id: 12,
     species: "Tyrannosaurus",
     name: "Rex",
     enclosureId: "E5",
@@ -133,18 +150,25 @@ export async function exampleUsage(table: Table) {
     weight: 8000,
   });
 
+  // Query dinosaurs by id
   const carnivores = await dinosaurRepository.query
-    .bySpeciesAndDiet({
+    .byId({
+      id: 12,
       species: "Tyrannosaurus",
-      diet: "carnivore",
     })
     .execute();
 
-  // Query by enclosure
+  // Get a specific dinosaur by primary key
+  dinosaurRepository.get({
+    species: "Tyrannosaurus",
+    id: "d123",
+  });
+
+  // Query by enclosure using GSI1
   const enclosureDinosaurs = await dinosaurRepository.query
-    .byEnclosure({
+    .byEnclosureId({
       enclosureId: "E5",
-      id: "d123",
+      id: 12,
       species: "Tyrannosaurus",
     })
     .execute();
@@ -152,16 +176,18 @@ export async function exampleUsage(table: Table) {
   // Get a specific dinosaur (name will be transformed to uppercase by afterGet hook)
   const dinosaur = await dinosaurRepository.get({
     species: "asd",
+    id: "d456",
   });
 
   // Update a dinosaur (updatedAt will be set by beforeUpdate hook)
+  // Note: primary key fields (id, species) are required for update
   const updatedDinosaur = await dinosaurRepository.update({
-    id: "d123",
+    id: 123,
     species: "Tyrannosaurus",
     weight: 8500,
   });
 
-  // Delete a dinosaur
+  // Delete a dinosaur - only primary key fields are needed
   await dinosaurRepository.delete({
     id: "d123",
     species: "Tyrannosaurus",

@@ -1,5 +1,5 @@
 export type StrictGenerateType<T extends readonly string[]> = {
-  [K in T[number]]: string;
+  [K in T[number]]: unknown;
 };
 
 /**
@@ -44,7 +44,7 @@ export function partitionKey<T extends readonly string[]>(
         throw new Error(`Partition key template parameter ${key} is undefined`);
       }
 
-      result += value + (strings[i + 1] ?? "");
+      result += String(value) + (strings[i + 1] ?? "");
     }
 
     return result;
