@@ -21,7 +21,7 @@ export interface PutCommandParams extends DynamoCommandWithExpressions {
   conditionExpression?: string;
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: Record<string, unknown>;
-  returnValues?: "ALL_OLD" | "NONE";
+  returnValues?: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT";
 }
 
 /**

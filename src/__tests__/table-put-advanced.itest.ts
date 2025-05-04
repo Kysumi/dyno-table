@@ -28,8 +28,8 @@ describe("Table Integration Tests - Put Builder Advanced Features", () => {
       type: "ReturnTest",
     };
 
-    // Assert that the default behaviour for PUT operation is ALL_OLD
-    const result = await table.put(updatedDino).execute();
+    // Assert that the default behaviour for ALL_OLD returnValues works as expected
+    const result = await table.put(updatedDino).returnValues("ALL_OLD").execute();
 
     expect(result).toEqual(originalDino);
 

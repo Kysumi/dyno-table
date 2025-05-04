@@ -41,8 +41,17 @@ const DDB_TRANSACT_WRITE_LIMIT = 100;
 export class Table<TConfig extends TableConfig = TableConfig> {
   private readonly dynamoClient: DynamoDBDocument;
   readonly tableName: string;
+  /**
+   * The column name of the partitionKey for the Table
+   */
   readonly partitionKey: string;
+  /**
+   * The column name of the sortKey for the Table
+   */
   readonly sortKey?: string;
+  /**
+   * The Global Secondary Indexes that are configured on this table
+   */
   readonly gsis: Record<string, Index>;
 
   constructor(config: TConfig) {
@@ -104,8 +113,27 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
-          ReturnValues: params.returnValues,
+          // RETURN_AFTER_PUT is not a valid ReturnValue for DDB, so we set NONE as we are not interested in its
+          // response and will be reloading the item from the DB through a get instead
+          ReturnValues: params.returnValues === "RETURN_AFTER_PUT" ? "NONE" : params.returnValues,
         });
+
+        // Reload the item from the DB, so the user gets the most correct representation of the item from the DB
+        if (params.returnValues === "RETURN_AFTER_PUT") {
+          const key = {
+            pk: params.item[this.partitionKey],
+            ...(this.sortKey && { sk: params.item[this.sortKey] }),
+          };
+
+          const getResult = await this.dynamoClient.get({
+            TableName: params.tableName,
+            Key: key,
+            ConsistentRead: true,
+          });
+
+          return getResult.Item as T;
+        }
+
         return result.Attributes as T;
       } catch (error) {
         console.error("Error creating item:", error);

@@ -26,8 +26,13 @@ import type { PutCommandParams } from "./builder-types";
 export interface PutOptions {
   /** Optional condition that must be satisfied for the put operation to succeed */
   condition?: Condition;
-  /** Determines whether to return the item's previous state (if it existed) */
-  returnValues?: "ALL_OLD" | "NONE";
+  /** Determines how to handle the return value of the put operation
+   * @options
+   *  - NONE: No return value
+   *  - ALL_OLD: Returns the item's previous state if it existed
+   *  - RETURN_AFTER_PUT: (default) Performs a GET operation after the put to retrieve the item's new state
+   */
+  returnValues?: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT";
 }
 
 type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams) => Promise<T>;
@@ -65,7 +70,7 @@ type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams)
  */
 export class PutBuilder<T extends Record<string, unknown>> {
   private readonly item: T;
-  private options: PutOptions = { returnValues: "ALL_OLD" };
+  private options: PutOptions;
   private readonly executor: PutExecutor<T>;
   private readonly tableName: string;
 
@@ -73,6 +78,9 @@ export class PutBuilder<T extends Record<string, unknown>> {
     this.executor = executor;
     this.item = item;
     this.tableName = tableName;
+    this.options = {
+      returnValues: "RETURN_AFTER_PUT",
+    };
   }
 
   /**
