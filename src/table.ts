@@ -39,10 +39,19 @@ const DDB_TRANSACT_GET_LIMIT = 100;
 const DDB_TRANSACT_WRITE_LIMIT = 100;
 
 export class Table<TConfig extends TableConfig = TableConfig> {
-  private dynamoClient: DynamoDBDocument;
+  private readonly dynamoClient: DynamoDBDocument;
   readonly tableName: string;
+  /**
+   * The column name of the partitionKey for the Table
+   */
   readonly partitionKey: string;
+  /**
+   * The column name of the sortKey for the Table
+   */
   readonly sortKey?: string;
+  /**
+   * The Global Secondary Indexes that are configured on this table
+   */
   readonly gsis: Record<string, Index>;
 
   constructor(config: TConfig) {
@@ -98,15 +107,34 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     // Define the executor function that will be called when execute() is called on the builder
     const executor = async (params: PutCommandParams): Promise<T> => {
       try {
-        await this.dynamoClient.put({
+        const result = await this.dynamoClient.put({
           TableName: params.tableName,
           Item: params.item,
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
-          ReturnValues: params.returnValues,
+          // RETURN_AFTER_PUT is not a valid ReturnValue for DDB, so we set NONE as we are not interested in its
+          // response and will be reloading the item from the DB through a get instead
+          ReturnValues: params.returnValues === "RETURN_AFTER_PUT" ? "NONE" : params.returnValues,
         });
-        return params.item as T;
+
+        // Reload the item from the DB, so the user gets the most correct representation of the item from the DB
+        if (params.returnValues === "RETURN_AFTER_PUT") {
+          const key = {
+            pk: params.item[this.partitionKey],
+            ...(this.sortKey && { sk: params.item[this.sortKey] }),
+          };
+
+          const getResult = await this.dynamoClient.get({
+            TableName: params.tableName,
+            Key: key,
+            ConsistentRead: true,
+          });
+
+          return getResult.Item as T;
+        }
+
+        return result.Attributes as T;
       } catch (error) {
         console.error("Error creating item:", error);
         throw error;
@@ -146,7 +174,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
       const skCondition = keyCondition.sk(keyConditionOperator);
 
-      // Create key condition expression
+      // Create a key condition expression
       keyConditionExpression = and(eq(pkAttributeName, keyCondition.pk), skCondition);
     }
 

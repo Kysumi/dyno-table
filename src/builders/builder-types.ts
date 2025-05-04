@@ -13,7 +13,13 @@ export interface DeleteCommandParams extends DynamoCommandWithExpressions {
 
 /**
  * Parameters for the DynamoDB put command.
+ *
  * These parameters are used when executing the operation against DynamoDB.
+ *
+ * The `returnValues` property can be:
+ * - `"ALL_OLD"`: Return the attributes of the item as they were before the operation
+ * - `"NONE"`: Return nothing
+ * - `"RETURN_AFTER_PUT"`: Triggers a GET operation after the put to retrieve the updated item state
  */
 export interface PutCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
@@ -21,7 +27,7 @@ export interface PutCommandParams extends DynamoCommandWithExpressions {
   conditionExpression?: string;
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: Record<string, unknown>;
-  returnValues?: "ALL_OLD" | "NONE";
+  returnValues?: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT";
 }
 
 /**

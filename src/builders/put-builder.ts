@@ -26,19 +26,19 @@ import type { PutCommandParams } from "./builder-types";
 export interface PutOptions {
   /** Optional condition that must be satisfied for the put operation to succeed */
   condition?: Condition;
-  /** Determines whether to return the item's previous state (if it existed) */
-  returnValues?: "ALL_OLD" | "NONE";
+  /** Determines how to handle the return value of the put operation
+   * @options
+   *  - NONE: No return value
+   *  - ALL_OLD: Returns the item's previous state if it existed
+   *  - RETURN_AFTER_PUT: (default) Performs a GET operation after the put to retrieve the item's new state
+   */
+  returnValues?: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT";
 }
 
 type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams) => Promise<T>;
 
 /**
  * Builder for creating DynamoDB put operations.
- * Use this builder when you need to:
- * - Add new dinosaurs to the registry
- * - Create new habitats
- * - Update dinosaur profiles completely
- * - Initialize tracking records
  *
  * @example
  * ```typescript
@@ -70,7 +70,7 @@ type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams)
  */
 export class PutBuilder<T extends Record<string, unknown>> {
   private readonly item: T;
-  private options: PutOptions = {};
+  private options: PutOptions;
   private readonly executor: PutExecutor<T>;
   private readonly tableName: string;
 
@@ -78,6 +78,9 @@ export class PutBuilder<T extends Record<string, unknown>> {
     this.executor = executor;
     this.item = item;
     this.tableName = tableName;
+    this.options = {
+      returnValues: "RETURN_AFTER_PUT",
+    };
   }
 
   /**
@@ -107,10 +110,6 @@ export class PutBuilder<T extends Record<string, unknown>> {
    */
   /**
    * Adds a condition that must be satisfied for the put operation to succeed.
-   * Use this method when you need to:
-   * - Prevent duplicate dinosaur entries
-   * - Ensure habitat requirements
-   * - Validate security protocols
    *
    * @example
    * ```typescript
@@ -141,7 +140,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
-  public condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): PutBuilder<T> {
+  public condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -168,10 +167,8 @@ export class PutBuilder<T extends Record<string, unknown>> {
 
   /**
    * Sets whether to return the item's previous values (if it existed).
-   * Use this method when you need to:
-   * - Track dinosaur profile updates
-   * - Monitor habitat modifications
-   * - Maintain change history
+   *
+   * If ALL_OLD is set, the values returned are strongly consistent and no read capacity units are consumed
    *
    * @example
    * ```ts
@@ -192,10 +189,10 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * }
    * ```
    *
-   * @param returnValues - Use 'ALL_OLD' to return previous values, or 'NONE' (default)
+   * @param returnValues - Use 'ALL_OLD' to return previous values if the item was overwritten, or 'NONE' (default).
    * @returns The builder instance for method chaining
    */
-  public returnValues(returnValues: "ALL_OLD" | "NONE"): PutBuilder<T> {
+  public returnValues(returnValues: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT"): this {
     this.options.returnValues = returnValues;
     return this;
   }
@@ -286,11 +283,6 @@ export class PutBuilder<T extends Record<string, unknown>> {
   /**
    * Gets a human-readable representation of the put command
    * with all expression placeholders replaced by their actual values.
-   * Use this method when you need to:
-   * - Debug complex dinosaur transfers
-   * - Verify habitat assignments
-   * - Log security protocols
-   * - Troubleshoot breeding program conditions
    *
    * @example
    * ```ts
