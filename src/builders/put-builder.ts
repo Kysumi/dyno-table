@@ -192,7 +192,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * @param returnValues - Use 'ALL_OLD' to return previous values if the item was overwritten, or 'NONE' (default).
    * @returns The builder instance for method chaining
    */
-  public returnValues(returnValues: "ALL_OLD" | "NONE"): this {
+  public returnValues(returnValues: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT"): this {
     this.options.returnValues = returnValues;
     return this;
   }
