@@ -17,6 +17,7 @@ describe("Table Integration Tests - Put Builder Advanced Features", () => {
       name: "Original Name",
       type: "ReturnTest",
     };
+
     await table.put(originalDino).execute();
 
     // Update with returnValues
@@ -27,11 +28,43 @@ describe("Table Integration Tests - Put Builder Advanced Features", () => {
       type: "ReturnTest",
     };
 
-    const result = await table.put(updatedDino).returnValues("ALL_OLD").execute();
+    // Assert that the default behaviour for PUT operation is ALL_OLD
+    const result = await table.put(updatedDino).execute();
+
+    expect(result).toEqual(originalDino);
 
     // The result should be the updated item, but we can verify the operation worked
     // by checking the item was updated
     const getResult = await table.get({ pk: "dinosaur#put-return", sk: "dino#test" }).execute();
+    expect(getResult.item?.name).toBe("Updated Name");
+  });
+
+  it("should return undefined when returnValues is set to NONE", async () => {
+    // First create an item
+    const originalDino: Dinosaur = {
+      pk: "dinosaur#put-return-none",
+      sk: "dino#test",
+      name: "Original Name",
+      type: "ReturnNoneTest",
+    };
+
+    await table.put(originalDino).execute();
+
+    // Update with returnValues set to NONE
+    const updatedDino: Dinosaur = {
+      pk: "dinosaur#put-return-none",
+      sk: "dino#test",
+      name: "Updated Name",
+      type: "ReturnNoneTest",
+    };
+
+    // Test that returnValues('NONE') returns null
+    const result = await table.put(updatedDino).returnValues("NONE").execute();
+
+    expect(result).toBeUndefined();
+
+    // Verify the operation worked by checking the item was updated
+    const getResult = await table.get({ pk: "dinosaur#put-return-none", sk: "dino#test" }).execute();
     expect(getResult.item?.name).toBe("Updated Name");
   });
 });

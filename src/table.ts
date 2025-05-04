@@ -39,7 +39,7 @@ const DDB_TRANSACT_GET_LIMIT = 100;
 const DDB_TRANSACT_WRITE_LIMIT = 100;
 
 export class Table<TConfig extends TableConfig = TableConfig> {
-  private dynamoClient: DynamoDBDocument;
+  private readonly dynamoClient: DynamoDBDocument;
   readonly tableName: string;
   readonly partitionKey: string;
   readonly sortKey?: string;
@@ -98,7 +98,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     // Define the executor function that will be called when execute() is called on the builder
     const executor = async (params: PutCommandParams): Promise<T> => {
       try {
-        await this.dynamoClient.put({
+        const result = await this.dynamoClient.put({
           TableName: params.tableName,
           Item: params.item,
           ConditionExpression: params.conditionExpression,
@@ -106,7 +106,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ExpressionAttributeValues: params.expressionAttributeValues,
           ReturnValues: params.returnValues,
         });
-        return params.item as T;
+        return result.Attributes as T;
       } catch (error) {
         console.error("Error creating item:", error);
         throw error;
@@ -146,7 +146,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
       const skCondition = keyCondition.sk(keyConditionOperator);
 
-      // Create key condition expression
+      // Create a key condition expression
       keyConditionExpression = and(eq(pkAttributeName, keyCondition.pk), skCondition);
     }
 
