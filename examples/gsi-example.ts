@@ -200,7 +200,9 @@ async function createDinosaur(
     updatedAt: now,
   } as Dinosaur;
 
-  return await dinoTable.put(dinosaur).execute();
+  await dinoTable.put(dinosaur).execute();
+
+  return dinosaur;
 }
 
 async function createFossil(
@@ -217,7 +219,13 @@ async function createFossil(
     updatedAt: now,
   } as Fossil;
 
-  return await dinoTable.put(newFossil).execute();
+  const fossil = await dinoTable.put(newFossil).returnValues("CONSISTENT").execute();
+
+  if (!fossil) {
+    throw new Error("Fossil not created");
+  }
+
+  return fossil;
 }
 
 async function updateDinosaurHabitat(dinoId: string, habitatId: string): Promise<void> {
