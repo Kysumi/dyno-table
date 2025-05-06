@@ -11,10 +11,80 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./table": {
+      "types": "./dist/table.d.ts",
+      "import": "./dist/table.js",
+      "require": "./dist/table.cjs"
+    },
+    "./entity": {
+      "types": "./dist/entity.d.ts",
+      "import": "./dist/entity.js",
+      "require": "./dist/entity.cjs"
+    },
+    "./conditions": {
+      "types": "./dist/conditions.d.ts",
+      "import": "./dist/conditions.js",
+      "require": "./dist/conditions.cjs"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "require": "./dist/types.cjs"
+    },
+    "./standard-schema": {
+      "types": "./dist/standard-schema.d.ts",
+      "import": "./dist/standard-schema.js",
+      "require": "./dist/standard-schema.cjs"
+    },
+    "./utils/key-template": {
+      "types": "./dist/utils/key-template.d.ts",
+      "import": "./dist/utils/key-template.js",
+      "require": "./dist/utils/key-template.cjs"
+    },
+    "./utils/sort-key-template": {
+      "types": "./dist/utils/sort-key-template.d.ts",
+      "import": "./dist/utils/sort-key-template.js",
+      "require": "./dist/utils/sort-key-template.cjs"
+    },
+    "./builders/query-builder": {
+      "types": "./dist/builders/query-builder.d.ts",
+      "import": "./dist/builders/query-builder.js",
+      "require": "./dist/builders/query-builder.cjs"
+    },
+    "./builders/paginator": {
+      "types": "./dist/builders/paginator.d.ts",
+      "import": "./dist/builders/paginator.js",
+      "require": "./dist/builders/paginator.cjs"
+    },
+    "./builders/put-builder": {
+      "types": "./dist/builders/put-builder.d.ts",
+      "import": "./dist/builders/put-builder.js",
+      "require": "./dist/builders/put-builder.cjs"
+    },
+    "./builders/update-builder": {
+      "types": "./dist/builders/update-builder.d.ts",
+      "import": "./dist/builders/update-builder.js",
+      "require": "./dist/builders/update-builder.cjs"
+    },
+    "./builders/delete-builder": {
+      "types": "./dist/builders/delete-builder.d.ts",
+      "import": "./dist/builders/delete-builder.js",
+      "require": "./dist/builders/delete-builder.cjs"
+    },
+    "./builders/transaction-builder": {
+      "types": "./dist/builders/transaction-builder.d.ts",
+      "import": "./dist/builders/transaction-builder.js",
+      "require": "./dist/builders/transaction-builder.cjs"
+    },
+    "./builders/condition-check-builder": {
+      "types": "./dist/builders/condition-check-builder.d.ts",
+      "import": "./dist/builders/condition-check-builder.js",
+      "require": "./dist/builders/condition-check-builder.cjs"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "build": "tsup --config tsup.config.ts",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:w": "vitest watch",
@@ -41,11 +111,11 @@
   "devDependencies": {
     "@babel/preset-typescript": "^7.26.0",
     "@biomejs/biome": "1.9.4",
-    "@types/node": "^20.0.0",
-    "rimraf": "^5.0.0",
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^2.1.8"
+    "@types/node": "^20.17.11",
+    "rimraf": "^5.0.10",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "3.0.5"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",

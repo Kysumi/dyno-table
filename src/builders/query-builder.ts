@@ -116,7 +116,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    *
    * @returns The builder instance for method chaining
    */
-  sortAscending(): QueryBuilder<T> {
+  sortAscending(): this {
     this.options.scanIndexForward = true;
     return this;
   }
@@ -143,7 +143,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    *
    * @returns The builder instance for method chaining
    */
-  sortDescending(): QueryBuilder<T> {
+  sortDescending(): this {
     this.options.scanIndexForward = false;
     return this;
   }

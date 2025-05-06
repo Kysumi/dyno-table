@@ -87,7 +87,7 @@ npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import { Table } from "dyno-table";
+import { Table } from "dyno-table/table";
 
 // Configure AWS SDK clients
 const client = new DynamoDBClient({ region: "us-west-2" });

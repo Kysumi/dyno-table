@@ -1,7 +1,7 @@
 export type GenerateType<T extends readonly string[], U extends string = never> = T extends [infer F, ...infer R]
   ? F extends string
     ? R extends string[]
-      ? ({ [K in F | U]: string } & Partial<Record<Exclude<T[number], F | U>, never>>) | GenerateType<R, F | U>
+      ? ({ [K in F | U]: string | number } & Partial<Record<Exclude<T[number], F | U>, never>>) | GenerateType<R, F | U>
       : never
     : never
   : never;
