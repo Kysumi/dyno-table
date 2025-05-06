@@ -113,13 +113,13 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
-          // RETURN_AFTER_PUT is not a valid ReturnValue for DDB, so we set NONE as we are not interested in its
+          // CONSISTENT is not a valid ReturnValue for DDB, so we set NONE as we are not interested in its
           // response and will be reloading the item from the DB through a get instead
-          ReturnValues: params.returnValues === "RETURN_AFTER_PUT" ? "NONE" : params.returnValues,
+          ReturnValues: params.returnValues === "CONSISTENT" ? "NONE" : params.returnValues,
         });
 
         // Reload the item from the DB, so the user gets the most correct representation of the item from the DB
-        if (params.returnValues === "RETURN_AFTER_PUT") {
+        if (params.returnValues === "CONSISTENT") {
           const key = {
             pk: params.item[this.partitionKey],
             ...(this.sortKey && { sk: params.item[this.sortKey] }),

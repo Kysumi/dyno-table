@@ -21,8 +21,7 @@ describe("Table Integration Tests - Create Items", () => {
       period: "Late Cretaceous",
     };
 
-    const result = await table.create(dino).execute();
-    expect(result).toEqual(dino);
+    await table.create(dino).execute();
 
     // Verify item was created
     const queryResult = await table.query({ pk: "dinosaur#1" }).execute();

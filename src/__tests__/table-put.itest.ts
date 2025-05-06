@@ -18,7 +18,7 @@ describe("Table Integration Tests - Put Items", () => {
       period: "Late Jurassic",
     };
 
-    const result = await table.put(dino).execute();
+    const result = await table.put(dino).returnValues("CONSISTENT").execute();
     expect(result).toEqual(dino);
 
     // Verify item was created
@@ -47,6 +47,7 @@ describe("Table Integration Tests - Put Items", () => {
     const result = await table
       .put(updatedDino)
       .condition((op) => op.eq("name", "Brachiosaurus"))
+      .returnValues("CONSISTENT")
       .execute();
 
     expect(result).toEqual(updatedDino);
@@ -88,8 +89,9 @@ describe("Table Integration Tests - Put Items", () => {
       },
     };
 
+    // Not set the return values too CONSISTENT to ensure the undefined value is retained
     const result = await table.put(dino).execute();
-    expect(result).toEqual(dino);
+    expect(result).toEqual(undefined);
 
     // Verify item was created and undefined keys are retained as `undefined` in the stored object
     const getResult = await table.get<Dinosaur>({ pk: "dinosaur#6", sk: "dino#spino" }).execute();
@@ -112,7 +114,7 @@ describe("Table Integration Tests - Put Items", () => {
       },
     };
 
-    const result = await table.put(dino).execute();
+    const result = await table.put(dino).returnValues("CONSISTENT").execute();
     expect(result).toEqual(dino);
 
     // Verify item was created and empty string keys are retained in the stored object
