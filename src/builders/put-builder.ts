@@ -30,9 +30,9 @@ export interface PutOptions {
    * @options
    *  - NONE: No return value
    *  - ALL_OLD: Returns the item's previous state if it existed
-   *  - RETURN_AFTER_PUT: (default) Performs a GET operation after the put to retrieve the item's new state
+   *  - CONSISTENT: (default) Performs a GET operation after the put to retrieve the item's new state
    */
-  returnValues?: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT";
+  returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT";
 }
 
 type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams) => Promise<T>;
@@ -79,7 +79,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
     this.item = item;
     this.tableName = tableName;
     this.options = {
-      returnValues: "RETURN_AFTER_PUT",
+      returnValues: "NONE",
     };
   }
 
@@ -168,7 +168,10 @@ export class PutBuilder<T extends Record<string, unknown>> {
   /**
    * Sets whether to return the item's previous values (if it existed).
    *
-   * If ALL_OLD is set, the values returned are strongly consistent and no read capacity units are consumed
+   * @options
+   *  - NONE: No return value
+   *  - ALL_OLD: Returns the item's previous state if it existed, no read capacity units are consumed
+   *  - CONSISTENT: (default) Performs a GET operation after the put to retrieve the item's new state
    *
    * @example
    * ```ts
@@ -192,7 +195,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * @param returnValues - Use 'ALL_OLD' to return previous values if the item was overwritten, or 'NONE' (default).
    * @returns The builder instance for method chaining
    */
-  public returnValues(returnValues: "ALL_OLD" | "NONE" | "RETURN_AFTER_PUT"): this {
+  public returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT"): this {
     this.options.returnValues = returnValues;
     return this;
   }
@@ -246,7 +249,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * @param transaction - The transaction builder to add this operation to
    * @returns The builder instance for method chaining
    */
-  public withTransaction(transaction: TransactionBuilder): PutBuilder<T> {
+  public withTransaction(transaction: TransactionBuilder): this {
     const command = this.toDynamoCommand();
     transaction.putWithCommand(command);
 
@@ -275,7 +278,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    * @returns A promise that resolves to the operation result (type depends on returnValues setting)
    * @throws Will throw an error if the condition check fails or other DynamoDB errors occur
    */
-  public async execute(): Promise<T> {
+  public async execute(): Promise<T | undefined> {
     const params = this.toDynamoCommand();
     return this.executor(params);
   }

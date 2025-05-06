@@ -81,7 +81,7 @@ describe("PutBuilder", () => {
         conditionExpression: expect.any(String),
         expressionAttributeNames: expect.any(Object),
         expressionAttributeValues: expect.any(Object),
-        returnValues: "RETURN_AFTER_PUT",
+        returnValues: "NONE",
       });
       expect(result).toBe(mockResponse);
     });
@@ -97,7 +97,7 @@ describe("PutBuilder", () => {
       expect(mockExecutor).toHaveBeenCalledWith({
         tableName,
         item,
-        returnValues: "RETURN_AFTER_PUT",
+        returnValues: "NONE",
       });
       expect(result).toBe(mockResponse);
     });
@@ -133,7 +133,7 @@ describe("PutBuilder", () => {
           conditionExpression: "#0 = :0",
           expressionAttributeNames: { "#0": "status" },
           expressionAttributeValues: { ":0": "active" },
-          returnValues: "RETURN_AFTER_PUT",
+          returnValues: "NONE",
         },
         readable: {
           conditionExpression: 'status = "active"',
@@ -149,7 +149,21 @@ describe("PutBuilder", () => {
         raw: {
           tableName,
           item,
-          returnValues: "RETURN_AFTER_PUT",
+          returnValues: "NONE",
+        },
+        readable: {},
+      });
+    });
+
+    it("should correctly debug withReturn value being set", () => {
+      const builder = new PutBuilder<TestItem>(mockExecutor, item, tableName).returnValues("CONSISTENT");
+      const debug = builder.debug();
+
+      expect(debug).toEqual({
+        raw: {
+          tableName,
+          item,
+          returnValues: "CONSISTENT",
         },
         readable: {},
       });

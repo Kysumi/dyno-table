@@ -43,6 +43,7 @@ await table
     - [Comparison Operators](#comparison-operators)
     - [Logical Operators](#logical-operators)
     - [Query Operations](#query-operations)
+    - [Put Operations](#put-operations)
     - [Update Operations](#update-operations)
       - [Condition Operators](#condition-operators)
       - [Multiple Operations](#multiple-operations)
@@ -445,6 +446,51 @@ const limited = await table
   .query({ pk: "USER#123" })
   .limit(10)
   .execute();
+```
+
+### Put Operations
+
+| Operation           | Method Example                                                      | Description                                                            |
+|---------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
+| **Create New Item** | `.create<Dinosaur>({ pk: "SPECIES#trex", sk: "PROFILE#001", ... })` | Creates a new item with a condition to ensure it doesn't already exist |
+| **Put Item**        | `.put<Dinosaur>({ pk: "SPECIES#trex", sk: "PROFILE#001", ... })`    | Creates or replaces an item                                            |
+| **With Condition**  | `.put(item).condition(op => op.attributeNotExists("pk"))`           | Adds a condition that must be satisfied                                |
+
+#### Return Values
+
+Control what data is returned from put operations:
+
+| Option         | Description                                                                                                        | Example                                           |
+|----------------|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
+| **NONE**       | Default. No return value.                                                                                          | `.put(item).returnValues("NONE").execute()`       |
+| **ALL_OLD**    | Returns the item's previous state if it existed. (Does not consume any RCU and returns strongly consistent values) | `.put(item).returnValues("ALL_OLD").execute()`    |
+| **CONSISTENT** | Performs a consistent GET operation after the put to retrieve the item's new state. (Does consume RCU)             | `.put(item).returnValues("CONSISTENT").execute()` |
+
+```ts
+// Create with no return value (default)
+await table.put<Dinosaur>({
+  pk: "SPECIES#trex",
+  sk: "PROFILE#001",
+  name: "Tyrannosaurus Rex",
+  diet: "carnivore"
+}).execute();
+
+// Create and return the newly created item
+const newDino = await table.put<Dinosaur>({
+  pk: "SPECIES#trex",
+  sk: "PROFILE#002",
+  name: "Tyrannosaurus Rex",
+  diet: "carnivore"
+}).returnValues("CONSISTENT").execute();
+
+// Update with condition and get previous values
+const oldDino = await table.put<Dinosaur>({
+  pk: "SPECIES#trex",
+  sk: "PROFILE#001",
+  name: "Tyrannosaurus Rex",
+  diet: "omnivore", // Updated diet
+  discoveryYear: 1905
+}).returnValues("ALL_OLD").execute();
 ```
 
 ### Update Operations
