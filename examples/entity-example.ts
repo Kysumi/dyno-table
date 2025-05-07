@@ -1,13 +1,12 @@
-import { defineEntity, createIndex, createQueries } from "../src/entity";
+import { defineEntity, createQueries, createIndex } from "../src/entity";
 import type { StandardSchemaV1 } from "../src/standard-schema";
 import { partitionKey } from "../src/utils/key-template";
-import { sortKey } from "../src/utils/sort-key-template";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "../src/table";
 
 // Define a simple User entity
-interface User {
+interface User extends Record<string, unknown> {
   id: string;
   name: string;
   email: string;
@@ -56,11 +55,51 @@ const userSchema: StandardSchemaV1<User> = {
   },
 };
 
-// Define key templates
-const userPK = partitionKey`USER#${"id"}`;
-const userSK = sortKey`METADATA`;
+interface UserIndexQuery {
+  id: string;
+  age: number;
+}
 
-// Create primary index
+const userIndexQuerySchema: StandardSchemaV1<UserIndexQuery> = {
+  "~standard": {
+    version: 1,
+    vendor: "dyno-table",
+    validate: (value: unknown) => {
+      if (typeof value !== "object" || value === null) {
+        return {
+          issues: [{ message: "Value must be an object" }],
+        };
+      }
+
+      const user = value as User;
+      const issues: StandardSchemaV1.Issue[] = [];
+
+      if (typeof user.id !== "string") {
+        issues.push({ message: "id must be a string" });
+      }
+
+      if (typeof user.age !== "number") {
+        issues.push({ message: "age must be a number" });
+      }
+
+      if (issues.length > 0) {
+        return { issues };
+      }
+
+      return { value: user };
+    },
+    types: {
+      input: {} as UserIndexQuery,
+      output: {} as UserIndexQuery,
+    },
+  },
+};
+
+// Define key templates
+const userPK = partitionKey`${"id"}`;
+const userSK = "METADATA";
+
+// Create a primary index using entity isolation
 const primaryKey = createIndex<User>()
   .partitionKey(({ id }) => userPK({ id }))
   .withoutSortKey();
@@ -73,8 +112,22 @@ const UserEntity = defineEntity({
   schema: userSchema,
   primaryKey,
   queries: {
-    byId: createQuery.input(userSchema).query(({ input, entity }) => {
-        entity.
+    byId: createQuery.input(userIndexQuerySchema).query(({ input, entity }) => {
+      return entity.scan().filter((op) => op.eq("age", input.age));
+    }),
+    temp: createQuery.input(userSchema).query(({ input, entity }) => {
+      return entity
+        .query({
+          pk: userPK({ id: input.id }),
+          sk: userSK,
+        })
+        .filter((op) => op.eq("age", input.age));
+    }),
+    another: createQuery.input(userSchema).query(({ input, entity }) => {
+      return entity.get({
+        pk: userPK({ id: input.id }),
+        sk: userSK,
+      });
     }),
   },
 });
@@ -108,6 +161,8 @@ async function main() {
   console.log("User entity defined successfully!");
   console.log("Entity name:", UserEntity.name);
 
+  const userRepo = UserEntity.createRepository(table);
+
   // Example user data
   const user: User = {
     id: "user123",
@@ -116,12 +171,12 @@ async function main() {
     age: 30,
   };
 
-  const userRepo = UserEntity.createRepository(table);
-  userRepo.create(user).execute();
+  // Create a user
+  await userRepo.create(user).execute();
 
-  userRepo.query;
-
-  console.log("Example user:", user);
+  // Query users by age
+  const users = await userRepo.query.byId({ age: 30 }).execute();
+  console.log("Users:", users);
 }
 
 // This would be executed in a real application
