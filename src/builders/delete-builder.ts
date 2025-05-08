@@ -19,13 +19,14 @@ import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
 import { debugCommand } from "../utils/debug-expression";
 import type { DeleteCommandParams } from "./builder-types";
+import type { DynamoItem } from "../types";
 
 export interface DeleteOptions {
   condition?: Condition;
   returnValues?: "ALL_OLD";
 }
 
-type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: Record<string, unknown> }>;
+type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: DynamoItem }>;
 
 /**
  * Builder for creating DynamoDB delete operations.
@@ -99,7 +100,7 @@ export class DeleteBuilder {
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
-  public condition<T extends Record<string, unknown>>(
+  public condition<T extends DynamoItem>(
     condition: Condition | ((op: ConditionOperator<T>) => Condition),
   ): DeleteBuilder {
     if (typeof condition === "function") {
@@ -224,7 +225,7 @@ export class DeleteBuilder {
    *
    * @returns A promise that resolves to an object containing the deleted item's attributes (if returnValues is 'ALL_OLD')
    */
-  public async execute(): Promise<{ item?: Record<string, unknown> }> {
+  public async execute(): Promise<{ item?: DynamoItem }> {
     const params = this.toDynamoCommand();
     return this.executor(params);
   }
@@ -255,7 +256,7 @@ export class DeleteBuilder {
    *
    * @returns A readable representation of the delete command with resolved expressions
    */
-  debug(): Record<string, unknown> {
+  debug(): DynamoItem {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }

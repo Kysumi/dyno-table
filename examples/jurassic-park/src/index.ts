@@ -144,14 +144,16 @@ const dietSK = sortKey`SPECIES#${"species"}#DINOSAUR#${"id"}#CREATED#${"createdA
 //
 
 // Create a primary index for Dinosaur entity
-const primaryKey = createIndex<Dinosaur>()
+const primaryKey = createIndex()
+  .input(dinosaurSchema)
   .partitionKey(({ id }: { id: string }) => dinosaurPK({ id }))
   .sortKey(({ status, createdAt }: { status: "active" | "inactive" | "sick" | "deceased"; createdAt?: string }) =>
     dinosaurSK({ status, createdAt }),
   );
 
 // Create GSI1 for querying by species
-const gsi1 = createIndex<Dinosaur>()
+const gsi1 = createIndex()
+  .input(dinosaurSchema)
   .partitionKey(({ species }: { species: string }) => speciesPK({ species }))
   .sortKey(({ id, dangerLevel, createdAt }: { id: string; dangerLevel: number; createdAt?: string }) =>
     speciesSK({
@@ -162,7 +164,8 @@ const gsi1 = createIndex<Dinosaur>()
   );
 
 // Create GSI2 for querying by enclosure
-const gsi2 = createIndex<Dinosaur>()
+const gsi2 = createIndex()
+  .input(dinosaurSchema)
   .partitionKey(({ enclosureId }: { enclosureId: string }) => enclosurePK({ enclosureId }))
   .sortKey(({ id, dangerLevel }: { id: string; dangerLevel: number }) =>
     enclosureSK({
@@ -172,7 +175,8 @@ const gsi2 = createIndex<Dinosaur>()
   );
 
 // Create GSI3 for querying by diet
-const gsi3 = createIndex<Dinosaur>()
+const gsi3 = createIndex()
+  .input(dinosaurSchema)
   .partitionKey(({ diet }: { diet: string }) => dietPK({ diet }))
   .sortKey(({ id, species, createdAt }: { id: string; species: string; createdAt?: string }) =>
     dietSK({

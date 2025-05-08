@@ -55,7 +55,7 @@ const userSchema: StandardSchemaV1<User> = {
   },
 };
 
-interface UserIndexQuery {
+interface UserIndexQuery extends Record<string, unknown> {
   id: string;
   age: number;
 }
@@ -100,20 +100,21 @@ const userPK = partitionKey`${"id"}`;
 const userSK = "METADATA";
 
 // Create a primary index using entity isolation
-const primaryKey = createIndex<User>()
+const primaryKey = createIndex()
+  .input(userIndexQuerySchema)
   .partitionKey(({ id }) => userPK({ id }))
   .withoutSortKey();
 
 const createQuery = createQueries<User>();
 
 // Define the User entity
-const UserEntity = defineEntity({
+const UserEntity = defineEntity<User, UserIndexQuery>({
   name: "User",
   schema: userSchema,
   primaryKey,
   queries: {
     byId: createQuery.input(userIndexQuerySchema).query(({ input, entity }) => {
-      return entity.scan().filter((op) => op.eq("age", input.age));
+      return entity.scan().filter((op) => (input.age !== undefined ? op.eq("age", input.age) : op.gt("age", -1)));
     }),
     temp: createQuery.input(userSchema).query(({ input, entity }) => {
       return entity
@@ -176,12 +177,10 @@ async function main() {
 
   // Query users by age
   const users = await userRepo.query.byId({ age: 30 }).execute();
+
+  // Update the user - id and age are required attributes because that's what we defined in userIndexQuerySchema
+  const temp = await userRepo.update({ id: "user123" }, { age: 31 }).execute();
+  await userRepo.delete({ id: "user123" }).execute();
+
   console.log("Users:", users);
 }
-
-// This would be executed in a real application
-// main().catch(console.error);
-
-// Export the entity for use in other files
-export { UserEntity };
-export type { User };

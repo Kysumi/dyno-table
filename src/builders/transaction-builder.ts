@@ -10,6 +10,7 @@ import type {
   TransactionItem,
   UpdateCommandParams,
 } from "./builder-types";
+import type { DynamoItem } from "../types";
 
 /**
  * Configuration options for DynamoDB transactions.
@@ -104,7 +105,7 @@ export class TransactionBuilder {
    * Checks if an item with the same primary key already exists in the transaction
    * @private
    */
-  private checkForDuplicateItem(tableName: string, newItem: Record<string, unknown>): void {
+  private checkForDuplicateItem(tableName: string, newItem: DynamoItem): void {
     const pkName = this.indexConfig.partitionKey;
     const skName = this.indexConfig.sortKey || "";
 
@@ -204,7 +205,7 @@ export class TransactionBuilder {
    * @returns The transaction builder for method chaining
    * @throws {Error} If a duplicate item is detected in the transaction
    */
-  put<T extends Record<string, unknown>>(tableName: string, item: T, condition?: Condition): TransactionBuilder {
+  put<T extends DynamoItem>(tableName: string, item: T, condition?: Condition): this {
     // Check for duplicate item
     this.checkForDuplicateItem(tableName, item);
 
@@ -429,14 +430,14 @@ export class TransactionBuilder {
    * @returns The transaction builder for method chaining
    * @throws {Error} If a duplicate item is detected in the transaction
    */
-  update<T extends Record<string, unknown>>(
+  update<T extends DynamoItem>(
     tableName: string,
     key: PrimaryKeyWithoutExpression,
     updateExpression: string,
     expressionAttributeNames?: Record<string, string>,
     expressionAttributeValues?: Record<string, unknown>,
     condition?: Condition,
-  ): TransactionBuilder {
+  ): this {
     // Check for duplicate item
     this.checkForDuplicateItem(tableName, key);
 
@@ -702,7 +703,7 @@ export class TransactionBuilder {
    *
    * @returns An array of readable representations of the transaction items
    */
-  debug(): Record<string, unknown>[] {
+  debug(): DynamoItem[] {
     return debugTransaction(this.items);
   }
 

@@ -124,5 +124,8 @@
   "files": [
     "dist"
   ],
-  "packageManager": "pnpm@10.5.2"
+  "packageManager": "pnpm@10.5.2",
+  "dependencies": {
+    "zod": "^3.24.4"
+  }
 }

@@ -5,61 +5,67 @@ import type { ScanBuilder } from "./builders/scan-builder";
 import type { UpdateBuilder } from "./builders/update-builder";
 import type { StandardSchemaV1 } from "./standard-schema";
 import type { Table } from "./table";
-import type { Index, TableConfig } from "./types";
+import type { DynamoItem, Index, TableConfig } from "./types";
 import { eq, type PrimaryKeyWithoutExpression, type PrimaryKey } from "./conditions";
 import type { QueryBuilder } from "./builders/query-builder";
 
 /**
- * Type helper to ensure T is an object type and can be safely converted to Record<string, unknown>
+ * Type helper to ensure T is a DynamoItem type
  */
-export type EntityType<T> = T extends Record<string, unknown> ? T : never;
+export type EntityType<T> = T extends DynamoItem ? T : never;
 
 // Define the QueryFunction type with a generic return type
-export type QueryFunction<T extends Record<string, unknown>, I, R> = (
-  input: I,
-) => R;
+export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
 
 // Define a type for the query record that preserves the input type for each query function
-export type QueryRecord<T extends Record<string, unknown>> = {
+export type QueryRecord<T extends DynamoItem> = {
   [K: string]: QueryFunction<T, unknown, ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>;
 };
 
 // Define a type for entity with only scan, get and query methods
-export type QueryEntity<T extends Record<string, unknown>> = {
+export type QueryEntity<T extends DynamoItem> = {
   scan: () => ScanBuilder<T>;
   get: (key: PrimaryKeyWithoutExpression) => GetBuilder<T>;
   query: (keyCondition: PrimaryKey | PrimaryKeyWithoutExpression) => QueryBuilder<T, TableConfig>;
 };
 
 // Define a type for entity with entityType field
-export type EntityWithType<T extends Record<string, unknown>> = T & { entityType: string };
+export type EntityWithType<T extends DynamoItem> = T & { entityType: string };
 
 // Define a type for the result of a query builder
-export type QueryBuilderResult<T extends Record<string, unknown>> = {
+export type QueryBuilderResult<T extends DynamoItem> = {
   items: T[];
-  lastEvaluatedKey?: Record<string, unknown>;
+  lastEvaluatedKey?: DynamoItem;
 };
 
-export interface EntityConfig<T extends Record<string, unknown>, Q extends QueryRecord<T> = QueryRecord<T>> {
+export interface EntityConfig<
+  T extends DynamoItem,
+  I extends DynamoItem = T,
+  Q extends QueryRecord<T> = QueryRecord<T>,
+> {
   name: string;
   schema: StandardSchemaV1<T>;
-  primaryKey: Index;
+  primaryKey: IndexDefinition<I>;
   indexes?: Record<string, Index>;
   queries?: Q;
 }
 
-export interface PaginatedResult<T extends Record<string, unknown>> {
+export interface PaginatedResult<T extends DynamoItem> {
   items: T[];
-  lastEvaluatedKey?: Record<string, unknown>;
+  lastEvaluatedKey?: DynamoItem;
   hasMore: boolean;
 }
 
-export interface EntityRepository<T extends Record<string, unknown>, Q extends QueryRecord<T> = QueryRecord<T>> {
-  create: (data: T) => PutBuilder<Record<string, unknown>>;
-  upsert: (data: T) => PutBuilder<Record<string, unknown>>;
-  get: (key: PrimaryKeyWithoutExpression) => GetBuilder<Record<string, unknown>>;
-  update: (key: PrimaryKeyWithoutExpression, data: Partial<T>) => UpdateBuilder<Record<string, unknown>>;
-  delete: (key: PrimaryKeyWithoutExpression) => DeleteBuilder;
+export interface EntityRepository<
+  T extends DynamoItem,
+  I extends DynamoItem = T,
+  Q extends QueryRecord<T> = QueryRecord<T>,
+> {
+  create: (data: T) => PutBuilder<T>;
+  upsert: (data: T) => PutBuilder<T>;
+  get: (key: I) => GetBuilder<T>;
+  update: (key: I, data: Partial<T>) => UpdateBuilder<T>;
+  delete: (key: I) => DeleteBuilder;
   query: Q;
   scan: () => ScanBuilder<T>;
 }
@@ -81,12 +87,12 @@ export interface EntityRepository<T extends Record<string, unknown>, Q extends Q
  * });
  * ```
  */
-export function defineEntity<T extends Record<string, unknown>, Q extends QueryRecord<T> = QueryRecord<T>>(
-  config: EntityConfig<T, Q>,
+export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q extends QueryRecord<T> = QueryRecord<T>>(
+  config: EntityConfig<T, I, Q>,
 ) {
   return {
     name: config.name,
-    createRepository: (table: Table): EntityRepository<T, Q> => {
+    createRepository: (table: Table): EntityRepository<T, I, Q> => {
       // Create a repository
       const repository = {
         create: (data: T) => {
@@ -151,19 +157,25 @@ export function defineEntity<T extends Record<string, unknown>, Q extends QueryR
           return builder;
         },
 
-        get: (key: PrimaryKeyWithoutExpression) => {
-          return table.get(key);
+        get: <K extends I>(key: K) => {
+          // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
+          const primaryKeyObj = config.primaryKey.generateKey(key);
+          return table.get(primaryKeyObj);
         },
 
-        update: (key: PrimaryKeyWithoutExpression, data: Partial<T>) => {
-          const builder = table.update(key);
+        update: <K extends I>(key: K, data: Partial<T>) => {
+          // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
+          const primaryKeyObj = config.primaryKey.generateKey(key);
+          const builder = table.update(primaryKeyObj);
           builder.condition(eq("entityType", config.name));
           builder.set(data);
           return builder;
         },
 
-        delete: (key: PrimaryKeyWithoutExpression) => {
-          const builder = table.delete(key);
+        delete: <K extends I>(key: K) => {
+          // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
+          const primaryKeyObj = config.primaryKey.generateKey(key);
+          const builder = table.delete(primaryKeyObj);
           builder.condition(eq("entityType", config.name));
           return builder;
         },
@@ -194,16 +206,16 @@ export function defineEntity<T extends Record<string, unknown>, Q extends QueryR
   };
 }
 
-export function createQueries<T extends Record<string, unknown>>() {
+export function createQueries<T extends DynamoItem>() {
   return {
     input: <I>(schema: StandardSchemaV1<I>) => ({
-      query: <Q extends QueryRecord<T> = QueryRecord<T>, R = ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>(
+      query: <
+        Q extends QueryRecord<T> = QueryRecord<T>,
+        R = ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>,
+      >(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
-        const queryFn = async function (
-          this: EntityRepository<T, Q>,
-          input: I,
-        ): Promise<R> {
+        const queryFn = async function (this: EntityRepository<T, Q>, input: I): Promise<R> {
           const validationResult = await schema["~standard"].validate(input);
           if ("issues" in validationResult && validationResult.issues) {
             throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
@@ -219,34 +231,36 @@ export function createQueries<T extends Record<string, unknown>>() {
   };
 }
 
-export interface IndexDefinition<T extends Record<string, unknown>> extends Index {
+export interface IndexDefinition<T extends DynamoItem> extends Index {
   name: string;
   generateKey: (item: T) => { pk: string; sk?: string };
 }
 
-export function createIndex<T extends Record<string, unknown>>() {
+export function createIndex() {
   return {
-    partitionKey: <P extends (item: T) => string>(pkFn: P) => ({
-      sortKey: <S extends (item: T) => string>(skFn: S) =>
-        ({
-          name: "custom",
-          partitionKey: "pk",
-          sortKey: "sk",
-          generateKey: (item: T) => ({
-            pk: pkFn(item),
-            sk: skFn(item),
-          }),
-        }) as IndexDefinition<T>,
+    input: <T>(schema: StandardSchemaV1<T>) => ({
+      partitionKey: <P extends (item: T) => string>(pkFn: P) => ({
+        sortKey: <S extends (item: T) => string>(skFn: S) =>
+          ({
+            name: "custom",
+            partitionKey: "pk",
+            sortKey: "sk",
+            generateKey: (item: T) => ({
+              pk: pkFn(item),
+              sk: skFn(item),
+            }),
+          }) as IndexDefinition<T>,
 
-      // Allow creating an index with only a partition key
-      withoutSortKey: () =>
-        ({
-          name: "custom",
-          partitionKey: "pk",
-          generateKey: (item: T) => ({
-            pk: pkFn(item),
-          }),
-        }) as IndexDefinition<T>,
+        // Allow creating an index with only a partition key
+        withoutSortKey: () =>
+          ({
+            name: "custom",
+            partitionKey: "pk",
+            generateKey: (item: T) => ({
+              pk: pkFn(item),
+            }),
+          }) as IndexDefinition<T>,
+      }),
     }),
   };
 }

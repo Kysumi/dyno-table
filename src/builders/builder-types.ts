@@ -1,13 +1,13 @@
 import type { PrimaryKeyWithoutExpression } from "../conditions";
 import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
-import type { TableConfig } from "../types";
+import type { DynamoItem, TableConfig } from "../types";
 
 export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   key: PrimaryKeyWithoutExpression;
   conditionExpression?: string;
   expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, unknown>;
+  expressionAttributeValues?: DynamoItem;
   returnValues?: "ALL_OLD";
 }
 
@@ -23,7 +23,7 @@ export interface DeleteCommandParams extends DynamoCommandWithExpressions {
  */
 export interface PutCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
-  item: Record<string, unknown>;
+  item: DynamoItem;
   conditionExpression?: string;
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: Record<string, unknown>;
@@ -46,7 +46,7 @@ export interface UpdateCommandParams extends DynamoCommandWithExpressions {
   /** Map of expression attribute name placeholders to actual names */
   expressionAttributeNames?: Record<string, string>;
   /** Map of expression attribute value placeholders to actual values */
-  expressionAttributeValues?: Record<string, unknown>;
+  expressionAttributeValues?: DynamoItem;
   /** Which item attributes to include in the response */
   returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
 }
@@ -56,44 +56,40 @@ export interface ConditionCheckCommandParams extends DynamoCommandWithExpression
   key: PrimaryKeyWithoutExpression;
   conditionExpression: string;
   expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, unknown>;
+  expressionAttributeValues?: DynamoItem;
 }
 
 /**
  * Base interface for all builder classes that support pagination
  * to be used by Paginator without creating circular dependencies.
  */
-export interface BaseBuilderInterface<
-  T extends Record<string, unknown>,
-  TConfig extends TableConfig = TableConfig,
-  B = unknown,
-> {
+export interface BaseBuilderInterface<T extends DynamoItem, TConfig extends TableConfig = TableConfig, B = unknown> {
   clone(): B;
   limit(limit: number): B;
   getLimit(): number | undefined;
-  startFrom(lastEvaluatedKey: Record<string, unknown>): B;
-  execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
+  startFrom(lastEvaluatedKey: DynamoItem): B;
+  execute(): Promise<{ items: T[]; lastEvaluatedKey?: DynamoItem }>;
 }
 
 /**
  * Interface for the QueryBuilder class to be used by Paginator
  * without creating a circular dependency.
  */
-export interface QueryBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+export interface QueryBuilderInterface<T extends DynamoItem, TConfig extends TableConfig = TableConfig>
   extends BaseBuilderInterface<T, TConfig, QueryBuilderInterface<T, TConfig>> {}
 
 /**
  * Interface for the ScanBuilder class to be used by Paginator
  * without creating a circular dependency.
  */
-export interface ScanBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+export interface ScanBuilderInterface<T extends DynamoItem, TConfig extends TableConfig = TableConfig>
   extends BaseBuilderInterface<T, TConfig, ScanBuilderInterface<T, TConfig>> {}
 
 /**
  * Interface for the FilterBuilder class to be used by Paginator
  * without creating a circular dependency.
  */
-export interface FilterBuilderInterface<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+export interface FilterBuilderInterface<T extends DynamoItem, TConfig extends TableConfig = TableConfig>
   extends BaseBuilderInterface<T, TConfig, FilterBuilderInterface<T, TConfig>> {}
 
 /**
@@ -105,7 +101,7 @@ export interface PaginationResult<T> {
   /** The items (dinosaurs, habitats, etc.) retrieved for the current page */
   items: T[];
   /** DynamoDB's last evaluated key, used internally for pagination */
-  lastEvaluatedKey?: Record<string, unknown>;
+  lastEvaluatedKey?: DynamoItem;
   /** Indicates whether there are more pages available */
   hasNextPage: boolean;
   /** The current page number (1-indexed) */

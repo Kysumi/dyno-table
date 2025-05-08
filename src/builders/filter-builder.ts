@@ -17,7 +17,7 @@ import {
   type ConditionOperator,
 } from "../conditions";
 import { Paginator } from "./paginator";
-import type { GSINames, TableConfig } from "../types";
+import type { DynamoItem, GSINames, TableConfig } from "../types";
 import type { FilterBuilderInterface } from "./builder-types";
 
 /**
@@ -36,7 +36,7 @@ export interface FilterOptions {
   /** List of attributes to return in the result */
   projection?: string[];
   /** Token for starting the operation from a specific point */
-  lastEvaluatedKey?: Record<string, unknown>;
+  lastEvaluatedKey?: DynamoItem;
 }
 
 /**
@@ -53,7 +53,7 @@ export interface FilterOptions {
  * @typeParam T - The type of items being filtered
  * @typeParam TConfig - The table configuration type for type-safe GSI selection
  */
-export abstract class FilterBuilder<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableConfig = TableConfig>
   implements FilterBuilderInterface<T, TConfig>
 {
   protected options: FilterOptions = {};
@@ -330,7 +330,7 @@ export abstract class FilterBuilder<T extends Record<string, unknown>, TConfig e
    * @param lastEvaluatedKey - The exclusive start key from a previous result
    * @returns The builder instance for method chaining
    */
-  startFrom(lastEvaluatedKey: Record<string, unknown>): this {
+  startFrom(lastEvaluatedKey: DynamoItem): this {
     this.options.lastEvaluatedKey = lastEvaluatedKey;
     return this;
   }
@@ -375,5 +375,5 @@ export abstract class FilterBuilder<T extends Record<string, unknown>, TConfig e
    * This method must be implemented by subclasses to handle
    * their specific execution logic.
    */
-  abstract execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
+  abstract execute(): Promise<{ items: T[]; lastEvaluatedKey?: DynamoItem }>;
 }

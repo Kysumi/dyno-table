@@ -17,9 +17,9 @@ import {
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
-import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
 import { debugCommand } from "../utils/debug-expression";
 import type { ConditionCheckCommandParams } from "./builder-types";
+import type { DynamoItem } from "../types";
 
 /**
  * Builder for creating DynamoDB condition check operations.
@@ -101,10 +101,10 @@ export class ConditionCheckBuilder {
    * );
    * ```
    *
-   * @param condition - Either a Condition object or a callback function that builds the condition
+   * @param condition - Either a Condition DynamoItem or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
-  condition<T extends Record<string, unknown>>(
+  condition<T extends DynamoItem>(
     condition: Condition | ((op: ConditionOperator<T>) => Condition),
   ): ConditionCheckBuilder {
     if (typeof condition === "function") {
@@ -228,7 +228,7 @@ export class ConditionCheckBuilder {
    *
    * @returns A readable representation of the condition check command with resolved expressions
    */
-  debug(): Record<string, unknown> {
+  debug(): DynamoItem {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }

@@ -1,5 +1,7 @@
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 
+export type DynamoItem = { [key: string]: unknown };
+
 export interface Index {
   partitionKey: string;
   sortKey?: string;
