@@ -83,7 +83,10 @@ async function createDinosaurs(repo: EntityRepository<Dinosaur>) {
   try {
     console.log("🦕 Creating multiple dinosaurs...");
 
-    await Promise.all(dinosaurs.map((dino) => repo.create(dino).execute()));
+    dinosaurs.map(async (dino) => {
+      console.log(`- Creating ${dino.name} (${dino.species})`);
+      await repo.create(dino).execute();
+    });
 
     console.log("✅ Successfully created all dinosaurs!");
   } catch (error) {
