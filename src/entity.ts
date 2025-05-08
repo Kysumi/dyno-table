@@ -94,11 +94,36 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
+            const primaryKey = config.primaryKey.generateKey(validationResult.value as unknown as I);
+
+            const indexes = Object.entries(config.indexes ?? {}).reduce(
+              (acc, [indexName, index]) => {
+                const key = (index as IndexDefinition<T>).generateKey(validationResult.value);
+                const gsiConfig = table.gsis[indexName];
+
+                if (!gsiConfig) {
+                  throw new Error(`GSI configuration not found for index: ${indexName}`);
+                }
+
+                if (key.pk) {
+                  acc[gsiConfig.partitionKey] = key.pk;
+                }
+                if (key.sk && gsiConfig.sortKey) {
+                  acc[gsiConfig.sortKey] = key.sk;
+                }
+                return acc;
+              },
+              {} as Record<string, string>,
+            );
+
             // Update the item in the builder with the validated data and entity type
             Object.assign(builder, {
               item: {
                 ...validationResult.value,
                 entityType: config.name,
+                [table.partitionKey]: primaryKey.pk,
+                ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
+                ...indexes,
               },
             });
 
