@@ -1,4 +1,4 @@
-import { defineConfig } from "tsup";
+import {defineConfig} from "tsup";
 
 export default defineConfig({
   entry: {
@@ -10,7 +10,7 @@ export default defineConfig({
     "standard-schema": "src/standard-schema.ts",
 
     // Utils
-    "utils/key-template": "src/utils/key-template.ts",
+    "utils/partition-key-template": "src/utils/partition-key-template.ts",
     "utils/sort-key-template": "src/utils/sort-key-template.ts",
 
     // Builders

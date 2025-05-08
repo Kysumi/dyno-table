@@ -9,11 +9,6 @@ import type { DynamoItem, Index, TableConfig } from "./types";
 import { eq, type PrimaryKeyWithoutExpression, type PrimaryKey } from "./conditions";
 import type { QueryBuilder } from "./builders/query-builder";
 
-/**
- * Type helper to ensure T is a DynamoItem type
- */
-export type EntityType<T> = T extends DynamoItem ? T : never;
-
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
 
@@ -29,15 +24,6 @@ export type QueryEntity<T extends DynamoItem> = {
   query: (keyCondition: PrimaryKey | PrimaryKeyWithoutExpression) => QueryBuilder<T, TableConfig>;
 };
 
-// Define a type for entity with entityType field
-export type EntityWithType<T extends DynamoItem> = T & { entityType: string };
-
-// Define a type for the result of a query builder
-export type QueryBuilderResult<T extends DynamoItem> = {
-  items: T[];
-  lastEvaluatedKey?: DynamoItem;
-};
-
 export interface EntityConfig<
   T extends DynamoItem,
   I extends DynamoItem = T,
@@ -47,13 +33,7 @@ export interface EntityConfig<
   schema: StandardSchemaV1<T>;
   primaryKey: IndexDefinition<I>;
   indexes?: Record<string, Index>;
-  queries?: Q;
-}
-
-export interface PaginatedResult<T extends DynamoItem> {
-  items: T[];
-  lastEvaluatedKey?: DynamoItem;
-  hasMore: boolean;
+  queries: Q;
 }
 
 export interface EntityRepository<
@@ -96,11 +76,14 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
       // Create a repository
       const repository = {
         create: (data: T) => {
-          // We need to handle the async operations when the consumer calls execute
-          const builder = table.create({
+          // Create validated data with an entity type
+          const itemWithType = {
             ...data,
-            entityType: config.name, // Add entity type for filtering
-          } as EntityWithType<T>);
+            entityType: config.name,
+          };
+
+          // We need to handle the async operations when the consumer calls execute
+          const builder = table.create<T>(itemWithType);
 
           // Wrap the builder's execute method to apply validation only
           const originalExecute = builder.execute;
@@ -111,8 +94,13 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
-            // Update the item in the builder with the validated data
-            Object.assign(builder, { item: validationResult.value });
+            // Update the item in the builder with the validated data and entity type
+            Object.assign(builder, {
+              item: {
+                ...validationResult.value,
+                entityType: config.name,
+              },
+            });
 
             // Execute the builder
             const result = await originalExecute.call(builder);
@@ -127,11 +115,14 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
         },
 
         upsert: (data: T) => {
-          // We need to handle the async operations when the consumer calls execute
-          const builder = table.put({
+          // Create validated data with an entity type
+          const itemWithType = {
             ...data,
-            entityType: config.name, // Add entity type for filtering
-          } as EntityWithType<T>);
+            entityType: config.name,
+          };
+
+          // We need to handle the async operations when the consumer calls execute
+          const builder = table.put<T>(itemWithType);
 
           // Wrap the builder's execute method to apply validation only
           const originalExecute = builder.execute;
@@ -142,8 +133,13 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
-            // Update the item in the builder with the validated data
-            Object.assign(builder, { item: validationResult.value });
+            // Update the item in the builder with the validated data and entity type
+            Object.assign(builder, {
+              item: {
+                ...validationResult.value,
+                entityType: config.name,
+              },
+            });
 
             // Execute the builder
             const result = await originalExecute.call(builder);
@@ -160,13 +156,13 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
         get: <K extends I>(key: K) => {
           // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
           const primaryKeyObj = config.primaryKey.generateKey(key);
-          return table.get(primaryKeyObj);
+          return table.get<T>(primaryKeyObj);
         },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
           // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
           const primaryKeyObj = config.primaryKey.generateKey(key);
-          const builder = table.update(primaryKeyObj);
+          const builder = table.update<T>(primaryKeyObj);
           builder.condition(eq("entityType", config.name));
           builder.set(data);
           return builder;
@@ -181,6 +177,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
         },
 
         query: Object.entries(config.queries || {}).reduce((acc, [key, queryFn]) => {
+          // @ts-expect-error - We need to cast the queryFn to a function that takes an unknown input
           acc[key] = (input: unknown) => {
             const builder = queryFn.call(repository, input);
             if (builder && typeof builder === "object" && "filter" in builder && typeof builder.filter === "function") {
@@ -192,7 +189,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
         }, {} as Q),
 
         scan: () => {
-          const scanBuilder = table.scan();
+          const scanBuilder = table.scan<T>();
           scanBuilder.filter(eq("entityType", config.name));
 
           return scanBuilder;
@@ -238,7 +235,7 @@ export interface IndexDefinition<T extends DynamoItem> extends Index {
 
 export function createIndex() {
   return {
-    input: <T>(schema: StandardSchemaV1<T>) => ({
+    input: <T extends DynamoItem>(schema: StandardSchemaV1<T>) => ({
       partitionKey: <P extends (item: T) => string>(pkFn: P) => ({
         sortKey: <S extends (item: T) => string>(skFn: S) =>
           ({

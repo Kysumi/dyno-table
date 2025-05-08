@@ -37,10 +37,10 @@
       "import": "./dist/standard-schema.js",
       "require": "./dist/standard-schema.cjs"
     },
-    "./utils/key-template": {
-      "types": "./dist/utils/key-template.d.ts",
-      "import": "./dist/utils/key-template.js",
-      "require": "./dist/utils/key-template.cjs"
+    "./utils/partition-key-template": {
+      "types": "./dist/utils/partition-key-template.d.ts",
+      "import": "./dist/utils/partition-key-template.js",
+      "require": "./dist/utils/partition-key-template.cjs"
     },
     "./utils/sort-key-template": {
       "types": "./dist/utils/sort-key-template.d.ts",
@@ -96,12 +96,7 @@
     "ddb:start": "docker compose up -d",
     "circular": "npx madge --circular --ts-config ./tsconfig.json --extensions ts,tsx src/"
   },
-  "keywords": [
-    "dynamodb",
-    "aws",
-    "typescript",
-    "database"
-  ],
+  "keywords": ["dynamodb", "aws", "typescript", "database"],
   "author": "Maunder",
   "license": "ISC",
   "repository": {
@@ -121,11 +116,6 @@
     "@aws-sdk/client-dynamodb": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
-  "files": [
-    "dist"
-  ],
-  "packageManager": "pnpm@10.5.2",
-  "dependencies": {
-    "zod": "^3.24.4"
-  }
+  "files": ["dist"],
+  "packageManager": "pnpm@10.5.2"
 }

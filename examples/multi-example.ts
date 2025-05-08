@@ -1,7 +1,7 @@
-import { ScanCommand } from "@aws-sdk/client-dynamodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument, type Paginator } from "@aws-sdk/lib-dynamodb";
-import { eq, Table, type TableConfig } from "../src";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { Table } from "../src/table";
+import type { TableConfig } from "../src/types";
 
 interface DinoTableConfig extends TableConfig {
   indexes: {
@@ -151,8 +151,7 @@ interface DinosaurKey {
   sk: `FIRST_NAME#${DinosaurName}#LAST_NAME#${DinosaurName}`;
 }
 
-// I need to extend Record<string, unknown> for it to work
-interface Dinosaur extends Record<string, unknown> {
+type Dinosaur = {
   pk: DinosaurKey["pk"];
   sk: DinosaurKey["sk"];
   GSI1PK: "TYPE#DINOSAUR";
@@ -164,7 +163,7 @@ interface Dinosaur extends Record<string, unknown> {
   lastName: DinosaurName;
   species: DinosaurSpecies;
   type: "DINOSAUR";
-}
+};
 
 function getRandomElement<T extends readonly unknown[]>(array: T): T[number] {
   return array[Math.floor(Math.random() * array.length)];

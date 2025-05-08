@@ -670,17 +670,361 @@ const result = await table.transaction(
 );
 ```
 
-## 🏗️ Entity Pattern Best Practices (Coming Soon TM)
+## 🏗️ Entity Pattern with Standard Schema validators
 
-The entity implementation provides automatic type isolation:
+The entity pattern provides a structured, type-safe way to work with DynamoDB items.
+It combines schema validation, key management, and repository operations into a cohesive abstraction.
+
+✨ This library supports all standard schema validation libraries, including **zod**, **arktype**, and **valibot**,
+allowing you to choose your preferred validation tool!
+
+### Defining Entities
+
+Entities are defined using the `defineEntity` function, which takes a configuration object that includes a schema, primary key definition, and optional indexes and queries.
 
 ```ts
-// All operations are automatically scoped to DINOSAUR type
-const dinosaur = await dinoEntity.get("SPECIES#trex", "PROFILE#trex"); 
-// Returns Dinosaur | undefined
+import { z } from "zod";
+import { defineEntity, createIndex } from "dyno-table/entity";
 
-// Cross-type operations are prevented at compile time
-dinoEntity.create({ /* invalid shape */ }); // TypeScript error
+// Define your schema using Zod
+const userSchema = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  name: z.string(),
+  age: z.number().int().positive(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+// Infer the type from the schema
+type User = z.infer<typeof userSchema>;
+
+// Define key templates
+const userPK = (id: string) => `USER#${id}`;
+const userSK = () => "PROFILE";
+
+// Create a primary index
+const primaryKey = createIndex()
+  .input(userSchema)
+  .partitionKey(({ id }) => userPK(id))
+  .sortKey(() => userSK());
+
+// Define the entity
+const UserEntity = defineEntity({
+  name: "User",
+  schema: userSchema,
+  primaryKey,
+});
+
+// Create a repository
+const userRepo = UserEntity.createRepository(table);
+```
+
+### Entity Features
+
+#### 1. Schema Validation
+
+Entities use Zod schemas to validate data before operations:
+
+```ts
+// Define a schema with Zod
+const productSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  price: z.number().positive(),
+  category: z.enum(["electronics", "clothing", "food"]),
+  inStock: z.boolean(),
+  tags: z.array(z.string()).optional(),
+});
+
+// Create an entity with the schema
+const ProductEntity = defineEntity({
+  name: "Product",
+  schema: productSchema,
+  primaryKey: /* ... */,
+});
+```
+
+#### 2. CRUD Operations
+
+Entities provide type-safe CRUD operations:
+
+```ts
+// Create a new item
+await userRepo.create({
+  id: "user123",
+  email: "john@example.com",
+  name: "John Doe",
+  age: 30,
+}).execute();
+
+// Get an item
+const user = await userRepo.get({
+  id: "user123",
+}).execute();
+
+// Update an item
+await userRepo.update(
+  { id: "user123" },
+  { age: 31, name: "John Smith" }
+).execute();
+
+// Delete an item
+await userRepo.delete({
+  id: "user123",
+}).execute();
+```
+
+#### 3. Custom Queries
+
+Define custom queries with input validation:
+
+```ts
+import { createQueries } from "dyno-table/entity";
+
+const createQuery = createQueries<User>();
+
+const UserEntity = defineEntity({
+  name: "User",
+  schema: userSchema,
+  primaryKey,
+  queries: {
+    byAge: createQuery
+      .input(
+        z.object({
+          minAge: z.number().int().positive(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .scan()
+          .filter((op) => op.gte("age", input.minAge));
+      }),
+
+    byEmail: createQuery
+      .input(
+        z.object({
+          email: z.string().email(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .scan()
+          .filter((op) => op.eq("email", input.email));
+      }),
+  },
+});
+
+// Use the custom queries
+const olderUsers = await userRepo.query.byAge({ minAge: 25 }).execute();
+const userByEmail = await userRepo.query.byEmail({ email: "john@example.com" }).execute();
+```
+
+#### 4. Indexes for Efficient Querying
+
+Define indexes for efficient access patterns:
+
+```ts
+import { createIndex } from "dyno-table/entity";
+
+// Define GSI for querying by email
+const emailIndex = createIndex()
+  .input(userSchema)
+  .partitionKey(({ email }) => `EMAIL#${email}`)
+  .withoutSortKey();
+
+const UserEntity = defineEntity({
+  name: "User",
+  schema: userSchema,
+  primaryKey,
+  indexes: {
+    email: emailIndex,
+  },
+  queries: {
+    byEmail: createQuery
+      .input(
+        z.object({
+          email: z.string().email(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `EMAIL#${input.email}`,
+          })
+          .useIndex("email");
+      }),
+  },
+});
+```
+
+#### 5. Lifecycle Hooks
+
+Add hooks for pre/post processing:
+
+```ts
+const userHooks = {
+  afterGet: async (data: User | undefined) => {
+    if (data) {
+      return {
+        ...data,
+        displayName: `${data.name} (${data.email})`,
+      };
+    }
+    return data;
+  },
+};
+
+const UserEntity = defineEntity({
+  name: "User",
+  schema: userSchema,
+  primaryKey,
+  hooks: userHooks,
+});
+```
+
+### Complete Entity Example
+
+Here's a complete example using Zod schemas directly:
+
+```ts
+import { z } from "zod";
+import { defineEntity, createQueries, createIndex } from "dyno-table/entity";
+import { Table } from "dyno-table/table";
+
+// Define the schema with Zod
+const dinosaurSchema = z.object({
+  id: z.string(),
+  species: z.string(),
+  name: z.string(),
+  enclosureId: z.string(),
+  diet: z.enum(["carnivore", "herbivore", "omnivore"]),
+  dangerLevel: z.number().int().min(1).max(10),
+  height: z.number().positive(),
+  weight: z.number().positive(),
+  status: z.enum(["active", "inactive", "sick", "deceased"]),
+  trackingChipId: z.string().optional(),
+  lastFed: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+// Infer the type from the schema
+type Dinosaur = z.infer<typeof dinosaurSchema>;
+
+// Define key templates
+const dinosaurPK = (id: string) => `DINOSAUR#${id}`;
+const dinosaurSK = (status: string) => `STATUS#${status}`;
+
+// Create a primary index
+const primaryKey = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ id }) => dinosaurPK(id))
+  .sortKey(({ status }) => dinosaurSK(status));
+
+// Create a GSI for querying by species
+const speciesIndex = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ species }) => `SPECIES#${species}`)
+  .sortKey(({ id }) => `DINOSAUR#${id}`);
+
+// Create a GSI for querying by enclosure
+const enclosureIndex = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ enclosureId }) => `ENCLOSURE#${enclosureId}`)
+  .sortKey(({ id }) => `DINOSAUR#${id}`);
+
+// Create query builders
+const createQuery = createQueries<Dinosaur>();
+
+// Define the entity
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey,
+  indexes: {
+    species: speciesIndex,
+    enclosure: enclosureIndex,
+  },
+  queries: {
+    bySpecies: createQuery
+      .input(
+        z.object({
+          species: z.string(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `SPECIES#${input.species}`,
+          })
+          .useIndex("species");
+      }),
+
+    byEnclosure: createQuery
+      .input(
+        z.object({
+          enclosureId: z.string(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `ENCLOSURE#${input.enclosureId}`,
+          })
+          .useIndex("enclosure");
+      }),
+
+    dangerousInEnclosure: createQuery
+      .input(
+        z.object({
+          enclosureId: z.string(),
+          minDangerLevel: z.number().int().min(1).max(10),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `ENCLOSURE#${input.enclosureId}`,
+          })
+          .useIndex("enclosure")
+          .filter((op) => op.gte("dangerLevel", input.minDangerLevel));
+      }),
+  },
+});
+
+// Create a repository
+const dinosaurRepo = DinosaurEntity.createRepository(table);
+
+// Use the repository
+async function main() {
+  // Create a dinosaur
+  await dinosaurRepo
+    .create({
+      id: "dino-001",
+      species: "Tyrannosaurus Rex",
+      name: "Rexy",
+      enclosureId: "enc-001",
+      diet: "carnivore",
+      dangerLevel: 10,
+      height: 5.2,
+      weight: 7000,
+      status: "active",
+      trackingChipId: "TRX-001",
+    })
+    .execute();
+
+  // Query dinosaurs by species
+  const trexes = await dinosaurRepo.query.bySpecies({ 
+    species: "Tyrannosaurus Rex" 
+  }).execute();
+
+  // Query dangerous dinosaurs in an enclosure
+  const dangerousDinos = await dinosaurRepo.query.dangerousInEnclosure({
+    enclosureId: "enc-001",
+    minDangerLevel: 8,
+  }).execute();
+}
 ```
 
 **Key benefits:**
@@ -688,6 +1032,8 @@ dinoEntity.create({ /* invalid shape */ }); // TypeScript error
 - 🔍 Automatically filters queries/scans to repository type
 - 🛡️ Ensures consistent key structure across entities
 - 📦 Encapsulates domain-specific query logic
+- 🧪 Validates data with Zod schemas
+- 🔄 Provides type inference from schemas
 
 ## 🚨 Error Handling
 

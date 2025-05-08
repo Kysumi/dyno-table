@@ -13,11 +13,11 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
 
-    "declaration": true,
     "module": "preserve",
     "noEmit": true,
 
     "lib": ["es2022"]
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "examples/entity-example"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
 }

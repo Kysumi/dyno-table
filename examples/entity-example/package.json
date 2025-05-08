@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "Jurassic Park example using dyno-table and zod",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "ts-node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "tsx src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docker": "docker compose up -d"
   },
   "keywords": ["dyno-table", "zod", "dynamodb", "typescript"],
   "author": "",
@@ -18,7 +20,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "ts-node": "^10.9.1",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "tsx": "^4.19.4"
   }
 }
