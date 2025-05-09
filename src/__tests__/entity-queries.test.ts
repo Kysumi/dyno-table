@@ -191,15 +191,17 @@ describe("DinosaurEntity", () => {
     const repository = DinosaurEntity.createRepository(mockTable);
 
     // Call the byDiet query
-    const queryResult = repository.query.byDiet({ 
-      diet: "carnivore", 
-      id: "123", 
-      species: "triceratops" 
-    });
+    const queryResult = repository.query
+      .byDiet({
+        diet: "carnivore",
+        id: "123",
+        species: "1",
+      })
+      .execute();
 
     // Verify that the table.query method was called with the correct parameters
-    expect(mockTable.query).toHaveBeenCalledWith({ 
-      pk: "ENTITY#DINOSAUR#DIET#carnivore" 
+    expect(mockTable.query).toHaveBeenCalledWith({
+      pk: "ENTITY#DINOSAUR#DIET#carnivore",
     });
 
     // Verify that the query builder was returned

@@ -6,15 +6,19 @@ import type { UpdateBuilder } from "./builders/update-builder";
 import type { StandardSchemaV1 } from "./standard-schema";
 import type { Table } from "./table";
 import type { DynamoItem, Index, TableConfig } from "./types";
-import { eq, type PrimaryKeyWithoutExpression, type PrimaryKey } from "./conditions";
+import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "./conditions";
 import type { QueryBuilder } from "./builders/query-builder";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
 
 // Define a type for the query record that preserves the input type for each query function
-export type QueryRecord<T extends DynamoItem> = {
-  [K: string]: QueryFunction<T, unknown, ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>;
+export type QueryFunctionWithSchema<T extends DynamoItem, I, R> = QueryFunction<T, I, R> & {
+  schema?: StandardSchemaV1<I>;
+};
+
+export type QueryRecord<T extends DynamoItem, I = unknown> = {
+  [K: string]: QueryFunctionWithSchema<T, I, ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>;
 };
 
 // Define a type for entity with only scan, get and query methods
@@ -27,7 +31,7 @@ export type QueryEntity<T extends DynamoItem> = {
 export interface EntityConfig<
   T extends DynamoItem,
   I extends DynamoItem = T,
-  Q extends QueryRecord<T> = QueryRecord<T>,
+  Q extends QueryRecord<T, I> = QueryRecord<T, I>,
 > {
   name: string;
   schema: StandardSchemaV1<T>;
@@ -39,7 +43,7 @@ export interface EntityConfig<
 export interface EntityRepository<
   T extends DynamoItem,
   I extends DynamoItem = T,
-  Q extends QueryRecord<T> = QueryRecord<T>,
+  Q extends QueryRecord<T, I> = QueryRecord<T, I>,
 > {
   create: (data: T) => PutBuilder<T>;
   upsert: (data: T) => PutBuilder<T>;
@@ -67,9 +71,11 @@ export interface EntityRepository<
  * });
  * ```
  */
-export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q extends QueryRecord<T> = QueryRecord<T>>(
-  config: EntityConfig<T, I, Q>,
-) {
+export function defineEntity<
+  T extends DynamoItem,
+  I extends DynamoItem = T,
+  Q extends QueryRecord<T, I> = QueryRecord<T, I>,
+>(config: EntityConfig<T, I, Q>) {
   return {
     name: config.name,
     createRepository: (table: Table): EntityRepository<T, I, Q> => {
@@ -216,11 +222,13 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
 
             console.log("Calling the queryFn");
             // Execute the query function to get the builder
-            const callbackFunction = standardSchemaValidator(input);
-            console.log("Got the callback", callbackFunction);
+            const innerFunction = standardSchemaValidator(input);
+            console.log("Got the innerFunction", innerFunction);
 
-            const builder = callbackFunction(queryEntity);
-            console.log("Got the builder", builder);
+            // Run the inner handler which allows the user to apply their desired contraints
+            // to the query builder of their choice
+            const builder = innerFunction(queryEntity);
+            console.log("Got the builder, with the users query", builder);
 
             // Add entity type filter if the builder has filter method
             if (builder && typeof builder === "object" && "filter" in builder && typeof builder.filter === "function") {
@@ -234,8 +242,9 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
                 console.log("Executing the builder");
 
                 // Validate the input before executing the query
-                const queryConfig = config.queries || {};
-                const queryFn = queryConfig[key];
+                const queryFn = (
+                  config.queries as unknown as Record<string, QueryFunctionWithSchema<T, I, typeof builder>>
+                )[key];
 
                 if (queryFn && typeof queryFn === "function") {
                   // Get the schema from the query function
@@ -243,10 +252,10 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
                   if (schema?.["~standard"]?.validate && typeof schema["~standard"].validate === "function") {
                     const validationResult = schema["~standard"].validate(input);
                     if ("issues" in validationResult && validationResult.issues) {
-                      throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+                      throw new Error(
+                        `Validation failed: ${validationResult.issues.map((issue) => issue.message).join(", ")}`,
+                      );
                     }
-                    // We've validated the input, proceed with execution
-                    // The handler has already used the input to create the builder
                   }
                 }
 
@@ -283,25 +292,27 @@ export function createQueries<T extends DynamoItem>() {
   return {
     input: <I>(schema: StandardSchemaV1<I>) => ({
       query: <
-        Q extends QueryRecord<T> = QueryRecord<T>,
+        Q extends QueryRecord<T, I> = QueryRecord<T, I>,
         R = ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>,
       >(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
         console.log("createQueries function");
 
-        // Return the query function with the correct input type
-        return (input: I) => {
-          console.log(input);
-          return (entity: QueryEntity<T>): Promise<R> => {
-            // const validationResult = await schema["~standard"].validate(input);
-            // if ("issues" in validationResult && validationResult.issues) {
-            //   throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
-            // }
-            // Cast the repository to QueryEntity since we know it has these methods
-            return handler({ input, entity }) as QueryFunction<T, unknown, R>;
+        // Create a query function that conforms to QueryFunctionWithSchema type
+        const queryFn = (input: I) => {
+          // This function will be called by the repository later with the real queryEntity
+          return (entity: QueryEntity<T>) => {
+            console.log("going to execute the handler");
+            return handler({ input, entity });
           };
         };
+
+        // Attach the schema to the function for validation purposes
+        queryFn.schema = schema;
+
+        // Return the query function (this satisfies the QueryFunctionWithSchema type)
+        return queryFn as unknown as QueryFunctionWithSchema<T, I, R>;
       },
     }),
   };
