@@ -18,8 +18,9 @@ import {
 import type { Path, PathType } from "./types";
 import type { TransactionBuilder } from "./transaction-builder";
 import { buildExpression, generateAttributeName, generateValueName } from "../expression";
-import { debugCommand, type DynamoCommandWithExpressions } from "../utils/debug-expression";
+import { debugCommand } from "../utils/debug-expression";
 import type { UpdateCommandParams } from "./builder-types";
+import type { DynamoItem } from "../types";
 
 /**
  * Configuration options for DynamoDB update operations.
@@ -35,7 +36,7 @@ export interface UpdateOptions {
  * Function type for executing DynamoDB update operations.
  * @typeParam T - The type of the item being updated
  */
-type UpdateExecutor<T extends Record<string, unknown>> = (params: UpdateCommandParams) => Promise<{ item?: T }>;
+type UpdateExecutor<T extends DynamoItem> = (params: UpdateCommandParams) => Promise<{ item?: T }>;
 
 /**
  * Represents a single update action within an update operation.
@@ -71,12 +72,6 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
 /**
  * Builder for creating DynamoDB update operations.
- * Use this builder when you need to:
- * - Modify existing items in DynamoDB
- * - Update multiple attributes atomically
- * - Perform conditional updates
- * - Work with nested attributes
- * - Update sets and lists
  *
  * The builder supports all DynamoDB update operations:
  * - SET: Modify or add attributes
@@ -108,7 +103,7 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
  *
  * @typeParam T - The type of item being updated
  */
-export class UpdateBuilder<T extends Record<string, unknown>> {
+export class UpdateBuilder<T extends DynamoItem> {
   private updates: UpdateAction[] = [];
   private options: UpdateOptions = {
     returnValues: "ALL_NEW",
@@ -125,10 +120,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Sets multiple attributes of an item using an object.
-   * Use this method when you need to:
-   * - Update multiple attributes at once
-   * - Set nested attribute values
-   * - Modify complex data structures
    *
    * @example
    * ```typescript
@@ -145,10 +136,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Sets a single attribute to a specific value.
-   * Use this method when you need to:
-   * - Update one attribute at a time
-   * - Set values with type safety
-   * - Update nested attributes
    *
    * @example
    * ```typescript
@@ -164,7 +151,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * ```
    */
   set<K extends Path<T>>(path: K, value: PathType<T, K>): UpdateBuilder<T>;
-  set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): UpdateBuilder<T> {
+  set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
     if (typeof valuesOrPath === "object") {
       for (const [key, value] of Object.entries(valuesOrPath)) {
         this.updates.push({
@@ -186,10 +173,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Removes an attribute from the item.
-   * Use this method when you need to:
-   * - Delete attributes completely
-   * - Remove nested attributes
-   * - Clean up deprecated fields
    *
    * @example
    * ```typescript
@@ -207,7 +190,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * @param path - The path to the attribute to remove
    * @returns The builder instance for method chaining
    */
-  remove<K extends Path<T>>(path: K): UpdateBuilder<T> {
+  remove<K extends Path<T>>(path: K): this {
     this.updates.push({
       type: "REMOVE",
       path,
@@ -217,10 +200,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Adds a value to a number attribute or adds elements to a set.
-   * Use this method when you need to:
-   * - Increment counters
-   * - Add elements to a set atomically
-   * - Update numerical statistics
    *
    * @example
    * ```typescript
@@ -239,7 +218,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * @param value - The value to add (number or set)
    * @returns The builder instance for method chaining
    */
-  add<K extends Path<T>>(path: K, value: PathType<T, K>): UpdateBuilder<T> {
+  add<K extends Path<T>>(path: K, value: PathType<T, K>): this {
     this.updates.push({
       type: "ADD",
       path,
@@ -250,10 +229,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Removes elements from a set attribute.
-   * Use this method when you need to:
-   * - Remove specific elements from a set
-   * - Update set-based attributes atomically
-   * - Maintain set membership
    *
    * @example
    * ```typescript
@@ -263,7 +238,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *   ['JUNGLE', 'COASTAL']
    * );
    *
-   * // Remove from sets using Set objects
+   * // Remove from sets using Set DynamoItems
    * builder.deleteElementsFromSet(
    *   'knownBehaviors',
    *   new Set(['NOCTURNAL', 'TERRITORIAL'])
@@ -283,7 +258,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
   deleteElementsFromSet<K extends Path<T>>(
     path: K,
     value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
-  ): UpdateBuilder<T> {
+  ): this {
     let valuesToDelete: Set<PathSetElementType<T, K>>;
 
     if (Array.isArray(value)) {
@@ -302,11 +277,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Adds a condition that must be satisfied for the update to succeed.
-   * Use this method when you need to:
-   * - Implement optimistic locking
-   * - Ensure item state before update
-   * - Validate business rules
-   * - Prevent concurrent modifications
    *
    * @example
    * ```typescript
@@ -338,10 +308,10 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * );
    * ```
    *
-   * @param condition - Either a Condition object or a callback function that builds the condition
+   * @param condition - Either a Condition DynamoItem or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
-  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): UpdateBuilder<T> {
+  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -368,11 +338,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Sets which item attributes to include in the response.
-   * Use this method when you need to:
-   * - Get the complete updated item
-   * - Track changes to specific attributes
-   * - Compare old and new values
-   * - Monitor attribute modifications
    *
    * Available options:
    * - ALL_NEW: All attributes after the update
@@ -406,7 +371,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * @param returnValues - Which attributes to return in the response
    * @returns The builder instance for method chaining
    */
-  returnValues(returnValues: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE"): UpdateBuilder<T> {
+  returnValues(returnValues: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE"): this {
     this.options.returnValues = returnValues;
     return this;
   }
@@ -421,7 +386,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
     const expressionParams: {
       expressionAttributeNames: Record<string, string>;
-      expressionAttributeValues: Record<string, unknown>;
+      expressionAttributeValues: DynamoItem;
       valueCounter: { count: number };
     } = {
       expressionAttributeNames: {},
@@ -536,10 +501,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Adds this update operation to a transaction.
-   * Use this method when you need to:
-   * - Update items as part of a larger transaction
-   * - Ensure multiple updates are atomic
-   * - Coordinate updates across multiple items
    *
    * @example
    * ```typescript
@@ -570,11 +531,6 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
 
   /**
    * Gets a human-readable representation of the update command.
-   * Use this method when you need to:
-   * - Debug complex update expressions
-   * - Verify attribute names and values
-   * - Log update operations
-   * - Troubleshoot condition expressions
    *
    * @example
    * ```typescript
@@ -595,17 +551,13 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    *
    * @returns A readable representation of the update command with resolved expressions
    */
-  debug(): Record<string, unknown> {
+  debug(): DynamoItem {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }
 
   /**
    * Executes the update operation against DynamoDB.
-   * Use this method when you need to:
-   * - Apply updates immediately
-   * - Get the updated item values
-   * - Handle conditional update failures
    *
    * @example
    * ```typescript
@@ -640,7 +592,7 @@ export class UpdateBuilder<T extends Record<string, unknown>> {
    * }
    * ```
    *
-   * @returns A promise that resolves to an object containing the updated item (if returnValues is set)
+   * @returns A promise that resolves to an DynamoItem containing the updated item (if returnValues is set)
    * @throws {ConditionalCheckFailedException} If the condition check fails
    * @throws {Error} If the update operation fails for other reasons
    */

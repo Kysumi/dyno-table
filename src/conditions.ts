@@ -1,4 +1,5 @@
 import type { Path, PathType } from "./builders/types";
+import type { DynamoItem } from "./types";
 
 /**
  * Supported comparison operators for DynamoDB conditions.
@@ -83,7 +84,7 @@ export interface ExpressionParams {
   /** Map of attribute name placeholders to actual attribute names */
   expressionAttributeNames: Record<string, string>;
   /** Map of value placeholders to actual values */
-  expressionAttributeValues: Record<string, unknown>;
+  expressionAttributeValues: DynamoItem;
   /** Counter for generating unique value placeholders */
   valueCounter: { count: number };
 }
@@ -292,7 +293,7 @@ export type KeyConditionOperator = {
  *
  * @template T The type of the item being operated on
  */
-export type ConditionOperator<T extends Record<string, unknown>> = {
+export type ConditionOperator<T extends DynamoItem> = {
   eq: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
   ne: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
   lt: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;

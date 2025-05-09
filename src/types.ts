@@ -1,5 +1,7 @@
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 
+export type DynamoItem = { [key: string]: unknown };
+
 export interface Index {
   partitionKey: string;
   sortKey?: string;
@@ -19,11 +21,3 @@ export interface TableConfig {
 }
 
 export type GSINames<T extends TableConfig> = keyof NonNullable<T["indexes"]["gsis"]>;
-
-export interface EntityConfig<T> {
-  name: string;
-  partitionKeyPrefix?: string;
-  sortKeyPrefix?: string;
-  timestamps?: boolean;
-  discriminator?: string; // To identify entity type in the table
-}

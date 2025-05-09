@@ -1,25 +1,25 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import { Table, type TableConfig } from "../src";
+import type { TableConfig } from "../src/types";
+import { Table } from "../src/table";
 
 // Define entity types for our single-table design
 type EntityType = "DINOSAUR" | "FOSSIL" | "HABITAT" | "PERIOD";
 
-// Define base entity interface with common attributes
-interface BaseEntity extends Record<string, unknown> {
+// Define base entity type with common attributes
+type BaseEntity = {
   pk: string;
   sk: string;
   gsi1pk: string;
   gsi2pk: string;
   gsi3pk: string;
-
   entityType: EntityType;
   createdAt: string;
   updatedAt: string;
-}
+};
 
-// Define dinosaur entity
-interface Dinosaur extends BaseEntity {
+// Define dinosaur type
+type Dinosaur = BaseEntity & {
   entityType: "DINOSAUR";
   dinoId: string;
   species: string;
@@ -28,38 +28,38 @@ interface Dinosaur extends BaseEntity {
   length: number;
   weight: number;
   habitatId: string;
-}
+};
 
-// Define period entity
-interface Period extends BaseEntity {
+// Define period type
+type Period = BaseEntity & {
   entityType: "PERIOD";
   periodId: string;
   name: string;
   startMya: number; // millions of years ago
   endMya: number;
-}
+};
 
-// Define habitat entity
-interface Habitat extends BaseEntity {
+// Define habitat type
+type Habitat = BaseEntity & {
   entityType: "HABITAT";
   habitatId: string;
   name: string;
   climate: string;
   terrain: string;
-}
+};
 
-// Define fossil entity
-interface Fossil extends BaseEntity {
+// Define fossil type
+type Fossil = BaseEntity & {
   entityType: "FOSSIL";
   fossilId: string;
   dinoId: string;
   discoveryLocation: string;
   discoveryDate: string;
   completeness: number; // percentage of skeleton found
-}
+};
 
 // Define table configuration with GSIs
-interface DinoTableConfig extends TableConfig {
+type DinoTableConfig = TableConfig & {
   indexes: {
     partitionKey: string;
     sortKey: string;
@@ -78,7 +78,7 @@ interface DinoTableConfig extends TableConfig {
       };
     };
   };
-}
+};
 
 // Create DynamoDB client
 const client = DynamoDBDocument.from(new DynamoDBClient({}));

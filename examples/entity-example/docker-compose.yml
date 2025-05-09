@@ -1,0 +1,21 @@
+services:
+  dynamodb:
+    container_name: "entity-example-ddb"
+    command: "-jar DynamoDBLocal.jar -inMemory -sharedDb -disableTelemetry"
+    image: "amazon/dynamodb-local:latest"
+    ports:
+      - "8897:8000"
+
+  dynamodb-admin:
+    container_name: "entity-example-gui"
+    image: "aaronshaf/dynamodb-admin"
+    depends_on:
+      - dynamodb
+    environment:
+      - DYNAMO_ENDPOINT=http://dynamodb:8000
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001" ]
+      interval: 10s
+      retries: 5
+    ports:
+      - "8001:8001"

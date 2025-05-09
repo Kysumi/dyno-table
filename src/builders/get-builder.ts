@@ -1,4 +1,5 @@
 import type { PrimaryKeyWithoutExpression } from "../conditions";
+import type { DynamoItem } from "../types";
 
 /**
  * Configuration options for DynamoDB get operations.
@@ -30,7 +31,7 @@ export interface GetCommandParams {
  * Function type for executing DynamoDB get operations.
  * @typeParam T - The type of item being retrieved
  */
-type GetExecutor<T extends Record<string, unknown>> = (params: GetCommandParams) => Promise<{ item: T | undefined }>;
+type GetExecutor<T extends DynamoItem> = (params: GetCommandParams) => Promise<{ item: T | undefined }>;
 
 /**
  * Builder for creating DynamoDB get operations.
@@ -54,7 +55,7 @@ type GetExecutor<T extends Record<string, unknown>> = (params: GetCommandParams)
  *
  * @typeParam T - The type of item being retrieved
  */
-export class GetBuilder<T extends Record<string, unknown>> {
+export class GetBuilder<T extends DynamoItem> {
   private readonly params: GetCommandParams;
   private options: GetOptions = {};
   private selectedFields: Set<string> = new Set();

@@ -1,6 +1,6 @@
 import type { Condition } from "../conditions";
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
-import type { TableConfig } from "../types";
+import type { DynamoItem, TableConfig } from "../types";
 import type { QueryBuilderInterface } from "./builder-types";
 
 /**
@@ -18,7 +18,7 @@ export interface QueryOptions extends FilterOptions {
  * Function type for executing DynamoDB query operations.
  * @typeParam T - The type of items being queried
  */
-type QueryExecutor<T extends Record<string, unknown>> = (
+type QueryExecutor<T extends DynamoItem> = (
   keyCondition: Condition,
   options: QueryOptions,
 ) => Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
@@ -61,7 +61,7 @@ type QueryExecutor<T extends Record<string, unknown>> = (
  * @typeParam T - The type of items being queried
  * @typeParam TConfig - The table configuration type for type-safe GSI selection
  */
-export class QueryBuilder<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = TableConfig>
   extends FilterBuilder<T, TConfig>
   implements QueryBuilderInterface<T, TConfig>
 {
@@ -116,7 +116,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    *
    * @returns The builder instance for method chaining
    */
-  sortAscending(): QueryBuilder<T> {
+  sortAscending(): this {
     this.options.scanIndexForward = true;
     return this;
   }
@@ -143,7 +143,7 @@ export class QueryBuilder<T extends Record<string, unknown>, TConfig extends Tab
    *
    * @returns The builder instance for method chaining
    */
-  sortDescending(): QueryBuilder<T> {
+  sortDescending(): this {
     this.options.scanIndexForward = false;
     return this;
   }
