@@ -21,7 +21,7 @@ export type QueryRecord<T extends DynamoItem> = {
 export type QueryEntity<T extends DynamoItem> = {
   scan: () => ScanBuilder<T>;
   get: (key: PrimaryKeyWithoutExpression) => GetBuilder<T>;
-  query: (keyCondition: PrimaryKey | PrimaryKeyWithoutExpression) => QueryBuilder<T, TableConfig>;
+  query: (keyCondition: PrimaryKey) => QueryBuilder<T, TableConfig>;
 };
 
 export interface EntityConfig<
@@ -201,13 +201,64 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           return builder;
         },
 
-        query: Object.entries(config.queries || {}).reduce((acc, [key, queryFn]) => {
+        query: Object.entries(config.queries || {}).reduce((acc, [key, standardSchemaValidator]) => {
           // @ts-expect-error - We need to cast the queryFn to a function that takes an unknown input
           acc[key] = (input: unknown) => {
-            const builder = queryFn.call(repository, input);
+            // Create a QueryEntity object with only the necessary methods
+            const queryEntity: QueryEntity<T> = {
+              scan: repository.scan,
+              get: (key: PrimaryKeyWithoutExpression) => table.get<T>(key),
+              query: (keyCondition: PrimaryKey) => {
+                console.log("Creating a query builder");
+                return table.query<T>(keyCondition);
+              },
+            };
+
+            console.log("Calling the queryFn");
+            // Execute the query function to get the builder
+            const callbackFunction = standardSchemaValidator(input);
+            console.log("Got the callback", callbackFunction);
+
+            const builder = callbackFunction(queryEntity);
+            console.log("Got the builder", builder);
+
+            // Add entity type filter if the builder has filter method
             if (builder && typeof builder === "object" && "filter" in builder && typeof builder.filter === "function") {
               builder.filter(eq("entityType", config.name));
             }
+
+            // Wrap the builder's execute method if it exists
+            if (builder && typeof builder === "object" && "execute" in builder) {
+              const originalExecute = builder.execute;
+              builder.execute = async () => {
+                console.log("Executing the builder");
+
+                // Validate the input before executing the query
+                const queryConfig = config.queries || {};
+                const queryFn = queryConfig[key];
+
+                if (queryFn && typeof queryFn === "function") {
+                  // Get the schema from the query function
+                  const schema = queryFn.schema;
+                  if (schema?.["~standard"]?.validate && typeof schema["~standard"].validate === "function") {
+                    const validationResult = schema["~standard"].validate(input);
+                    if ("issues" in validationResult && validationResult.issues) {
+                      throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+                    }
+                    // We've validated the input, proceed with execution
+                    // The handler has already used the input to create the builder
+                  }
+                }
+
+                // Execute the original builder
+                const result = await originalExecute.call(builder);
+                if (!result) {
+                  throw new Error("Failed to execute query");
+                }
+                return result;
+              };
+            }
+
             return builder;
           };
           return acc;
@@ -237,17 +288,20 @@ export function createQueries<T extends DynamoItem>() {
       >(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
-        const queryFn = async function (this: EntityRepository<T, Q>, input: I): Promise<R> {
-          const validationResult = await schema["~standard"].validate(input);
-          if ("issues" in validationResult && validationResult.issues) {
-            throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
-          }
-          // Cast the repository to QueryEntity since we know it has these methods
-          return handler({ input: validationResult.value, entity: this as unknown as QueryEntity<T> });
-        };
+        console.log("createQueries function");
 
         // Return the query function with the correct input type
-        return queryFn as unknown as QueryFunction<T, unknown, R>;
+        return (input: I) => {
+          console.log(input);
+          return (entity: QueryEntity<T>): Promise<R> => {
+            // const validationResult = await schema["~standard"].validate(input);
+            // if ("issues" in validationResult && validationResult.issues) {
+            //   throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+            // }
+            // Cast the repository to QueryEntity since we know it has these methods
+            return handler({ input, entity }) as QueryFunction<T, unknown, R>;
+          };
+        };
       },
     }),
   };

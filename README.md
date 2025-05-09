@@ -6,35 +6,46 @@
 <img src="docs/images/geoff-the-dyno.png" width="400" height="250" alt="Geoff the Dyno" style="float: right; margin-left: 20px; margin-bottom: 20px;">
 
 ```ts
-// Type-safe DynamoDB operations made simple
-await table
+// Type-safe dinosaur tracking operations made simple
+await dinoTable
   .update<Dinosaur>({
     pk: 'SPECIES#trex',
     sk: 'PROFILE#001'
   })
-  .set('diet', 'Carnivore')
-  .add('sightings', 1)
-  .condition(op => op.eq('status', 'ACTIVE'))
+  .set('diet', 'Carnivore')      // Update dietary classification
+  .add('sightings', 1)           // Increment sighting counter
+  .condition(op => op.eq('status', 'ACTIVE'))  // Only if dinosaur is active
   .execute();
 ```
 
-## 🌟 Why dyno-table?
+> This README provides a concise overview of dyno-table's features with dinosaur-themed examples. For detailed documentation on specific features, please refer to the individual markdown files in the `docs/` directory.
 
-- **🧩 Single-table design made simple** - Clean abstraction layer for complex DynamoDB patterns
-- **🛡️ Type-safe operations** - Full TypeScript support with strict type checking
-- **⚡ Fluent API** - Chainable builder pattern for complex operations
-- **🔒 Transactional safety** - ACID-compliant operations with easy-to-use transactions
-- **📈 Scalability built-in** - Automatic batch chunking and pagination handling
+## 🌟 Why dyno-table for your Dinosaur Data?
+
+- **🦕 Dinosaur-sized data made manageable** - Clean abstraction layer for complex DynamoDB patterns
+- **🛡️ Extinction-proof type safety** - Full TypeScript support with strict type checking
+- **⚡ Velociraptor-fast API** - Chainable builder pattern for complex operations
+- **🔒 T-Rex-proof transactional safety** - ACID-compliant operations with easy-to-use transactions
+- **📈 Jurassic-scale performance** - Automatic batch chunking and pagination handling
 
 ## 📑 Table of Contents
 
 - [🦖 dyno-table  ](#-dyno-table--)
-  - [🌟 Why dyno-table?](#-why-dyno-table)
+  - [🌟 Why dyno-table for your Dinosaur Data?](#-why-dyno-table-for-your-dinosaur-data)
   - [📑 Table of Contents](#-table-of-contents)
   - [📦 Installation](#-installation)
   - [🚀 Quick Start](#-quick-start)
-    - [1. Configure Your Table](#1-configure-your-table)
-    - [2. Perform Type-Safe Operations](#2-perform-type-safe-operations)
+    - [1. Configure Your Jurassic Table](#1-configure-your-jurassic-table)
+    - [2. Perform Type-Safe Dinosaur Operations](#2-perform-type-safe-dinosaur-operations)
+  - [🏗️ Entity Pattern](#️-entity-pattern-with-standard-schema-validators)
+    - [Defining Entities](#defining-entities)
+    - [Entity Features](#entity-features)
+      - [1. Schema Validation](#1-schema-validation)
+      - [2. CRUD Operations](#2-crud-operations)
+      - [3. Custom Queries](#3-custom-queries)
+      - [4. Indexes for Efficient Querying](#4-indexes-for-efficient-querying)
+      - [5. Lifecycle Hooks](#5-lifecycle-hooks)
+    - [Complete Entity Example](#complete-entity-example)
   - [🧩 Advanced Features](#-advanced-features)
     - [Transactional Operations](#transactional-operations)
     - [Batch Processing](#batch-processing)
@@ -56,7 +67,6 @@ await table
   - [🔒 Transaction Operations](#-transaction-operations)
     - [Transaction Builder](#transaction-builder)
     - [Transaction Options](#transaction-options)
-  - [🏗️ Entity Pattern Best Practices (Coming Soon TM)](#️-entity-pattern-best-practices-coming-soon-tm)
   - [🚨 Error Handling](#-error-handling)
   - [📚 API Reference](#-api-reference)
     - [Condition Operators](#condition-operators-1)
@@ -82,25 +92,26 @@ npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 
 ## 🚀 Quick Start
 
-### 1. Configure Your Table
+### 1. Configure Your Jurassic Table
 
 ```ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "dyno-table/table";
 
-// Configure AWS SDK clients
+// Configure AWS SDK clients - your gateway to the prehistoric database
 const client = new DynamoDBClient({ region: "us-west-2" });
 const docClient = DynamoDBDocument.from(client);
 
-// Initialize table with single-table design schema
+// Initialize table with single-table design schema - your dinosaur park database
 const dinoTable = new Table({
   client: docClient,
-  tableName: "DinosaurPark",
+  tableName: "JurassicPark", // Your central dinosaur tracking system
   indexes: {
-    partitionKey: "pk",
-    sortKey: "sk",
+    partitionKey: "pk",      // Primary partition key for fast dinosaur lookups
+    sortKey: "sk",           // Sort key for organizing dinosaur data
     gsis: {
+      // Global Secondary Index for querying dinosaurs by species
       speciesId: {
         partitionKey: "gsi1pk",
         sortKey: "gsi1sk",
@@ -110,51 +121,438 @@ const dinoTable = new Table({
 });
 ```
 
-### 2. Perform Type-Safe Operations
+### 2. Perform Type-Safe Dinosaur Operations
 
-**🦖 Creating a new dinosaur**
+**🦖 Creating a new dinosaur specimen**
 ```ts
+// Add a new T-Rex to your collection with complete type safety
 const rex = await dinoTable
   .create<Dinosaur>({
-    pk: "SPECIES#trex",
-    sk: "PROFILE#trex",
-    speciesId: "trex",
-    name: "Tyrannosaurus Rex",
-    diet: "carnivore",
-    length: 12.3,
-    discoveryYear: 1902
+    pk: "SPECIES#trex",           // Partition key identifies the species
+    sk: "PROFILE#trex",           // Sort key for the specific profile
+    speciesId: "trex",            // For GSI queries
+    name: "Tyrannosaurus Rex",    // Display name
+    diet: "carnivore",            // Dietary classification
+    length: 12.3,                 // Size in meters
+    discoveryYear: 1902           // When first discovered
   })
   .execute();
 ```
 
-**🔍 Query with conditions**
+**🔍 Query for specific dinosaurs with conditions**
 ```ts
+// Find large carnivorous dinosaurs in the T-Rex species
 const largeDinos = await dinoTable
   .query<Dinosaur>({ 
-    pk: "SPECIES#trex",
-    sk: (op) => op.beginsWith("PROFILE#")
+    pk: "SPECIES#trex",                    // Target the T-Rex species
+    sk: (op) => op.beginsWith("PROFILE#")  // Look in profile records
   })
   .filter((op) => op.and(
-    op.gte("length", 10),
-    op.eq("diet", "carnivore")
+    op.gte("length", 10),                  // Only dinosaurs longer than 10 meters
+    op.eq("diet", "carnivore")             // Must be carnivores
   ))
-  .limit(10)
+  .limit(10)                               // Limit to 10 results
   .execute();
 ```
 
-**🔄 Complex update operation**
+**🔄 Update dinosaur classification**
 ```ts
+// Update a dinosaur's diet classification based on new research
 await dinoTable
   .update<Dinosaur>({ 
-    pk: "SPECIES#trex", 
-    sk: "PROFILE#trex" 
+    pk: "SPECIES#trex",           // Target the T-Rex species
+    sk: "PROFILE#trex"            // Specific profile to update
   })
-  .set("diet", "omnivore")
-  .add("discoveryYear", 1)
-  .remove("outdatedField")
-  .condition((op) => op.attributeExists("discoverySite"))
+  .set("diet", "omnivore")        // New diet classification based on fossil evidence
+  .add("discoveryYear", 1)        // Adjust discovery year with new findings
+  .remove("outdatedField")        // Remove deprecated information
+  .condition((op) => op.attributeExists("discoverySite"))  // Only if discovery site is documented
   .execute();
 ```
+
+## 🏗️ Entity Pattern with Standard Schema validators
+
+The entity pattern provides a structured, type-safe way to work with DynamoDB items.
+It combines schema validation, key management, and repository operations into a cohesive abstraction.
+
+✨ This library supports all standard schema validation libraries, including **zod**, **arktype**, and **valibot**,
+allowing you to choose your preferred validation tool!
+
+### Defining Entities
+
+Entities are defined using the `defineEntity` function, which takes a configuration object that includes a schema, primary key definition, and optional indexes and queries.
+
+```ts
+import { z } from "zod";
+import { defineEntity, createIndex } from "dyno-table/entity";
+
+// Define your schema using Zod
+const dinosaurSchema = z.object({
+  id: z.string(),
+  species: z.string(),
+  name: z.string(),
+  diet: z.enum(["carnivore", "herbivore", "omnivore"]),
+  dangerLevel: z.number().int().min(1).max(10),
+  height: z.number().positive(),
+  weight: z.number().positive(),
+  status: z.enum(["active", "inactive", "sick", "deceased"]),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+// Infer the type from the schema
+type Dinosaur = z.infer<typeof dinosaurSchema>;
+
+// Define key templates for Dinosaur entity
+const dinosaurPK = partitionKey`ENTITY#DINOSAUR#DIET#${"diet"}`;
+const dinosaurSK = sortKey`ID#${"id"}#SPECIES#${"species"}`;
+
+// Create a primary index for Dinosaur entity
+const primaryKey = createIndex()
+  .input(z.object({ id: z.string(), diet: z.string(), species: z.string() }))
+  .partitionKey(({ diet }) => dinosaurPK({ diet }))
+  .sortKey(({ id, species }) => dinosaurSK({ species, id }));
+
+// Define the entity
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey,
+});
+
+// Create a repository
+const dinosaurRepo = DinosaurEntity.createRepository(table);
+```
+
+### Entity Features
+
+#### 1. Schema Validation
+
+Entities use Zod schemas to validate data before operations:
+
+```ts
+// Define a schema with Zod
+const dinosaurSchema = z.object({
+  id: z.string(),
+  species: z.string(),
+  name: z.string(),
+  diet: z.enum(["carnivore", "herbivore", "omnivore"]),
+  dangerLevel: z.number().int().min(1).max(10),
+  height: z.number().positive(),
+  weight: z.number().positive(),
+  status: z.enum(["active", "inactive", "sick", "deceased"]),
+  tags: z.array(z.string()).optional(),
+});
+
+// Create an entity with the schema
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey: createIndex()
+          .input(z.object({ id: z.string(), diet: z.string(), species: z.string() }))
+          .partitionKey(({ diet }) => dinosaurPK({ diet }))
+          .sortKey(({ id, species }) => dinosaurSK({ species, id }))
+});
+```
+
+#### 2. CRUD Operations
+
+Entities provide type-safe CRUD operations:
+
+```ts
+// Create a new dinosaur
+await dinosaurRepo.create({
+  id: "dino-001",
+  species: "Tyrannosaurus Rex",
+  name: "Rexy",
+  diet: "carnivore",
+  dangerLevel: 10,
+  height: 5.2,
+  weight: 7000,
+  status: "active",
+}).execute();
+
+// Get a dinosaur
+const dino = await dinosaurRepo.get({
+  id: "dino-001",
+  diet: "carnivore",
+  species: "Tyrannosaurus Rex",
+}).execute();
+
+// Update a dinosaur
+await dinosaurRepo.update(
+  { id: "dino-001", diet: "carnivore", species: "Tyrannosaurus Rex" },
+  { weight: 7200, status: "sick" }
+).execute();
+
+// Delete a dinosaur
+await dinosaurRepo.delete({
+  id: "dino-001",
+  diet: "carnivore",
+  species: "Tyrannosaurus Rex",
+}).execute();
+```
+
+#### 3. Custom Queries
+
+Define custom queries with input validation:
+
+```ts
+import { createQueries } from "dyno-table/entity";
+
+const createQuery = createQueries<Dinosaur>();
+
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey,
+  queries: {
+    byDiet: createQuery
+      .input(
+        z.object({
+          diet: z.enum(["carnivore", "herbivore", "omnivore"]),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .scan()
+          .filter((op) => op.eq("diet", input.diet));
+      }),
+
+    bySpecies: createQuery
+      .input(
+        z.object({
+          species: z.string(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .scan()
+          .filter((op) => op.eq("species", input.species));
+      }),
+  },
+});
+
+// Use the custom queries
+const carnivores = await dinosaurRepo.query.byDiet({ diet: "carnivore" }).execute();
+const trexes = await dinosaurRepo.query.bySpecies({ species: "Tyrannosaurus Rex" }).execute();
+```
+
+#### 4. Indexes for Efficient Querying
+
+Define indexes for efficient access patterns:
+
+```ts
+import { createIndex } from "dyno-table/entity";
+
+// Define GSI for querying by species
+const speciesIndex = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ species }) => `SPECIES#${species}`)
+  .sortKey(({ id }) => `DINOSAUR#${id}`);
+
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey,
+  indexes: {
+    species: speciesIndex,
+  },
+  queries: {
+    bySpecies: createQuery
+      .input(
+        z.object({
+          species: z.string(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `SPECIES#${input.species}`,
+          })
+          .useIndex("species");
+      }),
+  },
+});
+```
+
+#### 5. Lifecycle Hooks
+
+Add hooks for pre/post processing:
+
+```ts
+const dinosaurHooks = {
+  afterGet: async (data: Dinosaur | undefined) => {
+    if (data) {
+      return {
+        ...data,
+        displayName: `${data.name} (${data.species})`,
+        threatLevel: data.dangerLevel > 7 ? "HIGH" : "MODERATE",
+      };
+    }
+    return data;
+  },
+};
+
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey,
+  hooks: dinosaurHooks,
+});
+```
+
+### Complete Entity Example
+
+Here's a complete example using Zod schemas directly:
+
+```ts
+import { z } from "zod";
+import { defineEntity, createQueries, createIndex } from "dyno-table/entity";
+import { Table } from "dyno-table/table";
+
+// Define the schema with Zod
+const dinosaurSchema = z.object({
+  id: z.string(),
+  species: z.string(),
+  name: z.string(),
+  enclosureId: z.string(),
+  diet: z.enum(["carnivore", "herbivore", "omnivore"]),
+  dangerLevel: z.number().int().min(1).max(10),
+  height: z.number().positive(),
+  weight: z.number().positive(),
+  status: z.enum(["active", "inactive", "sick", "deceased"]),
+  trackingChipId: z.string().optional(),
+  lastFed: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+// Infer the type from the schema
+type Dinosaur = z.infer<typeof dinosaurSchema>;
+
+// Define key templates
+const dinosaurPK = (id: string) => `DINOSAUR#${id}`;
+const dinosaurSK = (status: string) => `STATUS#${status}`;
+
+// Create a primary index
+const primaryKey = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ id }) => dinosaurPK(id))
+  .sortKey(({ status }) => dinosaurSK(status));
+
+// Create a GSI for querying by species
+const speciesIndex = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ species }) => `SPECIES#${species}`)
+  .sortKey(({ id }) => `DINOSAUR#${id}`);
+
+// Create a GSI for querying by enclosure
+const enclosureIndex = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ enclosureId }) => `ENCLOSURE#${enclosureId}`)
+  .sortKey(({ id }) => `DINOSAUR#${id}`);
+
+// Create query builders
+const createQuery = createQueries<Dinosaur>();
+
+// Define the entity
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey,
+  indexes: {
+    species: speciesIndex,
+    enclosure: enclosureIndex,
+  },
+  queries: {
+    bySpecies: createQuery
+      .input(
+        z.object({
+          species: z.string(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `SPECIES#${input.species}`,
+          })
+          .useIndex("species");
+      }),
+
+    byEnclosure: createQuery
+      .input(
+        z.object({
+          enclosureId: z.string(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `ENCLOSURE#${input.enclosureId}`,
+          })
+          .useIndex("enclosure");
+      }),
+
+    dangerousInEnclosure: createQuery
+      .input(
+        z.object({
+          enclosureId: z.string(),
+          minDangerLevel: z.number().int().min(1).max(10),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .queryBuilder({
+            pk: `ENCLOSURE#${input.enclosureId}`,
+          })
+          .useIndex("enclosure")
+          .filter((op) => op.gte("dangerLevel", input.minDangerLevel));
+      }),
+  },
+});
+
+// Create a repository
+const dinosaurRepo = DinosaurEntity.createRepository(table);
+
+// Use the repository
+async function main() {
+  // Create a dinosaur
+  await dinosaurRepo
+    .create({
+      id: "dino-001",
+      species: "Tyrannosaurus Rex",
+      name: "Rexy",
+      enclosureId: "enc-001",
+      diet: "carnivore",
+      dangerLevel: 10,
+      height: 5.2,
+      weight: 7000,
+      status: "active",
+      trackingChipId: "TRX-001",
+    })
+    .execute();
+
+  // Query dinosaurs by species
+  const trexes = await dinosaurRepo.query.bySpecies({ 
+    species: "Tyrannosaurus Rex" 
+  }).execute();
+
+  // Query dangerous dinosaurs in an enclosure
+  const dangerousDinos = await dinosaurRepo.query.dangerousInEnclosure({
+    enclosureId: "enc-001",
+    minDangerLevel: 8,
+  }).execute();
+}
+```
+
+**Key benefits:**
+- 🚫 Prevents accidental cross-type data access
+- 🔍 Automatically filters queries/scans to repository type
+- 🛡️ Ensures consistent key structure across entities
+- 📦 Encapsulates domain-specific query logic
+- 🧪 Validates data with Zod schemas
+- 🔄 Provides type inference from schemas
 
 ## 🧩 Advanced Features
 
@@ -162,89 +560,99 @@ await dinoTable
 
 **Safe dinosaur transfer between enclosures**
 ```ts
-// Start a transaction session for transferring a dinosaur
+// Start a transaction session for transferring a T-Rex to a new enclosure
+// Critical for safety: All operations must succeed or none will be applied
 await dinoTable.transaction(async (tx) => {
   // All operations are executed as a single transaction (up to 100 operations)
+  // This ensures the dinosaur transfer is atomic - preventing half-completed transfers
 
-  // Check if destination enclosure is ready and compatible
+  // STEP 1: Check if destination enclosure is ready and compatible with the dinosaur
+  // We must verify the enclosure is prepared and suitable for a carnivore
   await dinoTable
     .conditionCheck({ 
-      pk: "ENCLOSURE#B", 
-      sk: "STATUS" 
+      pk: "ENCLOSURE#B",          // Target enclosure B
+      sk: "STATUS"                // Check the enclosure status record
     })
     .condition(op => op.and(
-      op.eq("status", "READY"),
-      op.eq("diet", "Carnivore")  // Ensure enclosure matches dinosaur diet
+      op.eq("status", "READY"),   // Enclosure must be in READY state
+      op.eq("diet", "Carnivore")  // Must support carnivorous dinosaurs
     ))
     .withTransaction(tx);
 
-  // Remove dinosaur from current enclosure
+  // STEP 2: Remove dinosaur from current enclosure
+  // Only proceed if the dinosaur is healthy enough for transfer
   await dinoTable
     .delete<Dinosaur>({ 
-      pk: "ENCLOSURE#A", 
-      sk: "DINO#001" 
+      pk: "ENCLOSURE#A",          // Source enclosure A
+      sk: "DINO#001"              // T-Rex with ID 001
     })
     .condition(op => op.and(
-      op.eq("status", "HEALTHY"),
-      op.gte("health", 80)  // Only transfer healthy dinosaurs
+      op.eq("status", "HEALTHY"), // Dinosaur must be in HEALTHY state
+      op.gte("health", 80)        // Health must be at least 80%
     ))
     .withTransaction(tx);
 
-  // Add dinosaur to new enclosure
+  // STEP 3: Add dinosaur to new enclosure
+  // Create a fresh record in the destination enclosure
   await dinoTable
     .create<Dinosaur>({
-      pk: "ENCLOSURE#B",
-      sk: "DINO#001",
-      name: "Rex",
-      species: "Tyrannosaurus",
-      diet: "Carnivore",
-      status: "HEALTHY",
-      health: 100,
-      enclosureId: "B",
-      lastFed: new Date().toISOString()
+      pk: "ENCLOSURE#B",          // Destination enclosure B
+      sk: "DINO#001",             // Same dinosaur ID for tracking
+      name: "Rex",                // Dinosaur name
+      species: "Tyrannosaurus",   // Species classification
+      diet: "Carnivore",          // Dietary requirements
+      status: "HEALTHY",          // Current health status
+      health: 100,                // Reset health to 100% after transfer
+      enclosureId: "B",           // Update enclosure reference
+      lastFed: new Date().toISOString() // Reset feeding clock
     })
     .withTransaction(tx);
 
-  // Update enclosure occupancy tracking
+  // STEP 4: Update enclosure occupancy tracking
+  // Keep accurate count of dinosaurs in each enclosure
   await dinoTable
     .update<Dinosaur>({ 
-      pk: "ENCLOSURE#B", 
-      sk: "OCCUPANCY" 
+      pk: "ENCLOSURE#B",          // Target enclosure B
+      sk: "OCCUPANCY"             // Occupancy tracking record
     })
-    .add("currentOccupants", 1)
-    .set("lastUpdated", new Date().toISOString())
+    .add("currentOccupants", 1)   // Increment occupant count
+    .set("lastUpdated", new Date().toISOString()) // Update timestamp
     .withTransaction(tx);
 });
 
-// Transaction with feeding and health monitoring
+// Transaction for dinosaur feeding and health monitoring
+// Ensures feeding status and schedule are updated atomically
 await dinoTable.transaction(
   async (tx) => {
-    // Update dinosaur health and feeding status
+    // STEP 1: Update Stegosaurus health and feeding status
+    // Record that the dinosaur has been fed and update its health metrics
     await dinoTable
       .update<Dinosaur>({
-        pk: "ENCLOSURE#D",
-        sk: "DINO#003"
+        pk: "ENCLOSURE#D",           // Herbivore enclosure D
+        sk: "DINO#003"               // Stegosaurus with ID 003
       })
       .set({
-        status: "HEALTHY",
-        lastFed: new Date().toISOString(),
-        health: 100
+        status: "HEALTHY",           // Update health status
+        lastFed: new Date().toISOString(), // Record feeding time
+        health: 100                  // Reset health to 100%
       })
-      .deleteElementsFromSet("tags", ["needs_feeding"])
+      .deleteElementsFromSet("tags", ["needs_feeding"]) // Remove feeding alert tag
       .withTransaction(tx);
 
-    // Update enclosure feeding schedule
+    // STEP 2: Update enclosure feeding schedule
+    // Schedule next feeding time for tomorrow
     await dinoTable
       .update<Dinosaur>({
-        pk: "ENCLOSURE#D",
-        sk: "SCHEDULE"
+        pk: "ENCLOSURE#D",           // Same herbivore enclosure
+        sk: "SCHEDULE"               // Feeding schedule record
       })
-      .set("nextFeedingTime", new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
+      .set("nextFeedingTime", new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()) // 24 hours from now
       .withTransaction(tx);
   },
   {
-    clientRequestToken: "feeding-session-001",
-    returnConsumedCapacity: "TOTAL"
+    // Transaction options for tracking and idempotency
+    clientRequestToken: "feeding-session-001", // Prevents duplicate feeding operations
+    returnConsumedCapacity: "TOTAL"            // Track capacity usage for park operations
   }
 );
 ```
@@ -261,35 +669,42 @@ await dinoTable.transaction(
 
 **Efficient dinosaur park management with bulk operations**
 ```ts
-// Batch health check for multiple dinosaurs
+// SCENARIO 1: Morning health check for multiple dinosaurs across enclosures
+// Retrieve health status for multiple dinosaurs in a single operation
 const healthCheckKeys = [
-  { pk: "ENCLOSURE#A", sk: "DINO#001" }, // T-Rex
-  { pk: "ENCLOSURE#B", sk: "DINO#002" }, // Velociraptor
-  { pk: "ENCLOSURE#C", sk: "DINO#003" }  // Stegosaurus
+  { pk: "ENCLOSURE#A", sk: "DINO#001" }, // T-Rex in Paddock A
+  { pk: "ENCLOSURE#B", sk: "DINO#002" }, // Velociraptor in Paddock B
+  { pk: "ENCLOSURE#C", sk: "DINO#003" }  // Stegosaurus in Paddock C
 ];
 
+// Perform batch get operation to retrieve all dinosaurs at once
+// This is much more efficient than individual gets
 const { items: dinosaurs, unprocessedKeys } = await dinoTable.batchGet<Dinosaur>(healthCheckKeys);
 console.log(`Health check completed for ${dinosaurs.length} dinosaurs`);
+
+// Process health check results and identify any dinosaurs needing attention
 dinosaurs.forEach(dino => {
   if (dino.health < 80) {
     console.log(`Health alert for ${dino.name} in Enclosure ${dino.enclosureId}`);
+    // In a real application, you might trigger alerts or schedule veterinary visits
   }
 });
 
-// Batch update feeding schedule for herbivore group
+// SCENARIO 2: Adding new herbivores to the park after quarantine
+// Prepare data for multiple new herbivores joining the collection
 const newHerbivores = [
   {
     pk: "ENCLOSURE#D", sk: "DINO#004",
-    name: "Triceratops Alpha",
+    name: "Triceratops Alpha",      // Three-horned herbivore
     species: "Triceratops",
     diet: "Herbivore",
     status: "HEALTHY",
-    health: 95,
-    lastFed: new Date().toISOString()
+    health: 95,                     // Excellent health after quarantine
+    lastFed: new Date().toISOString() // Just fed before joining main enclosure
   },
   {
     pk: "ENCLOSURE#D", sk: "DINO#005",
-    name: "Brachy",
+    name: "Brachy",                 // Long-necked herbivore
     species: "Brachiosaurus",
     diet: "Herbivore",
     status: "HEALTHY",
@@ -298,91 +713,117 @@ const newHerbivores = [
   }
 ];
 
-// Add new herbivores to enclosure
+// Add all new herbivores to the enclosure in a single batch operation
+// More efficient than individual writes and ensures consistent state
 await dinoTable.batchWrite(
   newHerbivores.map(dino => ({
-    type: "put",
-    item: dino
+    type: "put",                    // Create or replace operation
+    item: dino                      // Full dinosaur record
   }))
 );
 
-// Mixed operations: relocate dinosaurs and update enclosure status
+// SCENARIO 3: Releasing a dinosaur from quarantine to general population
+// Multiple related operations performed as a batch
 await dinoTable.batchWrite([
-  // Remove dinosaur from quarantine
-  { type: "delete", key: { pk: "ENCLOSURE#QUARANTINE", sk: "DINO#006" } },
-  // Add recovered dinosaur to main enclosure
+  // Step 1: Remove dinosaur from quarantine enclosure
+  { 
+    type: "delete", 
+    key: { pk: "ENCLOSURE#QUARANTINE", sk: "DINO#006" } 
+  },
+
+  // Step 2: Add recovered dinosaur to main raptor enclosure
   { 
     type: "put", 
     item: {
       pk: "ENCLOSURE#E", sk: "DINO#006",
-      name: "Raptor Beta",
+      name: "Raptor Beta",          // Juvenile Velociraptor
       species: "Velociraptor",
       diet: "Carnivore",
-      status: "HEALTHY",
+      status: "HEALTHY",            // Now healthy after treatment
       health: 100,
       lastFed: new Date().toISOString()
     }
   },
-  // Clear quarantine status
-  { type: "delete", key: { pk: "ENCLOSURE#QUARANTINE", sk: "STATUS#DINO#006" } }
+
+  // Step 3: Clear quarantine status record
+  { 
+    type: "delete", 
+    key: { pk: "ENCLOSURE#QUARANTINE", sk: "STATUS#DINO#006" } 
+  }
 ]);
 
-// Handle large-scale park operations
-// (25 items per batch write, 100 items per batch get)
+// SCENARIO 4: Daily park-wide health monitoring
+// Handle large-scale operations across all dinosaurs
+// The library automatically handles chunking for large batches:
+// - 25 items per batch write
+// - 100 items per batch get
 const dailyHealthUpdates = generateDinosaurHealthUpdates(); // Hundreds of updates
-await dinoTable.batchWrite(dailyHealthUpdates); // Automatically chunked
+await dinoTable.batchWrite(dailyHealthUpdates); // Automatically chunked into multiple requests
 ```
 
 ### Pagination Made Simple
 
-**Efficient dinosaur record browsing**
+**Efficient dinosaur record browsing for park management**
 ```ts
-// Create a paginator for viewing herbivores by health status
+// SCENARIO 1: Herbivore health monitoring with pagination
+// Create a paginator for viewing healthy herbivores in manageable chunks
+// Perfect for veterinary staff doing routine health checks
 const healthyHerbivores = dinoTable
   .query<Dinosaur>({
-    pk: "DIET#herbivore",
-    sk: op => op.beginsWith("STATUS#HEALTHY")
+    pk: "DIET#herbivore",                    // Target all herbivorous dinosaurs
+    sk: op => op.beginsWith("STATUS#HEALTHY") // Only those with HEALTHY status
   })
   .filter((op) => op.and(
-    op.gte("health", 90),
-    op.attributeExists("lastFed")
+    op.gte("health", 90),                    // Only those with excellent health (90%+)
+    op.attributeExists("lastFed")            // Must have feeding records
   ))
-  .paginate(5); // View 5 dinosaurs at a time
+  .paginate(5);                              // Process in small batches of 5 dinosaurs
 
-// Monitor all enclosures page by page
+// Iterate through all pages of results - useful for processing large datasets
+// without loading everything into memory at once
+console.log("🦕 Beginning herbivore health inspection rounds...");
 while (healthyHerbivores.hasNextPage()) {
+  // Get the next page of dinosaurs
   const page = await healthyHerbivores.getNextPage();
   console.log(`Checking herbivores page ${page.page}, found ${page.items.length} dinosaurs`);
+
+  // Process each dinosaur in the current page
   page.items.forEach(dino => {
     console.log(`${dino.name}: Health ${dino.health}%, Last fed: ${dino.lastFed}`);
+    // In a real app, you might update health records or schedule next checkup
   });
 }
 
-// Get all carnivores for daily feeding schedule
+// SCENARIO 2: Preparing carnivore feeding schedule
+// Get all carnivores at once for daily feeding planning
+// This approach loads all matching items into memory
 const carnivoreSchedule = await dinoTable
   .query<Dinosaur>({
-    pk: "DIET#carnivore",
-    sk: op => op.beginsWith("ENCLOSURE#")
+    pk: "DIET#carnivore",                    // Target all carnivorous dinosaurs
+    sk: op => op.beginsWith("ENCLOSURE#")    // Organized by enclosure
   })
-  .filter(op => op.attributeExists("lastFed"))
-  .paginate(10)
-  .getAllPages();
+  .filter(op => op.attributeExists("lastFed")) // Only those with feeding records
+  .paginate(10)                              // Process in pages of 10
+  .getAllPages();                            // But collect all results at once
 
 console.log(`Scheduling feeding for ${carnivoreSchedule.length} carnivores`);
+// Now we can sort and organize feeding times based on species, size, etc.
 
-// Limited view for visitor information kiosk
+// SCENARIO 3: Visitor information kiosk with limited display
+// Create a paginated view for the public-facing dinosaur information kiosk
 const visitorKiosk = dinoTable
   .query<Dinosaur>({ 
-    pk: "VISITOR_VIEW",
-    sk: op => op.beginsWith("SPECIES#")
+    pk: "VISITOR_VIEW",                      // Special partition for visitor-facing data
+    sk: op => op.beginsWith("SPECIES#")      // Organized by species
   })
-  .filter(op => op.eq("status", "ON_DISPLAY"))
-  .limit(12) // Show max 12 dinosaurs per view
-  .paginate(4); // Display 4 at a time
+  .filter(op => op.eq("status", "ON_DISPLAY")) // Only show dinosaurs currently on display
+  .limit(12)                                 // Show maximum 12 dinosaurs total
+  .paginate(4);                              // Display 4 at a time for easy viewing
 
-// Get first page for kiosk display
+// Get first page for initial kiosk display
 const firstPage = await visitorKiosk.getNextPage();
-console.log(`Now showing: ${firstPage.items.map(d => d.name).join(", ")}`);
+console.log(`🦖 Now showing: ${firstPage.items.map(d => d.name).join(", ")}`);
+// Visitors can press "Next" to see more dinosaurs in the collection
 ```
 
 ## 🛡️ Type-Safe Query Building
@@ -670,370 +1111,6 @@ const result = await table.transaction(
 );
 ```
 
-## 🏗️ Entity Pattern with Standard Schema validators
-
-The entity pattern provides a structured, type-safe way to work with DynamoDB items.
-It combines schema validation, key management, and repository operations into a cohesive abstraction.
-
-✨ This library supports all standard schema validation libraries, including **zod**, **arktype**, and **valibot**,
-allowing you to choose your preferred validation tool!
-
-### Defining Entities
-
-Entities are defined using the `defineEntity` function, which takes a configuration object that includes a schema, primary key definition, and optional indexes and queries.
-
-```ts
-import { z } from "zod";
-import { defineEntity, createIndex } from "dyno-table/entity";
-
-// Define your schema using Zod
-const userSchema = z.object({
-  id: z.string(),
-  email: z.string().email(),
-  name: z.string(),
-  age: z.number().int().positive(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-});
-
-// Infer the type from the schema
-type User = z.infer<typeof userSchema>;
-
-// Define key templates
-const userPK = (id: string) => `USER#${id}`;
-const userSK = () => "PROFILE";
-
-// Create a primary index
-const primaryKey = createIndex()
-  .input(userSchema)
-  .partitionKey(({ id }) => userPK(id))
-  .sortKey(() => userSK());
-
-// Define the entity
-const UserEntity = defineEntity({
-  name: "User",
-  schema: userSchema,
-  primaryKey,
-});
-
-// Create a repository
-const userRepo = UserEntity.createRepository(table);
-```
-
-### Entity Features
-
-#### 1. Schema Validation
-
-Entities use Zod schemas to validate data before operations:
-
-```ts
-// Define a schema with Zod
-const productSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  price: z.number().positive(),
-  category: z.enum(["electronics", "clothing", "food"]),
-  inStock: z.boolean(),
-  tags: z.array(z.string()).optional(),
-});
-
-// Create an entity with the schema
-const ProductEntity = defineEntity({
-  name: "Product",
-  schema: productSchema,
-  primaryKey: /* ... */,
-});
-```
-
-#### 2. CRUD Operations
-
-Entities provide type-safe CRUD operations:
-
-```ts
-// Create a new item
-await userRepo.create({
-  id: "user123",
-  email: "john@example.com",
-  name: "John Doe",
-  age: 30,
-}).execute();
-
-// Get an item
-const user = await userRepo.get({
-  id: "user123",
-}).execute();
-
-// Update an item
-await userRepo.update(
-  { id: "user123" },
-  { age: 31, name: "John Smith" }
-).execute();
-
-// Delete an item
-await userRepo.delete({
-  id: "user123",
-}).execute();
-```
-
-#### 3. Custom Queries
-
-Define custom queries with input validation:
-
-```ts
-import { createQueries } from "dyno-table/entity";
-
-const createQuery = createQueries<User>();
-
-const UserEntity = defineEntity({
-  name: "User",
-  schema: userSchema,
-  primaryKey,
-  queries: {
-    byAge: createQuery
-      .input(
-        z.object({
-          minAge: z.number().int().positive(),
-        })
-      )
-      .query(({ input, entity }) => {
-        return entity
-          .scan()
-          .filter((op) => op.gte("age", input.minAge));
-      }),
-
-    byEmail: createQuery
-      .input(
-        z.object({
-          email: z.string().email(),
-        })
-      )
-      .query(({ input, entity }) => {
-        return entity
-          .scan()
-          .filter((op) => op.eq("email", input.email));
-      }),
-  },
-});
-
-// Use the custom queries
-const olderUsers = await userRepo.query.byAge({ minAge: 25 }).execute();
-const userByEmail = await userRepo.query.byEmail({ email: "john@example.com" }).execute();
-```
-
-#### 4. Indexes for Efficient Querying
-
-Define indexes for efficient access patterns:
-
-```ts
-import { createIndex } from "dyno-table/entity";
-
-// Define GSI for querying by email
-const emailIndex = createIndex()
-  .input(userSchema)
-  .partitionKey(({ email }) => `EMAIL#${email}`)
-  .withoutSortKey();
-
-const UserEntity = defineEntity({
-  name: "User",
-  schema: userSchema,
-  primaryKey,
-  indexes: {
-    email: emailIndex,
-  },
-  queries: {
-    byEmail: createQuery
-      .input(
-        z.object({
-          email: z.string().email(),
-        })
-      )
-      .query(({ input, entity }) => {
-        return entity
-          .queryBuilder({
-            pk: `EMAIL#${input.email}`,
-          })
-          .useIndex("email");
-      }),
-  },
-});
-```
-
-#### 5. Lifecycle Hooks
-
-Add hooks for pre/post processing:
-
-```ts
-const userHooks = {
-  afterGet: async (data: User | undefined) => {
-    if (data) {
-      return {
-        ...data,
-        displayName: `${data.name} (${data.email})`,
-      };
-    }
-    return data;
-  },
-};
-
-const UserEntity = defineEntity({
-  name: "User",
-  schema: userSchema,
-  primaryKey,
-  hooks: userHooks,
-});
-```
-
-### Complete Entity Example
-
-Here's a complete example using Zod schemas directly:
-
-```ts
-import { z } from "zod";
-import { defineEntity, createQueries, createIndex } from "dyno-table/entity";
-import { Table } from "dyno-table/table";
-
-// Define the schema with Zod
-const dinosaurSchema = z.object({
-  id: z.string(),
-  species: z.string(),
-  name: z.string(),
-  enclosureId: z.string(),
-  diet: z.enum(["carnivore", "herbivore", "omnivore"]),
-  dangerLevel: z.number().int().min(1).max(10),
-  height: z.number().positive(),
-  weight: z.number().positive(),
-  status: z.enum(["active", "inactive", "sick", "deceased"]),
-  trackingChipId: z.string().optional(),
-  lastFed: z.string().optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-});
-
-// Infer the type from the schema
-type Dinosaur = z.infer<typeof dinosaurSchema>;
-
-// Define key templates
-const dinosaurPK = (id: string) => `DINOSAUR#${id}`;
-const dinosaurSK = (status: string) => `STATUS#${status}`;
-
-// Create a primary index
-const primaryKey = createIndex()
-  .input(dinosaurSchema)
-  .partitionKey(({ id }) => dinosaurPK(id))
-  .sortKey(({ status }) => dinosaurSK(status));
-
-// Create a GSI for querying by species
-const speciesIndex = createIndex()
-  .input(dinosaurSchema)
-  .partitionKey(({ species }) => `SPECIES#${species}`)
-  .sortKey(({ id }) => `DINOSAUR#${id}`);
-
-// Create a GSI for querying by enclosure
-const enclosureIndex = createIndex()
-  .input(dinosaurSchema)
-  .partitionKey(({ enclosureId }) => `ENCLOSURE#${enclosureId}`)
-  .sortKey(({ id }) => `DINOSAUR#${id}`);
-
-// Create query builders
-const createQuery = createQueries<Dinosaur>();
-
-// Define the entity
-const DinosaurEntity = defineEntity({
-  name: "Dinosaur",
-  schema: dinosaurSchema,
-  primaryKey,
-  indexes: {
-    species: speciesIndex,
-    enclosure: enclosureIndex,
-  },
-  queries: {
-    bySpecies: createQuery
-      .input(
-        z.object({
-          species: z.string(),
-        })
-      )
-      .query(({ input, entity }) => {
-        return entity
-          .queryBuilder({
-            pk: `SPECIES#${input.species}`,
-          })
-          .useIndex("species");
-      }),
-
-    byEnclosure: createQuery
-      .input(
-        z.object({
-          enclosureId: z.string(),
-        })
-      )
-      .query(({ input, entity }) => {
-        return entity
-          .queryBuilder({
-            pk: `ENCLOSURE#${input.enclosureId}`,
-          })
-          .useIndex("enclosure");
-      }),
-
-    dangerousInEnclosure: createQuery
-      .input(
-        z.object({
-          enclosureId: z.string(),
-          minDangerLevel: z.number().int().min(1).max(10),
-        })
-      )
-      .query(({ input, entity }) => {
-        return entity
-          .queryBuilder({
-            pk: `ENCLOSURE#${input.enclosureId}`,
-          })
-          .useIndex("enclosure")
-          .filter((op) => op.gte("dangerLevel", input.minDangerLevel));
-      }),
-  },
-});
-
-// Create a repository
-const dinosaurRepo = DinosaurEntity.createRepository(table);
-
-// Use the repository
-async function main() {
-  // Create a dinosaur
-  await dinosaurRepo
-    .create({
-      id: "dino-001",
-      species: "Tyrannosaurus Rex",
-      name: "Rexy",
-      enclosureId: "enc-001",
-      diet: "carnivore",
-      dangerLevel: 10,
-      height: 5.2,
-      weight: 7000,
-      status: "active",
-      trackingChipId: "TRX-001",
-    })
-    .execute();
-
-  // Query dinosaurs by species
-  const trexes = await dinosaurRepo.query.bySpecies({ 
-    species: "Tyrannosaurus Rex" 
-  }).execute();
-
-  // Query dangerous dinosaurs in an enclosure
-  const dangerousDinos = await dinosaurRepo.query.dangerousInEnclosure({
-    enclosureId: "enc-001",
-    minDangerLevel: 8,
-  }).execute();
-}
-```
-
-**Key benefits:**
-- 🚫 Prevents accidental cross-type data access
-- 🔍 Automatically filters queries/scans to repository type
-- 🛡️ Ensures consistent key structure across entities
-- 📦 Encapsulates domain-specific query logic
-- 🧪 Validates data with Zod schemas
-- 🔄 Provides type inference from schemas
 
 ## 🚨 Error Handling
 

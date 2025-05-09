@@ -179,6 +179,7 @@ async function main() {
       .execute();
 
     console.log(`Updated ${updatedDino.item?.name}'s weight to ${updatedDino.item?.weight}kg`);
+
     await createDinosaurs(dinosaurRepo);
 
     console.log("Querying dinosaurs by diet...");
