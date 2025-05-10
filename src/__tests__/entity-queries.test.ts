@@ -1,210 +1,263 @@
-import { describe, it, expect, vi } from "vitest";
-import { createIndex, createQueries, defineEntity } from "../entity";
-import { partitionKey } from "../utils/partition-key-template";
-import { sortKey } from "../utils/sort-key-template";
-import type { StandardSchemaV1 } from "../standard-schema";
+import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
+import { defineEntity, createQueries, createIndex } from "../entity";
 import type { Table } from "../table";
-import type { QueryBuilder } from "../builders/query-builder";
-import type { DynamoItem, TableConfig } from "../types";
+import { eq } from "../conditions";
+import type { DynamoItem } from "../types";
+import type { StandardSchemaV1 } from "../standard-schema";
 
-// Define the Dinosaur type
-type Dinosaur = {
+// Define a test entity type
+interface TestEntity extends DynamoItem {
   id: string;
-  species: string;
   name: string;
-  diet: "carnivore" | "herbivore" | "omnivore";
-  dangerLevel: number;
-  height: number;
-  weight: number;
-  status: "active" | "inactive" | "sick" | "deceased";
-  createdAt?: string;
-  updatedAt?: string;
-};
+  type: string;
+  status: string;
+  createdAt: string;
+}
 
-// Create a standard schema for Dinosaur
-const dinosaurSchema: StandardSchemaV1<Dinosaur> = {
+// Create a mock schema with proper StandardSchemaV1 structure
+const testSchema: StandardSchemaV1<TestEntity> = {
   "~standard": {
     version: 1,
-    vendor: "standard",
-    validate: (value: unknown) => {
-      // Simple validation logic
-      const errors: { message: string; path?: (string | number)[] }[] = [];
-
-      if (typeof value !== "object" || value === null) {
-        return { issues: [{ message: "Expected an object" }] };
-      }
-
-      const dinosaur = value as Record<string, unknown>;
-
-      // Validate required fields
-      const requiredFields = ["id", "species", "name", "diet", "dangerLevel", "height", "weight", "status"];
-      for (const field of requiredFields) {
-        if (!(field in dinosaur)) {
-          errors.push({ message: `Missing required field: ${field}`, path: [field] });
-        }
-      }
-
-      // Validate field types
-      if (typeof dinosaur.id !== "string") {
-        errors.push({ message: "id must be a string", path: ["id"] });
-      }
-
-      if (typeof dinosaur.species !== "string") {
-        errors.push({ message: "species must be a string", path: ["species"] });
-      }
-
-      if (typeof dinosaur.name !== "string") {
-        errors.push({ message: "name must be a string", path: ["name"] });
-      }
-
-      if (!["carnivore", "herbivore", "omnivore"].includes(dinosaur.diet as string)) {
-        errors.push({ message: "diet must be one of: carnivore, herbivore, omnivore", path: ["diet"] });
-      }
-
-      if (typeof dinosaur.dangerLevel !== "number" || dinosaur.dangerLevel < 1 || dinosaur.dangerLevel > 10) {
-        errors.push({ message: "dangerLevel must be a number between 1 and 10", path: ["dangerLevel"] });
-      }
-
-      if (typeof dinosaur.height !== "number" || dinosaur.height <= 0) {
-        errors.push({ message: "height must be a positive number", path: ["height"] });
-      }
-
-      if (typeof dinosaur.weight !== "number" || dinosaur.weight <= 0) {
-        errors.push({ message: "weight must be a positive number", path: ["weight"] });
-      }
-
-      if (!["active", "inactive", "sick", "deceased"].includes(dinosaur.status as string)) {
-        errors.push({ message: "status must be one of: active, inactive, sick, deceased", path: ["status"] });
-      }
-
-      if ("createdAt" in dinosaur && typeof dinosaur.createdAt !== "string") {
-        errors.push({ message: "createdAt must be a string", path: ["createdAt"] });
-      }
-
-      if ("updatedAt" in dinosaur && typeof dinosaur.updatedAt !== "string") {
-        errors.push({ message: "updatedAt must be a string", path: ["updatedAt"] });
-      }
-
-      if (errors.length > 0) {
-        return { issues: errors };
-      }
-
-      return { value: value as Dinosaur };
-    },
-    types: {
-      input: {} as Dinosaur,
-      output: {} as Dinosaur,
-    },
+    vendor: "test",
+    validate: vi.fn().mockImplementation((data) => ({
+      value: data,
+    })) as unknown as (value: unknown) => { value: TestEntity } | { issues: Array<{ message: string }> },
   },
 };
 
-type PKSchema = {
-  id: string;
-  diet: string;
-  species: string;
+// Create a mock table
+const mockTable = {
+  create: vi.fn(),
+  put: vi.fn(),
+  get: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
+  scan: vi.fn(),
+  query: vi.fn(),
+  partitionKey: "pk",
+  sortKey: "sk",
+  gsis: {},
 };
 
-const pk: StandardSchemaV1<PKSchema> = {
-  "~standard": {
-    version: 1,
-    vendor: "standard",
-    validate: (value: unknown) => {
-      console.log("PK validate: ", value);
-      // Simple validation logic
-      const errors: { message: string; path?: (string | number)[] }[] = [];
+describe("Entity Repository", () => {
+  let entityRepository: ReturnType<typeof defineEntity<TestEntity>>;
+  let repository: ReturnType<typeof entityRepository.createRepository>;
 
-      if (typeof value !== "object" || value === null) {
-        return { issues: [{ message: "Expected an object" }] };
-      }
+  beforeEach(() => {
+    // Reset all mocks
+    vi.clearAllMocks();
 
-      const dinosaur = value as Record<string, unknown>;
-
-      if (errors.length > 0) {
-        return { issues: errors };
-      }
-
-      return { value: value as Dinosaur };
-    },
-    types: {
-      input: {} as Dinosaur,
-      output: {} as Dinosaur,
-    },
-  },
-};
-
-// Define key templates for Dinosaur entity
-const dinosaurPK = partitionKey`ENTITY#DINOSAUR#DIET#${"diet"}`;
-const dinosaurSK = sortKey`ID#${"id"}#SPECIES#${"species"}`;
-
-// Create a primary index for Dinosaur entity
-const primaryKey = createIndex()
-  .input(pk)
-  .partitionKey(({ diet }) => dinosaurPK({ diet }))
-  .sortKey(({ id, species }) => dinosaurSK({ species, id }));
-
-// Create a query builder for our entity
-const createQuery = createQueries<Dinosaur>();
-
-// Define the Dinosaur entity
-const DinosaurEntity = defineEntity({
-  name: "Dinosaur",
-  schema: dinosaurSchema,
-  primaryKey,
-  queries: {
-    byDiet: createQuery.input(pk).query(({ input, entity }) => {
-      console.log("byDiet input: ", input, " entity ->", entity);
-      const t = entity.query({ pk: dinosaurPK({ diet: input.diet }) });
-      console.log("byDiet t: ", t);
-      return t;
-    }),
-    /**
-     * Scan query
-     */
-    bySpecies: createQuery.input(pk).query(({ input, entity }) => {
-      return entity.scan().filter((op) => op.eq("species", input.species));
-    }),
-  },
-});
-
-describe("DinosaurEntity", () => {
-  it("should define an entity with queries", async () => {
-    // Create a mock query builder that will be returned by the table.query method
-    const mockQueryBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    } as unknown as QueryBuilder<Dinosaur, TableConfig>;
-
-    // Create a mock table instance
-    const mockTable = {
-      tableName: "MockTable",
-      partitionKey: "pk",
-      sortKey: "sk",
-      gsis: {},
-      query: vi.fn().mockReturnValue(mockQueryBuilder),
-      scan: vi.fn().mockReturnValue({
-        filter: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ items: [] }),
-      }),
-    } as unknown as Table;
-
-    // Create the repository with the mock table
-    const repository = DinosaurEntity.createRepository(mockTable);
-
-    // Call the byDiet query
-    const queryResult = repository.query
-      .byDiet({
-        diet: "carnivore",
-        id: "123",
-        species: "1",
-      })
-      .execute();
-
-    // Verify that the table.query method was called with the correct parameters
-    expect(mockTable.query).toHaveBeenCalledWith({
-      pk: "ENTITY#DINOSAUR#DIET#carnivore",
+    // Create test entity definition
+    entityRepository = defineEntity<TestEntity>({
+      name: "TestEntity",
+      schema: testSchema,
+      primaryKey: createIndex()
+        .input(testSchema)
+        .partitionKey((item) => `TEST#${item.id}`)
+        .sortKey((item) => `METADATA#${item.type}`),
+      queries: {
+        byId: createQueries<TestEntity>()
+          .input(testSchema)
+          .query(({ input, entity }) => {
+            return entity.query({
+              pk: `TEST#${input.id}`,
+              sk: (op) => op.beginsWith("METADATA#"),
+            });
+          }),
+      },
     });
 
-    // Verify that the query builder was returned
-    expect(queryResult).toBe(mockQueryBuilder);
+    // Create repository instance
+    repository = entityRepository.createRepository(mockTable as unknown as Table);
+  });
+
+  describe("create", () => {
+    it("should create an item with entity type and validated data", async () => {
+      const testData: TestEntity = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+        createdAt: "2024-01-01",
+      };
+
+      const mockBuilder = {
+        execute: vi.fn().mockResolvedValue(testData),
+      };
+
+      mockTable.create.mockReturnValue(mockBuilder);
+
+      const result = await repository.create(testData).execute();
+
+      expect(mockTable.create).toHaveBeenCalledWith({
+        ...testData,
+        entityType: "TestEntity",
+      });
+      expect(result).toEqual(testData);
+    });
+
+    it("should throw error on validation failure", async () => {
+      const testData: TestEntity = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+        createdAt: "2024-01-01",
+      };
+
+      (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
+        issues: [{ message: "Validation failed" }],
+      }));
+
+      const mockBuilder = {
+        execute: vi.fn(),
+      };
+
+      mockTable.create.mockReturnValue(mockBuilder);
+
+      await expect(repository.create(testData).execute()).rejects.toThrow("Validation failed");
+    });
+  });
+
+  describe("get", () => {
+    it("should get an item with correct key transformation", async () => {
+      const key: Partial<TestEntity> = {
+        id: "123",
+        type: "test",
+      };
+
+      const mockBuilder = {
+        execute: vi.fn().mockResolvedValue({ item: { id: "123", type: "test" } }),
+      };
+
+      mockTable.get.mockReturnValue(mockBuilder);
+
+      await repository.get(key as TestEntity).execute();
+
+      expect(mockTable.get).toHaveBeenCalledWith({
+        pk: "TEST#123",
+        sk: "METADATA#test",
+      });
+    });
+  });
+
+  describe("update", () => {
+    it("should update an item with entity type condition", async () => {
+      const key: Partial<TestEntity> = {
+        id: "123",
+        type: "test",
+      };
+
+      const updateData = {
+        name: "Updated Name",
+      };
+
+      const mockBuilder = {
+        condition: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
+      };
+
+      mockTable.update.mockReturnValue(mockBuilder);
+
+      await repository.update(key as TestEntity, updateData).execute();
+
+      expect(mockTable.update).toHaveBeenCalledWith({
+        pk: "TEST#123",
+        sk: "METADATA#test",
+      });
+      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+      expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
+    });
+  });
+
+  describe("delete", () => {
+    it("should delete an item with entity type condition", async () => {
+      const key: Partial<TestEntity> = {
+        id: "123",
+        type: "test",
+      };
+
+      const mockBuilder = {
+        condition: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({}),
+      };
+
+      mockTable.delete.mockReturnValue(mockBuilder);
+
+      await repository.delete(key as TestEntity).execute();
+
+      expect(mockTable.delete).toHaveBeenCalledWith({
+        pk: "TEST#123",
+        sk: "METADATA#test",
+      });
+      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+    });
+  });
+
+  describe("scan", () => {
+    it("should scan with entity type filter", async () => {
+      const mockBuilder = {
+        filter: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({ items: [] }),
+      };
+
+      mockTable.scan.mockReturnValue(mockBuilder);
+
+      await repository.scan().execute();
+
+      expect(mockTable.scan).toHaveBeenCalled();
+      expect(mockBuilder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+    });
+  });
+
+  describe("custom queries", () => {
+    it("should execute custom query with input validation", async () => {
+      const input: Partial<TestEntity> = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+        createdAt: "2024-01-01",
+      };
+
+      const mockBuilder = {
+        filter: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({ items: [] }),
+      };
+
+      mockTable.query.mockReturnValue(mockBuilder);
+
+      await repository.query.byId(input as TestEntity).execute();
+
+      expect(mockTable.query).toHaveBeenCalledWith({
+        pk: "TEST#123",
+        sk: expect.any(Function),
+      });
+      expect(mockBuilder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+    });
+
+    it("should throw error on query input validation failure", async () => {
+      const input: Partial<TestEntity> = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+        createdAt: "2024-01-01",
+      };
+
+      (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
+        issues: [{ message: "Validation failed" }],
+      }));
+
+      const mockBuilder = {
+        filter: vi.fn().mockReturnThis(),
+        execute: vi.fn(),
+      };
+
+      mockTable.query.mockReturnValue(mockBuilder);
+
+      await expect(repository.query.byId(input as TestEntity).execute()).rejects.toThrow("Validation failed");
+    });
   });
 });

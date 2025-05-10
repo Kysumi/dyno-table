@@ -207,7 +207,7 @@ export function defineEntity<
           return builder;
         },
 
-        query: Object.entries(config.queries || {}).reduce((acc, [key, standardSchemaValidator]) => {
+        query: Object.entries(config.queries || {}).reduce((acc, [key, inputCallback]) => {
           // @ts-expect-error - We need to cast the queryFn to a function that takes an unknown input
           acc[key] = (input: unknown) => {
             // Create a QueryEntity object with only the necessary methods
@@ -215,20 +215,18 @@ export function defineEntity<
               scan: repository.scan,
               get: (key: PrimaryKeyWithoutExpression) => table.get<T>(key),
               query: (keyCondition: PrimaryKey) => {
-                console.log("Creating a query builder");
                 return table.query<T>(keyCondition);
               },
             };
 
-            console.log("Calling the queryFn");
             // Execute the query function to get the builder
-            const innerFunction = standardSchemaValidator(input);
-            console.log("Got the innerFunction", innerFunction);
+            // @ts-expect-error - We need to cast the inputCallback to a function that takes an unknown input
+            const queryBuilderCallback = inputCallback(input);
 
             // Run the inner handler which allows the user to apply their desired contraints
             // to the query builder of their choice
-            const builder = innerFunction(queryEntity);
-            console.log("Got the builder, with the users query", builder);
+            // @ts-expect-error - We need to cast the queryBuilderCallback to a function that takes a QueryEntity
+            const builder = queryBuilderCallback(queryEntity);
 
             // Add entity type filter if the builder has filter method
             if (builder && typeof builder === "object" && "filter" in builder && typeof builder.filter === "function") {
@@ -239,8 +237,6 @@ export function defineEntity<
             if (builder && typeof builder === "object" && "execute" in builder) {
               const originalExecute = builder.execute;
               builder.execute = async () => {
-                console.log("Executing the builder");
-
                 // Validate the input before executing the query
                 const queryFn = (
                   config.queries as unknown as Record<string, QueryFunctionWithSchema<T, I, typeof builder>>
@@ -297,13 +293,10 @@ export function createQueries<T extends DynamoItem>() {
       >(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
-        console.log("createQueries function");
-
         // Create a query function that conforms to QueryFunctionWithSchema type
         const queryFn = (input: I) => {
           // This function will be called by the repository later with the real queryEntity
           return (entity: QueryEntity<T>) => {
-            console.log("going to execute the handler");
             return handler({ input, entity });
           };
         };
