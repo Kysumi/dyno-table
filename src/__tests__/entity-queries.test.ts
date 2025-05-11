@@ -64,30 +64,28 @@ const mockTable = {
 const queryBuilder = createQueries<TestEntity>();
 
 describe("Entity Repository", () => {
-  let entityRepository: ReturnType<typeof defineEntity<TestEntity, { id: string }>>;
+  const entityRepository = defineEntity({
+    name: "TestEntity",
+    schema: testSchema,
+    primaryKey: createIndex()
+      .input(primaryKeySchema)
+      .partitionKey((item) => `TEST#${item.id}`)
+      .sortKey(() => "METADATA#"),
+    queries: {
+      byId: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
+        return entity.query({
+          pk: `TEST#${input.id}`,
+          sk: (op) => op.beginsWith("METADATA#"),
+        });
+      }),
+    },
+  });
+
   let repository: ReturnType<typeof entityRepository.createRepository>;
 
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
-
-    // Create test entity definition
-    entityRepository = defineEntity({
-      name: "TestEntity",
-      schema: testSchema,
-      primaryKey: createIndex()
-        .input(primaryKeySchema)
-        .partitionKey((item) => `TEST#${item.id}`)
-        .sortKey(() => "METADATA#"),
-      queries: {
-        byId: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
-          return entity.query({
-            pk: `TEST#${input.id}`,
-            sk: (op) => op.beginsWith("METADATA#"),
-          });
-        }),
-      },
-    });
 
     // Create repository instance
     repository = entityRepository.createRepository(mockTable as unknown as Table);
@@ -154,7 +152,7 @@ describe("Entity Repository", () => {
 
       mockTable.get.mockReturnValue(mockBuilder);
 
-      await repository.get(key as TestEntity).execute();
+      await repository.get(key).execute();
 
       expect(mockTable.get).toHaveBeenCalledWith({
         pk: "TEST#123",
@@ -182,7 +180,7 @@ describe("Entity Repository", () => {
 
       mockTable.update.mockReturnValue(mockBuilder);
 
-      await repository.update(key as TestEntity, updateData).execute();
+      await repository.update(key, updateData).execute();
 
       expect(mockTable.update).toHaveBeenCalledWith({
         pk: "TEST#123",
@@ -207,7 +205,7 @@ describe("Entity Repository", () => {
 
       mockTable.delete.mockReturnValue(mockBuilder);
 
-      await repository.delete(key as TestEntity).execute();
+      await repository.delete(key).execute();
 
       expect(mockTable.delete).toHaveBeenCalledWith({
         pk: "TEST#123",
@@ -246,7 +244,7 @@ describe("Entity Repository", () => {
 
       mockTable.query.mockReturnValue(mockBuilder);
 
-      await repository.query.byId(input).execute();
+      const test = await repository.query.byId(input);
 
       expect(mockTable.query).toHaveBeenCalledWith({
         pk: "TEST#123",
