@@ -12,8 +12,8 @@ describe("Table Integration Tests - Put Builder Advanced Features", () => {
   it("should put an item with returnValues option", async () => {
     // First create an item
     const originalDino: Dinosaur = {
-      pk: "dinosaur#put-return",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#put-return",
+      demoSortKey: "dino#test",
       name: "Original Name",
       type: "ReturnTest",
     };
@@ -22,8 +22,8 @@ describe("Table Integration Tests - Put Builder Advanced Features", () => {
 
     // Update with returnValues
     const updatedDino: Dinosaur = {
-      pk: "dinosaur#put-return",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#put-return",
+      demoSortKey: "dino#test",
       name: "Updated Name",
       type: "ReturnTest",
     };
@@ -42,8 +42,8 @@ describe("Table Integration Tests - Put Builder Advanced Features", () => {
   it("should return undefined when returnValues is set to NONE", async () => {
     // First create an item
     const originalDino: Dinosaur = {
-      pk: "dinosaur#put-return-none",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#put-return-none",
+      demoSortKey: "dino#test",
       name: "Original Name",
       type: "ReturnNoneTest",
     };
@@ -52,8 +52,8 @@ describe("Table Integration Tests - Put Builder Advanced Features", () => {
 
     // Update with returnValues set to NONE
     const updatedDino: Dinosaur = {
-      pk: "dinosaur#put-return-none",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#put-return-none",
+      demoSortKey: "dino#test",
       name: "Updated Name",
       type: "ReturnNoneTest",
     };

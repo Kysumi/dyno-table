@@ -12,8 +12,8 @@ describe("Table Integration Tests - Get Items", () => {
   beforeEach(async () => {
     // Create a test item
     const dino: Dinosaur = {
-      pk: "dinosaur#get",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#get",
+      demoSortKey: "dino#test",
       name: "Test Dino",
       type: "TestType",
       tags: new Set(["test", "get"]),

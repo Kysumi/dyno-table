@@ -19,6 +19,8 @@ import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
 import { debugCommand } from "../utils/debug-expression";
 import type { PutCommandParams } from "./builder-types";
+import type { Path, PathType } from "./types";
+import type { DynamoItem } from "../types";
 
 /**
  * Configuration options for DynamoDB put operations.
@@ -35,7 +37,7 @@ export interface PutOptions {
   returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT";
 }
 
-type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams) => Promise<T>;
+type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T>;
 
 /**
  * Builder for creating DynamoDB put operations.
@@ -68,7 +70,7 @@ type PutExecutor<T extends Record<string, unknown>> = (params: PutCommandParams)
  *
  * @typeParam T - The type of item being put into the table
  */
-export class PutBuilder<T extends Record<string, unknown>> {
+export class PutBuilder<T extends DynamoItem> {
   private readonly item: T;
   private options: PutOptions;
   private readonly executor: PutExecutor<T>;
@@ -81,6 +83,49 @@ export class PutBuilder<T extends Record<string, unknown>> {
     this.options = {
       returnValues: "NONE",
     };
+  }
+
+  /**
+   * Sets multiple attributes of an item using an DynamoItem.
+   *
+   * @example
+   * ```typescript
+   * // Update multiple attributes
+   * builder.set({
+   *   species: 'Tyrannosaurus Rex',
+   *   height: 20,
+   *   diet: 'CARNIVORE',
+   *   'stats.threatLevel': 10
+   * });
+   * ```
+   */
+  set(values: Partial<T>): this;
+
+  /**
+   * Sets a single attribute to a specific value.
+   *
+   * @example
+   * ```typescript
+   * // Set simple attributes
+   * builder
+   *   .set('status', 'SLEEPING')
+   *   .set('lastFeeding', new Date().toISOString());
+   *
+   * // Set nested attributes
+   * builder
+   *   .set('location.zone', 'RESTRICTED')
+   *   .set('stats.health', 100);
+   * ```
+   */
+  set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
+  set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
+    if (typeof valuesOrPath === "object") {
+      Object.assign(this.item, valuesOrPath);
+    } else {
+      // @ts-ignore
+      this.item[valuesOrPath] = value;
+    }
+    return this;
   }
 
   /**
@@ -313,7 +358,7 @@ export class PutBuilder<T extends Record<string, unknown>> {
    *
    * @returns A readable representation of the put command with resolved expressions
    */
-  public debug(): Record<string, unknown> {
+  public debug(): DynamoItem {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }

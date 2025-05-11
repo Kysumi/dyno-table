@@ -1,3 +1,5 @@
+// https://github.com/react-hook-form/react-hook-form/blob/master/src/types/path/eager.ts
+
 type Primitive = null | undefined | string | number | boolean | symbol | bigint;
 
 type IsEqual<T1, T2> = T1 extends T2

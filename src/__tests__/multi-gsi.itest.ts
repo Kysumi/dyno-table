@@ -5,8 +5,8 @@ import { docClient } from "../../tests/ddb-client";
 
 // Define our dinosaur type with multiple GSI attributes
 interface Dinosaur extends Record<string, unknown> {
-  pk: string;
-  sk: string;
+  demoPartitionKey: string;
+  demoSortKey: string;
   // GSI1: Query by period and diet
   GSI1PK: string;
   GSI1SK: string;
@@ -30,8 +30,8 @@ describe("Multiple GSI Integration Tests", () => {
   // Sample dinosaurs for testing
   const dinosaurs: Dinosaur[] = [
     {
-      pk: "DINO#trex1",
-      sk: "METADATA#trex1",
+      demoPartitionKey: "DINO#trex1",
+      demoSortKey: "METADATA#trex1",
       // GSI1: Period + Diet
       GSI1PK: "PERIOD#cretaceous",
       GSI1SK: "DIET#carnivore",
@@ -51,8 +51,8 @@ describe("Multiple GSI Integration Tests", () => {
       discoveryYear: 1902,
     },
     {
-      pk: "DINO#stego1",
-      sk: "METADATA#stego1",
+      demoPartitionKey: "DINO#stego1",
+      demoSortKey: "METADATA#stego1",
       // GSI1: Period + Diet
       GSI1PK: "PERIOD#jurassic",
       GSI1SK: "DIET#herbivore",
@@ -72,8 +72,8 @@ describe("Multiple GSI Integration Tests", () => {
       discoveryYear: 1877,
     },
     {
-      pk: "DINO#raptor1",
-      sk: "METADATA#raptor1",
+      demoPartitionKey: "DINO#raptor1",
+      demoSortKey: "METADATA#raptor1",
       // GSI1: Period + Diet
       GSI1PK: "PERIOD#cretaceous",
       GSI1SK: "DIET#carnivore",
@@ -93,8 +93,8 @@ describe("Multiple GSI Integration Tests", () => {
       discoveryYear: 1924,
     },
     {
-      pk: "DINO#brach1",
-      sk: "METADATA#brach1",
+      demoPartitionKey: "DINO#brach1",
+      demoSortKey: "METADATA#brach1",
       // GSI1: Period + Diet
       GSI1PK: "PERIOD#jurassic",
       GSI1SK: "DIET#herbivore",
@@ -114,8 +114,8 @@ describe("Multiple GSI Integration Tests", () => {
       discoveryYear: 1903,
     },
     {
-      pk: "DINO#anky1",
-      sk: "METADATA#anky1",
+      demoPartitionKey: "DINO#anky1",
+      demoSortKey: "METADATA#anky1",
       // GSI1: Period + Diet
       GSI1PK: "PERIOD#cretaceous",
       GSI1SK: "DIET#herbivore",
@@ -144,8 +144,8 @@ describe("Multiple GSI Integration Tests", () => {
       client: docClient,
       tableName: "TestTable",
       indexes: {
-        partitionKey: "pk",
-        sortKey: "sk",
+        partitionKey: "demoPartitionKey",
+        sortKey: "demoSortKey",
         gsis: {
           GSI1: {
             partitionKey: "GSI1PK",

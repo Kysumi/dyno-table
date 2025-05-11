@@ -13,32 +13,32 @@ describe("Table Integration Tests - Query Builder Advanced Features", () => {
     // Create test data
     const dinos: Dinosaur[] = [
       {
-        pk: "dinosaur#query",
-        sk: "dino#page1",
+        demoPartitionKey: "dinosaur#query",
+        demoSortKey: "dino#page1",
         name: "Page 1 Dino",
         type: "Pagination",
       },
       {
-        pk: "dinosaur#query",
-        sk: "dino#page2",
+        demoPartitionKey: "dinosaur#query",
+        demoSortKey: "dino#page2",
         name: "Page 2 Dino",
         type: "Pagination",
       },
       {
-        pk: "dinosaur#query",
-        sk: "dino#page3",
+        demoPartitionKey: "dinosaur#query",
+        demoSortKey: "dino#page3",
         name: "Page 3 Dino",
         type: "Pagination",
       },
       {
-        pk: "dinosaur#query",
-        sk: "dino#page4",
+        demoPartitionKey: "dinosaur#query",
+        demoSortKey: "dino#page4",
         name: "Page 4 Dino",
         type: "Pagination",
       },
       {
-        pk: "dinosaur#query",
-        sk: "dino#page5",
+        demoPartitionKey: "dinosaur#query",
+        demoSortKey: "dino#page5",
         name: "Page 5 Dino",
         type: "Pagination",
       },

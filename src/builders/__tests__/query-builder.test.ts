@@ -187,3 +187,11 @@ describe("QueryBuilder", () => {
     expect(result).toBe(builder);
   });
 });
+
+//TODO test object equality
+
+// array.[0] = { "NANAN" }
+
+//TODO test NaN, INF and -INF
+
+// test the

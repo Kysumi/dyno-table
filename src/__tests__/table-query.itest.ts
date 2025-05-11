@@ -13,8 +13,8 @@ describe("Table Integration Tests - Query Items", () => {
     // Create test data
     const dinos: Dinosaur[] = [
       {
-        pk: "dinosaur#group1",
-        sk: "dino#trex1",
+        demoPartitionKey: "dinosaur#group1",
+        demoSortKey: "dino#trex1",
         name: "T-Rex 1",
         type: "Tyrannosaurus",
         period: "Late Cretaceous",
@@ -23,8 +23,8 @@ describe("Table Integration Tests - Query Items", () => {
         weight: 7000,
       },
       {
-        pk: "dinosaur#group1",
-        sk: "dino#trex2",
+        demoPartitionKey: "dinosaur#group1",
+        demoSortKey: "dino#trex2",
         name: "T-Rex 2",
         type: "Tyrannosaurus",
         period: "Late Cretaceous",
@@ -33,8 +33,8 @@ describe("Table Integration Tests - Query Items", () => {
         weight: 6500,
       },
       {
-        pk: "dinosaur#group1",
-        sk: "dino#raptor1",
+        demoPartitionKey: "dinosaur#group1",
+        demoSortKey: "dino#raptor1",
         name: "Velociraptor 1",
         type: "Dromaeosaurid",
         period: "Late Cretaceous",
@@ -43,8 +43,8 @@ describe("Table Integration Tests - Query Items", () => {
         weight: 15,
       },
       {
-        pk: "dinosaur#group2",
-        sk: "dino#stego1",
+        demoPartitionKey: "dinosaur#group2",
+        demoSortKey: "dino#stego1",
         name: "Stegosaurus 1",
         type: "Stegosaurid",
         period: "Late Jurassic",
@@ -53,8 +53,8 @@ describe("Table Integration Tests - Query Items", () => {
         weight: 5000,
       },
       {
-        pk: "dinosaur#group2",
-        sk: "dino#brach1",
+        demoPartitionKey: "dinosaur#group2",
+        demoSortKey: "dino#brach1",
         name: "Brachiosaurus 1",
         type: "Sauropod",
         period: "Late Jurassic",
@@ -72,7 +72,7 @@ describe("Table Integration Tests - Query Items", () => {
     const result = await table.query({ pk: "dinosaur#group1" }).execute();
 
     expect(result.items).toHaveLength(3);
-    expect(result.items.map((item) => item.sk)).toEqual(
+    expect(result.items.map((item) => item.demoSortKey)).toEqual(
       expect.arrayContaining(["dino#trex1", "dino#trex2", "dino#raptor1"]),
     );
   });
@@ -110,9 +110,9 @@ describe("Table Integration Tests - Query Items", () => {
 
     const descResult = await table.query({ pk: "dinosaur#group1" }).sortDescending().execute();
 
-    expect(ascResult.items.map((item) => item.sk)).toEqual(["dino#raptor1", "dino#trex1", "dino#trex2"]);
+    expect(ascResult.items.map((item) => item.demoSortKey)).toEqual(["dino#raptor1", "dino#trex1", "dino#trex2"]);
 
-    expect(descResult.items.map((item) => item.sk)).toEqual(["dino#trex2", "dino#trex1", "dino#raptor1"]);
+    expect(descResult.items.map((item) => item.demoSortKey)).toEqual(["dino#trex2", "dino#trex1", "dino#raptor1"]);
   });
 
   it("should query items with projection", async () => {

@@ -1,4 +1,4 @@
-import type { TableConfig } from "../types";
+import type { DynamoItem, TableConfig } from "../types";
 import type { PaginationResult, QueryBuilderInterface } from "./builder-types";
 
 /**
@@ -35,11 +35,11 @@ import type { PaginationResult, QueryBuilderInterface } from "./builder-types";
  * @typeParam T - The type of items being paginated
  * @typeParam TConfig - The table configuration type
  */
-export class Paginator<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig> {
+export class Paginator<T extends DynamoItem, TConfig extends TableConfig = TableConfig> {
   private queryBuilder: QueryBuilderInterface<T, TConfig>;
   private readonly pageSize: number;
   private currentPage = 0;
-  private lastEvaluatedKey?: Record<string, unknown>;
+  private lastEvaluatedKey?: DynamoItem;
   private hasMorePages = true;
   private totalItemsRetrieved = 0;
   private readonly overallLimit?: number;

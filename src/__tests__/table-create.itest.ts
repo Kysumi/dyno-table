@@ -11,8 +11,8 @@ describe("Table Integration Tests - Create Items", () => {
 
   it("should create a new item", async () => {
     const dino: Dinosaur = {
-      pk: "dinosaur#1",
-      sk: "dino#trex",
+      demoPartitionKey: "dinosaur#1",
+      demoSortKey: "dino#trex",
       name: "T-Rex",
       type: "Tyrannosaurus",
       height: 20,
@@ -31,8 +31,8 @@ describe("Table Integration Tests - Create Items", () => {
 
   it("should fail to create an item that already exists", async () => {
     const dino: Dinosaur = {
-      pk: "dinosaur#2",
-      sk: "dino#raptor",
+      demoPartitionKey: "dinosaur#2",
+      demoSortKey: "dino#raptor",
       name: "Velociraptor",
       type: "Dromaeosaurid",
     };

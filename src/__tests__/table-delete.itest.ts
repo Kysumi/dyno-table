@@ -12,8 +12,8 @@ describe("Table Integration Tests - Delete Items", () => {
   beforeEach(async () => {
     // Create a test item
     const dino: Dinosaur = {
-      pk: "dinosaur#delete",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#delete",
+      demoSortKey: "dino#test",
       name: "Delete Test",
       type: "DeleteType",
     };
