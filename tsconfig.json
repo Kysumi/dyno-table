@@ -19,5 +19,5 @@
 
     "lib": ["es2022"]
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "examples/entity-example"]
+  "exclude": ["node_modules", "dist", "examples/entity-example"]
 }
