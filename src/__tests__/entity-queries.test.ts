@@ -171,7 +171,7 @@ describe("Entity Repository", () => {
 
       expect(mockTable.get).toHaveBeenCalledWith({
         pk: "TEST#123",
-        sk: "METADATA#test",
+        sk: "METADATA#",
       });
     });
   });
@@ -199,7 +199,7 @@ describe("Entity Repository", () => {
 
       expect(mockTable.update).toHaveBeenCalledWith({
         pk: "TEST#123",
-        sk: "METADATA#test",
+        sk: "METADATA#",
       });
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
       expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
@@ -224,7 +224,7 @@ describe("Entity Repository", () => {
 
       expect(mockTable.delete).toHaveBeenCalledWith({
         pk: "TEST#123",
-        sk: "METADATA#test",
+        sk: "METADATA#",
       });
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
     });
@@ -279,7 +279,8 @@ describe("Entity Repository", () => {
         createdAt: "2024-01-01",
       };
 
-      (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
+      // Mock the validation function for byIdInputSchema
+      (byIdInputSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
         issues: [{ message: "Validation failed" }],
       }));
 
