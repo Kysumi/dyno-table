@@ -908,10 +908,3 @@ npx tsx examples/[EXAMPLE_NAME].ts
 ```
 
 To view the test table GUI in action: [DynamoDB Admin](http://localhost:8001/)
-
-<br />
-To teardown the test table when you're done, run the following command:
-
-```bash
-pnpm run local:teardown
-```
