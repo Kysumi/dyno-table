@@ -202,6 +202,7 @@ describe("Entity Update Operations", () => {
       expect(mockBuilder.set).toHaveBeenCalled();
 
       // Verify that the timestamp was added to the update data
+      // @ts-ignore
       const setCall = mockBuilder.set.mock.calls[0][0];
       expect(setCall).toHaveProperty("name", "Timestamped Update");
       expect(setCall).toHaveProperty("modifiedAt");

@@ -35,7 +35,7 @@ interface Settings {
    */
   entityTypeAttributeName?: string;
   timestamps?: {
-    createdAt: {
+    createdAt?: {
       /**
        * ISO vs Unix trade-offs
        *
@@ -55,7 +55,7 @@ interface Settings {
        */
       attributeName?: string;
     };
-    updatedAt: {
+    updatedAt?: {
       /**
        * ISO vs Unix trade-offs
        *
@@ -92,12 +92,21 @@ export interface EntityConfig<
 }
 
 export interface EntityRepository<
+  /**
+   * The Entity Type
+   */
   T extends DynamoItem,
+  /**
+   * The Primary Index (Partition index) Type
+   */
   I extends DynamoItem = T,
+  /**
+   * The Queries object
+   */
   Q extends QueryRecord<T> = QueryRecord<T>,
 > {
   create: (data: T) => PutBuilder<T>;
-  upsert: (data: T) => PutBuilder<T>;
+  upsert: (data: T & I) => PutBuilder<T>;
   get: (key: I) => GetBuilder<T>;
   update: (key: I, data: Partial<T>) => UpdateBuilder<T>;
   delete: (key: I) => DeleteBuilder;
@@ -378,8 +387,6 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           return scanBuilder;
         },
       };
-
-      // Query functions are now bound directly during repository creation
 
       return repository;
     },
