@@ -25,17 +25,7 @@ const testSchema: StandardSchemaV1<TestEntity> = {
   },
 };
 
-const byIdInputSchema: StandardSchemaV1<{ id: string }> = {
-  "~standard": {
-    version: 1,
-    vendor: "test",
-    validate: vi.fn().mockImplementation((data) => ({
-      value: data,
-    })) as unknown as (value: unknown) => { value: TestEntity } | { issues: Array<{ message: string }> },
-  },
-};
-
-const primaryKeySchema: StandardSchemaV1<{ id: string; test: string }> = {
+const byIdInputSchema: StandardSchemaV1<{ id: string; test: string }> = {
   "~standard": {
     version: 1,
     vendor: "test",
@@ -44,6 +34,28 @@ const primaryKeySchema: StandardSchemaV1<{ id: string; test: string }> = {
     })) as unknown as (
       value: unknown,
     ) => { value: { id: string; test: string } } | { issues: Array<{ message: string }> },
+  },
+};
+
+const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate: vi.fn().mockImplementation((data) => ({
+      value: data,
+    })) as unknown as (value: unknown) => { value: { id: string } } | { issues: Array<{ message: string }> },
+  },
+};
+
+const byStatusInputSchema: StandardSchemaV1<{ status: string; id: string; test: string }> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate: vi.fn().mockImplementation((data) => ({
+      value: data,
+    })) as unknown as (
+      value: unknown,
+    ) => { value: { status: string; id: string; test: string } } | { issues: Array<{ message: string }> },
   },
 };
 
@@ -77,6 +89,9 @@ describe("Entity Repository", () => {
           pk: `TEST#${input.id}`,
           sk: (op) => op.beginsWith("METADATA#"),
         });
+      }),
+      byStatus: queryBuilder.input(byStatusInputSchema).query(({ input, entity }) => {
+        return entity.scan().filter(eq("status", input.status));
       }),
     },
   });
@@ -141,7 +156,7 @@ describe("Entity Repository", () => {
 
   describe("get", () => {
     it("should get an item with correct key transformation", async () => {
-      const key: Partial<TestEntity> = {
+      const key = {
         id: "123",
         type: "test",
       };
@@ -163,7 +178,7 @@ describe("Entity Repository", () => {
 
   describe("update", () => {
     it("should update an item with entity type condition", async () => {
-      const key: Partial<TestEntity> = {
+      const key = {
         id: "123",
         type: "test",
       };
@@ -193,7 +208,7 @@ describe("Entity Repository", () => {
 
   describe("delete", () => {
     it("should delete an item with entity type condition", async () => {
-      const key: Partial<TestEntity> = {
+      const key = {
         id: "123",
         type: "test",
       };
@@ -235,6 +250,7 @@ describe("Entity Repository", () => {
     it("should execute custom query with input validation", async () => {
       const input = {
         id: "123",
+        test: "test-value",
       };
 
       const mockBuilder = {
@@ -244,7 +260,7 @@ describe("Entity Repository", () => {
 
       mockTable.query.mockReturnValue(mockBuilder);
 
-      const test = await repository.query.byId(input);
+      await repository.query.byId(input).execute();
 
       expect(mockTable.query).toHaveBeenCalledWith({
         pk: "TEST#123",
@@ -254,8 +270,9 @@ describe("Entity Repository", () => {
     });
 
     it("should throw error on query input validation failure", async () => {
-      const input: Partial<TestEntity> = {
+      const input = {
         id: "123",
+        test: "test-value",
         name: "Test Item",
         type: "test",
         status: "active",
@@ -273,7 +290,11 @@ describe("Entity Repository", () => {
 
       mockTable.query.mockReturnValue(mockBuilder);
 
-      await expect(repository.query.byId(input as TestEntity).execute()).rejects.toThrow("Validation failed");
+      if (!repository.query.byId) {
+        throw new Error("Query byId is not defined");
+      }
+
+      await expect(repository.query.byId(input).execute()).rejects.toThrow("Validation failed");
     });
   });
 });

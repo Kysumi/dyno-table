@@ -17,8 +17,9 @@ export type QueryFunctionWithSchema<T extends DynamoItem, I, R> = QueryFunction<
   schema?: StandardSchemaV1<I>;
 };
 
-export type QueryRecord<T extends DynamoItem, I = unknown> = {
-  [K: string]: QueryFunctionWithSchema<T, I, ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>;
+export type QueryRecord<T extends DynamoItem> = {
+  // biome-ignore lint/suspicious/noExplicitAny: This is for flexibility
+  [K: string]: QueryFunctionWithSchema<T, any, ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>;
 };
 
 // Define a type for entity with only scan, get and query methods
@@ -31,7 +32,7 @@ export type QueryEntity<T extends DynamoItem> = {
 export interface EntityConfig<
   T extends DynamoItem,
   I extends DynamoItem = T,
-  Q extends QueryRecord<T, I> = QueryRecord<T, I>,
+  Q extends QueryRecord<T> = QueryRecord<T>,
 > {
   name: string;
   schema: StandardSchemaV1<T>;
@@ -43,7 +44,7 @@ export interface EntityConfig<
 export interface EntityRepository<
   T extends DynamoItem,
   I extends DynamoItem = T,
-  Q extends QueryRecord<T, I> = QueryRecord<T, I>,
+  Q extends QueryRecord<T> = QueryRecord<T>,
 > {
   create: (data: T) => PutBuilder<T>;
   upsert: (data: T) => PutBuilder<T>;
@@ -71,11 +72,9 @@ export interface EntityRepository<
  * });
  * ```
  */
-export function defineEntity<
-  T extends DynamoItem,
-  I extends DynamoItem = T,
-  Q extends QueryRecord<T, I> = QueryRecord<T, I>,
->(config: EntityConfig<T, I, Q>) {
+export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q extends QueryRecord<T> = QueryRecord<T>>(
+  config: EntityConfig<T, I, Q>,
+) {
   return {
     name: config.name,
     createRepository: (table: Table): EntityRepository<T, I, Q> => {
@@ -134,12 +133,7 @@ export function defineEntity<
             });
 
             // Execute the builder
-            const result = await originalExecute.call(builder);
-            if (!result) {
-              throw new Error("Failed to create item");
-            }
-
-            return result;
+            return await originalExecute.call(builder);
           };
 
           return builder;
@@ -219,8 +213,7 @@ export function defineEntity<
               },
             };
 
-            // Execute the query function to get the builder
-            // @ts-expect-error - We need to cast the inputCallback to a function that takes an unknown input
+            // Execute the query function to get the builder - This type is incorrect and needs to be fixed
             const queryBuilderCallback = inputCallback(input);
 
             // Run the inner handler which allows the user to apply their desired contraints
@@ -288,7 +281,7 @@ export function createQueries<T extends DynamoItem>() {
   return {
     input: <I>(schema: StandardSchemaV1<I>) => ({
       query: <
-        Q extends QueryRecord<T, I> = QueryRecord<T, I>,
+        Q extends QueryRecord<T> = QueryRecord<T>,
         R = ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>,
       >(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,

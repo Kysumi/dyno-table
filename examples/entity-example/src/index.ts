@@ -83,10 +83,10 @@ async function createDinosaurs(repo: EntityRepository<Dinosaur>) {
   try {
     console.log("🦕 Creating multiple dinosaurs...");
 
-    dinosaurs.map(async (dino) => {
+    for (const dino of dinosaurs) {
       console.log(`- Creating ${dino.name} (${dino.species})`);
       await repo.create(dino).execute();
-    });
+    }
 
     console.log("✅ Successfully created all dinosaurs!");
   } catch (error) {
@@ -106,7 +106,7 @@ async function promptForDocker(): Promise<void> {
 
   return new Promise((resolve) => {
     console.log("⚠️  Please ensure Docker containers are running with DynamoDB Local before proceeding.");
-    console.log("   You can typically start them with 'docker-compose up' or similar command.");
+    console.log("   You can run `npm run docker` to start them or start them manually with `docker compose up -d`.");
     rl.question("Have you started the Docker containers? (yes/no): ", (answer) => {
       if (answer.toLowerCase() === "yes" || answer.toLowerCase() === "y") {
         console.log("✅ Proceeding with the example...");
