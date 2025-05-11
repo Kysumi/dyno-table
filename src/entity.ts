@@ -29,6 +29,55 @@ export type QueryEntity<T extends DynamoItem> = {
   query: (keyCondition: PrimaryKey) => QueryBuilder<T, TableConfig>;
 };
 
+interface Settings {
+  /**
+   * Defaults to "entityType"
+   */
+  entityTypeAttributeName?: string;
+  timestamps?: {
+    createdAt: {
+      /**
+       * ISO vs Unix trade-offs
+       *
+       * Both options support between, greater than and less than comparisons.
+       *
+       * ISO:
+       * - Human readable, but requires more storage space
+       * - Does not work with DynamoDBs TTL feature.
+       *
+       * UNIX:
+       * - Less readable, but requires less storage space.
+       * - Works with DynamoDBs TTL feature.
+       */
+      format: "ISO" | "UNIX";
+      /**
+       * Defaults to "createdAt"
+       */
+      attributeName?: string;
+    };
+    updatedAt: {
+      /**
+       * ISO vs Unix trade-offs
+       *
+       * Both options support between, greater than and less than comparisons.
+       *
+       * ISO:
+       * - Human readable, but requires more storage space
+       * - Does not work with DynamoDBs TTL feature.
+       *
+       * UNIX:
+       * - Less readable, but requires less storage space.
+       * - Works with DynamoDBs TTL feature.
+       */
+      format: "ISO" | "UNIX";
+      /**
+       * Defaults to "updatedAt"
+       */
+      attributeName?: string;
+    };
+  };
+}
+
 export interface EntityConfig<
   T extends DynamoItem,
   I extends DynamoItem = T,
@@ -39,6 +88,7 @@ export interface EntityConfig<
   primaryKey: IndexDefinition<I>;
   indexes?: Record<string, Index>;
   queries: Q;
+  settings?: Settings;
 }
 
 export interface EntityRepository<
@@ -75,20 +125,58 @@ export interface EntityRepository<
 export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q extends QueryRecord<T> = QueryRecord<T>>(
   config: EntityConfig<T, I, Q>,
 ) {
+  const entityTypeAttributeName = config.settings?.entityTypeAttributeName ?? "entityType";
+
+  /**
+   * Generates an object containing timestamp attributes based on the given configuration settings.
+   * The function determines the presence and format of "createdAt" and "updatedAt" timestamps dynamically.
+   *
+   * @returns {Record<string, string | number>} An object containing one or both of the "createdAt" and "updatedAt" timestamp attributes, depending on the configuration. Each timestamp can be formatted as either an ISO string or a UNIX timestamp.
+   *
+   * @throws Will not throw errors but depends on `config.settings?.timestamps` to be properly defined.
+   * - If `createdAt` is configured, the function adds a timestamp using the attribute name specified in `config.settings.timestamps.createdAt.attributeName` or defaults to "createdAt".
+   * - If `updatedAt` is configured, the function adds a timestamp using the attribute name specified in `config.settings.timestamps.updatedAt.attributeName` or defaults to "updatedAt".
+   *
+   * Configuration Details:
+   *  - `config.settings.timestamps.createdAt.format`: Determines the format of the "createdAt" timestamp. Accepts "UNIX" or defaults to ISO string.
+   *  - `config.settings.timestamps.updatedAt.format`: Determines the format of the "updatedAt" timestamp. Accepts "UNIX" or defaults to ISO string.
+   *
+   * The returned object keys and values depend on the provided configuration.
+   */
+  const generateTimestamps = (): Record<string, string | number> => {
+    const timestamps: Record<string, string | number> = {};
+
+    if (config.settings?.timestamps) {
+      const now = new Date();
+
+      if (config.settings.timestamps.createdAt) {
+        const attributeName = config.settings.timestamps.createdAt.attributeName ?? "createdAt";
+        timestamps[attributeName] =
+          config.settings.timestamps.createdAt.format === "UNIX" ? Math.floor(Date.now() / 1000) : now.toISOString();
+      }
+
+      if (config.settings.timestamps.updatedAt) {
+        const attributeName = config.settings.timestamps.updatedAt.attributeName ?? "updatedAt";
+        timestamps[attributeName] =
+          config.settings.timestamps.updatedAt.format === "UNIX" ? Math.floor(Date.now() / 1000) : now.toISOString();
+      }
+    }
+
+    return timestamps;
+  };
+
   return {
     name: config.name,
     createRepository: (table: Table): EntityRepository<T, I, Q> => {
       // Create a repository
       const repository = {
         create: (data: T) => {
-          // Create validated data with an entity type
-          const itemWithType = {
-            ...data,
-            entityType: config.name,
-          };
-
           // We need to handle the async operations when the consumer calls execute
-          const builder = table.create<T>(itemWithType);
+          const builder = table.create<T>({
+            ...data,
+            [entityTypeAttributeName]: config.name,
+            ...generateTimestamps(),
+          });
 
           // Wrap the builder's execute method to apply validation only
           const originalExecute = builder.execute;
@@ -121,14 +209,15 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
               {} as Record<string, string>,
             );
 
-            // Update the item in the builder with the validated data and entity type
+            // Update the item in the builder with the validated data, entity type, and timestamps
             Object.assign(builder, {
               item: {
                 ...validationResult.value,
-                entityType: config.name,
+                [entityTypeAttributeName]: config.name,
                 [table.partitionKey]: primaryKey.pk,
                 ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
                 ...indexes,
+                ...generateTimestamps(),
               },
             });
 
@@ -140,14 +229,12 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
         },
 
         upsert: (data: T) => {
-          // Create validated data with an entity type
-          const itemWithType = {
-            ...data,
-            entityType: config.name,
-          };
-
           // We need to handle the async operations when the consumer calls execute
-          const builder = table.put<T>(itemWithType);
+          const builder = table.put<T>({
+            ...data,
+            [entityTypeAttributeName]: config.name,
+            ...generateTimestamps(),
+          });
 
           // Wrap the builder's execute method to apply validation only
           const originalExecute = builder.execute;
@@ -158,11 +245,12 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
-            // Update the item in the builder with the validated data and entity type
+            // Update the item in the builder with the validated data, entity type, and timestamps
             Object.assign(builder, {
               item: {
                 ...validationResult.value,
-                entityType: config.name,
+                [entityTypeAttributeName]: config.name,
+                ...generateTimestamps(),
               },
             });
 
@@ -188,8 +276,23 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
           const primaryKeyObj = config.primaryKey.generateKey(key);
           const builder = table.update<T>(primaryKeyObj);
-          builder.condition(eq("entityType", config.name));
-          builder.set(data);
+          builder.condition(eq(entityTypeAttributeName, config.name));
+
+          // Generate updatedAt timestamp if configured
+          const timestamps: Record<string, string | number> = {};
+          if (config.settings?.timestamps?.updatedAt) {
+            const now = new Date();
+            const attributeName = config.settings.timestamps.updatedAt.attributeName ?? "updatedAt";
+            timestamps[attributeName] = 
+              config.settings.timestamps.updatedAt.format === "UNIX" ? Math.floor(Date.now() / 1000) : now.toISOString();
+          }
+
+          // Merge the data with timestamps
+          builder.set({
+            ...data,
+            ...timestamps,
+          });
+
           return builder;
         },
 
@@ -197,7 +300,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
           const primaryKeyObj = config.primaryKey.generateKey(key);
           const builder = table.delete(primaryKeyObj);
-          builder.condition(eq("entityType", config.name));
+          builder.condition(eq(entityTypeAttributeName, config.name));
           return builder;
         },
 
@@ -223,7 +326,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
 
             // Add entity type filter if the builder has filter method
             if (builder && typeof builder === "object" && "filter" in builder && typeof builder.filter === "function") {
-              builder.filter(eq("entityType", config.name));
+              builder.filter(eq(entityTypeAttributeName, config.name));
             }
 
             // Wrap the builder's execute method if it exists
@@ -264,7 +367,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
 
         scan: () => {
           const scanBuilder = table.scan<T>();
-          scanBuilder.filter(eq("entityType", config.name));
+          scanBuilder.filter(eq(entityTypeAttributeName, config.name));
 
           return scanBuilder;
         },

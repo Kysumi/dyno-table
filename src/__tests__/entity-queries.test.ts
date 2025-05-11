@@ -11,10 +11,9 @@ interface TestEntity extends DynamoItem {
   name: string;
   type: string;
   status: string;
-  createdAt: string;
 }
 
-// Create a mock schema with proper StandardSchemaV1 structure
+// Create a mock schema with a proper StandardSchemaV1 structure
 const testSchema: StandardSchemaV1<TestEntity> = {
   "~standard": {
     version: 1,
@@ -131,6 +130,56 @@ describe("Entity Repository", () => {
       expect(result).toEqual(testData);
     });
 
+    it("should add timestamps when configured", async () => {
+      // Create a new entity repository with timestamps configured
+      const entityWithTimestamps = defineEntity({
+        name: "TestEntityWithTimestamps",
+        schema: testSchema,
+        primaryKey: createIndex()
+          .input(primaryKeySchema)
+          .partitionKey((item) => `TEST#${item.id}`)
+          .sortKey(() => "METADATA#"),
+        queries: {},
+        settings: {
+          timestamps: {
+            createdAt: {
+              format: "ISO",
+            },
+            updatedAt: {
+              format: "UNIX",
+              attributeName: "modifiedAt",
+            },
+          },
+        },
+      });
+
+      const repoWithTimestamps = entityWithTimestamps.createRepository(mockTable as unknown as Table);
+
+      const testData: TestEntity = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+      };
+
+      const mockBuilder = {
+        execute: vi.fn().mockResolvedValue(testData),
+      };
+
+      mockTable.create.mockReturnValue(mockBuilder);
+
+      await repoWithTimestamps.create(testData).execute();
+
+      // Verify that timestamps were added
+      // @ts-expect-error
+      const createCall = mockTable.create.mock.calls[0][0];
+      expect(createCall).toHaveProperty("entityType", "TestEntityWithTimestamps");
+      expect(createCall).toHaveProperty("createdAt");
+      expect(createCall.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/); // ISO format
+      expect(createCall).toHaveProperty("modifiedAt");
+      expect(typeof createCall.modifiedAt).toBe("number"); // UNIX format
+    });
+
     it("should throw error on validation failure", async () => {
       const testData: TestEntity = {
         id: "123",
@@ -203,6 +252,59 @@ describe("Entity Repository", () => {
       });
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
       expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
+    });
+
+    it("should add updatedAt timestamp when configured", async () => {
+      // Create a new entity repository with timestamps configured
+      const entityWithTimestamps = defineEntity({
+        name: "TestEntityWithTimestamps",
+        schema: testSchema,
+        primaryKey: createIndex()
+          .input(primaryKeySchema)
+          .partitionKey((item) => `TEST#${item.id}`)
+          .sortKey(() => "METADATA#"),
+        queries: {},
+        settings: {
+          timestamps: {
+            createdAt: {
+              format: "ISO",
+            },
+            updatedAt: {
+              format: "UNIX",
+              attributeName: "modifiedAt",
+            },
+          },
+        },
+      });
+
+      const repoWithTimestamps = entityWithTimestamps.createRepository(mockTable as unknown as Table);
+
+      const key = {
+        id: "123",
+      };
+
+      const updateData = {
+        name: "Updated Name",
+      };
+
+      const mockBuilder = {
+        condition: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
+      };
+
+      mockTable.update.mockReturnValue(mockBuilder);
+
+      await repoWithTimestamps.update(key, updateData).execute();
+
+      // Verify that only updatedAt timestamp was added (not createdAt)
+      expect(mockBuilder.set).toHaveBeenCalled();
+      // @ts-expect-error
+      const setCall = mockBuilder.set.mock.calls[0][0];
+      expect(setCall).toHaveProperty("name", "Updated Name");
+      expect(setCall).toHaveProperty("modifiedAt");
+      expect(typeof setCall.modifiedAt).toBe("number"); // UNIX format
+      expect(setCall).not.toHaveProperty("createdAt"); // createdAt should not be added on updates
     });
   });
 
@@ -296,6 +398,128 @@ describe("Entity Repository", () => {
       }
 
       await expect(repository.query.byId(input).execute()).rejects.toThrow("Validation failed");
+    });
+  });
+
+  describe("custom entity type column name", () => {
+    it("should use custom entity type column name in constraints", async () => {
+      // Create a new entity repository with custom entity type column name
+      const customEntityRepository = defineEntity({
+        name: "CustomEntity",
+        schema: testSchema,
+        primaryKey: createIndex()
+          .input(primaryKeySchema)
+          .partitionKey((item) => `TEST#${item.id}`)
+          .sortKey(() => "METADATA#"),
+        queries: {},
+        settings: {
+          entityTypeAttributeName: "customEntityType",
+        },
+      });
+
+      // Create repository instance
+      const customRepository = customEntityRepository.createRepository(mockTable as unknown as Table);
+
+      // Test update method with custom entity type column name
+      const key = {
+        id: "123",
+      };
+
+      const updateData = {
+        name: "Updated Name",
+      };
+
+      const mockBuilder = {
+        condition: vi.fn().mockReturnThis(),
+        set: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
+      };
+
+      mockTable.update.mockReturnValue(mockBuilder);
+
+      await customRepository.update(key, updateData).execute();
+
+      // Verify that the custom entity type column name is used in the condition
+      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("customEntityType", "CustomEntity"));
+    });
+  });
+
+  describe("upsert", () => {
+    it("should upsert an item with entity type and validated data", async () => {
+      const testData: TestEntity = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+      };
+
+      const mockBuilder = {
+        execute: vi.fn().mockResolvedValue(testData),
+      };
+
+      mockTable.put.mockReturnValue(mockBuilder);
+
+      const result = await repository.upsert(testData).execute();
+
+      expect(mockTable.put).toHaveBeenCalled();
+      // @ts-expect-error
+      const putCall = mockTable.put.mock.calls[0][0];
+      expect(putCall).toHaveProperty("id", testData.id);
+      expect(putCall).toHaveProperty("name", testData.name);
+      expect(putCall).toHaveProperty("type", testData.type);
+      expect(putCall).toHaveProperty("status", testData.status);
+      expect(putCall).toHaveProperty("entityType", "TestEntity");
+      expect(result).toEqual(testData);
+    });
+
+    it("should add timestamps when configured", async () => {
+      // Create a new entity repository with timestamps configured
+      const entityWithTimestamps = defineEntity({
+        name: "TestEntityWithTimestamps",
+        schema: testSchema,
+        primaryKey: createIndex()
+          .input(primaryKeySchema)
+          .partitionKey((item) => `TEST#${item.id}`)
+          .sortKey(() => "METADATA#"),
+        queries: {},
+        settings: {
+          timestamps: {
+            createdAt: {
+              format: "ISO",
+            },
+            updatedAt: {
+              format: "UNIX",
+              attributeName: "modifiedAt",
+            },
+          },
+        },
+      });
+
+      const repoWithTimestamps = entityWithTimestamps.createRepository(mockTable as unknown as Table);
+
+      const testData: TestEntity = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+      };
+
+      const mockBuilder = {
+        execute: vi.fn().mockResolvedValue(testData),
+      };
+
+      mockTable.put.mockReturnValue(mockBuilder);
+
+      await repoWithTimestamps.upsert(testData).execute();
+
+      // Verify that timestamps were added
+      // @ts-expect-error
+      const putCall = mockTable.put.mock.calls[0][0];
+      expect(putCall).toHaveProperty("entityType", "TestEntityWithTimestamps");
+      expect(putCall).toHaveProperty("createdAt");
+      expect(putCall.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/); // ISO format
+      expect(putCall).toHaveProperty("modifiedAt");
+      expect(typeof putCall.modifiedAt).toBe("number"); // UNIX format
     });
   });
 });
