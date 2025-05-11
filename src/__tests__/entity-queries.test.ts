@@ -25,6 +25,28 @@ const testSchema: StandardSchemaV1<TestEntity> = {
   },
 };
 
+const byIdInputSchema: StandardSchemaV1<{ id: string }> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate: vi.fn().mockImplementation((data) => ({
+      value: data,
+    })) as unknown as (value: unknown) => { value: TestEntity } | { issues: Array<{ message: string }> },
+  },
+};
+
+const primaryKeySchema: StandardSchemaV1<{ id: string; test: string }> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate: vi.fn().mockImplementation((data) => ({
+      value: data,
+    })) as unknown as (
+      value: unknown,
+    ) => { value: { id: string; test: string } } | { issues: Array<{ message: string }> },
+  },
+};
+
 // Create a mock table
 const mockTable = {
   create: vi.fn(),
@@ -52,12 +74,12 @@ describe("Entity Repository", () => {
       name: "TestEntity",
       schema: testSchema,
       primaryKey: createIndex()
-        .input(testSchema)
+        .input(primaryKeySchema)
         .partitionKey((item) => `TEST#${item.id}`)
-        .sortKey((item) => `METADATA#${item.type}`),
+        .sortKey(() => "METADATA#"),
       queries: {
         byId: createQueries<TestEntity>()
-          .input(testSchema)
+          .input(byIdInputSchema)
           .query(({ input, entity }) => {
             return entity.query({
               pk: `TEST#${input.id}`,
@@ -213,12 +235,8 @@ describe("Entity Repository", () => {
 
   describe("custom queries", () => {
     it("should execute custom query with input validation", async () => {
-      const input: Partial<TestEntity> = {
+      const input = {
         id: "123",
-        name: "Test Item",
-        type: "test",
-        status: "active",
-        createdAt: "2024-01-01",
       };
 
       const mockBuilder = {
