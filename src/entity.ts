@@ -228,9 +228,13 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           return builder;
         },
 
-        upsert: (data: T) => {
+        upsert: (data: T & I) => {
+          const primaryKey = config.primaryKey.generateKey(data);
+
           // We need to handle the async operations when the consumer calls execute
           const builder = table.put<T>({
+            [table.partitionKey]: primaryKey.pk,
+            ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
             ...data,
             [entityTypeAttributeName]: config.name,
             ...generateTimestamps(),
@@ -283,8 +287,10 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           if (config.settings?.timestamps?.updatedAt) {
             const now = new Date();
             const attributeName = config.settings.timestamps.updatedAt.attributeName ?? "updatedAt";
-            timestamps[attributeName] = 
-              config.settings.timestamps.updatedAt.format === "UNIX" ? Math.floor(Date.now() / 1000) : now.toISOString();
+            timestamps[attributeName] =
+              config.settings.timestamps.updatedAt.format === "UNIX"
+                ? Math.floor(Date.now() / 1000)
+                : now.toISOString();
           }
 
           // Merge the data with timestamps

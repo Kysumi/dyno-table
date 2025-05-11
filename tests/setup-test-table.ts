@@ -9,8 +9,8 @@ const makeNewTable = async () => {
       new CreateTableCommand({
         TableName: TABLE_NAME,
         AttributeDefinitions: [
-          { AttributeName: "pk", AttributeType: "S" },
-          { AttributeName: "sk", AttributeType: "S" },
+          { AttributeName: "demoPartitionKey", AttributeType: "S" },
+          { AttributeName: "demoSortKey", AttributeType: "S" },
           { AttributeName: "GSI1PK", AttributeType: "S" },
           { AttributeName: "GSI1SK", AttributeType: "S" },
           { AttributeName: "GSI2PK", AttributeType: "S" },
@@ -18,8 +18,8 @@ const makeNewTable = async () => {
           { AttributeName: "GSI3PK", AttributeType: "S" },
         ],
         KeySchema: [
-          { AttributeName: "pk", KeyType: "HASH" },
-          { AttributeName: "sk", KeyType: "RANGE" },
+          { AttributeName: "demoPartitionKey", KeyType: "HASH" },
+          { AttributeName: "demoSortKey", KeyType: "RANGE" },
         ],
         GlobalSecondaryIndexes: [
           {

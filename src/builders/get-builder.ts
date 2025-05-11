@@ -1,5 +1,6 @@
-import type { PrimaryKeyWithoutExpression } from "../conditions";
+import type { ExpressionParams, PrimaryKeyWithoutExpression } from "../conditions";
 import type { DynamoItem } from "../types";
+import { generateAttributeName } from "../expression";
 
 /**
  * Configuration options for DynamoDB get operations.
@@ -165,20 +166,22 @@ export class GetBuilder<T extends DynamoItem> {
    *          - item: The retrieved dinosaur or undefined if not found
    */
   async execute(): Promise<{ item: T | undefined }> {
-    if (this.selectedFields.size > 0) {
-      const expressionAttributeNames: Record<string, string> = {};
-      const projectionParts: string[] = [];
+    const expressionParams: ExpressionParams = {
+      expressionAttributeNames: {},
+      expressionAttributeValues: {},
+      valueCounter: { count: 0 },
+    };
 
-      for (const path of this.selectedFields) {
-        const attrName = `#attr${projectionParts.length}`;
-        expressionAttributeNames[attrName] = path;
-        projectionParts.push(attrName);
-      }
+    const projectionExpression = Array.from(this.selectedFields)
+      .map((p) => generateAttributeName(expressionParams, p))
+      .join(", ");
 
-      this.params.projectionExpression = projectionParts.join(", ");
-      this.params.expressionAttributeNames = expressionAttributeNames;
-    }
+    const { expressionAttributeNames } = expressionParams;
 
-    return this.executor(this.params);
+    return this.executor({
+      ...this.params,
+      projectionExpression: projectionExpression.length > 0 ? projectionExpression : undefined,
+      expressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+    });
   }
 }

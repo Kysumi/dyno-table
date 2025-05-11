@@ -104,9 +104,7 @@ export class ConditionCheckBuilder {
    * @param condition - Either a Condition DynamoItem or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
-  condition<T extends DynamoItem>(
-    condition: Condition | ((op: ConditionOperator<T>) => Condition),
-  ): ConditionCheckBuilder {
+  condition<T extends DynamoItem>(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -193,7 +191,7 @@ export class ConditionCheckBuilder {
    * @throws {Error} If no condition has been set
    * @returns The builder instance for method chaining
    */
-  withTransaction(transaction: TransactionBuilder): ConditionCheckBuilder {
+  withTransaction(transaction: TransactionBuilder): this {
     if (!this.conditionExpression) {
       throw new Error("Condition is required for condition check operations");
     }

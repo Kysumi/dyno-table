@@ -2,8 +2,8 @@ import { Table } from "../table";
 import { docClient } from "../../tests/ddb-client";
 
 export type Dinosaur = {
-  pk: string;
-  sk: string;
+  demoPartitionKey: string;
+  demoSortKey: string;
   name: string;
   type: string;
   height?: number;
@@ -22,8 +22,8 @@ export function createTestTable(): Table {
     client: docClient,
     tableName: "TestTable",
     indexes: {
-      partitionKey: "pk",
-      sortKey: "sk",
+      partitionKey: "demoPartitionKey",
+      sortKey: "demoSortKey",
     },
   });
 }

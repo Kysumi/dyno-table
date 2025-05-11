@@ -30,11 +30,6 @@ type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: DynamoIt
 
 /**
  * Builder for creating DynamoDB delete operations.
- * Use this builder when you need to:
- * - Remove dinosaurs from the registry
- * - Clean up abandoned habitats
- * - Delete historical tracking data
- * - Remove deprecated classifications
  *
  * @example
  * ```typescript
@@ -71,10 +66,6 @@ export class DeleteBuilder {
 
   /**
    * Adds a condition that must be satisfied for the delete operation to succeed.
-   * Use this method when you need to:
-   * - Ensure safe removal conditions
-   * - Verify habitat status before deletion
-   * - Implement safety protocols
    *
    * @example
    * ```typescript
@@ -129,10 +120,6 @@ export class DeleteBuilder {
 
   /**
    * Sets whether to return the item's attribute values before deletion.
-   * Use this method when you need to:
-   * - Archive removed dinosaur data
-   * - Track habitat decommissioning history
-   * - Maintain removal audit logs
    *
    * @example
    * ```ts
@@ -176,10 +163,6 @@ export class DeleteBuilder {
 
   /**
    * Adds this delete operation to a transaction.
-   * Use this method when you need to:
-   * - Coordinate dinosaur transfers
-   * - Manage habitat decommissioning
-   * - Handle species relocations
    *
    * @example
    * ```ts
@@ -233,11 +216,6 @@ export class DeleteBuilder {
   /**
    * Gets a human-readable representation of the delete command
    * with all expression placeholders replaced by their actual values.
-   * Use this method when you need to:
-   * - Debug complex deletion conditions
-   * - Verify safety checks
-   * - Log removal operations
-   * - Troubleshoot failed deletions
    *
    * @example
    * ```ts

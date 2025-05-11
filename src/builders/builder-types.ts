@@ -4,7 +4,7 @@ import type { DynamoItem, TableConfig } from "../types";
 
 export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
-  key: PrimaryKeyWithoutExpression;
+  key: Record<string, unknown>;
   conditionExpression?: string;
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: DynamoItem;
@@ -38,7 +38,7 @@ export interface UpdateCommandParams extends DynamoCommandWithExpressions {
   /** The name of the DynamoDB table */
   tableName: string;
   /** The primary key of the item to update */
-  key: PrimaryKeyWithoutExpression;
+  key: Record<string, unknown>;
   /** The update expression (SET, REMOVE, ADD, DELETE clauses) */
   updateExpression: string;
   /** Optional condition expression that must be satisfied */
@@ -53,7 +53,7 @@ export interface UpdateCommandParams extends DynamoCommandWithExpressions {
 
 export interface ConditionCheckCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
-  key: PrimaryKeyWithoutExpression;
+  key: Record<string, unknown>;
   conditionExpression: string;
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: DynamoItem;

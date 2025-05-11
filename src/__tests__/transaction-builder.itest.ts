@@ -3,8 +3,8 @@ import { Table } from "../table";
 import { docClient } from "../../tests/ddb-client";
 
 type Dinosaur = {
-  pk: string;
-  sk: string;
+  demoPartitionKey: string;
+  demoSortKey: string;
   name: string;
   species: string;
   diet: string;
@@ -20,8 +20,8 @@ describe("TransactionBuilder Integration Tests", () => {
     client: docClient,
     tableName: "TestTable",
     indexes: {
-      partitionKey: "pk",
-      sortKey: "sk",
+      partitionKey: "demoPartitionKey",
+      sortKey: "demoSortKey",
     },
   });
 
@@ -30,8 +30,8 @@ describe("TransactionBuilder Integration Tests", () => {
       // Create a dinosaur in the source enclosure
       await table
         .put<Dinosaur>({
-          pk: "ENCLOSURE#A",
-          sk: "DINO#001",
+          demoPartitionKey: "ENCLOSURE#A",
+          demoSortKey: "DINO#001",
           name: "Rex",
           species: "Tyrannosaurus",
           diet: "Carnivore",
@@ -45,8 +45,8 @@ describe("TransactionBuilder Integration Tests", () => {
       // Create the destination enclosure status
       await table
         .put<Dinosaur>({
-          pk: "ENCLOSURE#B",
-          sk: "STATUS",
+          demoPartitionKey: "ENCLOSURE#B",
+          demoSortKey: "STATUS",
           status: "READY",
           name: "Carnivore Enclosure B",
           species: "ENCLOSURE",
@@ -70,14 +70,14 @@ describe("TransactionBuilder Integration Tests", () => {
           pk: "ENCLOSURE#B",
           sk: "STATUS",
         })
-        .condition((op) => op.and(op.attributeExists("pk"), op.eq("status", "READY")))
+        .condition((op) => op.and(op.attributeExists("demoPartitionKey"), op.eq("status", "READY")))
         .withTransaction(transaction);
 
       // Add dinosaur to new enclosure
       table
         .put<Dinosaur>({
-          pk: "ENCLOSURE#B",
-          sk: "DINO#001",
+          demoPartitionKey: "ENCLOSURE#B",
+          demoSortKey: "DINO#001",
           name: "Rex",
           species: "Tyrannosaurus",
           diet: "Carnivore",
@@ -96,10 +96,10 @@ describe("TransactionBuilder Integration Tests", () => {
       const destEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#B" }).execute();
 
       // Source enclosure should be empty (except for status)
-      expect(sourceEnclosure.items.filter((item) => item.sk.startsWith("DINO#"))).toHaveLength(0);
+      expect(sourceEnclosure.items.filter((item) => item.demoSortKey.startsWith("DINO#"))).toHaveLength(0);
 
       // Destination enclosure should have the dinosaur
-      const transferredDino = destEnclosure.items.find((item) => item.sk === "DINO#001");
+      const transferredDino = destEnclosure.items.find((item) => item.demoSortKey === "DINO#001");
       expect(transferredDino).toBeDefined();
       expect(transferredDino?.name).toBe("Rex");
       expect(transferredDino?.enclosureId).toBe("B");
@@ -109,8 +109,8 @@ describe("TransactionBuilder Integration Tests", () => {
       // Create a dinosaur that's not healthy enough for transfer
       await table
         .put<Dinosaur>({
-          pk: "ENCLOSURE#C",
-          sk: "DINO#002",
+          demoPartitionKey: "ENCLOSURE#C",
+          demoSortKey: "DINO#002",
           name: "Veloci",
           species: "Velociraptor",
           diet: "Carnivore",
@@ -124,8 +124,8 @@ describe("TransactionBuilder Integration Tests", () => {
       // Create the destination quarantine enclosure
       await table
         .put<Dinosaur>({
-          pk: "ENCLOSURE#QUARANTINE",
-          sk: "STATUS",
+          demoPartitionKey: "ENCLOSURE#QUARANTINE",
+          demoSortKey: "STATUS",
           status: "READY",
           name: "Quarantine Enclosure",
           species: "ENCLOSURE",
@@ -138,8 +138,8 @@ describe("TransactionBuilder Integration Tests", () => {
 
       // Try to add entry to quarantine enclosure (this should not succeed)
       const putBuilder = table.put<Dinosaur>({
-        pk: "ENCLOSURE#QUARANTINE",
-        sk: "DINO#002",
+        demoPartitionKey: "ENCLOSURE#QUARANTINE",
+        demoSortKey: "DINO#002",
         name: "Veloci",
         species: "Velociraptor",
         diet: "Carnivore",
@@ -180,13 +180,13 @@ describe("TransactionBuilder Integration Tests", () => {
       const quarantineEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#QUARANTINE" }).execute();
 
       // The dinosaur should still be in the original enclosure
-      const originalDino = sourceEnclosure.items.find((item) => item.sk === "DINO#002");
+      const originalDino = sourceEnclosure.items.find((item) => item.demoSortKey === "DINO#002");
       expect(originalDino).toBeDefined();
       expect(originalDino?.status).toBe("INJURED");
       expect(originalDino?.enclosureId).toBe("C");
 
       // The quarantine enclosure should not have the dinosaur
-      const quarantineDino = quarantineEnclosure.items.find((item) => item.sk === "DINO#002");
+      const quarantineDino = quarantineEnclosure.items.find((item) => item.demoSortKey === "DINO#002");
       expect(quarantineDino).toBeUndefined();
     });
 
@@ -194,8 +194,8 @@ describe("TransactionBuilder Integration Tests", () => {
       // Create a hungry dinosaur with monitoring tags
       await table
         .put<Dinosaur>({
-          pk: "ENCLOSURE#D",
-          sk: "DINO#003",
+          demoPartitionKey: "ENCLOSURE#D",
+          demoSortKey: "DINO#003",
           name: "Spiky",
           species: "Stegosaurus",
           diet: "Herbivore",
@@ -210,7 +210,7 @@ describe("TransactionBuilder Integration Tests", () => {
       // Create a transaction for feeding and health update
       const transaction = table.transactionBuilder();
 
-      const updateBuilder = table
+      table
         .update<Dinosaur>({
           pk: "ENCLOSURE#D",
           sk: "DINO#003",
@@ -222,9 +222,8 @@ describe("TransactionBuilder Integration Tests", () => {
         .set({
           diet: "Herbivore", // Confirm diet type
           enclosureId: "D", // Maintain enclosure tracking
-        });
-
-      updateBuilder.withTransaction(transaction);
+        })
+        .withTransaction(transaction);
 
       // Execute the transaction
       await transaction.execute();
@@ -256,8 +255,8 @@ describe("TransactionBuilder Integration Tests", () => {
       await Promise.all([
         table
           .put<Dinosaur>({
-            pk: "ENCLOSURE#E",
-            sk: "STATUS",
+            demoPartitionKey: "ENCLOSURE#E",
+            demoSortKey: "STATUS",
             name: "Herbivore Enclosure E",
             species: "ENCLOSURE",
             diet: "Herbivore",
@@ -267,8 +266,8 @@ describe("TransactionBuilder Integration Tests", () => {
           .execute(),
         table
           .put<Dinosaur>({
-            pk: "ENCLOSURE#E",
-            sk: "OCCUPANCY",
+            demoPartitionKey: "ENCLOSURE#E",
+            demoSortKey: "OCCUPANCY",
             name: "Enclosure E Occupancy",
             species: "ENCLOSURE",
             diet: "N/A",
@@ -282,20 +281,20 @@ describe("TransactionBuilder Integration Tests", () => {
       const transaction = table.transactionBuilder();
 
       // Check enclosure status (must be ACTIVE)
-      const statusCheck = table.conditionCheck({
-        pk: "ENCLOSURE#E",
-        sk: "STATUS",
-      });
-      statusCheck
+      table
+        .conditionCheck({
+          pk: "ENCLOSURE#E",
+          sk: "STATUS",
+        })
         .condition((op) => op.and(op.eq("status", "ACTIVE"), op.eq("diet", "Herbivore")))
         .withTransaction(transaction);
 
       // Check occupancy (must be AVAILABLE)
-      const occupancyCheck = table.conditionCheck({
-        pk: "ENCLOSURE#E",
-        sk: "OCCUPANCY",
-      });
-      occupancyCheck
+      table
+        .conditionCheck({
+          pk: "ENCLOSURE#E",
+          sk: "OCCUPANCY",
+        })
         .condition((op) =>
           op.and(
             op.eq("status", "AVAILABLE"),
@@ -306,8 +305,8 @@ describe("TransactionBuilder Integration Tests", () => {
 
       // Add new dinosaur if all conditions pass
       const newDino: Dinosaur = {
-        pk: "ENCLOSURE#E",
-        sk: "DINO#004",
+        demoPartitionKey: "ENCLOSURE#E",
+        demoSortKey: "DINO#004",
         name: "Tri",
         species: "Triceratops",
         diet: "Herbivore",
@@ -318,8 +317,7 @@ describe("TransactionBuilder Integration Tests", () => {
         tags: new Set(["herbivore", "new_arrival"]),
       };
 
-      const putBuilder = table.put<Dinosaur>(newDino);
-      putBuilder.withTransaction(transaction);
+      table.put<Dinosaur>(newDino).withTransaction(transaction);
 
       // Execute the transaction
       await transaction.execute();
