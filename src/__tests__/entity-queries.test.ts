@@ -246,7 +246,7 @@ describe("Entity Repository", () => {
 
       mockTable.query.mockReturnValue(mockBuilder);
 
-      await repository.query.byId(input as TestEntity).execute();
+      await repository.query.byId(input).execute();
 
       expect(mockTable.query).toHaveBeenCalledWith({
         pk: "TEST#123",
