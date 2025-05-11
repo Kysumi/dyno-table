@@ -850,6 +850,41 @@ pnpm test
 pnpm build
 ```
 
+## 📦 Release Process
+
+This project uses [semantic-release](https://github.com/semantic-release/semantic-release) for automated versioning and package publishing. The configuration is maintained in the `.releaserc.json` file. Releases are automatically triggered by commits to specific branches:
+
+- **Main Channel**: Stable releases from the `main` branch
+- **Alpha Channel**: Pre-releases from the `alpha` branch
+
+### Commit Message Format
+
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification for commit messages, which determines the release type:
+
+- `fix: ...` - Patch release (bug fixes)
+- `feat: ...` - Minor release (new features)
+- `feat!: ...` or `fix!: ...` or any commit with `BREAKING CHANGE:` in the footer - Major release
+
+### Release Workflow
+
+1. For regular features and fixes:
+   - Create a PR against the `main` branch
+   - Once merged, a new release will be automatically published
+
+2. For experimental features:
+   - Create a PR against the `alpha` branch
+   - Once merged, a new alpha release will be published with an alpha tag
+
+### Installing Specific Channels
+
+```bash
+# Install the latest stable version
+npm install dyno-table
+
+# Install the latest alpha version
+npm install dyno-table@alpha
+```
+
 ## 🦔 Running Examples
 
 There's a few pre-configured example scripts in the `examples` directory.
