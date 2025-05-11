@@ -136,7 +136,7 @@ async function main() {
     console.log("\n🧬 Creating a dinosaur...");
     const trex = await dinosaurRepo
       .create({
-        id: "dino-001",
+        id: "dino-400",
         species: "Tyrannosaurus Rex",
         name: "Rexy",
         diet: "carnivore",
@@ -154,7 +154,7 @@ async function main() {
     console.log("\n🔍 Retrieving a dinosaur...");
     const retrievedDino = await dinosaurRepo
       .get({
-        id: "dino-001",
+        id: "dino-400",
         diet: "carnivore",
         species: "Tyrannosaurus Rex",
       })
@@ -167,7 +167,7 @@ async function main() {
     const updatedDino = await dinosaurRepo
       .update(
         {
-          id: "dino-001",
+          id: "dino-400",
           diet: "carnivore",
           species: "Tyrannosaurus Rex",
         },
@@ -199,7 +199,7 @@ async function main() {
     console.log("\n❌ Deleting a dinosaur...");
     await dinosaurRepo
       .delete({
-        id: "dino-001",
+        id: "dino-400",
         diet: "carnivore",
         species: "Tyrannosaurus Rex",
       })
