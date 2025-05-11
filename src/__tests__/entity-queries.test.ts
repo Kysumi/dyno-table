@@ -61,8 +61,10 @@ const mockTable = {
   gsis: {},
 };
 
+const queryBuilder = createQueries<TestEntity>();
+
 describe("Entity Repository", () => {
-  let entityRepository: ReturnType<typeof defineEntity<TestEntity>>;
+  let entityRepository: ReturnType<typeof defineEntity<TestEntity, { id: string }>>;
   let repository: ReturnType<typeof entityRepository.createRepository>;
 
   beforeEach(() => {
@@ -70,7 +72,7 @@ describe("Entity Repository", () => {
     vi.clearAllMocks();
 
     // Create test entity definition
-    entityRepository = defineEntity<TestEntity>({
+    entityRepository = defineEntity({
       name: "TestEntity",
       schema: testSchema,
       primaryKey: createIndex()
@@ -78,14 +80,12 @@ describe("Entity Repository", () => {
         .partitionKey((item) => `TEST#${item.id}`)
         .sortKey(() => "METADATA#"),
       queries: {
-        byId: createQueries<TestEntity>()
-          .input(byIdInputSchema)
-          .query(({ input, entity }) => {
-            return entity.query({
-              pk: `TEST#${input.id}`,
-              sk: (op) => op.beginsWith("METADATA#"),
-            });
-          }),
+        byId: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
+          return entity.query({
+            pk: `TEST#${input.id}`,
+            sk: (op) => op.beginsWith("METADATA#"),
+          });
+        }),
       },
     });
 
