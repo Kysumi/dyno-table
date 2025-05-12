@@ -1,9 +1,22 @@
-# 🦖 dyno-table [![npm version](https://img.shields.io/npm/v/dyno-table.svg?style=flat-square)](https://www.npmjs.com/package/dyno-table) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+<div align="center">
 
-**A type-safe, fluent interface for DynamoDB single-table designs**  
-*Tame the NoSQL wilderness with a robust abstraction layer that brings order to DynamoDB operations*
+# 🦖 dyno-table
+
+### **Tame Your DynamoDB Data with Type-Safe Precision**
+
+[![npm version](https://img.shields.io/npm/v/dyno-table.svg?style=for-the-badge)](https://www.npmjs.com/package/dyno-table) 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-4.0%2B-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+[![AWS DynamoDB](https://img.shields.io/badge/AWS-DynamoDB-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com/dynamodb/)
+
+</div>
+
+<p align="center"><strong>A powerful, type-safe abstraction layer for DynamoDB single-table designs</strong><br/>
+<em>Write cleaner, safer, and more maintainable DynamoDB code</em></p>
 
 <img src="docs/images/geoff-the-dyno.png" width="400" height="250" alt="Geoff the Dyno" style="float: right; margin-left: 20px; margin-bottom: 20px;">
+
+## 🔥 Why Developers Choose dyno-table
 
 ```ts
 // Type-safe dinosaur tracking operations made simple
@@ -18,79 +31,119 @@ await dinoTable
   .execute();
 ```
 
-> This README provides a concise overview of dyno-table's features with dinosaur-themed examples. For detailed documentation on specific features, please refer to the individual markdown files in the `docs/` directory.
+## 🌟 Why dyno-table Stands Out From The Pack
 
-## 🌟 Why dyno-table for your Dinosaur Data?
-
-- **🦕 Dinosaur-sized data made manageable** - Clean abstraction layer for complex DynamoDB patterns
-- **🛡️ Extinction-proof type safety** - Full TypeScript support with strict type checking
-- **⚡ Velociraptor-fast API** - Chainable builder pattern for complex operations
-- **🔒 T-Rex-proof transactional safety** - ACID-compliant operations with easy-to-use transactions
-- **📈 Jurassic-scale performance** - Automatic batch chunking and pagination handling
+<table>
+<tr>
+  <td width="50%">
+    <h3>🦕 Dinosaur-sized data made manageable</h3>
+    <p>Clean abstraction layer that simplifies complex DynamoDB patterns and makes single-table design approachable</p>
+  </td>
+  <td width="50%">
+    <h3>🛡️ Extinction-proof type safety</h3>
+    <p>Full TypeScript support with strict type checking that catches errors at compile time, not runtime</p>
+  </td>
+</tr>
+<tr>
+  <td>
+    <h3>⚡ Velociraptor-fast API</h3>
+    <p>Intuitive chainable builder pattern for complex operations that feels natural and reduces boilerplate</p>
+  </td>
+</tr>
+<tr>
+  <td width="50%">
+    <h3>📈 Jurassic-scale performance</h3>
+    <p>Automatic batch chunking and pagination handling that scales with your data without extra code</p>
+  </td>
+  <td width="50%">
+    <h3>🧩 Flexible schema validation</h3>
+    <p>Works with your favorite validation libraries including Zod, ArkType, and Valibot</p>
+  </td>
+</tr>
+</table>
 
 ## 📑 Table of Contents
 
-- [🦖 dyno-table  ](#-dyno-table--)
-  - [🌟 Why dyno-table for your Dinosaur Data?](#-why-dyno-table-for-your-dinosaur-data)
-  - [📑 Table of Contents](#-table-of-contents)
-  - [📦 Installation](#-installation)
-  - [🚀 Quick Start](#-quick-start)
-    - [1. Configure Your Jurassic Table](#1-configure-your-jurassic-table)
-    - [2. Perform Type-Safe Dinosaur Operations](#2-perform-type-safe-dinosaur-operations)
-  - [🏗️ Entity Pattern](#-entity-pattern-with-standard-schema-validators)
-    - [Defining Entities](#defining-entities)
-    - [Entity Features](#entity-features)
-      - [1. Schema Validation](#1-schema-validation)
-      - [2. CRUD Operations](#2-crud-operations)
-      - [3. Custom Queries](#3-custom-queries)
-      - [4. Indexes for Efficient Querying](#4-defining-gsi-access-patterns)
-      - [5. Lifecycle Hooks](#5-lifecycle-hooks)
-    - [Complete Entity Example](#complete-entity-example)
-  - [🧩 Advanced Features](#-advanced-features)
-    - [Transactional Operations](#transactional-operations)
-    - [Batch Processing](#batch-processing)
-    - [Pagination Made Simple](#pagination-made-simple)
-  - [🛡️ Type-Safe Query Building](#️-type-safe-query-building)
-    - [Comparison Operators](#comparison-operators)
-    - [Logical Operators](#logical-operators)
-    - [Query Operations](#query-operations)
-    - [Put Operations](#put-operations)
-    - [Update Operations](#update-operations)
-      - [Condition Operators](#condition-operators)
-      - [Multiple Operations](#multiple-operations)
-  - [🔄 Type Safety Features](#-type-safety-features)
-    - [Nested Object Support](#nested-object-support)
-    - [Type-Safe Conditions](#type-safe-conditions)
-  - [🔄 Batch Operations](#-batch-operations)
-    - [Batch Get](#batch-get)
-    - [Batch Write](#batch-write)
-  - [🔒 Transaction Operations](#-transaction-operations)
-    - [Transaction Builder](#transaction-builder)
-    - [Transaction Options](#transaction-options)
-  - [🚨 Error Handling](#-error-handling)
-  - [📚 API Reference](#-api-reference)
-    - [Condition Operators](#condition-operators-1)
-      - [Comparison Operators](#comparison-operators-1)
-      - [Attribute Operators](#attribute-operators)
-      - [Logical Operators](#logical-operators-1)
-    - [Key Condition Operators](#key-condition-operators)
-  - [🔮 Future Roadmap](#-future-roadmap)
-  - [🤝 Contributing](#-contributing)
-  - [🦔 Running Examples](#-running-examples)
+- [📦 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+  - [1. Configure Your Jurassic Table](#1-configure-your-jurassic-table)
+  - [2. Perform Type-Safe Dinosaur Operations](#2-perform-type-safe-dinosaur-operations)
+- [🏗️ Entity Pattern](#-entity-pattern-with-standard-schema-validators)
+  - [Defining Entities](#defining-entities)
+  - [Entity Features](#entity-features)
+    - [1. Schema Validation](#1-schema-validation)
+    - [2. CRUD Operations](#2-crud-operations)
+    - [3. Custom Queries](#3-custom-queries)
+    - [4. Indexes for Efficient Querying](#4-defining-gsi-access-patterns)
+    - [5. Lifecycle Hooks](#5-lifecycle-hooks)
+  - [Complete Entity Example](#complete-entity-example)
+- [🧩 Advanced Features](#-advanced-features)
+  - [Transactional Operations](#transactional-operations)
+  - [Batch Processing](#batch-processing)
+  - [Pagination Made Simple](#pagination-made-simple)
+- [🛡️ Type-Safe Query Building](#️-type-safe-query-building)
+  - [Comparison Operators](#comparison-operators)
+  - [Logical Operators](#logical-operators)
+  - [Query Operations](#query-operations)
+  - [Put Operations](#put-operations)
+  - [Update Operations](#update-operations)
+    - [Condition Operators](#condition-operators)
+    - [Multiple Operations](#multiple-operations)
+- [🔄 Type Safety Features](#-type-safety-features)
+  - [Nested Object Support](#nested-object-support)
+  - [Type-Safe Conditions](#type-safe-conditions)
+- [🔄 Batch Operations](#-batch-operations)
+  - [Batch Get](#batch-get)
+  - [Batch Write](#batch-write)
+- [🔒 Transaction Operations](#-transaction-operations)
+  - [Transaction Builder](#transaction-builder)
+  - [Transaction Options](#transaction-options)
+- [🚨 Error Handling](#-error-handling)
+- [📚 API Reference](#-api-reference)
+  - [Condition Operators](#condition-operators-1)
+    - [Comparison Operators](#comparison-operators-1)
+    - [Attribute Operators](#attribute-operators)
+    - [Logical Operators](#logical-operators-1)
+  - [Key Condition Operators](#key-condition-operators)
+- [🔮 Future Roadmap](#-future-roadmap)
+- [🤝 Contributing](#-contributing)
+- [🦔 Running Examples](#-running-examples)
 
 ## 📦 Installation
 
+<div align="center">
+
+### Get Started in Seconds
+
+</div>
+
 ```bash
+# Install the core library
 npm install dyno-table
-```
 
-*Note: Requires AWS SDK v3 as peer dependency*
-
-```bash
+# Install required AWS SDK v3 peer dependencies
 npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
+<details>
+<summary><b>📋 Other Package Managers</b></summary>
+
+```bash
+# Using Yarn
+yarn add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+
+# Using PNPM
+pnpm add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+```
+</details>
+
 ## 🚀 Quick Start
+
+<div align="center">
+
+### From Zero to DynamoDB Hero in Minutes
+
+</div>
 
 ### 1. Configure Your Jurassic Table
 
@@ -99,20 +152,20 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "dyno-table/table";
 
-// Configure AWS SDK clients - your gateway to the prehistoric database
+// Configure AWS SDK clients
 const client = new DynamoDBClient({ region: "us-west-2" });
 const docClient = DynamoDBDocument.from(client);
 
-// Initialize table with single-table design schema - your dinosaur park database
+// Initialise table
 const dinoTable = new Table({
   client: docClient,
-  tableName: "JurassicPark", // Your central dinosaur tracking system
+  tableName: "JurassicPark",
   indexes: {
-    partitionKey: "pk",      // Primary partition key for fast dinosaur lookups
-    sortKey: "sk",           // Sort key for organizing dinosaur data
+    partitionKey: "pk",
+    sortKey: "sk",
     gsis: {
-      // Global Secondary Index for querying dinosaurs by species
-      speciesId: {
+      // Global Secondary Index setup in an abstract to allow unique access patterns per Entity Type for single table design
+      gsi1: {
         partitionKey: "gsi1pk",
         sortKey: "gsi1sk",
       },
@@ -123,62 +176,173 @@ const dinoTable = new Table({
 
 ### 2. Perform Type-Safe Dinosaur Operations
 
-**🦖 Creating a new dinosaur specimen**
+<table>
+<tr>
+<td>
+
+#### 🦖 Creating a new dinosaur specimen
+
 ```ts
-// Add a new T-Rex to your collection with complete type safety
+// Add a new T-Rex with complete type safety
 const rex = await dinoTable
   .create<Dinosaur>({
-    pk: "SPECIES#trex",           // Partition key identifies the species
-    sk: "PROFILE#trex",           // Sort key for the specific profile
-    speciesId: "trex",            // For GSI queries
-    name: "Tyrannosaurus Rex",    // Display name
-    diet: "carnivore",            // Dietary classification
-    length: 12.3,                 // Size in meters
-    discoveryYear: 1902           // When first discovered
+    pk: "SPECIES#trex",
+    sk: "PROFILE#trex",
+    speciesId: "trex",
+    name: "Tyrannosaurus Rex",
+    diet: "carnivore",
+    length: 12.3,
+    discoveryYear: 1902
   })
   .execute();
 ```
 
-**🔍 Query for specific dinosaurs with conditions**
+</td>
+<td>
+
+#### 🔍 Query with powerful conditions
+
 ```ts
-// Find large carnivorous dinosaurs in the T-Rex species
+// Find large carnivorous dinosaurs
 const largeDinos = await dinoTable
   .query<Dinosaur>({ 
-    pk: "SPECIES#trex",                    // Target the T-Rex species
-    sk: (op) => op.beginsWith("PROFILE#")  // Look in profile records
+    pk: "SPECIES#trex",
+    sk: (op) => op.beginsWith("PROFILE#")
   })
   .filter((op) => op.and(
-    op.gte("length", 10),                  // Only dinosaurs longer than 10 meters
-    op.eq("diet", "carnivore")             // Must be carnivores
+    op.gte("length", 10),
+    op.eq("diet", "carnivore")
   ))
-  .limit(10)                               // Limit to 10 results
+  .limit(10)
   .execute();
 ```
 
-**🔄 Update dinosaur classification**
+</td>
+</tr>
+<tr>
+<td>
+
+#### 🔄 Update with type-safe operations
+
 ```ts
-// Update a dinosaur's diet classification based on new research
+// Update a dinosaur's classification
 await dinoTable
   .update<Dinosaur>({ 
-    pk: "SPECIES#trex",           // Target the T-Rex species
-    sk: "PROFILE#trex"            // Specific profile to update
+    pk: "SPECIES#trex",
+    sk: "PROFILE#trex"
   })
-  .set("diet", "omnivore")        // New diet classification based on fossil evidence
-  .add("discoveryYear", 1)        // Adjust discovery year with new findings
-  .remove("outdatedField")        // Remove deprecated information
-  .condition((op) => op.attributeExists("discoverySite"))  // Only if discovery site is documented
+  .set("diet", "omnivore")
+  .add("discoveryYear", 1)
+  .remove("outdatedField")
+  .condition((op) => 
+    op.attributeExists("discoverySite")
+  )
   .execute();
 ```
+
+</td>
+<td>
+
+#### 🔒 Transactional operations
+
+```ts
+// Perform multiple operations atomically
+await dinoTable.transaction(async (tx) => {
+  // Move dinosaur to new enclosure
+  await dinoTable
+    .delete({ pk: "ENCLOSURE#A", sk: "DINO#1" })
+    .withTransaction(tx);
+
+  await dinoTable
+    .create({ pk: "ENCLOSURE#B", sk: "DINO#1", 
+      status: "ACTIVE" })
+    .withTransaction(tx);
+});
+```
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+<h3>💡 See the difference with dyno-table</h3>
+</div>
+
+<table>
+<tr>
+<th>With dyno-table</th>
+<th>Without dyno-table</th>
+</tr>
+<tr>
+<td>
+
+```ts
+// Type-safe, clean, and intuitive
+await dinoTable
+  .query<Dinosaur>({ 
+    pk: "SPECIES#trex"
+  })
+  .filter(op => 
+    op.contains("features", "feathers")
+  )
+  .execute();
+```
+
+</td>
+<td>
+
+```ts
+// Verbose, error-prone, no type safety
+await docClient.send(new QueryCommand({
+  TableName: "JurassicPark",
+  KeyConditionExpression: "#pk = :pk",
+  FilterExpression: "contains(#features, :feathers)",
+  ExpressionAttributeNames: {
+    "#pk": "pk",
+    "#features": "features"
+  },
+  ExpressionAttributeValues: {
+    ":pk": "SPECIES#trex",
+    ":feathers": "feathers"
+  }
+}));
+```
+
+</td>
+</tr>
+</table>
 
 ## 🏗️ Entity Pattern with Standard Schema validators
 
-The entity pattern provides a structured, type-safe way to work with DynamoDB items.
-It combines schema validation, key management, and repository operations into a cohesive abstraction.
+<div align="center">
 
-✨ This library supports all standard schema validation libraries, including **zod**, **arktype**, and **valibot**,
-allowing you to choose your preferred validation tool!
+### The Most Type-Safe Way to Model Your DynamoDB Data
 
-You can find a full example implementation here of [Entities](https://github.com/Kysumi/dyno-table/blob/main/examples/entity-example/src/dinosaur-entity.ts)
+</div>
+
+<table>
+<tr>
+<td width="70%">
+<p>The entity pattern provides a structured, type-safe way to work with DynamoDB items. It combines schema validation, key management, and repository operations into a cohesive abstraction.</p>
+
+<p>✨ This library supports all <a href="https://github.com/standard-schema/standard-schema#what-schema-libraries-implement-the-spec">Standard Schema</a> validation libraries, including <strong>zod</strong>, <strong>arktype</strong>, and <strong>valibot</strong>, allowing you to choose your preferred validation tool!</p>
+
+<p>You can find a full example implementation here of <a href="https://github.com/Kysumi/dyno-table/blob/main/examples/entity-example/src/dinosaur-entity.ts">Entities</a></p>
+</td>
+<td width="30%">
+
+#### Entity Pattern Benefits
+
+- 🛡️ **Type-safe operations**
+- 🧪 **Schema validation**
+- 🔑 **Automatic key generation**
+- 📦 **Repository pattern**
+- 🔍 **Custom query builders**
+- 🔄 **Lifecycle hooks**
+
+</td>
+</tr>
+</table>
 
 ### Defining Entities
 
@@ -253,7 +417,8 @@ const DinosaurEntity = defineEntity({
   primaryKey: createIndex()
           .input(z.object({ id: z.string(), diet: z.string(), species: z.string() }))
           .partitionKey(({ diet }) => dinosaurPK({ diet }))
-          .sortKey(({ id, species }) => dinosaurSK({ species, id })) // could also be .withoutSortKey() if your table doesn't use sort keys
+          // could also be .withoutSortKey() if your table doesn't use sort keys
+          .sortKey(({ id, species }) => dinosaurSK({ species, id })) 
 });
 ```
 
@@ -653,7 +818,6 @@ await dinoTable.transaction(
 - 🔄 Uses the same familiar API as non-transactional operations
 - 🧠 Maintains consistent mental model for developers
 - 🔒 All operations within the callback are executed as a single transaction
-- ✅ All-or-nothing operations (ACID compliance)
 - 🛡️ Prevents race conditions and data inconsistencies
 - 📊 Supports up to 100 actions per transaction
 
