@@ -174,7 +174,7 @@ const dinoTable = new Table({
 });
 ```
 
-### 2. Perform Type-Safe Dinosaur Operations
+### 2. Perform Type-Safe Operations directly on the table instance
 
 <table>
 <tr>
