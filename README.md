@@ -37,13 +37,13 @@ await dinoTable
   - [🚀 Quick Start](#-quick-start)
     - [1. Configure Your Jurassic Table](#1-configure-your-jurassic-table)
     - [2. Perform Type-Safe Dinosaur Operations](#2-perform-type-safe-dinosaur-operations)
-  - [🏗️ Entity Pattern](#️-entity-pattern-with-standard-schema-validators)
+  - [🏗️ Entity Pattern](#-entity-pattern-with-standard-schema-validators)
     - [Defining Entities](#defining-entities)
     - [Entity Features](#entity-features)
       - [1. Schema Validation](#1-schema-validation)
       - [2. CRUD Operations](#2-crud-operations)
       - [3. Custom Queries](#3-custom-queries)
-      - [4. Indexes for Efficient Querying](#4-indexes-for-efficient-querying)
+      - [4. Indexes for Efficient Querying](#4-defining-gsi-access-patterns)
       - [5. Lifecycle Hooks](#5-lifecycle-hooks)
     - [Complete Entity Example](#complete-entity-example)
   - [🧩 Advanced Features](#-advanced-features)
@@ -423,8 +423,8 @@ const dinosaurSK = sortKey`STATUS#${"status"}`;
 const gsi1PK = partitionKey`SPECIES#${"species"}`
 const gsi1SK = sortKey`DINOSAUR#${"id"}`
 
-const gsi2PK = partitionKey`ENCLOSURE#${enclosureId}`
-const gsi2SK = sortKey`DINOSAUR#${id}`
+const gsi2PK = partitionKey`ENCLOSURE#${"enclosureId"}`
+const gsi2SK = sortKey`DINOSAUR#${"id"}`
 
 // Create a primary index
 const primaryKey = createIndex()
