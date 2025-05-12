@@ -1,6 +1,6 @@
 {
   "name": "dyno-table",
-  "version": "1.0.0-alpha.1",
+  "version": "0.2.0-0",
   "description": "A TypeScript library to simplify working with DynamoDB",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
