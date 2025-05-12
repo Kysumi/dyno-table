@@ -182,6 +182,7 @@ describe("Entity Timestamp Operations", () => {
       await repository.upsert(testData).execute();
 
       // Verify that both timestamps were added
+      // @ts-ignore - ignore the type error
       const putCall = mockTable.put.mock.calls[0][0];
       expect(putCall).toHaveProperty("createdAt", mockDate.toISOString());
       expect(putCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
