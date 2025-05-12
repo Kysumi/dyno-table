@@ -521,7 +521,7 @@ const gsi1SK = sortKey`DINOSAUR#${"id"}`
 const speciesIndex = createIndex()
   .input(dinosaurSchema)
   .partitionKey(({ species }) => gsi1PK({ species }))
-  .sortKey(({ id }) => gsiSK({ id }));
+  .sortKey(({ id }) => gsi1SK({ id }));
 
 const DinosaurEntity = defineEntity({
   name: "Dinosaur",
