@@ -140,7 +140,8 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
    * Generates an object containing timestamp attributes based on the given configuration settings.
    * The function determines the presence and format of "createdAt" and "updatedAt" timestamps dynamically.
    *
-   * @returns {Record<string, string | number>} An object containing one or both of the "createdAt" and "updatedAt" timestamp attributes, depending on the configuration. Each timestamp can be formatted as either an ISO string or a UNIX timestamp.
+   * @param {Array<"createdAt" | "updatedAt">} [timestampTypes] - Optional array of timestamp types to generate. If not provided, all configured timestamps will be generated.
+   * @returns {Record<string, string | number>} An object containing one or both of the "createdAt" and "updatedAt" timestamp attributes, depending on the configuration and requested types. Each timestamp can be formatted as either an ISO string or a UNIX timestamp.
    *
    * @throws Will not throw errors but depends on `config.settings?.timestamps` to be properly defined.
    * - If `createdAt` is configured, the function adds a timestamp using the attribute name specified in `config.settings.timestamps.createdAt.attributeName` or defaults to "createdAt".
@@ -150,25 +151,28 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
    *  - `config.settings.timestamps.createdAt.format`: Determines the format of the "createdAt" timestamp. Accepts "UNIX" or defaults to ISO string.
    *  - `config.settings.timestamps.updatedAt.format`: Determines the format of the "updatedAt" timestamp. Accepts "UNIX" or defaults to ISO string.
    *
-   * The returned object keys and values depend on the provided configuration.
+   * The returned object keys and values depend on the provided configuration and requested timestamp types.
    */
-  const generateTimestamps = (): Record<string, string | number> => {
+  const generateTimestamps = (timestampTypes?: Array<"createdAt" | "updatedAt">): Record<string, string | number> => {
+    if (!config.settings?.timestamps) return {};
+
     const timestamps: Record<string, string | number> = {};
+    const now = new Date();
+    const unixTime = Math.floor(Date.now() / 1000);
 
-    if (config.settings?.timestamps) {
-      const now = new Date();
+    const { createdAt, updatedAt } = config.settings.timestamps;
 
-      if (config.settings.timestamps.createdAt) {
-        const attributeName = config.settings.timestamps.createdAt.attributeName ?? "createdAt";
-        timestamps[attributeName] =
-          config.settings.timestamps.createdAt.format === "UNIX" ? Math.floor(Date.now() / 1000) : now.toISOString();
-      }
+    // If no specific types are provided, generate all configured timestamps
+    const typesToGenerate = timestampTypes || ["createdAt", "updatedAt"];
 
-      if (config.settings.timestamps.updatedAt) {
-        const attributeName = config.settings.timestamps.updatedAt.attributeName ?? "updatedAt";
-        timestamps[attributeName] =
-          config.settings.timestamps.updatedAt.format === "UNIX" ? Math.floor(Date.now() / 1000) : now.toISOString();
-      }
+    if (createdAt && typesToGenerate.includes("createdAt")) {
+      const name = createdAt.attributeName ?? "createdAt";
+      timestamps[name] = createdAt.format === "UNIX" ? unixTime : now.toISOString();
+    }
+
+    if (updatedAt && typesToGenerate.includes("updatedAt")) {
+      const name = updatedAt.attributeName ?? "updatedAt";
+      timestamps[name] = updatedAt.format === "UNIX" ? unixTime : now.toISOString();
     }
 
     return timestamps;
@@ -184,7 +188,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           const builder = table.create<T>({
             ...data,
             [entityTypeAttributeName]: config.name,
-            ...generateTimestamps(),
+            ...generateTimestamps(["createdAt", "updatedAt"]),
           });
 
           // Wrap the builder's execute method to apply validation only
@@ -226,7 +230,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
                 [table.partitionKey]: primaryKey.pk,
                 ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
                 ...indexes,
-                ...generateTimestamps(),
+                ...generateTimestamps(["createdAt", "updatedAt"]),
               },
             });
 
@@ -246,7 +250,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
             ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
             ...data,
             [entityTypeAttributeName]: config.name,
-            ...generateTimestamps(),
+            ...generateTimestamps(["createdAt", "updatedAt"]),
           });
 
           // Wrap the builder's execute method to apply validation only
@@ -263,7 +267,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
               item: {
                 ...validationResult.value,
                 [entityTypeAttributeName]: config.name,
-                ...generateTimestamps(),
+                ...generateTimestamps(["createdAt", "updatedAt"]),
               },
             });
 
@@ -279,42 +283,22 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           return builder;
         },
 
-        get: <K extends I>(key: K) => {
-          // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
-          const primaryKeyObj = config.primaryKey.generateKey(key);
-          return table.get<T>(primaryKeyObj);
-        },
+        get: <K extends I>(key: K) => table.get<T>(config.primaryKey.generateKey(key)),
 
         update: <K extends I>(key: K, data: Partial<T>) => {
-          // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
           const primaryKeyObj = config.primaryKey.generateKey(key);
           const builder = table.update<T>(primaryKeyObj);
           builder.condition(eq(entityTypeAttributeName, config.name));
 
-          // Generate updatedAt timestamp if configured
-          const timestamps: Record<string, string | number> = {};
-          if (config.settings?.timestamps?.updatedAt) {
-            const now = new Date();
-            const attributeName = config.settings.timestamps.updatedAt.attributeName ?? "updatedAt";
-            timestamps[attributeName] =
-              config.settings.timestamps.updatedAt.format === "UNIX"
-                ? Math.floor(Date.now() / 1000)
-                : now.toISOString();
-          }
+          // Use only updatedAt timestamp for updates
+          const timestamps = generateTimestamps(["updatedAt"]);
 
-          // Merge the data with timestamps
-          builder.set({
-            ...data,
-            ...timestamps,
-          });
-
+          builder.set({ ...data, ...timestamps });
           return builder;
         },
 
         delete: <K extends I>(key: K) => {
-          // Transform the input key into a PrimaryKeyWithoutExpression using the primary key definition
-          const primaryKeyObj = config.primaryKey.generateKey(key);
-          const builder = table.delete(primaryKeyObj);
+          const builder = table.delete(config.primaryKey.generateKey(key));
           builder.condition(eq(entityTypeAttributeName, config.name));
           return builder;
         },
@@ -381,10 +365,9 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
         }, {} as Q),
 
         scan: () => {
-          const scanBuilder = table.scan<T>();
-          scanBuilder.filter(eq(entityTypeAttributeName, config.name));
-
-          return scanBuilder;
+          const builder = table.scan<T>();
+          builder.filter(eq(entityTypeAttributeName, config.name));
+          return builder;
         },
       };
 
@@ -402,18 +385,8 @@ export function createQueries<T extends DynamoItem>() {
       >(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
-        // Create a query function that conforms to QueryFunctionWithSchema type
-        const queryFn = (input: I) => {
-          // This function will be called by the repository later with the real queryEntity
-          return (entity: QueryEntity<T>) => {
-            return handler({ input, entity });
-          };
-        };
-
-        // Attach the schema to the function for validation purposes
+        const queryFn = (input: I) => (entity: QueryEntity<T>) => handler({ input, entity });
         queryFn.schema = schema;
-
-        // Return the query function (this satisfies the QueryFunctionWithSchema type)
         return queryFn as unknown as QueryFunctionWithSchema<T, I, R>;
       },
     }),
@@ -434,20 +407,14 @@ export function createIndex() {
             name: "custom",
             partitionKey: "pk",
             sortKey: "sk",
-            generateKey: (item: T) => ({
-              pk: pkFn(item),
-              sk: skFn(item),
-            }),
+            generateKey: (item: T) => ({ pk: pkFn(item), sk: skFn(item) }),
           }) as IndexDefinition<T>,
 
-        // Allow creating an index with only a partition key
         withoutSortKey: () =>
           ({
             name: "custom",
             partitionKey: "pk",
-            generateKey: (item: T) => ({
-              pk: pkFn(item),
-            }),
+            generateKey: (item: T) => ({ pk: pkFn(item) }),
           }) as IndexDefinition<T>,
       }),
     }),
