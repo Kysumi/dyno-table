@@ -11,8 +11,8 @@ describe("Table Integration Tests - Put Items", () => {
 
   it("should put an item with no conditions", async () => {
     const dino: Dinosaur = {
-      pk: "dinosaur#3",
-      sk: "dino#stego",
+      demoPartitionKey: "dinosaur#3",
+      demoSortKey: "dino#stego",
       name: "Stegosaurus",
       type: "Stegosaurid",
       period: "Late Jurassic",
@@ -30,8 +30,8 @@ describe("Table Integration Tests - Put Items", () => {
   it("should put an item with a condition that passes", async () => {
     // First create an item
     const dino: Dinosaur = {
-      pk: "dinosaur#4",
-      sk: "dino#brach",
+      demoPartitionKey: "dinosaur#4",
+      demoSortKey: "dino#brach",
       name: "Brachiosaurus",
       type: "Sauropod",
     };
@@ -56,8 +56,8 @@ describe("Table Integration Tests - Put Items", () => {
   it("should fail to put an item with a condition that fails", async () => {
     // First create an item
     const dino: Dinosaur = {
-      pk: "dinosaur#5",
-      sk: "dino#anky",
+      demoPartitionKey: "dinosaur#5",
+      demoSortKey: "dino#anky",
       name: "Ankylosaurus",
       type: "Ankylosaur",
     };
@@ -79,8 +79,8 @@ describe("Table Integration Tests - Put Items", () => {
 
   it("should ensure keys with undefined values are retained", async () => {
     const dino: Dinosaur = {
-      pk: "dinosaur#6",
-      sk: "dino#spino",
+      demoPartitionKey: "dinosaur#6",
+      demoSortKey: "dino#spino",
       name: "Spinosaurus",
       type: "Theropod",
       period: undefined, // Undefined value
@@ -104,8 +104,8 @@ describe("Table Integration Tests - Put Items", () => {
 
   it("should ensure keys with empty strings are retained", async () => {
     const dino: Dinosaur = {
-      pk: "dinosaur#7",
-      sk: "dino#rex",
+      demoPartitionKey: "dinosaur#7",
+      demoSortKey: "dino#rex",
       name: "Tyrannosaurus Rex",
       type: "",
       period: "Cretaceous",

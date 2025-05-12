@@ -12,8 +12,8 @@ describe("Table Integration Tests - Update Items", () => {
   beforeEach(async () => {
     // Create a test item
     const dino: Dinosaur = {
-      pk: "dinosaur#update",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#update",
+      demoSortKey: "dino#test",
       name: "Update Test",
       type: "UpdateType",
       height: 10,
@@ -110,8 +110,8 @@ describe("Table Integration Tests - Update Items", () => {
   it("should update with delete operation for set attributes", async () => {
     // First create an item with tags
     const dino: Dinosaur = {
-      pk: "dinosaur#update-delete",
-      sk: "dino#test",
+      demoPartitionKey: "dinosaur#update-delete",
+      demoSortKey: "dino#test",
       name: "Delete Test",
       type: "DeleteType",
       tags: new Set(["tag1", "tag2", "tag3"]),

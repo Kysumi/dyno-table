@@ -1,5 +1,5 @@
 import type { DynamoDBDocument, QueryCommandInput, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
-import type { Index, TableConfig } from "./types";
+import type { DynamoItem, Index, TableConfig } from "./types";
 import {
   and,
   beginsWith,
@@ -16,7 +16,7 @@ import {
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
 } from "./conditions";
-import { buildExpression, generateAttributeName } from "./expression";
+import { buildExpression, generateAttributeName, prepareExpressionParams } from "./expression";
 import { QueryBuilder, type QueryOptions } from "./builders/query-builder";
 import { PutBuilder } from "./builders/put-builder";
 import { DeleteBuilder } from "./builders/delete-builder";
@@ -64,22 +64,37 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     this.gsis = config.indexes.gsis || {};
   }
 
+  protected createKeyForPrimaryIndex(keyCondition: PrimaryKeyWithoutExpression): Record<string, unknown> {
+    const primaryCondition = { [this.partitionKey]: keyCondition.pk };
+
+    //  If the table has a sort key, we need to add it to the condition
+    if (this.sortKey) {
+      if (!keyCondition.sk) {
+        throw new Error("Sort key has not been provided but the Table has a sort key");
+      }
+      // Apply the sort key condition
+      primaryCondition[this.sortKey] = keyCondition.sk;
+    }
+
+    return primaryCondition;
+  }
+
   /**
    * Creates a new item in the table, it will fail if the item already exists
    *
    * @param item The item to create
    * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
-  create<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
+  create<T extends DynamoItem>(item: T): PutBuilder<T> {
     return this.put(item).condition((op: ConditionOperator<T>) => op.attributeNotExists(this.partitionKey as Path<T>));
   }
 
-  get<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
+  get<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
     const executor = async (params: GetCommandParams): Promise<{ item: T | undefined }> => {
       try {
         const result = await this.dynamoClient.get({
           TableName: params.tableName,
-          Key: params.key,
+          Key: this.createKeyForPrimaryIndex(keyCondition),
           ProjectionExpression: params.projectionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ConsistentRead: params.consistentRead,
@@ -103,7 +118,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @param item The item to update
    * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
-  put<T extends Record<string, unknown>>(item: T): PutBuilder<T> {
+  put<T extends DynamoItem>(item: T): PutBuilder<T> {
     // Define the executor function that will be called when execute() is called on the builder
     const executor = async (params: PutCommandParams): Promise<T> => {
       try {
@@ -120,14 +135,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
         // Reload the item from the DB, so the user gets the most correct representation of the item from the DB
         if (params.returnValues === "CONSISTENT") {
-          const key = {
-            pk: params.item[this.partitionKey],
-            ...(this.sortKey && { sk: params.item[this.sortKey] }),
-          };
-
           const getResult = await this.dynamoClient.get({
             TableName: params.tableName,
-            Key: key,
+            Key: this.createKeyForPrimaryIndex({
+              pk: params.item[this.partitionKey] as string,
+              ...(this.sortKey && { sk: params.item[this.sortKey] as string }),
+            }),
             ConsistentRead: true,
           });
 
@@ -148,7 +161,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * Creates a query builder for complex queries
    * If useIndex is called on the returned QueryBuilder, it will use the GSI configuration
    */
-  query<T extends Record<string, unknown>>(keyCondition: PrimaryKey): QueryBuilder<T, TConfig> {
+  query<T extends DynamoItem>(keyCondition: PrimaryKey): QueryBuilder<T, TConfig> {
     // Default to main table's partition and sort keys
     const pkAttributeName = this.partitionKey;
     const skAttributeName = this.sortKey;
@@ -318,7 +331,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    *
    * @returns A ScanBuilder instance for chaining operations
    */
-  scan<T extends Record<string, unknown>>(): ScanBuilder<T, TConfig> {
+  scan<T extends DynamoItem>(): ScanBuilder<T, TConfig> {
     const executor = async (options: ScanOptions) => {
       // Implementation of the scan execution logic
       const expressionParams: ExpressionParams = {
@@ -374,14 +387,14 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       try {
         const result = await this.dynamoClient.delete({
           TableName: params.tableName,
-          Key: params.key,
+          Key: this.createKeyForPrimaryIndex(keyCondition),
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
           ReturnValues: params.returnValues,
         });
         return {
-          item: result.Attributes as Record<string, unknown>,
+          item: result.Attributes as DynamoItem,
         };
       } catch (error) {
         console.error("Error deleting item:", error);
@@ -398,12 +411,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @param keyCondition The primary key of the item to update
    * @returns An UpdateBuilder instance for chaining update operations and conditions
    */
-  update<T extends Record<string, unknown>>(keyCondition: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
+  update<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
     const executor = async (params: UpdateCommandParams) => {
       try {
         const result = await this.dynamoClient.update({
           TableName: params.tableName,
-          Key: params.key,
+          Key: this.createKeyForPrimaryIndex(keyCondition),
           UpdateExpression: params.updateExpression,
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
@@ -488,7 +501,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @param keys Array of primary keys to retrieve
    * @returns A promise that resolves to the retrieved items
    */
-  async batchGet<T extends Record<string, unknown>>(
+  async batchGet<T extends DynamoItem>(
     keys: Array<PrimaryKeyWithoutExpression>,
   ): Promise<{ items: T[]; unprocessedKeys: PrimaryKeyWithoutExpression[] }> {
     const allItems: T[] = [];
@@ -545,7 +558,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @param operations Array of put or delete operations
    * @returns A promise that resolves to any unprocessed operations
    */
-  async batchWrite<T extends Record<string, unknown>>(
+  async batchWrite<T extends DynamoItem>(
     operations: Array<BatchWriteOperation<T>>,
   ): Promise<{ unprocessedItems: Array<BatchWriteOperation<T>> }> {
     const allUnprocessedItems: Array<BatchWriteOperation<T>> = [];
@@ -563,10 +576,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
         return {
           DeleteRequest: {
-            Key: {
-              [this.partitionKey]: operation.key.pk,
-              ...(this.sortKey ? { [this.sortKey]: operation.key.sk } : {}),
-            },
+            Key: this.createKeyForPrimaryIndex(operation.key),
           },
         };
       });

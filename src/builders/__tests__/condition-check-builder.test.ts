@@ -37,7 +37,7 @@ describe("ConditionCheckBuilder", () => {
     it("should generate valid command parameters", () => {
       const builder = new ConditionCheckBuilder(tableName, key);
       builder.condition(eq("status", "active"));
-
+      // @ts-expect-error - toDynamoCommand is private but we we are testing it to check the state handling
       const command = builder.toDynamoCommand();
 
       expect(command).toEqual({
@@ -51,6 +51,7 @@ describe("ConditionCheckBuilder", () => {
 
     it("should throw error when condition is not set", () => {
       const builder = new ConditionCheckBuilder(tableName, key);
+      // @ts-expect-error - toDynamoCommand is private but we we are testing it to check the state handling
       expect(() => builder.toDynamoCommand()).toThrow("Condition is required");
     });
   });

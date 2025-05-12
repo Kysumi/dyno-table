@@ -11,28 +11,28 @@ describe("Table Integration Tests - Transaction Operations", () => {
   });
 
   it("should execute a transaction with multiple operations", async () => {
-    // Create transaction with multiple operations
+    // Create a transaction with multiple operations
     await table.transaction(async (transaction) => {
       // Add a put operation
       transaction.put("TestTable", {
-        pk: "transaction#test",
-        sk: "item#1",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "item#1",
         name: "Transaction Item 1",
         type: "TransactionTest",
       });
 
       // Add another put operation
       transaction.put("TestTable", {
-        pk: "transaction#test",
-        sk: "item#2",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "item#2",
         name: "Transaction Item 2",
         type: "TransactionTest",
       });
 
       // Add an update operation
       transaction.put("TestTable", {
-        pk: "transaction#test",
-        sk: "item#3",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "item#3",
         name: "Transaction Item 3",
         type: "TransactionTest",
       });
@@ -43,9 +43,9 @@ describe("Table Integration Tests - Transaction Operations", () => {
     expect(queryResult.items).toHaveLength(3);
 
     // Verify individual items
-    const item1 = queryResult.items.find((item: Record<string, unknown>) => item.sk === "item#1");
-    const item2 = queryResult.items.find((item: Record<string, unknown>) => item.sk === "item#2");
-    const item3 = queryResult.items.find((item: Record<string, unknown>) => item.sk === "item#3");
+    const item1 = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "item#1");
+    const item2 = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "item#2");
+    const item3 = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "item#3");
 
     expect(item1).toBeDefined();
     expect(item1?.name).toBe("Transaction Item 1");
@@ -61,54 +61,50 @@ describe("Table Integration Tests - Transaction Operations", () => {
     // First create an item
     await table
       .put({
-        pk: "transaction#test",
-        sk: "conditional#item",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "conditional#item",
         name: "Existing Item",
         type: "TransactionTest",
       })
       .execute();
 
     // Try to execute a transaction with a failing condition
-    try {
-      await table.transaction(async (transaction) => {
-        // This operation should succeed
-        transaction.put("TestTable", {
-          pk: "transaction#test",
-          sk: "success#item",
-          name: "This Should Not Be Created",
-          type: "TransactionTest",
-        });
-
-        // This operation should fail due to the condition
-        transaction.put(
-          "TestTable",
-          {
-            pk: "transaction#test",
-            sk: "conditional#item",
-            name: "Updated Name",
-            type: "TransactionTest",
-          },
-          attributeNotExists("pk"),
-        );
+    const transactionPromise = table.transaction(async (transaction) => {
+      // This operation should succeed
+      transaction.put("TestTable", {
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "success#item",
+        name: "This Should Not Be Created",
+        type: "TransactionTest",
       });
 
-      // If we get here, the test should fail
-      expect(true).toBe(false); // This should not execute
-    } catch (error) {
-      // Transaction should fail
-      expect(error).toBeDefined();
-    }
+      // This operation should fail due to the condition
+      transaction.put(
+        "TestTable",
+        {
+          demoPartitionKey: "transaction#test",
+          demoSortKey: "conditional#item",
+          name: "Updated Name",
+          type: "TransactionTest",
+        },
+        attributeNotExists("demoPartitionKey"),
+      );
+    });
+
+    await expect(transactionPromise).rejects.toThrowError();
 
     // Verify that no items were created/updated
     const queryResult = await table.query({ pk: "transaction#test" }).execute();
 
     // The only item should be the original one
-    const conditionalItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "conditional#item");
+    const conditionalItem = queryResult.items.find(
+      (item: Record<string, unknown>) => item.demoSortKey === "conditional#item",
+    );
     expect(conditionalItem).toBeDefined();
     expect(conditionalItem?.name).toBe("Existing Item");
 
     // The success item should not exist
-    const successItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "success#item");
+    const successItem = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "success#item");
     expect(successItem).toBeUndefined();
   });
 
@@ -116,8 +112,8 @@ describe("Table Integration Tests - Transaction Operations", () => {
     // First create items to update and delete
     await table
       .put({
-        pk: "transaction#test",
-        sk: "update#item",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "update#item",
         name: "Item To Update",
         type: "TransactionTest",
         status: "active",
@@ -126,8 +122,8 @@ describe("Table Integration Tests - Transaction Operations", () => {
 
     await table
       .put({
-        pk: "transaction#test",
-        sk: "delete#item",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "delete#item",
         name: "Item To Delete",
         type: "TransactionTest",
       })
@@ -137,8 +133,8 @@ describe("Table Integration Tests - Transaction Operations", () => {
     await table.transaction(async (transaction) => {
       // Put operation
       transaction.put("TestTable", {
-        pk: "transaction#test",
-        sk: "put#item",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "put#item",
         name: "New Item",
         type: "TransactionTest",
       });
@@ -161,16 +157,18 @@ describe("Table Integration Tests - Transaction Operations", () => {
 
     // Should have 2 items (put and update, delete should be gone)
     expect(
-      queryResult.items.filter((item: Record<string, unknown>) => item.sk === "put#item" || item.sk === "update#item"),
+      queryResult.items.filter(
+        (item: Record<string, unknown>) => item.demoSortKey === "put#item" || item.demoSortKey === "update#item",
+      ),
     ).toHaveLength(2);
 
     // Verify put item
-    const putItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "put#item");
+    const putItem = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "put#item");
     expect(putItem).toBeDefined();
     expect(putItem?.name).toBe("New Item");
 
     // Verify updated item
-    const updatedItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "update#item");
+    const updatedItem = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "update#item");
     expect(updatedItem).toBeDefined();
     expect(updatedItem?.name).toBe("Updated Item");
     expect(updatedItem?.status).toBe("inactive");
@@ -184,8 +182,8 @@ describe("Table Integration Tests - Transaction Operations", () => {
     // First create an item to check
     await table
       .put({
-        pk: "transaction#test",
-        sk: "condition#item",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "condition#item",
         name: "Condition Check Item",
         type: "TransactionTest",
         status: "active",
@@ -199,8 +197,8 @@ describe("Table Integration Tests - Transaction Operations", () => {
 
       // Add a put operation that depends on the condition
       transaction.put("TestTable", {
-        pk: "transaction#test",
-        sk: "dependent#item",
+        demoPartitionKey: "transaction#test",
+        demoSortKey: "dependent#item",
         name: "Dependent Item",
         type: "TransactionTest",
       });
@@ -208,7 +206,9 @@ describe("Table Integration Tests - Transaction Operations", () => {
 
     // Verify the dependent item was created
     const queryResult = await table.query({ pk: "transaction#test" }).execute();
-    const dependentItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "dependent#item");
+    const dependentItem = queryResult.items.find(
+      (item: Record<string, unknown>) => item.demoSortKey === "dependent#item",
+    );
 
     expect(dependentItem).toBeDefined();
     expect(dependentItem?.name).toBe("Dependent Item");

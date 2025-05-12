@@ -1,5 +1,5 @@
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
-import type { TableConfig } from "../types";
+import type { DynamoItem, TableConfig } from "../types";
 import type { ScanBuilderInterface } from "./builder-types";
 
 /**
@@ -12,9 +12,9 @@ export type ScanOptions = FilterOptions;
  * Function type for executing DynamoDB filter operations.
  * @typeParam T - The type of items being filtered
  */
-export type ScanExecutor<T extends Record<string, unknown>> = (
+export type ScanExecutor<T extends DynamoItem> = (
   options: ScanOptions,
-) => Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;
+) => Promise<{ items: T[]; lastEvaluatedKey?: DynamoItem }>;
 
 /**
  * Builder for creating DynamoDB scan operations.
@@ -61,7 +61,7 @@ export type ScanExecutor<T extends Record<string, unknown>> = (
  * @typeParam T - The type of items being scanned
  * @typeParam TConfig - The table configuration type for type-safe GSI selection
  */
-export class ScanBuilder<T extends Record<string, unknown>, TConfig extends TableConfig = TableConfig>
+export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = TableConfig>
   extends FilterBuilder<T, TConfig>
   implements ScanBuilderInterface<T, TConfig>
 {

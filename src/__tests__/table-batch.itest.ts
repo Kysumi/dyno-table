@@ -13,32 +13,32 @@ describe("Table Integration Tests - Batch Operations", () => {
     // Create test data
     const dinos: Dinosaur[] = [
       {
-        pk: "dinosaur#batch",
-        sk: "dino#1",
+        demoPartitionKey: "dinosaur#batch",
+        demoSortKey: "dino#1",
         name: "Batch Dino 1",
         type: "BatchTest",
       },
       {
-        pk: "dinosaur#batch",
-        sk: "dino#2",
+        demoPartitionKey: "dinosaur#batch",
+        demoSortKey: "dino#2",
         name: "Batch Dino 2",
         type: "BatchTest",
       },
       {
-        pk: "dinosaur#batch",
-        sk: "dino#3",
+        demoPartitionKey: "dinosaur#batch",
+        demoSortKey: "dino#3",
         name: "Batch Dino 3",
         type: "BatchTest",
       },
       {
-        pk: "dinosaur#batch",
-        sk: "dino#4",
+        demoPartitionKey: "dinosaur#batch",
+        demoSortKey: "dino#4",
         name: "Batch Dino 4",
         type: "BatchTest",
       },
       {
-        pk: "dinosaur#batch",
-        sk: "dino#5",
+        demoPartitionKey: "dinosaur#batch",
+        demoSortKey: "dino#5",
         name: "Batch Dino 5",
         type: "BatchTest",
       },
@@ -83,16 +83,16 @@ describe("Table Integration Tests - Batch Operations", () => {
   });
 
   it("should batch write (put) multiple items", async () => {
-    const newDinos = [
+    const newDinos: Dinosaur[] = [
       {
-        pk: "dinosaur#batchwrite",
-        sk: "dino#new1",
+        demoPartitionKey: "dinosaur#batchwrite",
+        demoSortKey: "dino#new1",
         name: "New Batch Dino 1",
         type: "BatchWriteTest",
       },
       {
-        pk: "dinosaur#batchwrite",
-        sk: "dino#new2",
+        demoPartitionKey: "dinosaur#batchwrite",
+        demoSortKey: "dino#new2",
         name: "New Batch Dino 2",
         type: "BatchWriteTest",
       },
@@ -119,16 +119,16 @@ describe("Table Integration Tests - Batch Operations", () => {
 
   it("should batch write (delete) multiple items", async () => {
     // First create items to delete
-    const dinosToDelete = [
+    const dinosToDelete: Dinosaur[] = [
       {
-        pk: "dinosaur#batchdelete",
-        sk: "dino#delete1",
+        demoPartitionKey: "dinosaur#batchdelete",
+        demoSortKey: "dino#delete1",
         name: "Delete Batch Dino 1",
         type: "BatchDeleteTest",
       },
       {
-        pk: "dinosaur#batchdelete",
-        sk: "dino#delete2",
+        demoPartitionKey: "dinosaur#batchdelete",
+        demoSortKey: "dino#delete2",
         name: "Delete Batch Dino 2",
         type: "BatchDeleteTest",
       },
@@ -169,8 +169,8 @@ describe("Table Integration Tests - Batch Operations", () => {
     // First create an item to delete
     await table
       .put<Dinosaur>({
-        pk: "dinosaur#batchmixed",
-        sk: "dino#delete",
+        demoPartitionKey: "dinosaur#batchmixed",
+        demoSortKey: "dino#delete",
         name: "Mixed Delete Dino",
         type: "BatchMixedTest",
       })
@@ -185,8 +185,8 @@ describe("Table Integration Tests - Batch Operations", () => {
       {
         type: "put" as const,
         item: {
-          pk: "dinosaur#batchmixed",
-          sk: "dino#new",
+          demoPartitionKey: "dinosaur#batchmixed",
+          demoSortKey: "dino#new",
           name: "Mixed New Dino",
           type: "BatchMixedTest",
         } as Dinosaur,
@@ -212,8 +212,8 @@ describe("Table Integration Tests - Batch Operations", () => {
     const manyDinos: Dinosaur[] = [];
     for (let i = 1; i <= 30; i++) {
       manyDinos.push({
-        pk: "dinosaur#batchchunk",
-        sk: `dino#${i}`,
+        demoPartitionKey: "dinosaur#batchchunk",
+        demoSortKey: `dino#${i}`,
         name: `Chunk Dino ${i}`,
         type: "BatchChunkTest",
       });
