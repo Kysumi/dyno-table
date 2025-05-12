@@ -111,8 +111,11 @@
   "devDependencies": {
     "@babel/preset-typescript": "^7.26.0",
     "@biomejs/biome": "1.9.4",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^20.17.11",
     "rimraf": "^5.0.10",
+    "semantic-release": "24.2.3",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "3.0.5"
