@@ -178,6 +178,8 @@ It combines schema validation, key management, and repository operations into a 
 ✨ This library supports all standard schema validation libraries, including **zod**, **arktype**, and **valibot**,
 allowing you to choose your preferred validation tool!
 
+You can find a full example implementation here of [Entities](https://github.com/Kysumi/dyno-table/blob/main/examples/entity-example/src/dinosaur-entity.ts)
+
 ### Defining Entities
 
 Entities are defined using the `defineEntity` function, which takes a configuration object that includes a schema, primary key definition, and optional indexes and queries.
@@ -251,7 +253,7 @@ const DinosaurEntity = defineEntity({
   primaryKey: createIndex()
           .input(z.object({ id: z.string(), diet: z.string(), species: z.string() }))
           .partitionKey(({ diet }) => dinosaurPK({ diet }))
-          .sortKey(({ id, species }) => dinosaurSK({ species, id }))
+          .sortKey(({ id, species }) => dinosaurSK({ species, id })) // could also be .withoutSortKey() if your table doesn't use sort keys
 });
 ```
 
@@ -315,8 +317,9 @@ const DinosaurEntity = defineEntity({
       )
       .query(({ input, entity }) => {
         return entity
-          .scan()
-          .filter((op) => op.eq("diet", input.diet));
+          .query({
+            pk: dinosaurPK({diet: input.diet})
+          });
       }),
 
     bySpecies: createQuery
@@ -338,18 +341,22 @@ const carnivores = await dinosaurRepo.query.byDiet({ diet: "carnivore" }).execut
 const trexes = await dinosaurRepo.query.bySpecies({ species: "Tyrannosaurus Rex" }).execute();
 ```
 
-#### 4. Indexes for Efficient Querying
+#### 4. Defining GSI access patterns
 
-Define indexes for efficient access patterns:
+Define GSI (LSI support coming later)
 
 ```ts
 import { createIndex } from "dyno-table/entity";
 
-// Define GSI for querying by species
+// Define GSIs templates for querying by species
+const gsi1PK = partitionKey`SPECIES#${"species"}`
+const gsi1SK = sortKey`DINOSAUR#${"id"}`
+
+// Implement typesafe generator for the GSI - This is used in create calls to ensure the GSI is generated
 const speciesIndex = createIndex()
   .input(dinosaurSchema)
-  .partitionKey(({ species }) => `SPECIES#${species}`)
-  .sortKey(({ id }) => `DINOSAUR#${id}`);
+  .partitionKey(({ species }) => gsi1PK({ species }))
+  .sortKey(({ id }) => gsiSK({ id }));
 
 const DinosaurEntity = defineEntity({
   name: "Dinosaur",
@@ -367,49 +374,27 @@ const DinosaurEntity = defineEntity({
       )
       .query(({ input, entity }) => {
         return entity
-          .queryBuilder({
-            pk: `SPECIES#${input.species}`,
+          .query({
+            // Use the GSI template generator to avoid typos
+            pk: gsi1PK({species: input.species}),
           })
-          .useIndex("species");
+          // Use the template name as defined in the table instance
+          .useIndex("gsi1");
       }),
   },
 });
 ```
 
-#### 5. Lifecycle Hooks
-
-Add hooks for pre/post processing:
-
-```ts
-const dinosaurHooks = {
-  afterGet: async (data: Dinosaur | undefined) => {
-    if (data) {
-      return {
-        ...data,
-        displayName: `${data.name} (${data.species})`,
-        threatLevel: data.dangerLevel > 7 ? "HIGH" : "MODERATE",
-      };
-    }
-    return data;
-  },
-};
-
-const DinosaurEntity = defineEntity({
-  name: "Dinosaur",
-  schema: dinosaurSchema,
-  primaryKey,
-  hooks: dinosaurHooks,
-});
-```
-
 ### Complete Entity Example
 
-Here's a complete example using Zod schemas directly:
+Here's a complete example of using Zod schemas directly:
 
 ```ts
 import { z } from "zod";
 import { defineEntity, createQueries, createIndex } from "dyno-table/entity";
 import { Table } from "dyno-table/table";
+import { sortKey } from "dyno-table/utils/sort-key-template";
+import { partitionKey } from "dyno-table/utils/partition-key-template";
 
 // Define the schema with Zod
 const dinosaurSchema = z.object({
@@ -432,8 +417,14 @@ const dinosaurSchema = z.object({
 type Dinosaur = z.infer<typeof dinosaurSchema>;
 
 // Define key templates
-const dinosaurPK = (id: string) => `DINOSAUR#${id}`;
-const dinosaurSK = (status: string) => `STATUS#${status}`;
+const dinosaurPK = partitionKey`DINOSAUR#${"id"}`;
+const dinosaurSK = sortKey`STATUS#${"status"}`;
+
+const gsi1PK = partitionKey`SPECIES#${"species"}`
+const gsi1SK = sortKey`DINOSAUR#${"id"}`
+
+const gsi2PK = partitionKey`ENCLOSURE#${enclosureId}`
+const gsi2SK = sortKey`DINOSAUR#${id}`
 
 // Create a primary index
 const primaryKey = createIndex()
@@ -444,14 +435,14 @@ const primaryKey = createIndex()
 // Create a GSI for querying by species
 const speciesIndex = createIndex()
   .input(dinosaurSchema)
-  .partitionKey(({ species }) => `SPECIES#${species}`)
-  .sortKey(({ id }) => `DINOSAUR#${id}`);
+  .partitionKey(({ species }) => gsi1PK({ species }))
+  .sortKey(({ id }) => gsiSK({ id }));
 
 // Create a GSI for querying by enclosure
 const enclosureIndex = createIndex()
   .input(dinosaurSchema)
-  .partitionKey(({ enclosureId }) => `ENCLOSURE#${enclosureId}`)
-  .sortKey(({ id }) => `DINOSAUR#${id}`);
+  .partitionKey(({ enclosureId }) => gsi2PK({ enclosureId }))
+  .sortKey(({ id }) => gsi2SK({ id }));
 
 // Create query builders
 const createQuery = createQueries<Dinosaur>();
@@ -462,8 +453,9 @@ const DinosaurEntity = defineEntity({
   schema: dinosaurSchema,
   primaryKey,
   indexes: {
-    species: speciesIndex,
-    enclosure: enclosureIndex,
+    // These keys need to be named after the name of the GSI that is defined in your table instance 
+    gsi1: speciesIndex,
+    gsi2: enclosureIndex,
   },
   queries: {
     bySpecies: createQuery
@@ -474,10 +466,10 @@ const DinosaurEntity = defineEntity({
       )
       .query(({ input, entity }) => {
         return entity
-          .queryBuilder({
-            pk: `SPECIES#${input.species}`,
+          .query({
+            pk: gsi1PK({ species: input.species }),
           })
-          .useIndex("species");
+          .useIndex("gsi1");
       }),
 
     byEnclosure: createQuery
@@ -488,10 +480,10 @@ const DinosaurEntity = defineEntity({
       )
       .query(({ input, entity }) => {
         return entity
-          .queryBuilder({
-            pk: `ENCLOSURE#${input.enclosureId}`,
+          .query({
+            pk: gsi2PK({ enclosureId: input.enclosureId }),
           })
-          .useIndex("enclosure");
+          .useIndex("gsi2");
       }),
 
     dangerousInEnclosure: createQuery
@@ -503,10 +495,10 @@ const DinosaurEntity = defineEntity({
       )
       .query(({ input, entity }) => {
         return entity
-          .queryBuilder({
-            pk: `ENCLOSURE#${input.enclosureId}`,
+          .query({
+            pk: gsi2PK({ enclosureId: input.enclosureId }),
           })
-          .useIndex("enclosure")
+          .useIndex("gsi2")
           .filter((op) => op.gte("dangerLevel", input.minDangerLevel));
       }),
   },
@@ -548,7 +540,7 @@ async function main() {
 
 **Key benefits:**
 - 🚫 Prevents accidental cross-type data access
-- 🔍 Automatically filters queries/scans to repository type
+- 🔍 Automatically filters queries/scans to a repository type
 - 🛡️ Ensures consistent key structure across entities
 - 📦 Encapsulates domain-specific query logic
 - 🧪 Validates data with Zod schemas
