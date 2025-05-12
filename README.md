@@ -147,6 +147,8 @@ pnpm add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 
 ### 1. Configure Your Jurassic Table
 
+> **Note:** dyno-table does not create or manage the actual DynamoDB table for you. We recommend using infrastructure as code tools like Terraform, OpenTofu, SST, or AWS CDK to provision and manage your DynamoDB tables.
+
 ```ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
@@ -164,7 +166,6 @@ const dinoTable = new Table({
     partitionKey: "pk",
     sortKey: "sk",
     gsis: {
-      // Global Secondary Index setup in an abstract to allow unique access patterns per Entity Type for single table design
       gsi1: {
         partitionKey: "gsi1pk",
         sortKey: "gsi1sk",
