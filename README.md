@@ -74,7 +74,7 @@ await dinoTable
     - [1. Schema Validation](#1-schema-validation)
     - [2. CRUD Operations](#2-crud-operations)
     - [3. Custom Queries](#3-custom-queries)
-    - [4. Indexes for Efficient Querying](#4-defining-gsi-access-patterns)
+    - [4. Defining GSI Access Patterns](#4-defining-gsi-access-patterns)
     - [5. Lifecycle Hooks](#5-lifecycle-hooks)
   - [Complete Entity Example](#complete-entity-example)
 - [🧩 Advanced Features](#-advanced-features)
