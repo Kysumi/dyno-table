@@ -22,9 +22,6 @@ allow glueing repositories together
       * would have to define the relationship and relationship names
 
 ## PAGINATION / LIMIT IMPROVEMENTS / BUGS
-making pagination better
-  * limit should not apply to the page size, it should apply to the TOTAL number of items returned
-  * paginate should take a page size and page till the total number of items is reached
 
 LIMIT should not use the DDB limit directly it should internally load data until the total number of items is reached
 
@@ -47,10 +44,6 @@ maybe need to make an iterator object? allow a for loop to make it work
 
 Flip the API for the batch and transaction methods
 * it should pass down a "table" object that has the allowed operations on it for batch/transaction
-
-* allow picking of specific attributes to be returned
-  * this should be a method on the query builder
-  * this should be a method on the scan builder
 
 * prevent devs from attempting to do a write in a getTransaction method or in batchGet
 * prevent devs from attempting to do a read in a batchWrite method
