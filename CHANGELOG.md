@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/Kysumi/dyno-table/compare/v1.0.0...v1.1.0) (2025-05-26)
+
+
+### Features
+
+* **entity:** Transaction support ([#39](https://github.com/Kysumi/dyno-table/issues/39)) ([5497269](https://github.com/Kysumi/dyno-table/commit/54972691274d81fbcfb9041be4449c90d7815d4f))
+
 # 1.0.0 (2025-05-12)
 
 
