@@ -184,10 +184,37 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
       // Create a repository
       const repository = {
         create: (data: T) => {
-          // We need to handle the async operations when the consumer calls execute
+          // Generate the primary key upfront for transaction compatibility
+          // Note: We assume data is valid for key generation, validation happens during execution
+          const primaryKey = config.primaryKey.generateKey(data as unknown as I);
+
+          const indexes = Object.entries(config.indexes ?? {}).reduce(
+            (acc, [indexName, index]) => {
+              const key = (index as IndexDefinition<T>).generateKey(data);
+              const gsiConfig = table.gsis[indexName];
+
+              if (!gsiConfig) {
+                throw new Error(`GSI configuration not found for index: ${indexName}`);
+              }
+
+              if (key.pk) {
+                acc[gsiConfig.partitionKey] = key.pk;
+              }
+              if (key.sk && gsiConfig.sortKey) {
+                acc[gsiConfig.sortKey] = key.sk;
+              }
+              return acc;
+            },
+            {} as Record<string, string>,
+          );
+
+          // Create the builder with all keys included upfront
           const builder = table.create<T>({
             ...data,
             [entityTypeAttributeName]: config.name,
+            [table.partitionKey]: primaryKey.pk,
+            ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
+            ...indexes,
             ...generateTimestamps(["createdAt", "updatedAt"]),
           });
 
@@ -199,28 +226,6 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
             if ("issues" in validationResult && validationResult.issues) {
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
-
-            const primaryKey = config.primaryKey.generateKey(validationResult.value as unknown as I);
-
-            const indexes = Object.entries(config.indexes ?? {}).reduce(
-              (acc, [indexName, index]) => {
-                const key = (index as IndexDefinition<T>).generateKey(validationResult.value);
-                const gsiConfig = table.gsis[indexName];
-
-                if (!gsiConfig) {
-                  throw new Error(`GSI configuration not found for index: ${indexName}`);
-                }
-
-                if (key.pk) {
-                  acc[gsiConfig.partitionKey] = key.pk;
-                }
-                if (key.sk && gsiConfig.sortKey) {
-                  acc[gsiConfig.sortKey] = key.sk;
-                }
-                return acc;
-              },
-              {} as Record<string, string>,
-            );
 
             // Update the item in the builder with the validated data, entity type, and timestamps
             Object.assign(builder, {

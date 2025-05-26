@@ -379,15 +379,31 @@ export class TransactionBuilder {
    * @see DeleteBuilder for creating delete commands
    */
   deleteWithCommand(command: DeleteCommandParams): this {
-    const keyCondition = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
+    // The command.key from DeleteBuilder.toDynamoCommand() is in PrimaryKeyWithoutExpression format
+    // but DeleteCommandParams expects it to be in the table's actual key format
+    // We need to check if it's already converted or needs conversion
+    let keyForDuplicateCheck: Record<string, unknown>;
+    let keyForTransaction: Record<string, unknown>;
+
+    // Check if the key is in PrimaryKeyWithoutExpression format (has pk/sk properties)
+    if (typeof command.key === 'object' && command.key !== null && 'pk' in command.key) {
+      // Convert from PrimaryKeyWithoutExpression to table key format
+      keyForTransaction = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
+      keyForDuplicateCheck = keyForTransaction;
+    } else {
+      // Key is already in table format
+      keyForTransaction = command.key;
+      keyForDuplicateCheck = command.key;
+    }
+
     // Check for duplicate item
-    this.checkForDuplicateItem(command.tableName, keyCondition);
+    this.checkForDuplicateItem(command.tableName, keyForDuplicateCheck);
 
     const transactionItem: TransactionItem = {
       type: "Delete",
       params: {
         ...command,
-        key: keyCondition,
+        key: keyForTransaction,
       },
     };
     this.items.push(transactionItem);
@@ -525,16 +541,31 @@ export class TransactionBuilder {
    * @see UpdateBuilder for creating update commands
    */
   updateWithCommand(command: UpdateCommandParams): TransactionBuilder {
-    const keyCondition = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
+    // The command.key from UpdateBuilder.toDynamoCommand() is in PrimaryKeyWithoutExpression format
+    // but UpdateCommandParams expects it to be in the table's actual key format
+    // We need to check if it's already converted or needs conversion
+    let keyForDuplicateCheck: Record<string, unknown>;
+    let keyForTransaction: Record<string, unknown>;
+
+    // Check if the key is in PrimaryKeyWithoutExpression format (has pk/sk properties)
+    if (typeof command.key === 'object' && command.key !== null && 'pk' in command.key) {
+      // Convert from PrimaryKeyWithoutExpression to table key format
+      keyForTransaction = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
+      keyForDuplicateCheck = keyForTransaction;
+    } else {
+      // Key is already in table format
+      keyForTransaction = command.key;
+      keyForDuplicateCheck = command.key;
+    }
 
     // Check for duplicate item
-    this.checkForDuplicateItem(command.tableName, keyCondition);
+    this.checkForDuplicateItem(command.tableName, keyForDuplicateCheck);
 
     const transactionItem: TransactionItem = {
       type: "Update",
       params: {
         ...command,
-        key: keyCondition,
+        key: keyForTransaction,
       },
     };
 
@@ -651,16 +682,31 @@ export class TransactionBuilder {
    * @see ConditionCheckBuilder for creating condition check commands
    */
   conditionCheckWithCommand(command: ConditionCheckCommandParams): TransactionBuilder {
-    const keyCondition = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
+    // The command.key from ConditionCheckBuilder.toDynamoCommand() is in PrimaryKeyWithoutExpression format
+    // but ConditionCheckCommandParams expects it to be in the table's actual key format
+    // We need to check if it's already converted or needs conversion
+    let keyForDuplicateCheck: Record<string, unknown>;
+    let keyForTransaction: Record<string, unknown>;
+
+    // Check if the key is in PrimaryKeyWithoutExpression format (has pk/sk properties)
+    if (typeof command.key === 'object' && command.key !== null && 'pk' in command.key) {
+      // Convert from PrimaryKeyWithoutExpression to table key format
+      keyForTransaction = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
+      keyForDuplicateCheck = keyForTransaction;
+    } else {
+      // Key is already in table format
+      keyForTransaction = command.key;
+      keyForDuplicateCheck = command.key;
+    }
 
     // Check for duplicate item
-    this.checkForDuplicateItem(command.tableName, keyCondition);
+    this.checkForDuplicateItem(command.tableName, keyForDuplicateCheck);
 
     const transactionItem: TransactionItem = {
       type: "ConditionCheck",
       params: {
         ...command,
-        key: keyCondition,
+        key: keyForTransaction,
       },
     };
     this.items.push(transactionItem);
