@@ -126,6 +126,8 @@ describe("Entity Repository", () => {
       expect(mockTable.create).toHaveBeenCalledWith({
         ...testData,
         entityType: "TestEntity",
+        pk: "TEST#123",
+        sk: "METADATA#",
       });
       expect(result).toEqual(testData);
     });
