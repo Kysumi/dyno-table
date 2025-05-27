@@ -458,7 +458,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @param options Optional transaction options
    * @returns A promise that resolves when the transaction is complete
    */
-  transaction<T>(callback: (tx: TransactionBuilder) => Promise<T>, options?: TransactionOptions): Promise<T> {
+  transaction<T>(callback: (tx: TransactionBuilder) => Promise<T> | T, options?: TransactionOptions): Promise<T> {
     const executor = async (): Promise<T> => {
       // Create an executor function for the transaction
       const transactionExecutor = async (params: TransactWriteCommandInput): Promise<void> => {
