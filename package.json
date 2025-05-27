@@ -88,7 +88,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:w": "vitest watch",
-    "test:int": "vitest --config vitest.integration.ts",
+    "test:int": "vitest run --config vitest.integration.ts",
     "local:setup": "npx tsx -e 'import(\"./tests/setup-test-table.ts\").then(m => m.createTestTable())'",
     "local:teardown": "npx tsx -e 'import(\"./tests/setup-test-table.ts\").then(m => m.deleteTestTable())'",
     "lint": "biome lint",
@@ -96,12 +96,7 @@
     "ddb:start": "docker compose up -d",
     "circular": "npx madge --circular --ts-config ./tsconfig.json --extensions ts,tsx src/"
   },
-  "keywords": [
-    "dynamodb",
-    "aws",
-    "typescript",
-    "database"
-  ],
+  "keywords": ["dynamodb", "aws", "typescript", "database"],
   "author": "Maunder",
   "license": "ISC",
   "repository": {
@@ -124,8 +119,6 @@
     "@aws-sdk/client-dynamodb": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "packageManager": "pnpm@10.5.2"
 }

@@ -8,6 +8,7 @@ import type { Table } from "./table";
 import type { DynamoItem, Index, TableConfig } from "./types";
 import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "./conditions";
 import type { QueryBuilder } from "./builders/query-builder";
+import type { TransactionBuilder } from "./builders/transaction-builder";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
@@ -218,30 +219,85 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
             ...generateTimestamps(["createdAt", "updatedAt"]),
           });
 
-          // Wrap the builder's execute method to apply validation only
-          const originalExecute = builder.execute;
-          builder.execute = async () => {
-            // Validate data against schema
+          // Core function that handles validation and item preparation (async version)
+          const prepareValidatedItemAsync = async () => {
             const validationResult = await config.schema["~standard"].validate(data);
             if ("issues" in validationResult && validationResult.issues) {
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
-            // Update the item in the builder with the validated data, entity type, and timestamps
-            Object.assign(builder, {
-              item: {
-                ...validationResult.value,
-                [entityTypeAttributeName]: config.name,
-                [table.partitionKey]: primaryKey.pk,
-                ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-                ...indexes,
-                ...generateTimestamps(["createdAt", "updatedAt"]),
-              },
-            });
+            const validatedItem = {
+              ...validationResult.value,
+              [entityTypeAttributeName]: config.name,
+              [table.partitionKey]: primaryKey.pk,
+              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
+              ...indexes,
+              ...generateTimestamps(["createdAt", "updatedAt"]),
+            };
 
-            // Execute the builder
+            Object.assign(builder, { item: validatedItem });
+            return validatedItem;
+          };
+
+          // Core function that handles validation and item preparation (sync version)
+          const prepareValidatedItemSync = () => {
+            const validationResult = config.schema["~standard"].validate(data);
+
+            // Handle Promise case - this shouldn't happen in withTransaction, but we need to handle it for type safety
+            if (validationResult instanceof Promise) {
+              throw new Error("Async validation is not supported in withTransaction. Use execute() instead.");
+            }
+
+            if ("issues" in validationResult && validationResult.issues) {
+              throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+            }
+
+            const validatedItem = {
+              ...validationResult.value,
+              [entityTypeAttributeName]: config.name,
+              [table.partitionKey]: primaryKey.pk,
+              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
+              ...indexes,
+              ...generateTimestamps(["createdAt", "updatedAt"]),
+            };
+
+            Object.assign(builder, { item: validatedItem });
+            return validatedItem;
+          };
+
+          // Wrap the builder's execute method
+          const originalExecute = builder.execute;
+          builder.execute = async () => {
+            await prepareValidatedItemAsync();
             return await originalExecute.call(builder);
           };
+
+          // Wrap the builder's withTransaction method
+          const originalWithTransaction = builder.withTransaction;
+          if (originalWithTransaction) {
+            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+            const wrappedWithTransaction = (transaction: any) => {
+              prepareValidatedItemSync();
+              return originalWithTransaction.call(builder, transaction);
+            };
+
+            // Copy all properties from the original function to preserve mock functionality
+            Object.setPrototypeOf(wrappedWithTransaction, originalWithTransaction);
+            const propertyNames = Object.getOwnPropertyNames(originalWithTransaction);
+            for (let i = 0; i < propertyNames.length; i++) {
+              const prop = propertyNames[i] as string;
+              if (prop !== "length" && prop !== "name" && prop !== "prototype") {
+                try {
+                  // biome-ignore lint/suspicious/noExplicitAny: Make it work
+                  (wrappedWithTransaction as any)[prop] = (originalWithTransaction as any)[prop];
+                } catch (e) {
+                  // Ignore errors for non-configurable properties
+                }
+              }
+            }
+
+            builder.withTransaction = wrappedWithTransaction;
+          }
 
           return builder;
         },
@@ -258,32 +314,88 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
             ...generateTimestamps(["createdAt", "updatedAt"]),
           });
 
-          // Wrap the builder's execute method to apply validation only
-          const originalExecute = builder.execute;
-          builder.execute = async () => {
-            // Validate data against schema
+          // Core function that handles validation and item preparation (async version)
+          const prepareValidatedItemAsync = async () => {
             const validationResult = await config.schema["~standard"].validate(data);
             if ("issues" in validationResult && validationResult.issues) {
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
-            // Update the item in the builder with the validated data, entity type, and timestamps
-            Object.assign(builder, {
-              item: {
-                ...validationResult.value,
-                [entityTypeAttributeName]: config.name,
-                ...generateTimestamps(["createdAt", "updatedAt"]),
-              },
-            });
+            const primaryKey = config.primaryKey.generateKey(validationResult.value as T & I);
+            const validatedItem = {
+              [table.partitionKey]: primaryKey.pk,
+              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
+              ...validationResult.value,
+              [entityTypeAttributeName]: config.name,
+              ...generateTimestamps(["createdAt", "updatedAt"]),
+            };
 
-            // Execute the builder
+            Object.assign(builder, { item: validatedItem });
+            return validatedItem;
+          };
+
+          // Core function that handles validation and item preparation (sync version)
+          const prepareValidatedItemSync = () => {
+            const validationResult = config.schema["~standard"].validate(data);
+
+            // Handle Promise case - this shouldn't happen in withTransaction but we need to handle it for type safety
+            if (validationResult instanceof Promise) {
+              throw new Error("Async validation is not supported in withTransaction. Use execute() instead.");
+            }
+
+            if ("issues" in validationResult && validationResult.issues) {
+              throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+            }
+
+            const primaryKey = config.primaryKey.generateKey(validationResult.value as T & I);
+            const validatedItem = {
+              [table.partitionKey]: primaryKey.pk,
+              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
+              ...validationResult.value,
+              [entityTypeAttributeName]: config.name,
+              ...generateTimestamps(["createdAt", "updatedAt"]),
+            };
+
+            Object.assign(builder, { item: validatedItem });
+            return validatedItem;
+          };
+
+          // Wrap the builder's execute method
+          const originalExecute = builder.execute;
+          builder.execute = async () => {
+            await prepareValidatedItemAsync();
             const result = await originalExecute.call(builder);
             if (!result) {
               throw new Error("Failed to upsert item");
             }
-
             return result;
           };
+
+          // Wrap the builder's withTransaction method
+          const originalWithTransaction = builder.withTransaction;
+          if (originalWithTransaction) {
+            const wrappedWithTransaction = (transaction: TransactionBuilder) => {
+              prepareValidatedItemSync();
+              return originalWithTransaction.call(builder, transaction);
+            };
+
+            // Copy all properties from the original function to preserve mock functionality
+            Object.setPrototypeOf(wrappedWithTransaction, originalWithTransaction);
+            const propertyNames = Object.getOwnPropertyNames(originalWithTransaction);
+            for (let i = 0; i < propertyNames.length; i++) {
+              const prop = propertyNames[i] as string;
+              if (prop !== "length" && prop !== "name" && prop !== "prototype") {
+                try {
+                  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+                  (wrappedWithTransaction as any)[prop] = (originalWithTransaction as any)[prop];
+                } catch (e) {
+                  // Ignore errors for non-configurable properties
+                }
+              }
+            }
+
+            builder.withTransaction = wrappedWithTransaction;
+          }
 
           return builder;
         },
