@@ -80,13 +80,40 @@ export class Table<TConfig extends TableConfig = TableConfig> {
   }
 
   /**
-   * Creates a new item in the table, it will fail if the item already exists
+   * Creates a new item in the table, it will fail if the item already exists.
+   *
+   * By default, this method returns the input values passed to the create operation
+   * upon successful creation.
+   *
+   * You can customise the return behaviour by chaining the `.returnValues()` method:
    *
    * @param item The item to create
-   * @returns A PutBuilder instance for chaining conditions and executing the put operation
+   * @returns A PutBuilder instance for chaining additional conditions and executing the create operation
+   *
+   * @example
+   * ```ts
+   * // Create with default behavior (returns input values)
+   * const result = await table.create({
+   *   id: 'user-123',
+   *   name: 'John Doe',
+   *   email: 'john@example.com'
+   * }).execute();
+   * console.log(result); // Returns the input object
+   *
+   * // Create with no return value for better performance
+   * await table.create(userData).returnValues('NONE').execute();
+   *
+   * // Create and get fresh data from dynamodb using a strongly consistent read
+   * const freshData = await table.create(userData).returnValues('CONSISTENT').execute();
+   *
+   * // Create and get previous values (if the item was overwritten)
+   * const oldData = await table.create(userData).returnValues('ALL_OLD').execute();
+   * ```
    */
   create<T extends DynamoItem>(item: T): PutBuilder<T> {
-    return this.put(item).condition((op: ConditionOperator<T>) => op.attributeNotExists(this.partitionKey as Path<T>));
+    return this.put(item)
+      .condition((op: ConditionOperator<T>) => op.attributeNotExists(this.partitionKey as Path<T>))
+      .returnValues("INPUT");
   }
 
   get<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
@@ -128,10 +155,18 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
-          // CONSISTENT is not a valid ReturnValue for DDB, so we set NONE as we are not interested in its
-          // response and will be reloading the item from the DB through a get instead
-          ReturnValues: params.returnValues === "CONSISTENT" ? "NONE" : params.returnValues,
+          // CONSISTENT and INPUT are not valid ReturnValues for DDB, so we set NONE as we are not interested in its
+          // response and will be handling these cases separately
+          ReturnValues:
+            params.returnValues === "CONSISTENT" || params.returnValues === "INPUT" ? "NONE" : params.returnValues,
         });
+
+        // Handle different return value options
+        if (params.returnValues === "INPUT") {
+          // Return the input values that were passed to the operation
+          // this is fairly common for create operations when using entities
+          return params.item as T;
+        }
 
         // Reload the item from the DB, so the user gets the most correct representation of the item from the DB
         if (params.returnValues === "CONSISTENT") {
