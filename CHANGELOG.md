@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/Kysumi/dyno-table/compare/v1.2.0...v1.3.0) (2025-05-28)
+
+
+### Features
+
+* **table:** refactor `transaction` method to be an `async` function ([#41](https://github.com/Kysumi/dyno-table/issues/41)) ([bdc5a75](https://github.com/Kysumi/dyno-table/commit/bdc5a756a08188ac7f278d8f0a1bafab7070f7c3))
+
 # [1.2.0](https://github.com/Kysumi/dyno-table/compare/v1.1.0...v1.2.0) (2025-05-27)
 
 
