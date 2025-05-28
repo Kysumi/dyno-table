@@ -1,3 +1,5 @@
+## [1.3.1](https://github.com/Kysumi/dyno-table/compare/v1.3.0...v1.3.1) (2025-05-28)
+
 # [1.3.0](https://github.com/Kysumi/dyno-table/compare/v1.2.0...v1.3.0) (2025-05-28)
 
 
