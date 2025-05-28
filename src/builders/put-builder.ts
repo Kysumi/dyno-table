@@ -32,9 +32,10 @@ export interface PutOptions {
    * @options
    *  - NONE: No return value
    *  - ALL_OLD: Returns the item's previous state if it existed
-   *  - CONSISTENT: (default) Performs a GET operation after the put to retrieve the item's new state
+   *  - CONSISTENT: Performs a GET operation after the put to retrieve the item's new state
+   *  - INPUT: Returns the input values that were passed to the operation
    */
-  returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT";
+  returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT";
 }
 
 type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T>;
@@ -216,7 +217,8 @@ export class PutBuilder<T extends DynamoItem> {
    * @options
    *  - NONE: No return value
    *  - ALL_OLD: Returns the item's previous state if it existed, no read capacity units are consumed
-   *  - CONSISTENT: (default) Performs a GET operation after the put to retrieve the item's new state
+   *  - CONSISTENT: Performs a GET operation after the put to retrieve the item's new state
+   *  - INPUT: Returns the input values that were passed to the operation
    *
    * @example
    * ```ts
@@ -235,12 +237,17 @@ export class PutBuilder<T extends DynamoItem> {
    *     }
    *   });
    * }
+   *
+   * // Return input values for create operations
+   * const createResult = await builder
+   *   .returnValues('INPUT')
+   *   .execute();
    * ```
    *
-   * @param returnValues - Use 'ALL_OLD' to return previous values if the item was overwritten, or 'NONE' (default).
+   * @param returnValues - Use 'ALL_OLD' to return previous values, 'INPUT' to return input values, 'CONSISTENT' for fresh data, or 'NONE' (default).
    * @returns The builder instance for method chaining
    */
-  public returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT"): this {
+  public returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT"): this {
     this.options.returnValues = returnValues;
     return this;
   }

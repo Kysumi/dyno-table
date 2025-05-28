@@ -20,6 +20,7 @@ export interface DeleteCommandParams extends DynamoCommandWithExpressions {
  * - `"ALL_OLD"`: Return the attributes of the item as they were before the operation
  * - `"NONE"`: Return nothing
  * - `"CONSISTENT"`: Triggers a GET operation after the put to retrieve the updated item state
+ * - `"INPUT"`: Return the input values that were passed to the operation (useful for create operations)
  */
 export interface PutCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
@@ -27,7 +28,7 @@ export interface PutCommandParams extends DynamoCommandWithExpressions {
   conditionExpression?: string;
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: Record<string, unknown>;
-  returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT";
+  returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT";
 }
 
 /**

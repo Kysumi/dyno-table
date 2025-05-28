@@ -9,7 +9,7 @@ describe("Table Integration Tests - Create Items", () => {
     table = createTestTable();
   });
 
-  it("should create a new item", async () => {
+  it("should create a new item and return input values by default", async () => {
     const dino: Dinosaur = {
       demoPartitionKey: "dinosaur#1",
       demoSortKey: "dino#trex",
@@ -21,10 +21,35 @@ describe("Table Integration Tests - Create Items", () => {
       period: "Late Cretaceous",
     };
 
-    await table.create(dino).execute();
+    const result = await table.create(dino).execute();
 
-    // Verify item was created
+    // Verify that create returns the input values by default
+    expect(result).toEqual(dino);
+
+    // Verify item was created in the database
     const queryResult = await table.query({ pk: "dinosaur#1" }).execute();
+    expect(queryResult.items).toHaveLength(1);
+    expect(queryResult.items[0]).toEqual(dino);
+  });
+
+  it("should allow customizing return values through returnValues method", async () => {
+    const dino: Dinosaur = {
+      demoPartitionKey: "dinosaur#3",
+      demoSortKey: "dino#stego",
+      name: "Stegosaurus",
+      type: "Stegosaurid",
+      height: 9,
+      weight: 5000,
+      diet: "Herbivore",
+      period: "Late Jurassic",
+    };
+
+    // Test with NONE return value
+    const noneResult = await table.create(dino).returnValues("NONE").execute();
+    expect(noneResult).toBeUndefined();
+
+    // Verify item was still created
+    const queryResult = await table.query({ pk: "dinosaur#3" }).execute();
     expect(queryResult.items).toHaveLength(1);
     expect(queryResult.items[0]).toEqual(dino);
   });
