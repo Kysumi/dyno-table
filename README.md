@@ -248,13 +248,13 @@ await dinoTable
 
 ```ts
 // Perform multiple operations atomically
-await dinoTable.transaction(async (tx) => {
+await dinoTable.transaction((tx) => {
   // Move dinosaur to new enclosure
-  await dinoTable
+  dinoTable
     .delete({ pk: "ENCLOSURE#A", sk: "DINO#1" })
     .withTransaction(tx);
 
-  await dinoTable
+  dinoTable
     .create({ pk: "ENCLOSURE#B", sk: "DINO#1", 
       status: "ACTIVE" })
     .withTransaction(tx);
@@ -288,9 +288,6 @@ await dinoTable
   )
   .execute();
 ```
-
-</td>
-<td>
 
 ```ts
 // Verbose, error-prone, no type safety
