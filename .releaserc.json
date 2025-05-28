@@ -22,7 +22,7 @@
           { "type": "test", "release": false },
           { "type": "build", "release": "patch" },
           { "type": "ci", "release": false },
-          { "type": "chore", "release": false },
+          { "type": "chore", "release": "patch" },
           { "type": "revert", "release": "patch" },
           { "breaking": true, "release": "major" },
           { "type": "feat", "scope": "api", "release": "minor" },
