@@ -1,7 +1,10 @@
-import {defineConfig} from "tsup";
+import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: {
+    // Main entry point
+    index: "src/index.ts",
+
     // Individual module entry points
     table: "src/table.ts",
     entity: "src/entity.ts",
@@ -10,8 +13,7 @@ export default defineConfig({
     "standard-schema": "src/standard-schema.ts",
 
     // Utils
-    "utils/partition-key-template": "src/utils/partition-key-template.ts",
-    "utils/sort-key-template": "src/utils/sort-key-template.ts",
+    utils: "src/utils/index.ts",
 
     // Builders
     "builders/query-builder": "src/builders/query-builder.ts",
