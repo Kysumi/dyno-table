@@ -995,6 +995,7 @@ Dyno-table provides comprehensive query methods that match DynamoDB's capabiliti
 | **Greater Than**          | `.filter(op => op.gt("price", 50))`                     | `price > :v1`                     |
 | **Greater Than or Equal** | `.filter(op => op.gte("rating", 4))`                    | `rating >= :v1`                   |
 | **Between**               | `.filter(op => op.between("age", 18, 65))`              | `age BETWEEN :v1 AND :v2`         |
+| **In Array**              | `.filter(op => op.inArray("status", ["ACTIVE", "PENDING"]))` | `status IN (:v1, :v2)`            |
 | **Begins With**           | `.filter(op => op.beginsWith("email", "@example.com"))` | `begins_with(email, :v1)`         |
 | **Contains**              | `.filter(op => op.contains("tags", "important"))`       | `contains(tags, :v1)`             |
 | **Attribute Exists**      | `.filter(op => op.attributeExists("email"))`            | `attribute_exists(email)`         |
@@ -1101,12 +1102,12 @@ const oldDino = await table.put<Dinosaur>({
 
 The library supports a comprehensive set of type-safe condition operators:
 
-| Category       | Operators                               | Example                                                                 |
-|----------------|-----------------------------------------|-------------------------------------------------------------------------|
-| **Comparison** | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`    | `.condition(op => op.gt("age", 18))`                                    |
-| **String/Set** | `between`, `beginsWith`, `contains`     | `.condition(op => op.beginsWith("email", "@example"))`                  |
-| **Existence**  | `attributeExists`, `attributeNotExists` | `.condition(op => op.attributeExists("email"))`                         |
-| **Logical**    | `and`, `or`, `not`                      | `.condition(op => op.and(op.eq("status", "active"), op.gt("age", 18)))` |
+| Category       | Operators                                    | Example                                                                 |
+|----------------|----------------------------------------------|-------------------------------------------------------------------------|
+| **Comparison** | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`         | `.condition(op => op.gt("age", 18))`                                    |
+| **String/Set** | `between`, `beginsWith`, `contains`, `inArray` | `.condition(op => op.inArray("status", ["active", "pending"]))`         |
+| **Existence**  | `attributeExists`, `attributeNotExists`      | `.condition(op => op.attributeExists("email"))`                         |
+| **Logical**    | `and`, `or`, `not`                           | `.condition(op => op.and(op.eq("status", "active"), op.gt("age", 18)))` |
 
 All operators are type-safe and will provide proper TypeScript inference for nested attributes.
 
@@ -1191,6 +1192,8 @@ await table.query<DinosaurMonitoring>({
   op.lt("health", "90"), // ❌ TypeScript Error: health expects number
   op.gt("temperature", 38), // ✓ Valid
   op.contains("behavior", "aggressive"), // ✓ Valid
+  op.inArray("alertLevel", ["LOW", "MEDIUM", "HIGH"]), // ✓ Valid: matches union type
+  op.inArray("alertLevel", ["UNKNOWN", "INVALID"]), // ❌ TypeScript Error: invalid alert levels
   op.eq("alertLevel", "UNKNOWN") // ❌ TypeScript Error: invalid alert level
 ))
 .execute();
@@ -1285,6 +1288,7 @@ All condition operators are type-safe and will validate against your item type. 
 - `gt(attr, value)` - Greater than (>)
 - `gte(attr, value)` - Greater than or equal to (≥)
 - `between(attr, lower, upper)` - Between two values (inclusive)
+- `inArray(attr, values)` - Checks if value is in a list of values (IN operator, max 100 values)
 - `beginsWith(attr, value)` - Checks if string begins with value
 - `contains(attr, value)` - Checks if string/set contains value
 
@@ -1298,6 +1302,18 @@ await dinoTable
     op.lt("stats.health", 85),  // Health below 85%
     op.lt("care.feeding.lastFed", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()),  // Not fed in 12 hours
     op.between("stats.weight", 1000, 5000)  // Medium-sized dinosaurs
+  ))
+  .execute();
+
+// Example: Filter dinosaurs by multiple status values using inArray
+await dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#trex"
+  })
+  .filter((op) => op.and(
+    op.inArray("status", ["ACTIVE", "FEEDING", "RESTING"]),  // Multiple valid statuses
+    op.inArray("diet", ["carnivore", "omnivore"]),           // Meat-eating dinosaurs
+    op.gt("dangerLevel", 5)                                  // High danger level
   ))
   .execute();
 ```
@@ -1348,6 +1364,11 @@ await dinoTable
     op.and(
       op.lt("care.feeding.lastFed", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()),
       op.contains("behavior", "stressed")
+    ),
+    // Alert: Critical status dinosaurs requiring immediate attention
+    op.and(
+      op.inArray("status", ["SICK", "INJURED", "QUARANTINE"]),  // Critical statuses
+      op.inArray("priority", ["HIGH", "URGENT"])                // High priority levels
     ),
     // Alert: Enclosure climate issues
     op.and(
