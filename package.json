@@ -8,79 +8,144 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./table": {
-      "types": "./dist/table.d.ts",
-      "import": "./dist/table.js",
-      "require": "./dist/table.cjs"
+      "import": {
+        "types": "./dist/table.d.ts",
+        "default": "./dist/table.js"
+      },
+      "require": {
+        "types": "./dist/table.d.cts",
+        "default": "./dist/table.cjs"
+      }
     },
     "./entity": {
-      "types": "./dist/entity.d.ts",
-      "import": "./dist/entity.js",
-      "require": "./dist/entity.cjs"
+      "import": {
+        "types": "./dist/entity.d.ts",
+        "default": "./dist/entity.js"
+      },
+      "require": {
+        "types": "./dist/entity.d.cts",
+        "default": "./dist/entity.cjs"
+      }
     },
     "./conditions": {
-      "types": "./dist/conditions.d.ts",
-      "import": "./dist/conditions.js",
-      "require": "./dist/conditions.cjs"
+      "import": {
+        "types": "./dist/conditions.d.ts",
+        "default": "./dist/conditions.js"
+      },
+      "require": {
+        "types": "./dist/conditions.d.cts",
+        "default": "./dist/conditions.cjs"
+      }
     },
     "./types": {
-      "types": "./dist/types.d.ts",
-      "import": "./dist/types.js",
-      "require": "./dist/types.cjs"
+      "import": {
+        "types": "./dist/types.d.ts",
+        "default": "./dist/types.js"
+      },
+      "require": {
+        "types": "./dist/types.d.cts",
+        "default": "./dist/types.cjs"
+      }
     },
     "./standard-schema": {
-      "types": "./dist/standard-schema.d.ts",
-      "import": "./dist/standard-schema.js",
-      "require": "./dist/standard-schema.cjs"
+      "import": {
+        "types": "./dist/standard-schema.d.ts",
+        "default": "./dist/standard-schema.js"
+      },
+      "require": {
+        "types": "./dist/standard-schema.d.cts",
+        "default": "./dist/standard-schema.cjs"
+      }
     },
-    "./utils/partition-key-template": {
-      "types": "./dist/utils/partition-key-template.d.ts",
-      "import": "./dist/utils/partition-key-template.js",
-      "require": "./dist/utils/partition-key-template.cjs"
-    },
-    "./utils/sort-key-template": {
-      "types": "./dist/utils/sort-key-template.d.ts",
-      "import": "./dist/utils/sort-key-template.js",
-      "require": "./dist/utils/sort-key-template.cjs"
+    "./utils": {
+      "import": {
+        "types": "./dist/utils.d.ts",
+        "default": "./dist/utils.js"
+      },
+      "require": {
+        "types": "./dist/utils.d.cts",
+        "default": "./dist/utils.cjs"
+      }
     },
     "./builders/query-builder": {
-      "types": "./dist/builders/query-builder.d.ts",
-      "import": "./dist/builders/query-builder.js",
-      "require": "./dist/builders/query-builder.cjs"
+      "import": {
+        "types": "./dist/builders/query-builder.d.ts",
+        "default": "./dist/builders/query-builder.js"
+      },
+      "require": {
+        "types": "./dist/builders/query-builder.d.cts",
+        "default": "./dist/builders/query-builder.cjs"
+      }
     },
     "./builders/paginator": {
-      "types": "./dist/builders/paginator.d.ts",
-      "import": "./dist/builders/paginator.js",
-      "require": "./dist/builders/paginator.cjs"
+      "import": {
+        "types": "./dist/builders/paginator.d.ts",
+        "default": "./dist/builders/paginator.js"
+      },
+      "require": {
+        "types": "./dist/builders/paginator.d.cts",
+        "default": "./dist/builders/paginator.cjs"
+      }
     },
     "./builders/put-builder": {
-      "types": "./dist/builders/put-builder.d.ts",
-      "import": "./dist/builders/put-builder.js",
-      "require": "./dist/builders/put-builder.cjs"
+      "import": {
+        "types": "./dist/builders/put-builder.d.ts",
+        "default": "./dist/builders/put-builder.js"
+      },
+      "require": {
+        "types": "./dist/builders/put-builder.d.cts",
+        "default": "./dist/builders/put-builder.cjs"
+      }
     },
     "./builders/update-builder": {
-      "types": "./dist/builders/update-builder.d.ts",
-      "import": "./dist/builders/update-builder.js",
-      "require": "./dist/builders/update-builder.cjs"
+      "import": {
+        "types": "./dist/builders/update-builder.d.ts",
+        "default": "./dist/builders/update-builder.js"
+      },
+      "require": {
+        "types": "./dist/builders/update-builder.d.cts",
+        "default": "./dist/builders/update-builder.cjs"
+      }
     },
     "./builders/delete-builder": {
-      "types": "./dist/builders/delete-builder.d.ts",
-      "import": "./dist/builders/delete-builder.js",
-      "require": "./dist/builders/delete-builder.cjs"
+      "import": {
+        "types": "./dist/builders/delete-builder.d.ts",
+        "default": "./dist/builders/delete-builder.js"
+      },
+      "require": {
+        "types": "./dist/builders/delete-builder.d.cts",
+        "default": "./dist/builders/delete-builder.cjs"
+      }
     },
     "./builders/transaction-builder": {
-      "types": "./dist/builders/transaction-builder.d.ts",
-      "import": "./dist/builders/transaction-builder.js",
-      "require": "./dist/builders/transaction-builder.cjs"
+      "import": {
+        "types": "./dist/builders/transaction-builder.d.ts",
+        "default": "./dist/builders/transaction-builder.js"
+      },
+      "require": {
+        "types": "./dist/builders/transaction-builder.d.cts",
+        "default": "./dist/builders/transaction-builder.cjs"
+      }
     },
     "./builders/condition-check-builder": {
-      "types": "./dist/builders/condition-check-builder.d.ts",
-      "import": "./dist/builders/condition-check-builder.js",
-      "require": "./dist/builders/condition-check-builder.cjs"
+      "import": {
+        "types": "./dist/builders/condition-check-builder.d.ts",
+        "default": "./dist/builders/condition-check-builder.js"
+      },
+      "require": {
+        "types": "./dist/builders/condition-check-builder.d.cts",
+        "default": "./dist/builders/condition-check-builder.cjs"
+      }
     }
   },
   "scripts": {
@@ -96,12 +161,7 @@
     "ddb:start": "docker compose up -d",
     "circular": "npx madge --circular --ts-config ./tsconfig.json --extensions ts,tsx src/"
   },
-  "keywords": [
-    "dynamodb",
-    "aws",
-    "typescript",
-    "database"
-  ],
+  "keywords": ["dynamodb", "aws", "typescript", "database"],
   "author": "Maunder",
   "license": "ISC",
   "repository": {
@@ -124,8 +184,6 @@
     "@aws-sdk/client-dynamodb": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "packageManager": "pnpm@10.5.2"
 }
