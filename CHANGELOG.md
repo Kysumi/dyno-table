@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/Kysumi/dyno-table/compare/v1.3.1...v1.4.0) (2025-05-30)
+
+
+### Features
+
+* **conditions:** add support for `IN` operator with `inArray` function and related tests ([#45](https://github.com/Kysumi/dyno-table/issues/45)) ([527e471](https://github.com/Kysumi/dyno-table/commit/527e4713ad3960b6cb4409fc1ef4ee20afc94792))
+
 ## [1.3.1](https://github.com/Kysumi/dyno-table/compare/v1.3.0...v1.3.1) (2025-05-28)
 
 # [1.3.0](https://github.com/Kysumi/dyno-table/compare/v1.2.0...v1.3.0) (2025-05-28)
