@@ -61,6 +61,27 @@ const buildBetweenExpression = (condition: Condition, params: ExpressionParams):
   return `${attrName} BETWEEN ${lowerName} AND ${upperName}`;
 };
 
+const buildInExpression = (condition: Condition, params: ExpressionParams): string => {
+  validateCondition(condition);
+
+  if (!condition.attr) {
+    throw new Error(`Attribute is required for ${condition.type} condition`);
+  }
+
+  if (!Array.isArray(condition.value) || condition.value.length === 0) {
+    throw new Error("In condition requires a non-empty array of values");
+  }
+
+  if (condition.value.length > 100) {
+    throw new Error("In condition supports a maximum of 100 values");
+  }
+
+  const attrName = generateAttributeName(params, condition.attr);
+  const valueNames = condition.value.map((value) => generateValueName(params, value));
+
+  return `${attrName} IN (${valueNames.join(", ")})`;
+};
+
 const buildFunctionExpression = (functionName: string, condition: Condition, params: ExpressionParams): string => {
   validateCondition(condition);
 
@@ -107,6 +128,7 @@ export const buildExpression = (condition: Condition, params: ExpressionParams):
       gt: () => buildComparisonExpression(condition, ">", params),
       gte: () => buildComparisonExpression(condition, ">=", params),
       between: () => buildBetweenExpression(condition, params),
+      in: () => buildInExpression(condition, params),
       beginsWith: () => buildFunctionExpression("begins_with", condition, params),
       contains: () => buildFunctionExpression("contains", condition, params),
       attributeExists: () => buildAttributeFunction("attribute_exists", condition, params),
