@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/Kysumi/dyno-table/compare/v1.4.0...v1.5.0) (2025-05-30)
+
+
+### Features
+
+* **core:** introduce centralized index exports and update module structure ([#46](https://github.com/Kysumi/dyno-table/issues/46)) ([e529ea5](https://github.com/Kysumi/dyno-table/commit/e529ea5731d8df543b2b104b8049963bd24dd760))
+
 # [1.4.0](https://github.com/Kysumi/dyno-table/compare/v1.3.1...v1.4.0) (2025-05-30)
 
 
