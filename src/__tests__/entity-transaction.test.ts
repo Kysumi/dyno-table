@@ -97,8 +97,9 @@ describe("Entity Transaction Support", () => {
       // @ts-ignore
       builder.withTransaction(mockTransaction);
 
-      // Verify that the builder was created with the correct data including keys
-      expect(mockTable.create).toHaveBeenCalledWith({
+      // Verify that the builder has the correct data including keys after withTransaction is called
+      // @ts-ignore
+      expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#123",
@@ -153,20 +154,22 @@ describe("Entity Transaction Support", () => {
       // @ts-ignore
       builder.withTransaction(mockTransaction);
 
-      // Verify that the builder was created with the correct data including keys and timestamps
-      // @ts-expect-error
-      const createCall = mockTable.create.mock.calls[0][0];
-      expect(createCall).toHaveProperty("entityType", "TestEntityWithTimestamps");
-      expect(createCall).toHaveProperty("pk", "TEST#123");
-      expect(createCall).toHaveProperty("sk", "METADATA#");
-      expect(createCall).toHaveProperty("createdAt");
-      expect(createCall).toHaveProperty("modifiedAt");
+      // Verify that the builder has the correct data including keys and timestamps after withTransaction is called
+      // @ts-ignore
+      expect(builder.item).toEqual({
+        ...testData,
+        entityType: "TestEntityWithTimestamps",
+        pk: "TEST#123",
+        sk: "METADATA#",
+        createdAt: expect.any(String),
+        modifiedAt: expect.any(Number),
+      });
 
       // Verify that withTransaction was called
       expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
-    it("should generate keys immediately for transaction compatibility", () => {
+    it("should generate keys when withTransaction is called", () => {
       const testData: TestEntity = {
         id: "456",
         name: "Another Item",
@@ -193,18 +196,23 @@ describe("Entity Transaction Support", () => {
       // Create the builder
       const builder = repository.create(testData);
 
-      // Verify that keys are generated immediately (not deferred to execute)
-      expect(mockTable.create).toHaveBeenCalledWith({
+      // Keys should not be generated yet
+      // @ts-ignore
+      expect(builder.item).toBeUndefined();
+
+      // Simulate what happens when withTransaction is called
+      // This should trigger key generation
+      // @ts-ignore
+      builder.withTransaction(mockTransaction);
+
+      // Verify that keys are generated when withTransaction is called
+      // @ts-ignore
+      expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#456",
         sk: "METADATA#",
       });
-
-      // Simulate what happens when withTransaction is called
-      // The builder should already have all the necessary keys
-      // @ts-ignore
-      builder.withTransaction(mockTransaction);
 
       // Verify that withTransaction was called successfully
       expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
@@ -243,8 +251,9 @@ describe("Entity Transaction Support", () => {
       // @ts-ignore
       builder.withTransaction(mockTransaction);
 
-      // Verify that complex keys are generated correctly
-      expect(mockTable.create).toHaveBeenCalledWith({
+      // Verify that complex keys are generated correctly after withTransaction is called
+      // @ts-ignore
+      expect(builder.item).toEqual({
         ...testData,
         entityType: "ComplexEntity",
         pk: "USER#789",
@@ -287,8 +296,9 @@ describe("Entity Transaction Support", () => {
       // @ts-ignore
       builder.withTransaction(mockTransaction);
 
-      // Verify that only partition key is generated (no sort key)
-      expect(mockTable.create).toHaveBeenCalledWith({
+      // Verify that only partition key is generated (no sort key) after withTransaction is called
+      // @ts-ignore
+      expect(builder.item).toEqual({
         ...testData,
         entityType: "SimpleEntity",
         pk: "SIMPLE#999",
@@ -354,8 +364,9 @@ describe("Entity Transaction Support", () => {
       // @ts-ignore
       builder.withTransaction(mockTransaction);
 
-      // Verify that primary and secondary index keys are generated
-      expect(mockTableWithGSI.create).toHaveBeenCalledWith({
+      // Verify that primary and secondary index keys are generated after withTransaction is called
+      // @ts-ignore
+      expect(builder.item).toEqual({
         ...testData,
         entityType: "EntityWithGSI",
         pk: "MAIN#gsi-test",
@@ -461,16 +472,21 @@ describe("Entity Transaction Support", () => {
       // @ts-ignore
       upsertBuilder.withTransaction(mockTransaction);
 
-      // Both should include the same keys
-      const expectedData = {
+      // Both should have complete data including keys after withTransaction is called
+      // @ts-ignore
+      expect(createBuilder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#consistency-test",
         sk: "METADATA#",
-      };
-
-      expect(mockTable.create).toHaveBeenCalledWith(expectedData);
-      expect(mockTable.put).toHaveBeenCalledWith(expectedData);
+      });
+      // @ts-ignore
+      expect(upsertBuilder.item).toEqual({
+        ...testData,
+        entityType: "TestEntity",
+        pk: "TEST#consistency-test",
+        sk: "METADATA#",
+      });
 
       // Both should successfully call withTransaction
       expect(mockCreateBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
@@ -526,16 +542,17 @@ describe("Entity Transaction Support", () => {
       // @ts-ignore
       expect(() => upsertBuilder.withTransaction(mockTransaction)).not.toThrow();
 
-      // Both should have been called with complete data including keys
-      expect(mockTable.create).toHaveBeenCalledWith(
+      // Both should have complete data including keys after withTransaction is called
+      // @ts-ignore
+      expect(createBuilder.item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",
           sk: "METADATA#",
           entityType: "TestEntity",
         }),
       );
-
-      expect(mockTable.put).toHaveBeenCalledWith(
+      // @ts-ignore
+      expect(upsertBuilder.item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",
           sk: "METADATA#",
