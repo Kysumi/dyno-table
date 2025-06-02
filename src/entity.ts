@@ -81,11 +81,12 @@ interface Settings {
 
 export interface EntityConfig<
   T extends DynamoItem,
+  TInput extends DynamoItem = T,
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
 > {
   name: string;
-  schema: StandardSchemaV1<T>;
+  schema: StandardSchemaV1<TInput, T>;
   primaryKey: IndexDefinition<I>;
   indexes?: Record<string, Index>;
   queries: Q;
@@ -94,9 +95,13 @@ export interface EntityConfig<
 
 export interface EntityRepository<
   /**
-   * The Entity Type
+   * The Entity Type (output type)
    */
   T extends DynamoItem,
+  /**
+   * The Input Type (for create operations)
+   */
+  TInput extends DynamoItem = T,
   /**
    * The Primary Index (Partition index) Type
    */
@@ -106,8 +111,8 @@ export interface EntityRepository<
    */
   Q extends QueryRecord<T> = QueryRecord<T>,
 > {
-  create: (data: T) => PutBuilder<T>;
-  upsert: (data: T & I) => PutBuilder<T>;
+  create: (data: TInput) => PutBuilder<T>;
+  upsert: (data: TInput & I) => PutBuilder<T>;
   get: (key: I) => GetBuilder<T>;
   update: (key: I, data: Partial<T>) => UpdateBuilder<T>;
   delete: (key: I) => DeleteBuilder;
@@ -132,9 +137,12 @@ export interface EntityRepository<
  * });
  * ```
  */
-export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q extends QueryRecord<T> = QueryRecord<T>>(
-  config: EntityConfig<T, I, Q>,
-) {
+export function defineEntity<
+  T extends DynamoItem,
+  TInput extends DynamoItem = T,
+  I extends DynamoItem = T,
+  Q extends QueryRecord<T> = QueryRecord<T>,
+>(config: EntityConfig<T, TInput, I, Q>) {
   const entityTypeAttributeName = config.settings?.entityTypeAttributeName ?? "entityType";
 
   /**
@@ -181,53 +189,51 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
 
   return {
     name: config.name,
-    createRepository: (table: Table): EntityRepository<T, I, Q> => {
+    createRepository: (table: Table): EntityRepository<T, TInput, I, Q> => {
       // Create a repository
       const repository = {
-        create: (data: T) => {
-          // Generate the primary key upfront for transaction compatibility
-          // Note: We assume data is valid for key generation, validation happens during execution
-          const primaryKey = config.primaryKey.generateKey(data as unknown as I);
+        create: (data: TInput) => {
+          // Create a minimal builder without validation or key generation
+          // We'll defer all processing until execute() or withTransaction() is called
+          const builder = table.create<T>({} as T);
 
-          const indexes = Object.entries(config.indexes ?? {}).reduce(
-            (acc, [indexName, index]) => {
-              const key = (index as IndexDefinition<T>).generateKey(data);
-              const gsiConfig = table.gsis[indexName];
-
-              if (!gsiConfig) {
-                throw new Error(`GSI configuration not found for index: ${indexName}`);
-              }
-
-              if (key.pk) {
-                acc[gsiConfig.partitionKey] = key.pk;
-              }
-              if (key.sk && gsiConfig.sortKey) {
-                acc[gsiConfig.sortKey] = key.sk;
-              }
-              return acc;
-            },
-            {} as Record<string, string>,
-          );
-
-          // Create the builder with all keys included upfront
-          const builder = table.create<T>({
-            ...data,
-            [entityTypeAttributeName]: config.name,
-            [table.partitionKey]: primaryKey.pk,
-            ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-            ...indexes,
-            ...generateTimestamps(["createdAt", "updatedAt"]),
-          });
-
-          // Core function that handles validation and item preparation (async version)
+          // Core function that handles validation, key generation, and item preparation (async version)
           const prepareValidatedItemAsync = async () => {
-            const validationResult = await config.schema["~standard"].validate(data);
-            if ("issues" in validationResult && validationResult.issues) {
-              throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+            // Validate data to ensure defaults are applied before key generation
+            const validationResult = config.schema["~standard"].validate(data);
+
+            // Handle Promise case
+            const validatedData = validationResult instanceof Promise ? await validationResult : validationResult;
+
+            if ("issues" in validatedData && validatedData.issues) {
+              throw new Error(`Validation failed: ${validatedData.issues.map((i) => i.message).join(", ")}`);
             }
 
+            // Generate the primary key using validated data (with defaults applied)
+            const primaryKey = config.primaryKey.generateKey(validatedData.value as unknown as I);
+
+            const indexes = Object.entries(config.indexes ?? {}).reduce(
+              (acc, [indexName, index]) => {
+                const key = (index as IndexDefinition<T>).generateKey(validatedData.value as unknown as T);
+                const gsiConfig = table.gsis[indexName];
+
+                if (!gsiConfig) {
+                  throw new Error(`GSI configuration not found for index: ${indexName}`);
+                }
+
+                if (key.pk) {
+                  acc[gsiConfig.partitionKey] = key.pk;
+                }
+                if (key.sk && gsiConfig.sortKey) {
+                  acc[gsiConfig.sortKey] = key.sk;
+                }
+                return acc;
+              },
+              {} as Record<string, string>,
+            );
+
             const validatedItem = {
-              ...validationResult.value,
+              ...(validatedData.value as unknown as T),
               [entityTypeAttributeName]: config.name,
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
@@ -239,21 +245,46 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
             return validatedItem;
           };
 
-          // Core function that handles validation and item preparation (sync version)
+          // Core function that handles validation, key generation, and item preparation (sync version)
           const prepareValidatedItemSync = () => {
             const validationResult = config.schema["~standard"].validate(data);
 
-            // Handle Promise case - this shouldn't happen in withTransaction, but we need to handle it for type safety
+            // Handle Promise case - this shouldn't happen for most schemas, but we need to handle it
             if (validationResult instanceof Promise) {
-              throw new Error("Async validation is not supported in withTransaction. Use execute() instead.");
+              throw new Error(
+                "Async validation is not supported in create method. The schema must support synchronous validation for transaction compatibility.",
+              );
             }
 
             if ("issues" in validationResult && validationResult.issues) {
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
+            // Generate the primary key using validated data (with defaults applied)
+            const primaryKey = config.primaryKey.generateKey(validationResult.value as unknown as I);
+
+            const indexes = Object.entries(config.indexes ?? {}).reduce(
+              (acc, [indexName, index]) => {
+                const key = (index as IndexDefinition<T>).generateKey(validationResult.value as unknown as T);
+                const gsiConfig = table.gsis[indexName];
+
+                if (!gsiConfig) {
+                  throw new Error(`GSI configuration not found for index: ${indexName}`);
+                }
+
+                if (key.pk) {
+                  acc[gsiConfig.partitionKey] = key.pk;
+                }
+                if (key.sk && gsiConfig.sortKey) {
+                  acc[gsiConfig.sortKey] = key.sk;
+                }
+                return acc;
+              },
+              {} as Record<string, string>,
+            );
+
             const validatedItem = {
-              ...validationResult.value,
+              ...(validationResult.value as unknown as T),
               [entityTypeAttributeName]: config.name,
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
@@ -302,31 +333,50 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
           return builder;
         },
 
-        upsert: (data: T & I) => {
-          const primaryKey = config.primaryKey.generateKey(data);
+        upsert: (data: TInput & I) => {
+          // Create a minimal builder without validation or key generation
+          // We'll defer all processing until execute() or withTransaction() is called
+          const builder = table.put<T>({} as T);
 
-          // We need to handle the async operations when the consumer calls execute
-          const builder = table.put<T>({
-            [table.partitionKey]: primaryKey.pk,
-            ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-            ...data,
-            [entityTypeAttributeName]: config.name,
-            ...generateTimestamps(["createdAt", "updatedAt"]),
-          });
-
-          // Core function that handles validation and item preparation (async version)
+          // Core function that handles validation, key generation, and item preparation (async version)
           const prepareValidatedItemAsync = async () => {
-            const validationResult = await config.schema["~standard"].validate(data);
-            if ("issues" in validationResult && validationResult.issues) {
-              throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+            const validationResult = config.schema["~standard"].validate(data);
+
+            // Handle Promise case
+            const validatedData = validationResult instanceof Promise ? await validationResult : validationResult;
+
+            if ("issues" in validatedData && validatedData.issues) {
+              throw new Error(`Validation failed: ${validatedData.issues.map((i) => i.message).join(", ")}`);
             }
 
-            const primaryKey = config.primaryKey.generateKey(validationResult.value as T & I);
+            const primaryKey = config.primaryKey.generateKey(validatedData.value as unknown as TInput & I);
+
+            const indexes = Object.entries(config.indexes ?? {}).reduce(
+              (acc, [indexName, index]) => {
+                const key = (index as IndexDefinition<T>).generateKey(validatedData.value as unknown as T);
+                const gsiConfig = table.gsis[indexName];
+
+                if (!gsiConfig) {
+                  throw new Error(`GSI configuration not found for index: ${indexName}`);
+                }
+
+                if (key.pk) {
+                  acc[gsiConfig.partitionKey] = key.pk;
+                }
+                if (key.sk && gsiConfig.sortKey) {
+                  acc[gsiConfig.sortKey] = key.sk;
+                }
+                return acc;
+              },
+              {} as Record<string, string>,
+            );
+
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-              ...validationResult.value,
+              ...validatedData.value,
               [entityTypeAttributeName]: config.name,
+              ...indexes,
               ...generateTimestamps(["createdAt", "updatedAt"]),
             };
 
@@ -334,7 +384,7 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
             return validatedItem;
           };
 
-          // Core function that handles validation and item preparation (sync version)
+          // Core function that handles validation, key generation, and item preparation (sync version)
           const prepareValidatedItemSync = () => {
             const validationResult = config.schema["~standard"].validate(data);
 
@@ -347,12 +397,34 @@ export function defineEntity<T extends DynamoItem, I extends DynamoItem = T, Q e
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
-            const primaryKey = config.primaryKey.generateKey(validationResult.value as T & I);
+            const primaryKey = config.primaryKey.generateKey(validationResult.value as unknown as TInput & I);
+
+            const indexes = Object.entries(config.indexes ?? {}).reduce(
+              (acc, [indexName, index]) => {
+                const key = (index as IndexDefinition<T>).generateKey(validationResult.value as unknown as T);
+                const gsiConfig = table.gsis[indexName];
+
+                if (!gsiConfig) {
+                  throw new Error(`GSI configuration not found for index: ${indexName}`);
+                }
+
+                if (key.pk) {
+                  acc[gsiConfig.partitionKey] = key.pk;
+                }
+                if (key.sk && gsiConfig.sortKey) {
+                  acc[gsiConfig.sortKey] = key.sk;
+                }
+                return acc;
+              },
+              {} as Record<string, string>,
+            );
+
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
               ...validationResult.value,
               [entityTypeAttributeName]: config.name,
+              ...indexes,
               ...generateTimestamps(["createdAt", "updatedAt"]),
             };
 

@@ -119,13 +119,14 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.create.mockReturnValue(mockBuilder);
 
-      await repository.create(testData).execute();
+      const builder = repository.create(testData);
+      await builder.execute();
 
       // Verify that both timestamps were added
-      // @ts-ignore - ignore the type error
-      const createCall = mockTable.create.mock.calls[0][0];
-      expect(createCall).toHaveProperty("createdAt", mockDate.toISOString());
-      expect(createCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
     });
 
     it("should only update the updatedAt timestamp when updating an entity", async () => {
@@ -150,7 +151,8 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.update.mockReturnValue(mockBuilder);
 
-      await repository.update(key, updateData).execute();
+      const builder = repository.update(key, updateData);
+      await builder.execute();
 
       // Verify that only updatedAt was included in the update
       // @ts-ignore - ignore the type error
@@ -179,13 +181,14 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.put.mockReturnValue(mockBuilder);
 
-      await repository.upsert(testData).execute();
+      const builder = repository.upsert(testData);
+      await builder.execute();
 
       // Verify that both timestamps were added
-      // @ts-ignore - ignore the type error
-      const putCall = mockTable.put.mock.calls[0][0];
-      expect(putCall).toHaveProperty("createdAt", mockDate.toISOString());
-      expect(putCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
     });
   });
 
@@ -234,13 +237,14 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.create.mockReturnValue(mockBuilder);
 
-      await repository.create(testData).execute();
+      const builder = repository.create(testData);
+      await builder.execute();
 
       // Verify that only createdAt was added
-      // @ts-ignore - ignore the type error
-      const createCall = mockTable.create.mock.calls[0][0];
-      expect(createCall).toHaveProperty("createdAt", mockDate.toISOString());
-      expect(createCall).not.toHaveProperty("updatedAt");
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
+      // @ts-ignore
+      expect(builder.item).not.toHaveProperty("updatedAt");
     });
 
     it("should not add any timestamps when updating an entity", async () => {
@@ -260,7 +264,8 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.update.mockReturnValue(mockBuilder);
 
-      await repository.update(key, updateData).execute();
+      const builder = repository.update(key, updateData);
+      await builder.execute();
 
       // Verify that no timestamps were included in the update
       // @ts-ignore - ignore the type error
@@ -316,13 +321,14 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.create.mockReturnValue(mockBuilder);
 
-      await repository.create(testData).execute();
+      const builder = repository.create(testData);
+      await builder.execute();
 
       // Verify that only updatedAt was added
-      // @ts-ignore - ignore the type error
-      const createCall = mockTable.create.mock.calls[0][0];
-      expect(createCall).not.toHaveProperty("createdAt");
-      expect(createCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
+      // @ts-ignore
+      expect(builder.item).not.toHaveProperty("createdAt");
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
     });
 
     it("should add updatedAt timestamp when updating an entity", async () => {
@@ -347,7 +353,8 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.update.mockReturnValue(mockBuilder);
 
-      await repository.update(key, updateData).execute();
+      const builder = repository.update(key, updateData);
+      await builder.execute();
 
       // Verify that updatedAt was included in the update
       // @ts-ignore - ignore the type error
@@ -407,15 +414,18 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.create.mockReturnValue(mockBuilder);
 
-      await repository.create(testData).execute();
+      const builder = repository.create(testData);
+      await builder.execute();
 
       // Verify that custom attribute names were used
-      // @ts-ignore - ignore the type error
-      const createCall = mockTable.create.mock.calls[0][0];
-      expect(createCall).toHaveProperty("dateCreated", mockDate.toISOString());
-      expect(createCall).toHaveProperty("dateModified", Math.floor(mockDate.getTime() / 1000));
-      expect(createCall).not.toHaveProperty("createdAt");
-      expect(createCall).not.toHaveProperty("updatedAt");
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("dateCreated", mockDate.toISOString());
+      // @ts-ignore
+      expect(builder.item).toHaveProperty("dateModified", Math.floor(mockDate.getTime() / 1000));
+      // @ts-ignore
+      expect(builder.item).not.toHaveProperty("createdAt");
+      // @ts-ignore
+      expect(builder.item).not.toHaveProperty("updatedAt");
     });
   });
 
@@ -453,13 +463,14 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.create.mockReturnValue(mockBuilder);
 
-      await repository.create(testData).execute();
+      const builder = repository.create(testData);
+      await builder.execute();
 
       // Verify that no timestamps were added
-      // @ts-ignore - ignore the type error
-      const createCall = mockTable.create.mock.calls[0][0];
-      expect(createCall).not.toHaveProperty("createdAt");
-      expect(createCall).not.toHaveProperty("updatedAt");
+      // @ts-ignore
+      expect(builder.item).not.toHaveProperty("createdAt");
+      // @ts-ignore
+      expect(builder.item).not.toHaveProperty("updatedAt");
     });
 
     it("should not add any timestamps when updating an entity", async () => {
@@ -479,7 +490,8 @@ describe("Entity Timestamp Operations", () => {
 
       mockTable.update.mockReturnValue(mockBuilder);
 
-      await repository.update(key, updateData).execute();
+      const builder = repository.update(key, updateData);
+      await builder.execute();
 
       // Verify that no timestamps were included in the update
       // @ts-ignore - ignore the type error

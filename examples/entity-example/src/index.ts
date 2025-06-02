@@ -142,7 +142,7 @@ async function main() {
         diet: "carnivore",
         dangerLevel: 10,
         height: 5.2,
-        weight: 7000,
+        // weight: 7000, - weight is optional due to the default value defined on the entity schema
         status: "active",
       })
       .returnValues("CONSISTENT")
