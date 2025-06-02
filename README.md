@@ -45,9 +45,13 @@ await dinoTable
   </td>
 </tr>
 <tr>
-  <td>
+  <td width="50%">
     <h3>⚡ Velociraptor-fast API</h3>
     <p>Intuitive chainable builder pattern for complex operations that feels natural and reduces boilerplate</p>
+  </td>
+  <td width="50%">
+    <h3>🎯 Semantic data access patterns</h3>
+    <p>Encourages meaningful, descriptive method names like <code>getUserByEmail()</code> instead of cryptic <code>gsi1</code> references</p>
   </td>
 </tr>
 <tr>
@@ -65,6 +69,10 @@ await dinoTable
 ## 📑 Table of Contents
 
 - [📦 Installation](#-installation)
+- [🎯 DynamoDB Best Practices](#-dynamodb-best-practices)
+  - [Semantic Data Access Patterns](#semantic-data-access-patterns)
+  - [The Problem with Generic Index Names](#the-problem-with-generic-index-names)
+  - [The Solution: Meaningful Method Names](#the-solution-meaningful-method-names)
 - [🚀 Quick Start](#-quick-start)
   - [1. Configure Your Jurassic Table](#1-configure-your-jurassic-table)
   - [2. Perform Type-Safe Dinosaur Operations](#2-perform-type-safe-dinosaur-operations)
@@ -137,6 +145,133 @@ pnpm add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 </details>
 
+## 🎯 DynamoDB Best Practices
+
+<div align="center">
+
+### **Design Your Data Access Patterns First, Name Them Meaningfully**
+
+</div>
+
+dyno-table follows DynamoDB best practices by encouraging developers to **define their data access patterns upfront** and assign them **meaningful, descriptive names**. This approach ensures that when writing business logic, developers call semantically clear methods instead of cryptic index references.
+
+### Semantic Data Access Patterns
+
+The core principle is simple: **your code should read like business logic, not database implementation details**.
+
+<table>
+<tr>
+<th>❌ Cryptic Implementation</th>
+<th>✅ Semantic Business Logic</th>
+</tr>
+<tr>
+<td>
+
+```ts
+// Hard to understand what this does - using raw AWS Document Client
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
+
+const docClient = DynamoDBDocument.from(new DynamoDBClient({}));
+
+const users = await docClient.send(new QueryCommand({
+  TableName: "MyTable",
+  IndexName: "gsi1", 
+  KeyConditionExpression: "#pk = :pk",
+  ExpressionAttributeNames: { "#pk": "pk" },
+  ExpressionAttributeValues: { ":pk": "STATUS#active" }
+}));
+
+const orders = await docClient.send(new QueryCommand({
+  TableName: "MyTable",
+  IndexName: "gsi2",
+  KeyConditionExpression: "#pk = :pk",
+  ExpressionAttributeNames: { "#pk": "pk" },
+  ExpressionAttributeValues: { ":pk": "CUSTOMER#123" }
+}));
+
+const products = await docClient.send(new QueryCommand({
+  TableName: "MyTable",
+  IndexName: "gsi3",
+  KeyConditionExpression: "#pk = :pk",
+  ExpressionAttributeNames: { "#pk": "pk" },
+  ExpressionAttributeValues: { ":pk": "CATEGORY#electronics" }
+}));
+```
+
+</td>
+<td>
+
+```ts
+// Clear business intent
+const activeUsers = await userRepo.query
+  .getActiveUsers()
+  .execute();
+
+const customerOrders = await orderRepo.query
+  .getOrdersByCustomer({ customerId: "123" })
+  .execute();
+
+const electronics = await productRepo.query
+  .getProductsByCategory({ category: "electronics" })
+  .execute();
+```
+
+</td>
+</tr>
+</table>
+
+### The Problem with Generic Index Names
+
+When you use generic names like `gsi1`, `gsi2`, `gsi3`, you create several problems:
+
+- **🧠 Cognitive Load**: Developers must remember what each index does
+- **📚 Poor Documentation**: Code doesn't self-document its purpose
+- **🐛 Error-Prone**: Easy to use the wrong index for a query
+- **👥 Team Friction**: New team members struggle to understand data access patterns
+- **🔄 Maintenance Issues**: Refactoring becomes risky and unclear
+
+### The Solution: Meaningful Method Names
+
+dyno-table encourages you to define your access patterns with descriptive names that reflect their business purpose:
+
+```ts
+// Define your access patterns with meaningful names
+const UserEntity = defineEntity({
+  name: "User",
+  schema: userSchema,
+  primaryKey,
+  queries: {
+    // ✅ Clear business purpose
+    getActiveUsers: createQuery
+      .input(z.object({}))
+      .query(({ entity }) => entity.query({ pk: "STATUS#active" }).useIndex("gsi1")),
+
+    getUsersByEmail: createQuery
+      .input(z.object({ email: z.string() }))
+      .query(({ input, entity }) => entity.query({ pk: `EMAIL#${input.email}` }).useIndex("gsi1")),
+
+    getUsersByDepartment: createQuery
+      .input(z.object({ department: z.string() }))
+      .query(({ input, entity }) => entity.query({ pk: `DEPT#${input.department}` }).useIndex("gsi2")),
+  },
+});
+
+// Usage in business logic is now self-documenting
+const activeUsers = await userRepo.query.getActiveUsers().execute();
+const engineeringTeam = await userRepo.query.getUsersByDepartment({ department: "engineering" }).execute();
+const user = await userRepo.query.getUsersByEmail({ email: "john@company.com" }).execute();
+```
+
+**This pattern promotes:**
+- ✅ **Better code readability and maintainability**
+- ✅ **Self-documenting API design**
+- ✅ **Easier onboarding for new team members**
+- ✅ **Reduced cognitive load when understanding data access patterns**
+- ✅ **Clear separation between business logic and database implementation**
+
+> **🏗️ Important Note**: Keep your actual DynamoDB table GSI names generic (`gsi1`, `gsi2`, etc.) for flexibility across different entities. The meaningful, descriptive names should live at the entity/repository level, not at the table level. This allows multiple entities to share the same GSIs while maintaining semantic clarity in your business logic.
+
 ## 🚀 Quick Start
 
 <div align="center">
@@ -176,6 +311,8 @@ const dinoTable = new Table({
 ```
 
 ### 2. Perform Type-Safe Operations directly on the table instance
+
+> **💡 Pro Tip**: While you can use the table directly, we recommend using the [Entity Pattern](#-entity-pattern-with-standard-schema-validators) with meaningful, descriptive method names like `getUserByEmail()` instead of generic index references. This follows DynamoDB best practices and makes your code self-documenting.
 
 <table>
 <tr>
@@ -271,28 +408,17 @@ await dinoTable.transaction((tx) => {
 
 <table>
 <tr>
-<th>With dyno-table</th>
-<th>Without dyno-table</th>
+<th>❌ Without dyno-table</th>
+<th>✅ With dyno-table (Entity Pattern)</th>
 </tr>
 <tr>
 <td>
 
 ```ts
-// Type-safe, clean, and intuitive
-await dinoTable
-  .query<Dinosaur>({ 
-    pk: "SPECIES#trex"
-  })
-  .filter(op => 
-    op.contains("features", "feathers")
-  )
-  .execute();
-```
-
-```ts
 // Verbose, error-prone, no type safety
 await docClient.send(new QueryCommand({
   TableName: "JurassicPark",
+  IndexName: "gsi1", // What does gsi1 do?
   KeyConditionExpression: "#pk = :pk",
   FilterExpression: "contains(#features, :feathers)",
   ExpressionAttributeNames: {
@@ -307,8 +433,35 @@ await docClient.send(new QueryCommand({
 ```
 
 </td>
+<td>
+
+```ts
+// Self-documenting, type-safe, semantic
+const featheredTRexes = await dinosaurRepo.query
+  .getFeatheredDinosaursBySpecies({
+    species: "trex"
+  })
+  .execute();
+
+// Or using table directly (still better than raw SDK)
+await dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#trex"
+  })
+  .filter(op =>
+    op.contains("features", "feathers")
+  )
+  .execute();
+```
+
+</td>
 </tr>
 </table>
+
+**Key improvements:**
+- 🛡️ **Type Safety**: Compile-time error checking prevents runtime failures
+- 📖 **Self-Documenting**: Code clearly expresses business intent
+- 🧠 **Reduced Complexity**: No manual expression building or attribute mapping
 
 ## 🏗️ Entity Pattern with Standard Schema validators
 
@@ -336,7 +489,6 @@ await docClient.send(new QueryCommand({
 - 🔑 **Automatic key generation**
 - 📦 **Repository pattern**
 - 🔍 **Custom query builders**
-- 🔄 **Lifecycle hooks**
 
 </td>
 </tr>
@@ -460,7 +612,7 @@ await dinosaurRepo.delete({
 
 #### 3. Custom Queries
 
-Define custom queries with input validation:
+Define custom queries with **meaningful, descriptive names** that reflect their business purpose. This follows DynamoDB best practices by making your data access patterns self-documenting:
 
 ```ts
 import { createQueries } from "dyno-table/entity";
@@ -472,7 +624,8 @@ const DinosaurEntity = defineEntity({
   schema: dinosaurSchema,
   primaryKey,
   queries: {
-    byDiet: createQuery
+    // ✅ Semantic method names that describe business intent
+    getDinosaursByDiet: createQuery
       .input(
         z.object({
           diet: z.enum(["carnivore", "herbivore", "omnivore"]),
@@ -485,7 +638,7 @@ const DinosaurEntity = defineEntity({
           });
       }),
 
-    bySpecies: createQuery
+    findDinosaursBySpecies: createQuery
       .input(
         z.object({
           species: z.string(),
@@ -496,40 +649,89 @@ const DinosaurEntity = defineEntity({
           .scan()
           .filter((op) => op.eq("species", input.species));
       }),
+
+    getActiveCarnivores: createQuery
+      .input(z.object({}))
+      .query(({ entity }) => {
+        return entity
+          .query({
+            pk: dinosaurPK({diet: "carnivore"})
+          })
+          .filter((op) => op.eq("status", "active"));
+      }),
+
+    getDangerousDinosaursInEnclosure: createQuery
+      .input(
+        z.object({
+          enclosureId: z.string(),
+          minDangerLevel: z.number().min(1).max(10),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .scan()
+          .filter((op) => op.and(
+            op.contains("enclosureId", input.enclosureId),
+            op.gte("dangerLevel", input.minDangerLevel)
+          ));
+      }),
   },
 });
 
-// Use the custom queries
-const carnivores = await dinosaurRepo.query.byDiet({ diet: "carnivore" }).execute();
-const trexes = await dinosaurRepo.query.bySpecies({ species: "Tyrannosaurus Rex" }).execute();
+// Usage in business logic is now self-documenting
+const carnivores = await dinosaurRepo.query.getDinosaursByDiet({ diet: "carnivore" }).execute();
+const trexes = await dinosaurRepo.query.findDinosaursBySpecies({ species: "Tyrannosaurus Rex" }).execute();
+const activeCarnivores = await dinosaurRepo.query.getActiveCarnivores().execute();
+const dangerousDinos = await dinosaurRepo.query.getDangerousDinosaursInEnclosure({
+  enclosureId: "PADDOCK-A",
+  minDangerLevel: 8
+}).execute();
 ```
 
-#### 4. Defining GSI access patterns
+**Benefits of semantic naming:**
+- 🎯 **Clear Intent**: Method names immediately convey what data you're accessing
+- 📖 **Self-Documenting**: No need to look up what `gsi1` or `gsi2` does
+- 🧠 **Reduced Cognitive Load**: Developers can focus on business logic, not database details
+- 👥 **Team Collaboration**: New team members understand the codebase faster
+- 🔍 **Better IDE Support**: Autocomplete shows meaningful method names
 
-Define GSI (LSI support coming later)
+#### 4. Defining GSI Access Patterns
+
+Define GSI access patterns with **meaningful names** that reflect their business purpose. This is crucial for maintaining readable, self-documenting code:
 
 ```ts
 import { createIndex } from "dyno-table/entity";
 
-// Define GSIs templates for querying by species
-const gsi1PK = partitionKey`SPECIES#${"species"}`
-const gsi1SK = sortKey`DINOSAUR#${"id"}`
+// Define GSI templates with descriptive names that reflect their purpose
+const speciesPK = partitionKey`SPECIES#${"species"}`
+const speciesSK = sortKey`DINOSAUR#${"id"}`
 
-// Implement typesafe generator for the GSI - This is used in create calls to ensure the GSI is generated
+const enclosurePK = partitionKey`ENCLOSURE#${"enclosureId"}`
+const enclosureSK = sortKey`DANGER#${"dangerLevel"}#ID#${"id"}`
+
+// Create indexes with meaningful names
 const speciesIndex = createIndex()
   .input(dinosaurSchema)
-  .partitionKey(({ species }) => gsi1PK({ species }))
-  .sortKey(({ id }) => gsi1SK({ id }));
+  .partitionKey(({ species }) => speciesPK({ species }))
+  .sortKey(({ id }) => speciesSK({ id }));
+
+const enclosureIndex = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ enclosureId }) => enclosurePK({ enclosureId }))
+  .sortKey(({ dangerLevel, id }) => enclosureSK({ dangerLevel, id }));
 
 const DinosaurEntity = defineEntity({
   name: "Dinosaur",
   schema: dinosaurSchema,
   primaryKey,
   indexes: {
-    species: speciesIndex,
+    // ✅ Map to generic GSI names for table flexibility
+    gsi1: speciesIndex,
+    gsi2: enclosureIndex,
   },
   queries: {
-    bySpecies: createQuery
+    // ✅ Semantic method names that describe business intent
+    getDinosaursBySpecies: createQuery
       .input(
         z.object({
           species: z.string(),
@@ -538,15 +740,58 @@ const DinosaurEntity = defineEntity({
       .query(({ input, entity }) => {
         return entity
           .query({
-            // Use the GSI template generator to avoid typos
-            pk: gsi1PK({species: input.species}),
+            pk: speciesPK({species: input.species}),
           })
-          // Use the template name as defined in the table instance
-          .useIndex("gsi1");
+          .useIndex("gsi1"); // Generic GSI name for table flexibility
+      }),
+
+    getDinosaursByEnclosure: createQuery
+      .input(
+        z.object({
+          enclosureId: z.string(),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .query({
+            pk: enclosurePK({enclosureId: input.enclosureId}),
+          })
+          .useIndex("gsi2");
+      }),
+
+    getMostDangerousInEnclosure: createQuery
+      .input(
+        z.object({
+          enclosureId: z.string(),
+          minDangerLevel: z.number().min(1).max(10),
+        })
+      )
+      .query(({ input, entity }) => {
+        return entity
+          .query({
+            pk: enclosurePK({enclosureId: input.enclosureId}),
+            sk: (op) => op.gte(`DANGER#${input.minDangerLevel}`)
+          })
+          .useIndex("gsi2")
+          .sortDescending(); // Get most dangerous first
       }),
   },
 });
+
+// Usage is now self-documenting
+const trexes = await dinosaurRepo.query.getDinosaursBySpecies({ species: "Tyrannosaurus Rex" }).execute();
+const paddockADinos = await dinosaurRepo.query.getDinosaursByEnclosure({ enclosureId: "PADDOCK-A" }).execute();
+const dangerousDinos = await dinosaurRepo.query.getMostDangerousInEnclosure({
+  enclosureId: "PADDOCK-A",
+  minDangerLevel: 8
+}).execute();
 ```
+
+**Key principles for access pattern naming:**
+- 🎯 **Generic GSI Names**: Keep table-level GSI names generic (`gsi1`, `gsi2`) for flexibility across entities
+- 🔍 **Business-Focused**: Method names should reflect what the query achieves, not how it works
+- 📚 **Self-Documenting**: Anyone reading the code should understand the purpose immediately
+- 🏗️ **Entity-Level Semantics**: The meaningful names live at the entity/repository level, not the table level
 
 ### Complete Entity Example
 
@@ -621,7 +866,8 @@ const DinosaurEntity = defineEntity({
     gsi2: enclosureIndex,
   },
   queries: {
-    bySpecies: createQuery
+    // ✅ Semantic method names that describe business intent
+    getDinosaursBySpecies: createQuery
       .input(
         z.object({
           species: z.string(),
@@ -635,7 +881,7 @@ const DinosaurEntity = defineEntity({
           .useIndex("gsi1");
       }),
 
-    byEnclosure: createQuery
+    getDinosaursByEnclosure: createQuery
       .input(
         z.object({
           enclosureId: z.string(),
@@ -649,7 +895,7 @@ const DinosaurEntity = defineEntity({
           .useIndex("gsi2");
       }),
 
-    dangerousInEnclosure: createQuery
+    getDangerousDinosaursInEnclosure: createQuery
       .input(
         z.object({
           enclosureId: z.string(),
@@ -688,13 +934,13 @@ async function main() {
     })
     .execute();
 
-  // Query dinosaurs by species
-  const trexes = await dinosaurRepo.query.bySpecies({ 
-    species: "Tyrannosaurus Rex" 
+  // Query dinosaurs by species using semantic method names
+  const trexes = await dinosaurRepo.query.getDinosaursBySpecies({
+    species: "Tyrannosaurus Rex"
   }).execute();
 
   // Query dangerous dinosaurs in an enclosure
-  const dangerousDinos = await dinosaurRepo.query.dangerousInEnclosure({
+  const dangerousDinos = await dinosaurRepo.query.getDangerousDinosaursInEnclosure({
     enclosureId: "enc-001",
     minDangerLevel: 8,
   }).execute();
@@ -702,12 +948,14 @@ async function main() {
 ```
 
 **Key benefits:**
-- 🚫 Prevents accidental cross-type data access
-- 🔍 Automatically filters queries/scans to a repository type
-- 🛡️ Ensures consistent key structure across entities
-- 📦 Encapsulates domain-specific query logic
-- 🧪 Validates data with Zod schemas
-- 🔄 Provides type inference from schemas
+- 🎯 **Semantic Data Access**: Method names like `getDinosaursBySpecies()` clearly express business intent
+- 🚫 **Prevents Accidental Cross-Type Access**: Type-safe operations prevent data corruption
+- 🔍 **Self-Documenting Code**: No need to remember what `gsi1` or `gsi2` does
+- 🛡️ **Consistent Key Structure**: Ensures uniform key patterns across entities
+- 📦 **Encapsulated Domain Logic**: Business rules are contained within entity definitions
+- 🧪 **Schema Validation**: Automatic data validation with your preferred schema library
+- 🔄 **Full Type Inference**: Complete TypeScript support from schema to queries
+- 👥 **Team Collaboration**: New developers understand the codebase immediately
 
 ## 🧩 Advanced Features
 
@@ -995,6 +1243,7 @@ Dyno-table provides comprehensive query methods that match DynamoDB's capabiliti
 | **Greater Than**          | `.filter(op => op.gt("price", 50))`                     | `price > :v1`                     |
 | **Greater Than or Equal** | `.filter(op => op.gte("rating", 4))`                    | `rating >= :v1`                   |
 | **Between**               | `.filter(op => op.between("age", 18, 65))`              | `age BETWEEN :v1 AND :v2`         |
+| **In Array**              | `.filter(op => op.inArray("status", ["ACTIVE", "PENDING"]))` | `status IN (:v1, :v2)`            |
 | **Begins With**           | `.filter(op => op.beginsWith("email", "@example.com"))` | `begins_with(email, :v1)`         |
 | **Contains**              | `.filter(op => op.contains("tags", "important"))`       | `contains(tags, :v1)`             |
 | **Attribute Exists**      | `.filter(op => op.attributeExists("email"))`            | `attribute_exists(email)`         |
@@ -1101,12 +1350,12 @@ const oldDino = await table.put<Dinosaur>({
 
 The library supports a comprehensive set of type-safe condition operators:
 
-| Category       | Operators                               | Example                                                                 |
-|----------------|-----------------------------------------|-------------------------------------------------------------------------|
-| **Comparison** | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`    | `.condition(op => op.gt("age", 18))`                                    |
-| **String/Set** | `between`, `beginsWith`, `contains`     | `.condition(op => op.beginsWith("email", "@example"))`                  |
-| **Existence**  | `attributeExists`, `attributeNotExists` | `.condition(op => op.attributeExists("email"))`                         |
-| **Logical**    | `and`, `or`, `not`                      | `.condition(op => op.and(op.eq("status", "active"), op.gt("age", 18)))` |
+| Category       | Operators                                    | Example                                                                 |
+|----------------|----------------------------------------------|-------------------------------------------------------------------------|
+| **Comparison** | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`         | `.condition(op => op.gt("age", 18))`                                    |
+| **String/Set** | `between`, `beginsWith`, `contains`, `inArray` | `.condition(op => op.inArray("status", ["active", "pending"]))`         |
+| **Existence**  | `attributeExists`, `attributeNotExists`      | `.condition(op => op.attributeExists("email"))`                         |
+| **Logical**    | `and`, `or`, `not`                           | `.condition(op => op.and(op.eq("status", "active"), op.gt("age", 18)))` |
 
 All operators are type-safe and will provide proper TypeScript inference for nested attributes.
 
@@ -1191,6 +1440,8 @@ await table.query<DinosaurMonitoring>({
   op.lt("health", "90"), // ❌ TypeScript Error: health expects number
   op.gt("temperature", 38), // ✓ Valid
   op.contains("behavior", "aggressive"), // ✓ Valid
+  op.inArray("alertLevel", ["LOW", "MEDIUM", "HIGH"]), // ✓ Valid: matches union type
+  op.inArray("alertLevel", ["UNKNOWN", "INVALID"]), // ❌ TypeScript Error: invalid alert levels
   op.eq("alertLevel", "UNKNOWN") // ❌ TypeScript Error: invalid alert level
 ))
 .execute();
@@ -1285,6 +1536,7 @@ All condition operators are type-safe and will validate against your item type. 
 - `gt(attr, value)` - Greater than (>)
 - `gte(attr, value)` - Greater than or equal to (≥)
 - `between(attr, lower, upper)` - Between two values (inclusive)
+- `inArray(attr, values)` - Checks if value is in a list of values (IN operator, max 100 values)
 - `beginsWith(attr, value)` - Checks if string begins with value
 - `contains(attr, value)` - Checks if string/set contains value
 
@@ -1298,6 +1550,18 @@ await dinoTable
     op.lt("stats.health", 85),  // Health below 85%
     op.lt("care.feeding.lastFed", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()),  // Not fed in 12 hours
     op.between("stats.weight", 1000, 5000)  // Medium-sized dinosaurs
+  ))
+  .execute();
+
+// Example: Filter dinosaurs by multiple status values using inArray
+await dinoTable
+  .query<Dinosaur>({
+    pk: "SPECIES#trex"
+  })
+  .filter((op) => op.and(
+    op.inArray("status", ["ACTIVE", "FEEDING", "RESTING"]),  // Multiple valid statuses
+    op.inArray("diet", ["carnivore", "omnivore"]),           // Meat-eating dinosaurs
+    op.gt("dangerLevel", 5)                                  // High danger level
   ))
   .execute();
 ```
@@ -1348,6 +1612,11 @@ await dinoTable
     op.and(
       op.lt("care.feeding.lastFed", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()),
       op.contains("behavior", "stressed")
+    ),
+    // Alert: Critical status dinosaurs requiring immediate attention
+    op.and(
+      op.inArray("status", ["SICK", "INJURED", "QUARANTINE"]),  // Critical statuses
+      op.inArray("priority", ["HIGH", "URGENT"])                // High priority levels
     ),
     // Alert: Enclosure climate issues
     op.and(
