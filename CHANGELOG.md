@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/Kysumi/dyno-table/compare/v1.5.0...v1.6.0) (2025-06-02)
+
+
+### Features
+
+* Adding defaults support using input and output types ([#48](https://github.com/Kysumi/dyno-table/issues/48)) ([1544e43](https://github.com/Kysumi/dyno-table/commit/1544e435ed37c05c80f9c35f386343e13cd90087))
+
 # [1.5.0](https://github.com/Kysumi/dyno-table/compare/v1.4.0...v1.5.0) (2025-05-30)
 
 
