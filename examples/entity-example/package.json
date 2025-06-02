@@ -9,7 +9,8 @@
     "start": "tsx src/index.ts",
     "debug": "tsx --inspect-brk src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "docker": "docker compose up -d"
+    "docker": "docker compose up -d",
+    "check-types": "tsc --noEmit"
   },
   "keywords": ["dyno-table", "zod", "dynamodb", "typescript"],
   "author": "",
