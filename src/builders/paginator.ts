@@ -185,7 +185,7 @@ export class Paginator<T extends DynamoItem, TConfig extends TableConfig = Table
     }
 
     // Execute the query
-    const result = await query.execute();
+    const result = await query.executeRaw();
 
     // Update pagination state
     this.currentPage += 1;

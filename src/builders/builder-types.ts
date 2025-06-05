@@ -69,7 +69,8 @@ export interface BaseBuilderInterface<T extends DynamoItem, TConfig extends Tabl
   limit(limit: number): B;
   getLimit(): number | undefined;
   startFrom(lastEvaluatedKey: DynamoItem): B;
-  execute(): Promise<{ items: T[]; lastEvaluatedKey?: DynamoItem }>;
+  execute(): Promise<import("./iterable-query-result").IterableQueryResult<T, TConfig>>;
+  executeRaw(): Promise<{ items: T[]; lastEvaluatedKey?: DynamoItem }>;
 }
 
 /**

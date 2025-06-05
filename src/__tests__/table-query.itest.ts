@@ -70,9 +70,10 @@ describe("Table Integration Tests - Query Items", () => {
 
   it("should query items by partition key", async () => {
     const result = await table.query({ pk: "dinosaur#group1" }).execute();
+    const items = result.getItems();
 
-    expect(result.items).toHaveLength(3);
-    expect(result.items.map((item) => item.demoSortKey)).toEqual(
+    expect(items).toHaveLength(3);
+    expect(items.map((item) => item.demoSortKey)).toEqual(
       expect.arrayContaining(["dino#trex1", "dino#trex2", "dino#raptor1"]),
     );
   });
@@ -84,9 +85,10 @@ describe("Table Integration Tests - Query Items", () => {
         sk: (op) => op.beginsWith("dino#trex"),
       })
       .execute();
+    const items = result.getItems();
 
-    expect(result.items).toHaveLength(2);
-    expect(result.items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
   });
 
   it("should query items with filter", async () => {
@@ -94,40 +96,45 @@ describe("Table Integration Tests - Query Items", () => {
       .query({ pk: "dinosaur#group1" })
       .filter((op) => op.gt("height", 15))
       .execute();
+    const items = result.getItems();
 
-    expect(result.items).toHaveLength(2);
-    expect(result.items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
   });
 
   it("should query items with limit", async () => {
     const result = await table.query({ pk: "dinosaur#group1" }).limit(2).execute();
+    const items = result.getItems();
 
-    expect(result.items).toHaveLength(2);
+    expect(items).toHaveLength(2);
   });
 
   it("should query items with sort order", async () => {
     const ascResult = await table.query({ pk: "dinosaur#group1" }).sortAscending().execute();
+    const ascItems = ascResult.getItems();
 
     const descResult = await table.query({ pk: "dinosaur#group1" }).sortDescending().execute();
+    const descItems = descResult.getItems();
 
-    expect(ascResult.items.map((item) => item.demoSortKey)).toEqual(["dino#raptor1", "dino#trex1", "dino#trex2"]);
+    expect(ascItems.map((item) => item.demoSortKey)).toEqual(["dino#raptor1", "dino#trex1", "dino#trex2"]);
 
-    expect(descResult.items.map((item) => item.demoSortKey)).toEqual(["dino#trex2", "dino#trex1", "dino#raptor1"]);
+    expect(descItems.map((item) => item.demoSortKey)).toEqual(["dino#trex2", "dino#trex1", "dino#raptor1"]);
   });
 
   it("should query items with projection", async () => {
     const result = await table.query({ pk: "dinosaur#group1" }).select(["name", "type"]).execute();
+    const items = result.getItems();
 
-    expect(result.items).toHaveLength(3);
+    expect(items).toHaveLength(3);
 
     // @ts-expect-error
-    expect(Object.keys(result.items[0])).toContain("name");
+    expect(Object.keys(items[0])).toContain("name");
     // @ts-expect-error
-    expect(Object.keys(result.items[0])).toContain("type");
+    expect(Object.keys(items[0])).toContain("type");
     // @ts-expect-error
-    expect(Object.keys(result.items[0])).not.toContain("height");
+    expect(Object.keys(items[0])).not.toContain("height");
     // @ts-expect-error
-    expect(Object.keys(result.items[0])).not.toContain("weight");
+    expect(Object.keys(items[0])).not.toContain("weight");
   });
 
   it("should query items with complex filter conditions", async () => {
@@ -135,8 +142,9 @@ describe("Table Integration Tests - Query Items", () => {
       .query({ pk: "dinosaur#group1" })
       .filter((op) => op.and(op.eq("type", "Tyrannosaurus"), op.gt("weight", 6000)))
       .execute();
+    const items = result.getItems();
 
-    expect(result.items).toHaveLength(2);
-    expect(result.items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
   });
 });

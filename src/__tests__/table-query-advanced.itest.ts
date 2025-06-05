@@ -52,23 +52,28 @@ describe("Table Integration Tests - Query Builder Advanced Features", () => {
     // First page
     const firstPageResult = await table.query({ pk: "dinosaur#query" }).limit(2).execute();
 
-    expect(firstPageResult.items).toHaveLength(2);
-    expect(firstPageResult.lastEvaluatedKey).toBeDefined();
+    const firstPageItems = firstPageResult.getItems();
+    expect(firstPageItems).toHaveLength(2);
+    expect(firstPageResult.hasMorePages()).toBe(true);
 
     // Second page
-    if (firstPageResult.lastEvaluatedKey) {
+    if (firstPageResult.hasMorePages()) {
+      // Get the raw result for testing purposes
+      const firstPageRaw = await table.query({ pk: "dinosaur#query" }).limit(2).executeRaw();
+
       const secondPageResult = await table
         .query({ pk: "dinosaur#query" })
         .limit(2)
-        .startFrom(firstPageResult.lastEvaluatedKey)
+        .startFrom(firstPageRaw.lastEvaluatedKey!)
         .execute();
 
-      expect(secondPageResult.items).toHaveLength(2);
-      if (secondPageResult.items[0] && firstPageResult.items[0]) {
-        expect(secondPageResult.items[0].name).not.toBe(firstPageResult.items[0].name);
+      const secondPageItems = secondPageResult.getItems();
+      expect(secondPageItems).toHaveLength(2);
+      if (secondPageItems[0] && firstPageItems[0]) {
+        expect(secondPageItems[0].name).not.toBe(firstPageItems[0].name);
       }
-      if (secondPageResult.items[1] && firstPageResult.items[1]) {
-        expect(secondPageResult.items[1].name).not.toBe(firstPageResult.items[1].name);
+      if (secondPageItems[1] && firstPageItems[1]) {
+        expect(secondPageItems[1].name).not.toBe(firstPageItems[1].name);
       }
     }
   });
@@ -143,6 +148,7 @@ describe("Table Integration Tests - Query Builder Advanced Features", () => {
     // This is mostly a syntax test since we can't easily test the actual consistency
     const result = await table.query({ pk: "dinosaur#query" }).consistentRead(true).execute();
 
-    expect(result.items.length).toBeGreaterThan(0);
+    const items = result.getItems();
+    expect(items.length).toBeGreaterThan(0);
   });
 });

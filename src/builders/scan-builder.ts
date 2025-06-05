@@ -1,6 +1,7 @@
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
 import type { DynamoItem, TableConfig } from "../types";
 import type { ScanBuilderInterface } from "./builder-types";
+import { IterableQueryResult } from "./iterable-query-result";
 
 /**
  * Configuration options for DynamoDB scan operations.
@@ -96,8 +97,8 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
    * - Perform full table analysis
    * - Generate reports across all data
    *
-   * The method returns both the matched items and, if there are more results,
-   * a lastEvaluatedKey that can be used with startFrom() to continue the scan.
+   * The method returns an iterable result that lazily loads additional pages
+   * as you iterate through the results.
    *
    * @example
    * ```typescript
@@ -113,21 +114,36 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
    *     .limit(20)
    *     .execute();
    *
-   *   console.log(`Found ${result.items.length} potentially dangerous dinosaurs`);
-   *
-   *   if (result.lastEvaluatedKey) {
-   *     console.log('More results available');
+   *   // Iterate through all results (pages are loaded on demand)
+   *   for await (const dinosaur of result) {
+   *     console.log(`Processing ${dinosaur.id}`);
    *   }
+   *
+   *   // Or convert to an array (loads all pages)
+   *   const allDinosaurs = await result.toArray();
+   *   console.log(`Found ${allDinosaurs.length} potentially dangerous dinosaurs`);
    * } catch (error) {
    *   console.error('Security scan failed:', error);
    * }
    * ```
    *
+   * @returns A promise that resolves to an IterableQueryResult that lazily loads pages
+   */
+  async execute(): Promise<IterableQueryResult<T, TConfig>> {
+    const result = await this.executeRaw();
+    return new IterableQueryResult<T, TConfig>(result.items, result.lastEvaluatedKey, this);
+  }
+
+  /**
+   * Executes the scan against DynamoDB and returns the raw result.
+   * 
+   * This method is primarily for internal use. Most applications should use execute() instead.
+   *
    * @returns A promise that resolves to an object containing:
    *          - items: Array of items matching the scan criteria
    *          - lastEvaluatedKey: Token for continuing the scan, if more items exist
    */
-  async execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }> {
+  async executeRaw(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }> {
     return this.executor(this.options);
   }
 }

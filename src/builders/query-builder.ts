@@ -2,6 +2,7 @@ import type { Condition } from "../conditions";
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
 import type { DynamoItem, TableConfig } from "../types";
 import type { QueryBuilderInterface } from "./builder-types";
+import { IterableQueryResult } from "./iterable-query-result";
 
 /**
  * Configuration options for DynamoDB query operations.
@@ -191,8 +192,8 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
   /**
    * Executes the query against DynamoDB.
    *
-   * The method returns both the matched items and, if there are more results,
-   * a lastEvaluatedKey that can be used with startFrom() to continue the query.
+   * The method returns an iterable result that lazily loads additional pages
+   * as you iterate through the results.
    *
    * @example
    * ```typescript
@@ -211,21 +212,36 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    *     .limit(5)
    *     .execute();
    *
-   *   console.log(`Found ${result.items.length} dangerous dinosaurs`);
-   *
-   *   if (result.lastEvaluatedKey) {
-   *     console.log('Additional threats detected');
+   *   // Iterate through all results (pages are loaded on demand)
+   *   for await (const dinosaur of result) {
+   *     console.log(`Processing ${dinosaur.id}`);
    *   }
+   *
+   *   // Or convert to an array (loads all pages)
+   *   const allDinosaurs = await result.toArray();
+   *   console.log(`Found ${allDinosaurs.length} dangerous dinosaurs`);
    * } catch (error) {
    *   console.error('Security scan failed:', error);
    * }
    * ```
    *
+   * @returns A promise that resolves to an IterableQueryResult that lazily loads pages
+   */
+  async execute(): Promise<IterableQueryResult<T, TConfig>> {
+    const result = await this.executeRaw();
+    return new IterableQueryResult<T, TConfig>(result.items, result.lastEvaluatedKey, this);
+  }
+
+  /**
+   * Executes the query against DynamoDB and returns the raw result.
+   * 
+   * This method is primarily for internal use. Most applications should use execute() instead.
+   *
    * @returns A promise that resolves to an object containing:
    *          - items: Array of items matching the query
    *          - lastEvaluatedKey: Token for continuing the query, if more items exist
    */
-  async execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }> {
+  async executeRaw(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }> {
     return this.executor(this.keyCondition, this.options);
   }
 }
