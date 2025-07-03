@@ -1,5 +1,6 @@
 import type { ExpressionParams, PrimaryKeyWithoutExpression } from "../conditions";
 import type { DynamoItem } from "../types";
+import type { BatchBuilder } from "./batch-builder";
 import { generateAttributeName } from "../expression";
 
 /**
@@ -142,6 +143,73 @@ export class GetBuilder<T extends DynamoItem> {
   }
 
   /**
+   * Adds this get operation to a batch with optional entity type information.
+   *
+   * @example Basic Usage
+   * ```ts
+   * const batch = table.batchBuilder();
+   *
+   * // Add multiple get operations to batch
+   * dinosaurRepo.get({ id: 'dino-1' }).withBatch(batch);
+   * dinosaurRepo.get({ id: 'dino-2' }).withBatch(batch);
+   * dinosaurRepo.get({ id: 'dino-3' }).withBatch(batch);
+   *
+   * // Execute all gets efficiently
+   * const results = await batch.execute();
+   * ```
+   *
+   * @example Typed Usage
+   * ```ts
+   * const batch = table.batchBuilder<{
+   *   User: UserEntity;
+   *   Order: OrderEntity;
+   * }>();
+   *
+   * // Add operations with type information
+   * userRepo.get({ id: 'user-1' }).withBatch(batch, 'User');
+   * orderRepo.get({ id: 'order-1' }).withBatch(batch, 'Order');
+   *
+   * // Execute and get typed results
+   * const result = await batch.execute();
+   * const users: UserEntity[] = result.reads.itemsByType.User;
+   * const orders: OrderEntity[] = result.reads.itemsByType.Order;
+   * ```
+   *
+   * @param batch - The batch builder to add this operation to
+   * @param entityType - Optional entity type key for type tracking
+   */
+  public withBatch<
+    TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
+    K extends keyof TEntities = keyof TEntities,
+  >(batch: BatchBuilder<TEntities>, entityType?: K) {
+    const command = this.toDynamoCommand();
+    batch.getWithCommand(command, entityType);
+  }
+
+  /**
+   * Converts the builder configuration to a DynamoDB command
+   */
+  private toDynamoCommand(): GetCommandParams {
+    const expressionParams: ExpressionParams = {
+      expressionAttributeNames: {},
+      expressionAttributeValues: {},
+      valueCounter: { count: 0 },
+    };
+
+    const projectionExpression = Array.from(this.selectedFields)
+      .map((p) => generateAttributeName(expressionParams, p))
+      .join(", ");
+
+    const { expressionAttributeNames } = expressionParams;
+
+    return {
+      ...this.params,
+      projectionExpression: projectionExpression.length > 0 ? projectionExpression : undefined,
+      expressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+    };
+  }
+
+  /**
    * Executes the get operation against DynamoDB.
    *
    * @example
@@ -166,22 +234,7 @@ export class GetBuilder<T extends DynamoItem> {
    *          - item: The retrieved dinosaur or undefined if not found
    */
   async execute(): Promise<{ item: T | undefined }> {
-    const expressionParams: ExpressionParams = {
-      expressionAttributeNames: {},
-      expressionAttributeValues: {},
-      valueCounter: { count: 0 },
-    };
-
-    const projectionExpression = Array.from(this.selectedFields)
-      .map((p) => generateAttributeName(expressionParams, p))
-      .join(", ");
-
-    const { expressionAttributeNames } = expressionParams;
-
-    return this.executor({
-      ...this.params,
-      projectionExpression: projectionExpression.length > 0 ? projectionExpression : undefined,
-      expressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
-    });
+    const command = this.toDynamoCommand();
+    return this.executor(command);
   }
 }

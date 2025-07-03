@@ -17,6 +17,7 @@ import {
   not,
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
+import type { BatchBuilder } from "./batch-builder";
 import { prepareExpressionParams } from "../expression";
 import { debugCommand } from "../utils/debug-expression";
 import type { PutCommandParams } from "./builder-types";
@@ -308,6 +309,53 @@ export class PutBuilder<T extends DynamoItem> {
     transaction.putWithCommand(command);
 
     return this;
+  }
+
+  /**
+   * Adds this put operation to a batch with optional entity type information.
+   * Use this method when you need to:
+   * - Batch multiple put operations for efficiency
+   * - Work with entity objects in batch operations
+   * - Perform bulk data operations with type safety
+   *
+   * @example Basic Usage
+   * ```ts
+   * const batch = table.batchBuilder();
+   *
+   * // Add multiple dinosaurs to batch
+   * dinosaurRepo.create(newDino1).withBatch(batch);
+   * dinosaurRepo.create(newDino2).withBatch(batch);
+   * dinosaurRepo.create(newDino3).withBatch(batch);
+   *
+   * // Execute all operations efficiently
+   * await batch.execute();
+   * ```
+   *
+   * @example Typed Usage
+   * ```ts
+   * const batch = table.batchBuilder<{
+   *   User: UserEntity;
+   *   Order: OrderEntity;
+   * }>();
+   *
+   * // Add operations with type information
+   * userRepo.create(newUser).withBatch(batch, 'User');
+   * orderRepo.create(newOrder).withBatch(batch, 'Order');
+   *
+   * // Execute and get typed results
+   * const result = await batch.execute();
+   * const users: UserEntity[] = result.reads.itemsByType.User;
+   * ```
+   *
+   * @param batch - The batch builder to add this operation to
+   * @param entityType - Optional entity type key for type tracking
+   */
+  public withBatch<
+    TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
+    K extends keyof TEntities = keyof TEntities,
+  >(batch: BatchBuilder<TEntities>, entityType?: K) {
+    const command = this.toDynamoCommand();
+    batch.putWithCommand(command, entityType);
   }
 
   /**

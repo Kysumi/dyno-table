@@ -9,6 +9,16 @@ import type { DynamoItem, Index, TableConfig } from "./types";
 import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "./conditions";
 import type { QueryBuilder } from "./builders/query-builder";
 import type { TransactionBuilder } from "./builders/transaction-builder";
+import {
+  createEntityAwarePutBuilder,
+  createEntityAwareGetBuilder,
+  createEntityAwareDeleteBuilder,
+} from "./builders/entity-aware-builders";
+import type {
+  EntityAwarePutBuilder,
+  EntityAwareGetBuilder,
+  EntityAwareDeleteBuilder,
+} from "./builders/entity-aware-builders";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
@@ -26,7 +36,7 @@ export type QueryRecord<T extends DynamoItem> = {
 // Define a type for entity with only scan, get and query methods
 export type QueryEntity<T extends DynamoItem> = {
   scan: () => ScanBuilder<T>;
-  get: (key: PrimaryKeyWithoutExpression) => GetBuilder<T>;
+  get: (key: PrimaryKeyWithoutExpression) => EntityAwareGetBuilder<T>;
   query: (keyCondition: PrimaryKey) => QueryBuilder<T, TableConfig>;
 };
 
@@ -111,11 +121,11 @@ export interface EntityRepository<
    */
   Q extends QueryRecord<T> = QueryRecord<T>,
 > {
-  create: (data: TInput) => PutBuilder<T>;
-  upsert: (data: TInput & I) => PutBuilder<T>;
-  get: (key: I) => GetBuilder<T>;
+  create: (data: TInput) => EntityAwarePutBuilder<T>;
+  upsert: (data: TInput & I) => EntityAwarePutBuilder<T>;
+  get: (key: I) => EntityAwareGetBuilder<T>;
   update: (key: I, data: Partial<T>) => UpdateBuilder<T>;
-  delete: (key: I) => DeleteBuilder;
+  delete: (key: I) => EntityAwareDeleteBuilder;
   query: Q;
   scan: () => ScanBuilder<T>;
 }
@@ -144,6 +154,37 @@ export function defineEntity<
   Q extends QueryRecord<T> = QueryRecord<T>,
 >(config: EntityConfig<T, TInput, I, Q>) {
   const entityTypeAttributeName = config.settings?.entityTypeAttributeName ?? "entityType";
+
+  /**
+   * Utility function to wrap a method with preparation logic while preserving all properties
+   * for mock compatibility. This reduces boilerplate for withTransaction and withBatch wrappers.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: Required for flexible method wrapping
+  const wrapMethodWithPreparation = <TMethod extends (...args: any[]) => any>(
+    originalMethod: TMethod,
+    prepareFn: () => void,
+    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible context binding
+    context: any,
+  ): TMethod => {
+    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible argument handling
+    const wrappedMethod = (...args: any[]) => {
+      prepareFn();
+      return originalMethod.call(context, ...args);
+    };
+
+    // Copy all properties from the original function to preserve mock functionality
+    Object.setPrototypeOf(wrappedMethod, originalMethod);
+    const propertyNames = Object.getOwnPropertyNames(originalMethod);
+    for (let i = 0; i < propertyNames.length; i++) {
+      const prop = propertyNames[i] as string;
+      if (prop !== "length" && prop !== "name" && prop !== "prototype") {
+        // biome-ignore lint/suspicious/noExplicitAny: meh
+        (wrappedMethod as any)[prop] = (originalMethod as any)[prop];
+      }
+    }
+
+    return wrappedMethod as TMethod;
+  };
 
   /**
    * Generates an object containing timestamp attributes based on the given configuration settings.
@@ -306,31 +347,20 @@ export function defineEntity<
           // Wrap the builder's withTransaction method
           const originalWithTransaction = builder.withTransaction;
           if (originalWithTransaction) {
-            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-            const wrappedWithTransaction = (transaction: any) => {
-              prepareValidatedItemSync();
-              return originalWithTransaction.call(builder, transaction);
-            };
-
-            // Copy all properties from the original function to preserve mock functionality
-            Object.setPrototypeOf(wrappedWithTransaction, originalWithTransaction);
-            const propertyNames = Object.getOwnPropertyNames(originalWithTransaction);
-            for (let i = 0; i < propertyNames.length; i++) {
-              const prop = propertyNames[i] as string;
-              if (prop !== "length" && prop !== "name" && prop !== "prototype") {
-                try {
-                  // biome-ignore lint/suspicious/noExplicitAny: Make it work
-                  (wrappedWithTransaction as any)[prop] = (originalWithTransaction as any)[prop];
-                } catch (e) {
-                  // Ignore errors for non-configurable properties
-                }
-              }
-            }
-
-            builder.withTransaction = wrappedWithTransaction;
+            builder.withTransaction = wrapMethodWithPreparation(
+              originalWithTransaction,
+              prepareValidatedItemSync,
+              builder,
+            );
           }
 
-          return builder;
+          // Wrap the builder's withBatch method
+          const originalWithBatch = builder.withBatch;
+          if (originalWithBatch) {
+            builder.withBatch = wrapMethodWithPreparation(originalWithBatch, prepareValidatedItemSync, builder);
+          }
+
+          return createEntityAwarePutBuilder(builder, config.name);
         },
 
         upsert: (data: TInput & I) => {
@@ -446,33 +476,24 @@ export function defineEntity<
           // Wrap the builder's withTransaction method
           const originalWithTransaction = builder.withTransaction;
           if (originalWithTransaction) {
-            const wrappedWithTransaction = (transaction: TransactionBuilder) => {
-              prepareValidatedItemSync();
-              return originalWithTransaction.call(builder, transaction);
-            };
-
-            // Copy all properties from the original function to preserve mock functionality
-            Object.setPrototypeOf(wrappedWithTransaction, originalWithTransaction);
-            const propertyNames = Object.getOwnPropertyNames(originalWithTransaction);
-            for (let i = 0; i < propertyNames.length; i++) {
-              const prop = propertyNames[i] as string;
-              if (prop !== "length" && prop !== "name" && prop !== "prototype") {
-                try {
-                  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-                  (wrappedWithTransaction as any)[prop] = (originalWithTransaction as any)[prop];
-                } catch (e) {
-                  // Ignore errors for non-configurable properties
-                }
-              }
-            }
-
-            builder.withTransaction = wrappedWithTransaction;
+            builder.withTransaction = wrapMethodWithPreparation(
+              originalWithTransaction,
+              prepareValidatedItemSync,
+              builder,
+            );
           }
 
-          return builder;
+          // Wrap the builder's withBatch method
+          const originalWithBatch = builder.withBatch;
+          if (originalWithBatch) {
+            builder.withBatch = wrapMethodWithPreparation(originalWithBatch, prepareValidatedItemSync, builder);
+          }
+
+          return createEntityAwarePutBuilder(builder, config.name);
         },
 
-        get: <K extends I>(key: K) => table.get<T>(config.primaryKey.generateKey(key)),
+        get: <K extends I>(key: K) =>
+          createEntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name),
 
         update: <K extends I>(key: K, data: Partial<T>) => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
@@ -489,7 +510,7 @@ export function defineEntity<
         delete: <K extends I>(key: K) => {
           const builder = table.delete(config.primaryKey.generateKey(key));
           builder.condition(eq(entityTypeAttributeName, config.name));
-          return builder;
+          return createEntityAwareDeleteBuilder(builder, config.name);
         },
 
         query: Object.entries(config.queries || {}).reduce((acc, [key, inputCallback]) => {
@@ -498,7 +519,7 @@ export function defineEntity<
             // Create a QueryEntity object with only the necessary methods
             const queryEntity: QueryEntity<T> = {
               scan: repository.scan,
-              get: (key: PrimaryKeyWithoutExpression) => table.get<T>(key),
+              get: (key: PrimaryKeyWithoutExpression) => createEntityAwareGetBuilder(table.get<T>(key), config.name),
               query: (keyCondition: PrimaryKey) => {
                 return table.query<T>(keyCondition);
               },

@@ -1,10 +1,10 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import type { EntityRepository } from "dyno-table/entity";
-import { Table } from "dyno-table/table";
 import * as readline from "node:readline";
 import { createTable, TABLE_NAME } from "./ddb-table";
 import { type Dinosaur, DinosaurEntity } from "./dinosaur-entity";
+import { Table } from "dyno-table";
 
 const docClient = DynamoDBDocument.from(
   new DynamoDBClient({

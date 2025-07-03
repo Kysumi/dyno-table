@@ -101,8 +101,9 @@ await dinoTable
   - [Nested Object Support](#nested-object-support)
   - [Type-Safe Conditions](#type-safe-conditions)
 - [🔄 Batch Operations](#-batch-operations)
-  - [Batch Get](#batch-get)
-  - [Batch Write](#batch-write)
+  - [Entity-Based Batch Operations](#️-entity-based-batch-operations-recommended)
+  - [Table-Direct Batch Operations](#-table-direct-batch-operations)
+  - [Batch Operation Patterns](#-batch-operation-patterns)
 - [🔒 Transaction Operations](#-transaction-operations)
   - [Transaction Builder](#transaction-builder)
   - [Transaction Options](#transaction-options)
@@ -947,16 +948,6 @@ async function main() {
 }
 ```
 
-**Key benefits:**
-- 🎯 **Semantic Data Access**: Method names like `getDinosaursBySpecies()` clearly express business intent
-- 🚫 **Prevents Accidental Cross-Type Access**: Type-safe operations prevent data corruption
-- 🔍 **Self-Documenting Code**: No need to remember what `gsi1` or `gsi2` does
-- 🛡️ **Consistent Key Structure**: Ensures uniform key patterns across entities
-- 📦 **Encapsulated Domain Logic**: Business rules are contained within entity definitions
-- 🧪 **Schema Validation**: Automatic data validation with your preferred schema library
-- 🔄 **Full Type Inference**: Complete TypeScript support from schema to queries
-- 👥 **Team Collaboration**: New developers understand the codebase immediately
-
 ## 🧩 Advanced Features
 
 ### Transactional Operations
@@ -1060,108 +1051,6 @@ await dinoTable.transaction(
 );
 ```
 
-**Benefits of this transaction approach:**
-- 🔄 Uses the same familiar API as non-transactional operations
-- 🧠 Maintains consistent mental model for developers
-- 🔒 All operations within the callback are executed as a single transaction
-- 🛡️ Prevents race conditions and data inconsistencies
-- 📊 Supports up to 100 actions per transaction
-
-### Batch Processing
-
-**Efficient dinosaur park management with bulk operations**
-```ts
-// SCENARIO 1: Morning health check for multiple dinosaurs across enclosures
-// Retrieve health status for multiple dinosaurs in a single operation
-const healthCheckKeys = [
-  { pk: "ENCLOSURE#A", sk: "DINO#001" }, // T-Rex in Paddock A
-  { pk: "ENCLOSURE#B", sk: "DINO#002" }, // Velociraptor in Paddock B
-  { pk: "ENCLOSURE#C", sk: "DINO#003" }  // Stegosaurus in Paddock C
-];
-
-// Perform batch get operation to retrieve all dinosaurs at once
-// This is much more efficient than individual gets
-const { items: dinosaurs, unprocessedKeys } = await dinoTable.batchGet<Dinosaur>(healthCheckKeys);
-console.log(`Health check completed for ${dinosaurs.length} dinosaurs`);
-
-// Process health check results and identify any dinosaurs needing attention
-dinosaurs.forEach(dino => {
-  if (dino.health < 80) {
-    console.log(`Health alert for ${dino.name} in Enclosure ${dino.enclosureId}`);
-    // In a real application, you might trigger alerts or schedule veterinary visits
-  }
-});
-
-// SCENARIO 2: Adding new herbivores to the park after quarantine
-// Prepare data for multiple new herbivores joining the collection
-const newHerbivores = [
-  {
-    pk: "ENCLOSURE#D", sk: "DINO#004",
-    name: "Triceratops Alpha",      // Three-horned herbivore
-    species: "Triceratops",
-    diet: "Herbivore",
-    status: "HEALTHY",
-    health: 95,                     // Excellent health after quarantine
-    lastFed: new Date().toISOString() // Just fed before joining main enclosure
-  },
-  {
-    pk: "ENCLOSURE#D", sk: "DINO#005",
-    name: "Brachy",                 // Long-necked herbivore
-    species: "Brachiosaurus",
-    diet: "Herbivore",
-    status: "HEALTHY",
-    health: 90,
-    lastFed: new Date().toISOString()
-  }
-];
-
-// Add all new herbivores to the enclosure in a single batch operation
-// More efficient than individual writes and ensures consistent state
-await dinoTable.batchWrite(
-  newHerbivores.map(dino => ({
-    type: "put",                    // Create or replace operation
-    item: dino                      // Full dinosaur record
-  }))
-);
-
-// SCENARIO 3: Releasing a dinosaur from quarantine to general population
-// Multiple related operations performed as a batch
-await dinoTable.batchWrite([
-  // Step 1: Remove dinosaur from quarantine enclosure
-  { 
-    type: "delete", 
-    key: { pk: "ENCLOSURE#QUARANTINE", sk: "DINO#006" } 
-  },
-
-  // Step 2: Add recovered dinosaur to main raptor enclosure
-  { 
-    type: "put", 
-    item: {
-      pk: "ENCLOSURE#E", sk: "DINO#006",
-      name: "Raptor Beta",          // Juvenile Velociraptor
-      species: "Velociraptor",
-      diet: "Carnivore",
-      status: "HEALTHY",            // Now healthy after treatment
-      health: 100,
-      lastFed: new Date().toISOString()
-    }
-  },
-
-  // Step 3: Clear quarantine status record
-  { 
-    type: "delete", 
-    key: { pk: "ENCLOSURE#QUARANTINE", sk: "STATUS#DINO#006" } 
-  }
-]);
-
-// SCENARIO 4: Daily park-wide health monitoring
-// Handle large-scale operations across all dinosaurs
-// The library automatically handles chunking for large batches:
-// - 25 items per batch write
-// - 100 items per batch get
-const dailyHealthUpdates = generateDinosaurHealthUpdates(); // Hundreds of updates
-await dinoTable.batchWrite(dailyHealthUpdates); // Automatically chunked into multiple requests
-```
 
 ### Pagination Made Simple
 
@@ -1449,23 +1338,88 @@ await table.query<DinosaurMonitoring>({
 
 ## 🔄 Batch Operations
 
-The library supports efficient batch operations for both reading and writing multiple items:
+Efficiently handle multiple items in a single request with automatic chunking and type safety.
 
-### Batch Get
+### 🏗️ Entity-Based Batch Operations (Recommended)
+
+**Type-safe batch operations with automatic entity type inference**
+
 ```ts
-const { items, unprocessedKeys } = await table.batchGet<User>([
-  { pk: "USER#1", sk: "PROFILE" },
-  { pk: "USER#2", sk: "PROFILE" }
-]);
+// Create a typed batch builder
+const batch = table.batchBuilder<{
+  User: UserEntity;
+  Order: OrderEntity;
+}>();
+
+// Add operations - entity type is automatically inferred
+userRepo.create(newUser).withBatch(batch);
+userRepo.get({ id: 'user-123' }).withBatch(batch);
+orderRepo.create(newOrder).withBatch(batch);
+
+// Execute and get typed results
+const result = await batch.execute();
+const users: UserEntity[] = result.reads.itemsByType.User;
+const orders: OrderEntity[] = result.reads.itemsByType.Order;
 ```
 
-### Batch Write
+### 📋 Table-Direct Batch Operations
+
+**Direct table access for maximum control**
+
 ```ts
-const { unprocessedItems } = await table.batchWrite<User>([
-  { type: "put", item: newUser },
-  { type: "delete", key: { pk: "USER#123", sk: "PROFILE" } }
-]);
+// Batch get - retrieve multiple items
+const keys = [
+  { pk: "USER#123", sk: "PROFILE" },
+  { pk: "ORDER#456", sk: "DETAILS" }
+];
+
+const { items, unprocessedKeys } = await table.batchGet<DynamoItem>(keys);
+
+// Batch write - mix of operations
+const operations = [
+  { type: "put" as const, item: { pk: "USER#123", name: "John", email: "john@example.com" } },
+  { type: "delete" as const, key: { pk: "OLD#ITEM", sk: "INFO" } }
+];
+
+const { unprocessedItems } = await table.batchWrite(operations);
+
+// Handle unprocessed items (retry if needed)
+if (unprocessedItems.length > 0) {
+  await table.batchWrite(unprocessedItems);
+}
 ```
+
+### 🔄 Batch Operation Patterns
+
+```ts
+// Simple batch - automatic type inference
+const batch = table.batchBuilder();
+userRepo.create(user1).withBatch(batch);
+userRepo.get({ id: 'user-2' }).withBatch(batch);
+const result = await batch.execute();
+
+// Typed batch - multiple entity types
+const typedBatch = table.batchBuilder<{ User: UserEntity; Order: OrderEntity }>();
+userRepo.get({ id: 'user-1' }).withBatch(typedBatch);
+orderRepo.get({ id: 'order-1' }).withBatch(typedBatch);
+
+const typedResult = await typedBatch.execute();
+const users: UserEntity[] = typedResult.reads.itemsByType.User;
+const orders: OrderEntity[] = typedResult.reads.itemsByType.Order;
+
+// Bulk operations with error handling
+const bulkResult = await bulkBatch.execute();
+if (bulkResult.writes.unprocessed.length > 0) {
+  // Retry unprocessed items
+  await table.batchWrite(bulkResult.writes.unprocessed);
+}
+```
+
+**Key Features:**
+- Automatic chunking (25 writes, 100 reads per request)
+- Handles unprocessed items automatically
+- Full type safety with entity-aware operations
+
 
 ## 🔒 Transaction Operations
 
