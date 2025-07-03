@@ -111,11 +111,33 @@ describe("Entity Integration Tests - Transaction with Create", () => {
 
   beforeEach(async () => {
     // Clean up any existing test data
+    const cleanupIds = [
+      "tx-user-1",
+      "tx-user-2",
+      "tx-user-timestamps",
+      "tx-user-keys",
+      "tx-user-consistent",
+      "existing-user",
+      "new-user-tx",
+      "comparison-test",
+      "existing-user-mixed",
+      "delete-user-mixed",
+      "new-user-mixed",
+      "upsert-user-tx",
+      "multi-entity-user",
+      "conditional-user",
+      "multi-entity-order",
+    ];
+
+    // Add large transaction test users
+    for (let i = 1; i <= 10; i++) {
+      cleanupIds.push(`large-tx-user-${i}`);
+    }
+
     try {
-      await userRepository.delete({ id: "tx-user-1" }).execute();
-      await userRepository.delete({ id: "tx-user-2" }).execute();
-      await orderRepository.delete({ id: "tx-order-1" }).execute();
-      await orderRepository.delete({ id: "tx-order-2" }).execute();
+      for (const id of cleanupIds) {
+        await Promise.allSettled([userRepository.delete({ id }).execute(), orderRepository.delete({ id }).execute()]);
+      }
     } catch {
       // Ignore errors if items don't exist
     }
@@ -394,5 +416,214 @@ describe("Entity Integration Tests - Transaction with Create", () => {
     expect(rawResult.item?.demoPartitionKey).toBe("USER#tx-user-consistent");
     expect(rawResult.item?.demoSortKey).toBe("PROFILE");
     expect(rawResult.item?.entityType).toBe("User");
+  });
+
+  it("should handle mixed create, update, and delete operations in transaction", async () => {
+    // First create some existing data
+    const existingUser: UserEntity = {
+      id: "existing-user-mixed",
+      name: "Existing User",
+      email: "existing@example.com",
+      status: "active",
+      credits: 100,
+    };
+    await userRepository.create(existingUser).execute();
+
+    const userToDelete: UserEntity = {
+      id: "delete-user-mixed",
+      name: "User to Delete",
+      email: "delete@example.com",
+      status: "inactive",
+      credits: 0,
+    };
+    await userRepository.create(userToDelete).execute();
+
+    // Now perform mixed operations in a transaction
+    const newUser: UserEntity = {
+      id: "new-user-mixed",
+      name: "New User",
+      email: "new@example.com",
+      status: "pending",
+      credits: 50,
+    };
+
+    const transaction = table.transactionBuilder();
+
+    // Create new user
+    userRepository.create(newUser).withTransaction(transaction);
+
+    // Update existing user
+    userRepository
+      .update(
+        { id: "existing-user-mixed" },
+        {
+          status: "premium",
+          credits: 200,
+        },
+      )
+      .withTransaction(transaction);
+
+    // Delete user
+    userRepository.delete({ id: "delete-user-mixed" }).withTransaction(transaction);
+
+    await transaction.execute();
+
+    // Verify all operations succeeded
+    const newUserResult = await userRepository.get({ id: "new-user-mixed" }).execute();
+    expect(newUserResult.item).toBeDefined();
+    expect(newUserResult.item?.name).toBe("New User");
+    expect(newUserResult.item?.status).toBe("pending");
+
+    const updatedUserResult = await userRepository.get({ id: "existing-user-mixed" }).execute();
+    expect(updatedUserResult.item).toBeDefined();
+    expect(updatedUserResult.item?.status).toBe("premium");
+    expect(updatedUserResult.item?.credits).toBe(200);
+
+    const deletedUserResult = await userRepository.get({ id: "delete-user-mixed" }).execute();
+    expect(deletedUserResult.item).toBeUndefined();
+  });
+
+  it("should handle upsert operations in transactions", async () => {
+    const user: UserEntity = {
+      id: "upsert-user-tx",
+      name: "Upsert User",
+      email: "upsert@example.com",
+      status: "active",
+      credits: 100,
+    };
+
+    const transaction = table.transactionBuilder();
+
+    // First upsert (should create)
+    userRepository.upsert(user).withTransaction(transaction);
+
+    await transaction.execute();
+
+    // Verify user was created
+    const firstResult = await userRepository.get({ id: "upsert-user-tx" }).execute();
+    expect(firstResult.item).toBeDefined();
+    expect(firstResult.item?.name).toBe("Upsert User");
+    expect(firstResult.item?.credits).toBe(100);
+
+    // Now upsert again with different data (should update)
+    const updatedUser: UserEntity = {
+      id: "upsert-user-tx",
+      name: "Updated Upsert User",
+      email: "upsert@example.com",
+      status: "premium",
+      credits: 250,
+    };
+
+    const updateTransaction = table.transactionBuilder();
+    userRepository.upsert(updatedUser).withTransaction(updateTransaction);
+
+    await updateTransaction.execute();
+
+    // Verify user was updated
+    const secondResult = await userRepository.get({ id: "upsert-user-tx" }).execute();
+    expect(secondResult.item).toBeDefined();
+    expect(secondResult.item?.name).toBe("Updated Upsert User");
+    expect(secondResult.item?.status).toBe("premium");
+    expect(secondResult.item?.credits).toBe(250);
+  });
+
+  it("should handle multiple entity types in single transaction", async () => {
+    const user: UserEntity = {
+      id: "multi-entity-user",
+      name: "Multi Entity User",
+      email: "multi@example.com",
+      status: "active",
+      credits: 150,
+    };
+
+    const order: OrderEntity = {
+      id: "multi-entity-order",
+      userId: "multi-entity-user",
+      amount: 75.5,
+      status: "pending",
+      items: ["item1", "item2", "item3"],
+    };
+
+    const transaction = table.transactionBuilder();
+
+    // Add both entities to the same transaction
+    userRepository.create(user).withTransaction(transaction);
+    orderRepository.create(order).withTransaction(transaction);
+
+    await transaction.execute();
+
+    // Verify both entities were created
+    const userResult = await userRepository.get({ id: "multi-entity-user" }).execute();
+    expect(userResult.item).toBeDefined();
+    expect(userResult.item?.name).toBe("Multi Entity User");
+    expect(userResult.item?.credits).toBe(150);
+
+    const orderResult = await orderRepository.get({ id: "multi-entity-order" }).execute();
+    expect(orderResult.item).toBeDefined();
+    expect(orderResult.item?.userId).toBe("multi-entity-user");
+    expect(orderResult.item?.amount).toBe(75.5);
+    expect(orderResult.item?.items).toEqual(["item1", "item2", "item3"]);
+  });
+
+  it("should handle transaction with conditional operations", async () => {
+    // Create a user first
+    const user: UserEntity = {
+      id: "conditional-user",
+      name: "Conditional User",
+      email: "conditional@example.com",
+      status: "active",
+      credits: 100,
+    };
+    await userRepository.create(user).execute();
+
+    const transaction = table.transactionBuilder();
+
+    // Try to create another user with same ID (should fail due to create condition)
+    const duplicateUser: UserEntity = {
+      id: "conditional-user",
+      name: "Duplicate User",
+      email: "duplicate@example.com",
+      status: "pending",
+      credits: 50,
+    };
+
+    userRepository.create(duplicateUser).withTransaction(transaction);
+
+    // Transaction should fail due to conditional check
+    await expect(transaction.execute()).rejects.toThrow();
+
+    // Verify original user is unchanged
+    const result = await userRepository.get({ id: "conditional-user" }).execute();
+    expect(result.item?.name).toBe("Conditional User");
+    expect(result.item?.email).toBe("conditional@example.com");
+    expect(result.item?.credits).toBe(100);
+  });
+
+  it("should handle large transactions with multiple operations", async () => {
+    const transaction = table.transactionBuilder();
+
+    // Create multiple users in a single transaction
+    const users: UserEntity[] = [];
+    for (let i = 1; i <= 10; i++) {
+      const user: UserEntity = {
+        id: `large-tx-user-${i}`,
+        name: `Large TX User ${i}`,
+        email: `largetx${i}@example.com`,
+        status: i % 2 === 0 ? "active" : "pending",
+        credits: i * 25,
+      };
+      users.push(user);
+      userRepository.create(user).withTransaction(transaction);
+    }
+
+    await transaction.execute();
+
+    // Verify all users were created
+    for (const user of users) {
+      const result = await userRepository.get({ id: user.id }).execute();
+      expect(result.item).toBeDefined();
+      expect(result.item?.name).toBe(user.name);
+      expect(result.item?.credits).toBe(user.credits);
+    }
   });
 });

@@ -44,6 +44,7 @@ export { PutBuilder, type PutOptions } from "./builders/put-builder";
 export { UpdateBuilder, type UpdateOptions } from "./builders/update-builder";
 export { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder";
 export { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
+export { BatchBuilder, BatchError, type BatchResult } from "./builders/batch-builder";
 
 // Utility functions for key templates
 export { partitionKey } from "./utils/partition-key-template";

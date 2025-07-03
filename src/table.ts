@@ -26,6 +26,7 @@ import { TransactionBuilder, type TransactionOptions } from "./builders/transact
 import type { BatchWriteOperation } from "./operation-types";
 import { chunkArray } from "./utils/chunk-array";
 import { ConditionCheckBuilder } from "./builders/condition-check-builder";
+import { BatchBuilder } from "./builders/batch-builder";
 import { debugCommand } from "./utils/debug-expression";
 import { GetBuilder, type GetCommandParams } from "./builders/get-builder";
 import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
@@ -481,6 +482,58 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
     // Create a transaction builder with the executor and table's index configuration
     return new TransactionBuilder(executor, {
+      partitionKey: this.partitionKey,
+      sortKey: this.sortKey,
+    });
+  }
+
+  /**
+   * Creates a batch builder for performing multiple operations efficiently with optional type inference
+   *
+   * @example Basic Usage
+   * ```typescript
+   * const batch = table.batchBuilder();
+   *
+   * // Add operations
+   * userRepo.create(newUser).withBatch(batch);
+   * orderRepo.get({ id: 'order-1' }).withBatch(batch);
+   *
+   * // Execute operations
+   * const result = await batch.execute();
+   * ```
+   *
+   * @example Typed Usage
+   * ```typescript
+   * // Define entity types for the batch
+   * const batch = table.batchBuilder<{
+   *   User: UserEntity;
+   *   Order: OrderEntity;
+   *   Product: ProductEntity;
+   * }>();
+   *
+   * // Add operations with type information
+   * userRepo.create(newUser).withBatch(batch, 'User');
+   * orderRepo.get({ id: 'order-1' }).withBatch(batch, 'Order');
+   * productRepo.delete({ id: 'old-product' }).withBatch(batch, 'Product');
+   *
+   * // Execute and get typed results
+   * const result = await batch.execute();
+   * const users: UserEntity[] = result.reads.itemsByType.User;
+   * const orders: OrderEntity[] = result.reads.itemsByType.Order;
+   * ```
+   */
+  batchBuilder<TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>>(): BatchBuilder<TEntities> {
+    // Create executor functions for batch operations
+    const batchWriteExecutor = async (operations: Array<BatchWriteOperation<DynamoItem>>) => {
+      return this.batchWrite(operations);
+    };
+
+    const batchGetExecutor = async (keys: Array<PrimaryKeyWithoutExpression>) => {
+      return this.batchGet(keys);
+    };
+
+    // Create a batch builder with the executors and table's index configuration
+    return new BatchBuilder<TEntities>(batchWriteExecutor, batchGetExecutor, {
       partitionKey: this.partitionKey,
       sortKey: this.sortKey,
     });

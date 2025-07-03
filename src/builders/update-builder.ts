@@ -342,11 +342,11 @@ export class UpdateBuilder<T extends DynamoItem> {
    * Sets which item attributes to include in the response.
    *
    * Available options:
-   * - ALL_NEW: All attributes after the update
+   * - ALL_NEW: All attributes after the update (default)
    * - UPDATED_NEW: Only updated attributes, new values
    * - ALL_OLD: All attributes before the update
    * - UPDATED_OLD: Only updated attributes, old values
-   * - NONE: No attributes returned (default)
+   * - NONE: No attributes returned
    *
    * @example
    * ```typescript
