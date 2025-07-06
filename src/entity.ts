@@ -178,8 +178,12 @@ export function defineEntity<
     for (let i = 0; i < propertyNames.length; i++) {
       const prop = propertyNames[i] as string;
       if (prop !== "length" && prop !== "name" && prop !== "prototype") {
-        // biome-ignore lint/suspicious/noExplicitAny: meh
-        (wrappedMethod as any)[prop] = (originalMethod as any)[prop];
+        // Check if the property is writable before attempting to assign it
+        const descriptor = Object.getOwnPropertyDescriptor(originalMethod, prop);
+        if (descriptor && descriptor.writable !== false && !descriptor.get) {
+          // biome-ignore lint/suspicious/noExplicitAny: meh
+          (wrappedMethod as any)[prop] = (originalMethod as any)[prop];
+        }
       }
     }
 
