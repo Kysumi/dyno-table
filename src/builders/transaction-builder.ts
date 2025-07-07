@@ -179,10 +179,6 @@ export class TransactionBuilder {
 
   /**
    * Adds a put operation to the transaction.
-   * Use this method when you need to:
-   * - Insert new items as part of a transaction
-   * - Replace existing items atomically
-   * - Ensure items meet certain conditions before insertion
    *
    * The method automatically checks for duplicate items within the transaction
    * to prevent multiple operations on the same item.
@@ -245,10 +241,6 @@ export class TransactionBuilder {
 
   /**
    * Adds a pre-configured put operation to the transaction.
-   * Use this method when you need to:
-   * - Reuse put commands from PutBuilder
-   * - Add complex put operations with pre-configured parameters
-   * - Integrate with existing put command configurations
    *
    * This method is particularly useful when working with PutBuilder
    * to maintain consistency in put operations across your application.
@@ -284,10 +276,6 @@ export class TransactionBuilder {
 
   /**
    * Adds a delete operation to the transaction.
-   * Use this method when you need to:
-   * - Remove items as part of a transaction
-   * - Conditionally delete items
-   * - Ensure items exist before deletion
    *
    * The method automatically checks for duplicate items within the transaction
    * to prevent multiple operations on the same item.
@@ -351,10 +339,6 @@ export class TransactionBuilder {
 
   /**
    * Adds a pre-configured delete operation to the transaction.
-   * Use this method when you need to:
-   * - Reuse delete commands from DeleteBuilder
-   * - Add complex delete operations with pre-configured parameters
-   * - Integrate with existing delete command configurations
    *
    * This method is particularly useful when working with DeleteBuilder
    * to maintain consistency in delete operations across your application.
@@ -386,7 +370,7 @@ export class TransactionBuilder {
     let keyForTransaction: Record<string, unknown>;
 
     // Check if the key is in PrimaryKeyWithoutExpression format (has pk/sk properties)
-    if (typeof command.key === 'object' && command.key !== null && 'pk' in command.key) {
+    if (typeof command.key === "object" && command.key !== null && "pk" in command.key) {
       // Convert from PrimaryKeyWithoutExpression to table key format
       keyForTransaction = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
       keyForDuplicateCheck = keyForTransaction;
@@ -412,11 +396,6 @@ export class TransactionBuilder {
 
   /**
    * Adds an update operation to the transaction.
-   * Use this method when you need to:
-   * - Modify existing items as part of a transaction
-   * - Update multiple attributes atomically
-   * - Apply conditional updates
-   * - Perform complex attribute manipulations
    *
    * The method supports all DynamoDB update expressions:
    * - SET: Modify or add attributes
@@ -510,10 +489,6 @@ export class TransactionBuilder {
 
   /**
    * Adds a pre-configured update operation to the transaction.
-   * Use this method when you need to:
-   * - Reuse update commands from UpdateBuilder
-   * - Add complex update operations with pre-configured parameters
-   * - Integrate with existing update command configurations
    *
    * This method is particularly useful when working with UpdateBuilder
    * to maintain consistency in update operations across your application.
@@ -548,7 +523,7 @@ export class TransactionBuilder {
     let keyForTransaction: Record<string, unknown>;
 
     // Check if the key is in PrimaryKeyWithoutExpression format (has pk/sk properties)
-    if (typeof command.key === 'object' && command.key !== null && 'pk' in command.key) {
+    if (typeof command.key === "object" && command.key !== null && "pk" in command.key) {
       // Convert from PrimaryKeyWithoutExpression to table key format
       keyForTransaction = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
       keyForDuplicateCheck = keyForTransaction;
@@ -575,11 +550,6 @@ export class TransactionBuilder {
 
   /**
    * Adds a condition check operation to the transaction.
-   * Use this method when you need to:
-   * - Validate item state without modifying it
-   * - Ensure data consistency across tables
-   * - Implement complex business rules
-   * - Verify preconditions for other operations
    *
    * Condition checks are particularly useful for:
    * - Implementing optimistic locking
@@ -653,10 +623,6 @@ export class TransactionBuilder {
 
   /**
    * Adds a pre-configured condition check operation to the transaction.
-   * Use this method when you need to:
-   * - Reuse condition checks from ConditionCheckBuilder
-   * - Add complex condition checks with pre-configured parameters
-   * - Integrate with existing condition check configurations
    *
    * This method is particularly useful when working with ConditionCheckBuilder
    * to maintain consistency in condition checks across your application.
@@ -689,7 +655,7 @@ export class TransactionBuilder {
     let keyForTransaction: Record<string, unknown>;
 
     // Check if the key is in PrimaryKeyWithoutExpression format (has pk/sk properties)
-    if (typeof command.key === 'object' && command.key !== null && 'pk' in command.key) {
+    if (typeof command.key === "object" && command.key !== null && "pk" in command.key) {
       // Convert from PrimaryKeyWithoutExpression to table key format
       keyForTransaction = this.createKeyForPrimaryIndex(command.key as PrimaryKeyWithoutExpression);
       keyForDuplicateCheck = keyForTransaction;
@@ -715,10 +681,6 @@ export class TransactionBuilder {
 
   /**
    * Sets options for the transaction execution.
-   * Use this method when you need to:
-   * - Enable idempotent transactions
-   * - Track consumed capacity
-   * - Monitor item collection metrics
    *
    * @example
    * ```typescript
@@ -747,11 +709,6 @@ export class TransactionBuilder {
 
   /**
    * Gets a human-readable representation of the transaction items.
-   * Use this method when you need to:
-   * - Debug complex transactions
-   * - Verify operation parameters
-   * - Log transaction details
-   * - Troubleshoot condition expressions
    *
    * The method resolves all expression placeholders with their actual values,
    * making it easier to understand the transaction's operations.
@@ -781,10 +738,6 @@ export class TransactionBuilder {
 
   /**
    * Executes all operations in the transaction atomically.
-   * Use this method when you need to:
-   * - Perform multiple operations atomically
-   * - Ensure all-or-nothing execution
-   * - Maintain data consistency across operations
    *
    * The transaction will only succeed if all operations succeed.
    * If any operation fails, the entire transaction is rolled back.

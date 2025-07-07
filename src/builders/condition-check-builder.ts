@@ -67,10 +67,6 @@ export class ConditionCheckBuilder {
 
   /**
    * Adds a condition that must be satisfied for the check to succeed.
-   * Use this method when you need to:
-   * - Validate complex item states
-   * - Check multiple attributes together
-   * - Ensure safety conditions are met
    *
    * @example
    * ```typescript
@@ -171,10 +167,6 @@ export class ConditionCheckBuilder {
 
   /**
    * Adds this condition check operation to a transaction.
-   * Use this method when you need to:
-   * - Verify habitat safety before transfers
-   * - Ensure proper feeding conditions
-   * - Validate security protocols
    *
    * @example
    * ```ts
@@ -207,11 +199,6 @@ export class ConditionCheckBuilder {
   /**
    * Gets a human-readable representation of the condition check command
    * with all expression placeholders replaced by their actual values.
-   * Use this method when you need to:
-   * - Debug complex condition expressions
-   * - Verify condition parameters
-   * - Log safety checks
-   * - Troubleshoot condition failures
    *
    * @example
    * ```ts
