@@ -101,9 +101,8 @@ await dinoTable
   - [Nested Object Support](#nested-object-support)
   - [Type-Safe Conditions](#type-safe-conditions)
 - [🔄 Batch Operations](#-batch-operations)
-  - [Entity-Based Batch Operations](#️-entity-based-batch-operations-recommended)
+  - [Entity-Based Batch Operations](#-entity-based-batch-operations)
   - [Table-Direct Batch Operations](#-table-direct-batch-operations)
-  - [Batch Operation Patterns](#-batch-operation-patterns)
 - [🔒 Transaction Operations](#-transaction-operations)
   - [Transaction Builder](#transaction-builder)
   - [Transaction Options](#transaction-options)
@@ -1133,11 +1132,11 @@ Dyno-table provides comprehensive query methods that match DynamoDB's capabiliti
 | **Greater Than or Equal** | `.filter(op => op.gte("rating", 4))`                    | `rating >= :v1`                   |
 | **Between**               | `.filter(op => op.between("age", 18, 65))`              | `age BETWEEN :v1 AND :v2`         |
 | **In Array**              | `.filter(op => op.inArray("status", ["ACTIVE", "PENDING"]))` | `status IN (:v1, :v2)`            |
-| **Begins With**           | `.filter(op => op.beginsWith("email", "@example.com"))` | `begins_with(email, :v1)`         |
-| **Contains**              | `.filter(op => op.contains("tags", "important"))`       | `contains(tags, :v1)`             |
-| **Attribute Exists**      | `.filter(op => op.attributeExists("email"))`            | `attribute_exists(email)`         |
-| **Attribute Not Exists**  | `.filter(op => op.attributeNotExists("deletedAt"))`     | `attribute_not_exists(deletedAt)` |
-| **Nested Attributes**     | `.filter(op => op.eq("address.city", "London"))`        | `address.city = :v1`              |
+| **Begins With**           | `.filter(op => op.beginsWith("email", "@example.com"))`      | `begins_with(email, :v1)`         |
+| **Contains**              | `.filter(op => op.contains("tags", "important"))`            | `contains(tags, :v1)`             |
+| **Attribute Exists**      | `.filter(op => op.attributeExists("email"))`                 | `attribute_exists(email)`         |
+| **Attribute Not Exists**  | `.filter(op => op.attributeNotExists("deletedAt"))`          | `attribute_not_exists(deletedAt)` |
+| **Nested Attributes**     | `.filter(op => op.eq("address.city", "London"))`             | `address.city = :v1`              |
 
 ### Logical Operators
 
@@ -1340,26 +1339,26 @@ await table.query<DinosaurMonitoring>({
 
 Efficiently handle multiple items in a single request with automatic chunking and type safety.
 
-### 🏗️ Entity-Based Batch Operations (Recommended)
+### 🏗️ Entity-Based Batch Operations
 
 **Type-safe batch operations with automatic entity type inference**
 
 ```ts
 // Create a typed batch builder
 const batch = table.batchBuilder<{
-  User: UserEntity;
-  Order: OrderEntity;
+  Dinosaur: DinosaurEntity;
+  Fossil: FossilEntity;
 }>();
 
 // Add operations - entity type is automatically inferred
-userRepo.create(newUser).withBatch(batch);
-userRepo.get({ id: 'user-123' }).withBatch(batch);
-orderRepo.create(newOrder).withBatch(batch);
+dinosaurRepo.create(newDinosaur).withBatch(batch);
+dinosaurRepo.get({ id: 'dino-123', diet: 'carnivore', species: 'Tyrannosaurus Rex' }).withBatch(batch);
+fossilRepo.create(newFossil).withBatch(batch);
 
 // Execute and get typed results
 const result = await batch.execute();
-const users: UserEntity[] = result.reads.itemsByType.User;
-const orders: OrderEntity[] = result.reads.itemsByType.Order;
+const dinosaurs: DinosaurEntity[] = result.reads.itemsByType.Dinosaur;
+const fossils: FossilEntity[] = result.reads.itemsByType.Fossil;
 ```
 
 ### 📋 Table-Direct Batch Operations
@@ -1369,16 +1368,16 @@ const orders: OrderEntity[] = result.reads.itemsByType.Order;
 ```ts
 // Batch get - retrieve multiple items
 const keys = [
-  { pk: "USER#123", sk: "PROFILE" },
-  { pk: "ORDER#456", sk: "DETAILS" }
+  { pk: "DIET#carnivore", sk: "SPECIES#Tyrannosaurus Rex#ID#dino-123" },
+  { pk: "FOSSIL#456", sk: "DISCOVERY#2024" }
 ];
 
 const { items, unprocessedKeys } = await table.batchGet<DynamoItem>(keys);
 
 // Batch write - mix of operations
 const operations = [
-  { type: "put" as const, item: { pk: "USER#123", name: "John", email: "john@example.com" } },
-  { type: "delete" as const, key: { pk: "OLD#ITEM", sk: "INFO" } }
+  { type: "put" as const, item: { pk: "DIET#herbivore", sk: "SPECIES#Triceratops#ID#dino-789", name: "Spike", dangerLevel: 3 } },
+  { type: "delete" as const, key: { pk: "FOSSIL#OLD", sk: "DISCOVERY#1990" } }
 ];
 
 const { unprocessedItems } = await table.batchWrite(operations);
@@ -1388,37 +1387,6 @@ if (unprocessedItems.length > 0) {
   await table.batchWrite(unprocessedItems);
 }
 ```
-
-### 🔄 Batch Operation Patterns
-
-```ts
-// Simple batch - automatic type inference
-const batch = table.batchBuilder();
-userRepo.create(user1).withBatch(batch);
-userRepo.get({ id: 'user-2' }).withBatch(batch);
-const result = await batch.execute();
-
-// Typed batch - multiple entity types
-const typedBatch = table.batchBuilder<{ User: UserEntity; Order: OrderEntity }>();
-userRepo.get({ id: 'user-1' }).withBatch(typedBatch);
-orderRepo.get({ id: 'order-1' }).withBatch(typedBatch);
-
-const typedResult = await typedBatch.execute();
-const users: UserEntity[] = typedResult.reads.itemsByType.User;
-const orders: OrderEntity[] = typedResult.reads.itemsByType.Order;
-
-// Bulk operations with error handling
-const bulkResult = await bulkBatch.execute();
-if (bulkResult.writes.unprocessed.length > 0) {
-  // Retry unprocessed items
-  await table.batchWrite(bulkResult.writes.unprocessed);
-}
-```
-
-**Key Features:**
-- Automatic chunking (25 writes, 100 reads per request)
-- Handles unprocessed items automatically
-- Full type safety with entity-aware operations
 
 
 ## 🔒 Transaction Operations
@@ -1619,15 +1587,6 @@ const quarantinedDinos = await dinoTable
   })
   .execute();
 ```
-
-Available key conditions for dinosaur queries:
-- `eq(value)` - Exact match (e.g., specific enclosure)
-- `lt(value)` - Earlier than date/time
-- `lte(value)` - Up to and including date/time
-- `gt(value)` - Later than date/time
-- `gte(value)` - From date/time onwards
-- `between(lower, upper)` - Range (e.g., weight range, date range)
-- `beginsWith(value)` - Prefix match (e.g., all health checks today)
 
 ## 🔮 Future Roadmap
 
