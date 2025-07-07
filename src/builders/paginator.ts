@@ -53,10 +53,6 @@ export class Paginator<T extends DynamoItem, TConfig extends TableConfig = Table
 
   /**
    * Gets the current page number (1-indexed).
-   * Use this method when you need to:
-   * - Track progress through dinosaur lists
-   * - Display habitat inspection status
-   * - Monitor security sweep progress
    *
    * @example
    * ```ts
@@ -75,11 +71,6 @@ export class Paginator<T extends DynamoItem, TConfig extends TableConfig = Table
 
   /**
    * Checks if there are more pages of dinosaurs or habitats to process.
-   * Use this method when you need to:
-   * - Check for more dinosaurs to review
-   * - Continue habitat inspections
-   * - Process security incidents
-   * - Complete feeding schedules
    *
    * This method takes into account both:
    * - DynamoDB's lastEvaluatedKey mechanism
@@ -113,11 +104,6 @@ export class Paginator<T extends DynamoItem, TConfig extends TableConfig = Table
 
   /**
    * Retrieves the next page of dinosaurs or habitats from DynamoDB.
-   * Use this method when you need to:
-   * - Process dinosaur groups systematically
-   * - Review habitat inspections in batches
-   * - Monitor security incidents in sequence
-   * - Schedule feeding rotations
    *
    * This method handles:
    * - Automatic continuation between groups
@@ -209,16 +195,6 @@ export class Paginator<T extends DynamoItem, TConfig extends TableConfig = Table
 
   /**
    * Gets all remaining dinosaurs or habitats and combines them into a single array.
-   * Use this method when you need to:
-   * - Generate complete park inventory
-   * - Perform full security audit
-   * - Create comprehensive feeding schedule
-   * - Run park-wide health checks
-   *
-   * Note: Use with caution! This method:
-   * - Could overwhelm systems with large dinosaur populations
-   * - Makes multiple database requests
-   * - May cause system strain during peak hours
    *
    * @example
    * ```ts

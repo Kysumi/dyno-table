@@ -82,10 +82,6 @@ export class GetBuilder<T extends DynamoItem> {
 
   /**
    * Specifies which attributes to return in the get results.
-   * Use this method when you need to:
-   * - Reduce data transfer by selecting specific dinosaur attributes
-   * - Optimize response size for dinosaur records
-   * - Focus on relevant dinosaur characteristics only
    *
    * @example
    * ```typescript
