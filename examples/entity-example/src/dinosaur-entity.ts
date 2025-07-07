@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { sortKey } from "dyno-table/utils/sort-key-template";
-import { partitionKey } from "dyno-table/utils/partition-key-template";
+import { sortKey } from "dyno-table/utils";
+import { partitionKey } from "dyno-table/utils";
 import { createIndex, createQueries, defineEntity } from "dyno-table/entity";
 
 const dinosaurSchema = z.object({

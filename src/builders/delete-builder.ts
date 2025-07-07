@@ -17,6 +17,7 @@ import {
   not,
 } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
+import type { BatchBuilder } from "./batch-builder";
 import { prepareExpressionParams } from "../expression";
 import { debugCommand } from "../utils/debug-expression";
 import type { DeleteCommandParams } from "./builder-types";
@@ -190,6 +191,48 @@ export class DeleteBuilder {
     const command = this.toDynamoCommand();
 
     transaction.deleteWithCommand(command);
+  }
+
+  /**
+   * Adds this delete operation to a batch with optional entity type information.
+   *
+   * @example Basic Usage
+   * ```ts
+   * const batch = table.batchBuilder();
+   *
+   * // Remove multiple dinosaurs in batch
+   * dinosaurRepo.delete({ id: 'old-dino-1' }).withBatch(batch);
+   * dinosaurRepo.delete({ id: 'old-dino-2' }).withBatch(batch);
+   * dinosaurRepo.delete({ id: 'old-dino-3' }).withBatch(batch);
+   *
+   * // Execute all deletions efficiently
+   * await batch.execute();
+   * ```
+   *
+   * @example Typed Usage
+   * ```ts
+   * const batch = table.batchBuilder<{
+   *   User: UserEntity;
+   *   Order: OrderEntity;
+   * }>();
+   *
+   * // Add operations with type information
+   * userRepo.delete({ id: 'user-1' }).withBatch(batch, 'User');
+   * orderRepo.delete({ id: 'order-1' }).withBatch(batch, 'Order');
+   *
+   * // Execute batch operations
+   * await batch.execute();
+   * ```
+   *
+   * @param batch - The batch builder to add this operation to
+   * @param entityType - Optional entity type key for type tracking
+   */
+  public withBatch<
+    TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
+    K extends keyof TEntities = keyof TEntities,
+  >(batch: BatchBuilder<TEntities>, entityType?: K) {
+    const command = this.toDynamoCommand();
+    batch.deleteWithCommand(command, entityType);
   }
 
   /**

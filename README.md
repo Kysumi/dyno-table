@@ -101,8 +101,8 @@ await dinoTable
   - [Nested Object Support](#nested-object-support)
   - [Type-Safe Conditions](#type-safe-conditions)
 - [🔄 Batch Operations](#-batch-operations)
-  - [Batch Get](#batch-get)
-  - [Batch Write](#batch-write)
+  - [Entity-Based Batch Operations](#-entity-based-batch-operations)
+  - [Table-Direct Batch Operations](#-table-direct-batch-operations)
 - [🔒 Transaction Operations](#-transaction-operations)
   - [Transaction Builder](#transaction-builder)
   - [Transaction Options](#transaction-options)
@@ -947,16 +947,6 @@ async function main() {
 }
 ```
 
-**Key benefits:**
-- 🎯 **Semantic Data Access**: Method names like `getDinosaursBySpecies()` clearly express business intent
-- 🚫 **Prevents Accidental Cross-Type Access**: Type-safe operations prevent data corruption
-- 🔍 **Self-Documenting Code**: No need to remember what `gsi1` or `gsi2` does
-- 🛡️ **Consistent Key Structure**: Ensures uniform key patterns across entities
-- 📦 **Encapsulated Domain Logic**: Business rules are contained within entity definitions
-- 🧪 **Schema Validation**: Automatic data validation with your preferred schema library
-- 🔄 **Full Type Inference**: Complete TypeScript support from schema to queries
-- 👥 **Team Collaboration**: New developers understand the codebase immediately
-
 ## 🧩 Advanced Features
 
 ### Transactional Operations
@@ -1060,108 +1050,6 @@ await dinoTable.transaction(
 );
 ```
 
-**Benefits of this transaction approach:**
-- 🔄 Uses the same familiar API as non-transactional operations
-- 🧠 Maintains consistent mental model for developers
-- 🔒 All operations within the callback are executed as a single transaction
-- 🛡️ Prevents race conditions and data inconsistencies
-- 📊 Supports up to 100 actions per transaction
-
-### Batch Processing
-
-**Efficient dinosaur park management with bulk operations**
-```ts
-// SCENARIO 1: Morning health check for multiple dinosaurs across enclosures
-// Retrieve health status for multiple dinosaurs in a single operation
-const healthCheckKeys = [
-  { pk: "ENCLOSURE#A", sk: "DINO#001" }, // T-Rex in Paddock A
-  { pk: "ENCLOSURE#B", sk: "DINO#002" }, // Velociraptor in Paddock B
-  { pk: "ENCLOSURE#C", sk: "DINO#003" }  // Stegosaurus in Paddock C
-];
-
-// Perform batch get operation to retrieve all dinosaurs at once
-// This is much more efficient than individual gets
-const { items: dinosaurs, unprocessedKeys } = await dinoTable.batchGet<Dinosaur>(healthCheckKeys);
-console.log(`Health check completed for ${dinosaurs.length} dinosaurs`);
-
-// Process health check results and identify any dinosaurs needing attention
-dinosaurs.forEach(dino => {
-  if (dino.health < 80) {
-    console.log(`Health alert for ${dino.name} in Enclosure ${dino.enclosureId}`);
-    // In a real application, you might trigger alerts or schedule veterinary visits
-  }
-});
-
-// SCENARIO 2: Adding new herbivores to the park after quarantine
-// Prepare data for multiple new herbivores joining the collection
-const newHerbivores = [
-  {
-    pk: "ENCLOSURE#D", sk: "DINO#004",
-    name: "Triceratops Alpha",      // Three-horned herbivore
-    species: "Triceratops",
-    diet: "Herbivore",
-    status: "HEALTHY",
-    health: 95,                     // Excellent health after quarantine
-    lastFed: new Date().toISOString() // Just fed before joining main enclosure
-  },
-  {
-    pk: "ENCLOSURE#D", sk: "DINO#005",
-    name: "Brachy",                 // Long-necked herbivore
-    species: "Brachiosaurus",
-    diet: "Herbivore",
-    status: "HEALTHY",
-    health: 90,
-    lastFed: new Date().toISOString()
-  }
-];
-
-// Add all new herbivores to the enclosure in a single batch operation
-// More efficient than individual writes and ensures consistent state
-await dinoTable.batchWrite(
-  newHerbivores.map(dino => ({
-    type: "put",                    // Create or replace operation
-    item: dino                      // Full dinosaur record
-  }))
-);
-
-// SCENARIO 3: Releasing a dinosaur from quarantine to general population
-// Multiple related operations performed as a batch
-await dinoTable.batchWrite([
-  // Step 1: Remove dinosaur from quarantine enclosure
-  { 
-    type: "delete", 
-    key: { pk: "ENCLOSURE#QUARANTINE", sk: "DINO#006" } 
-  },
-
-  // Step 2: Add recovered dinosaur to main raptor enclosure
-  { 
-    type: "put", 
-    item: {
-      pk: "ENCLOSURE#E", sk: "DINO#006",
-      name: "Raptor Beta",          // Juvenile Velociraptor
-      species: "Velociraptor",
-      diet: "Carnivore",
-      status: "HEALTHY",            // Now healthy after treatment
-      health: 100,
-      lastFed: new Date().toISOString()
-    }
-  },
-
-  // Step 3: Clear quarantine status record
-  { 
-    type: "delete", 
-    key: { pk: "ENCLOSURE#QUARANTINE", sk: "STATUS#DINO#006" } 
-  }
-]);
-
-// SCENARIO 4: Daily park-wide health monitoring
-// Handle large-scale operations across all dinosaurs
-// The library automatically handles chunking for large batches:
-// - 25 items per batch write
-// - 100 items per batch get
-const dailyHealthUpdates = generateDinosaurHealthUpdates(); // Hundreds of updates
-await dinoTable.batchWrite(dailyHealthUpdates); // Automatically chunked into multiple requests
-```
 
 ### Pagination Made Simple
 
@@ -1244,11 +1132,11 @@ Dyno-table provides comprehensive query methods that match DynamoDB's capabiliti
 | **Greater Than or Equal** | `.filter(op => op.gte("rating", 4))`                    | `rating >= :v1`                   |
 | **Between**               | `.filter(op => op.between("age", 18, 65))`              | `age BETWEEN :v1 AND :v2`         |
 | **In Array**              | `.filter(op => op.inArray("status", ["ACTIVE", "PENDING"]))` | `status IN (:v1, :v2)`            |
-| **Begins With**           | `.filter(op => op.beginsWith("email", "@example.com"))` | `begins_with(email, :v1)`         |
-| **Contains**              | `.filter(op => op.contains("tags", "important"))`       | `contains(tags, :v1)`             |
-| **Attribute Exists**      | `.filter(op => op.attributeExists("email"))`            | `attribute_exists(email)`         |
-| **Attribute Not Exists**  | `.filter(op => op.attributeNotExists("deletedAt"))`     | `attribute_not_exists(deletedAt)` |
-| **Nested Attributes**     | `.filter(op => op.eq("address.city", "London"))`        | `address.city = :v1`              |
+| **Begins With**           | `.filter(op => op.beginsWith("email", "@example.com"))`      | `begins_with(email, :v1)`         |
+| **Contains**              | `.filter(op => op.contains("tags", "important"))`            | `contains(tags, :v1)`             |
+| **Attribute Exists**      | `.filter(op => op.attributeExists("email"))`                 | `attribute_exists(email)`         |
+| **Attribute Not Exists**  | `.filter(op => op.attributeNotExists("deletedAt"))`          | `attribute_not_exists(deletedAt)` |
+| **Nested Attributes**     | `.filter(op => op.eq("address.city", "London"))`             | `address.city = :v1`              |
 
 ### Logical Operators
 
@@ -1449,23 +1337,57 @@ await table.query<DinosaurMonitoring>({
 
 ## 🔄 Batch Operations
 
-The library supports efficient batch operations for both reading and writing multiple items:
+Efficiently handle multiple items in a single request with automatic chunking and type safety.
 
-### Batch Get
+### 🏗️ Entity-Based Batch Operations
+
+**Type-safe batch operations with automatic entity type inference**
+
 ```ts
-const { items, unprocessedKeys } = await table.batchGet<User>([
-  { pk: "USER#1", sk: "PROFILE" },
-  { pk: "USER#2", sk: "PROFILE" }
-]);
+// Create a typed batch builder
+const batch = table.batchBuilder<{
+  Dinosaur: DinosaurEntity;
+  Fossil: FossilEntity;
+}>();
+
+// Add operations - entity type is automatically inferred
+dinosaurRepo.create(newDinosaur).withBatch(batch);
+dinosaurRepo.get({ id: 'dino-123', diet: 'carnivore', species: 'Tyrannosaurus Rex' }).withBatch(batch);
+fossilRepo.create(newFossil).withBatch(batch);
+
+// Execute and get typed results
+const result = await batch.execute();
+const dinosaurs: DinosaurEntity[] = result.reads.itemsByType.Dinosaur;
+const fossils: FossilEntity[] = result.reads.itemsByType.Fossil;
 ```
 
-### Batch Write
+### 📋 Table-Direct Batch Operations
+
+**Direct table access for maximum control**
+
 ```ts
-const { unprocessedItems } = await table.batchWrite<User>([
-  { type: "put", item: newUser },
-  { type: "delete", key: { pk: "USER#123", sk: "PROFILE" } }
-]);
+// Batch get - retrieve multiple items
+const keys = [
+  { pk: "DIET#carnivore", sk: "SPECIES#Tyrannosaurus Rex#ID#dino-123" },
+  { pk: "FOSSIL#456", sk: "DISCOVERY#2024" }
+];
+
+const { items, unprocessedKeys } = await table.batchGet<DynamoItem>(keys);
+
+// Batch write - mix of operations
+const operations = [
+  { type: "put" as const, item: { pk: "DIET#herbivore", sk: "SPECIES#Triceratops#ID#dino-789", name: "Spike", dangerLevel: 3 } },
+  { type: "delete" as const, key: { pk: "FOSSIL#OLD", sk: "DISCOVERY#1990" } }
+];
+
+const { unprocessedItems } = await table.batchWrite(operations);
+
+// Handle unprocessed items (retry if needed)
+if (unprocessedItems.length > 0) {
+  await table.batchWrite(unprocessedItems);
+}
 ```
+
 
 ## 🔒 Transaction Operations
 
@@ -1665,15 +1587,6 @@ const quarantinedDinos = await dinoTable
   })
   .execute();
 ```
-
-Available key conditions for dinosaur queries:
-- `eq(value)` - Exact match (e.g., specific enclosure)
-- `lt(value)` - Earlier than date/time
-- `lte(value)` - Up to and including date/time
-- `gt(value)` - Later than date/time
-- `gte(value)` - From date/time onwards
-- `between(lower, upper)` - Range (e.g., weight range, date range)
-- `beginsWith(value)` - Prefix match (e.g., all health checks today)
 
 ## 🔮 Future Roadmap
 
