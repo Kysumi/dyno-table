@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/Kysumi/dyno-table/compare/v1.6.0...v1.7.0) (2025-07-07)
+
+
+### Features
+
+* BatchBuilder functionality ([aacd484](https://github.com/Kysumi/dyno-table/commit/aacd48439b54dcb682c52a856257f2a18fecfb4a))
+
 # [1.6.0](https://github.com/Kysumi/dyno-table/compare/v1.5.0...v1.6.0) (2025-06-02)
 
 
