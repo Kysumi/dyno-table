@@ -133,10 +133,6 @@ export class PutBuilder<T extends DynamoItem> {
 
   /**
    * Adds a condition that must be satisfied for the put operation to succeed.
-   * Use this method when you need to:
-   * - Prevent overwriting existing items (optimistic locking)
-   * - Ensure items meet certain criteria before replacement
-   * - Implement complex business rules for item updates
    *
    * @example
    * ```ts
@@ -273,10 +269,6 @@ export class PutBuilder<T extends DynamoItem> {
 
   /**
    * Adds this put operation to a transaction.
-   * Use this method when you need to:
-   * - Transfer dinosaurs between habitats
-   * - Initialize new breeding programs
-   * - Update multiple facility records
    *
    * @example
    * ```ts
@@ -313,10 +305,6 @@ export class PutBuilder<T extends DynamoItem> {
 
   /**
    * Adds this put operation to a batch with optional entity type information.
-   * Use this method when you need to:
-   * - Batch multiple put operations for efficiency
-   * - Work with entity objects in batch operations
-   * - Perform bulk data operations with type safety
    *
    * @example Basic Usage
    * ```ts

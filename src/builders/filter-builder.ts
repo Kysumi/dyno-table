@@ -62,10 +62,6 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 
   /**
    * Sets the maximum number of items to return.
-   * Use this method when you need to:
-   * - Limit the number of dinosaurs returned
-   * - Control the size of habitat reports
-   * - Implement manual pagination of security logs
    *
    * Note: This limit applies to the items that match the key condition
    * before any filter expressions are applied.
@@ -98,11 +94,6 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 
   /**
    * Specifies a Global Secondary Index (GSI) to use for the operation.
-   * Use this method when you need to:
-   * - Find dinosaurs by species or status
-   * - Search habitats by security level
-   * - Find incidents by date
-   * - List feeding schedules by time
    *
    * @example
    * ```typescript
@@ -132,11 +123,6 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 
   /**
    * Sets whether to use strongly consistent reads for the operation.
-   * Use this method when you need to:
-   * - Get real-time dinosaur status updates
-   * - Monitor critical security systems
-   * - Track immediate habitat changes
-   * - Verify containment protocols
    *
    * Note:
    * - Consistent reads are not available on GSIs
@@ -168,11 +154,6 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 
   /**
    * Adds a filter expression to refine the operation results.
-   * Use this method when you need to:
-   * - Filter dinosaurs by behavior patterns
-   * - Find habitats with specific conditions
-   * - Search for security incidents
-   * - Monitor feeding patterns
    *
    * @example
    * ```typescript
@@ -226,11 +207,6 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 
   /**
    * Specifies which attributes to return in the results.
-   * Use this method when you need to:
-   * - Get specific dinosaur attributes
-   * - Retrieve habitat statistics
-   * - Monitor security metrics
-   * - Optimize response size
    *
    * @example
    * ```typescript
@@ -300,11 +276,6 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 
   /**
    * Sets the starting point using a previous lastEvaluatedKey.
-   * Use this method when you need to:
-   * - Implement manual dinosaur list pagination
-   * - Resume habitat inspection reviews
-   * - Continue security incident analysis
-   * - Store operation position between sessions
    *
    * Note: This method is typically used for manual pagination.
    * For automatic pagination, use the paginate() method instead.
@@ -339,11 +310,6 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 
   /**
    * Creates a deep clone of this builder instance.
-   * Use this method when you need to:
-   * - Query different dinosaur statuses
-   * - Check multiple habitat conditions
-   * - Monitor various security levels
-   * - Create report templates
    *
    * This is particularly useful when:
    * - Implementing pagination (used internally by paginate())

@@ -74,10 +74,6 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
 
   /**
    * Creates a deep clone of this ScanBuilder instance.
-   * Use this method when you need to:
-   * - Create scan templates
-   * - Run multiple variations of a scan
-   * - Implement pagination (used internally by paginate())
    *
    * @returns A new ScanBuilder instance with the same configuration
    */
@@ -90,11 +86,6 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
 
   /**
    * Executes the scan against DynamoDB.
-   * Use this method when you need to:
-   * - Search across the entire table
-   * - Find items matching specific criteria
-   * - Perform full table analysis
-   * - Generate reports across all data
    *
    * The method returns both the matched items and, if there are more results,
    * a lastEvaluatedKey that can be used with startFrom() to continue the scan.
