@@ -1,3 +1,17 @@
+# [1.8.0-next.1](https://github.com/Kysumi/dyno-table/compare/v1.7.0...v1.8.0-next.1) (2025-07-08)
+
+
+### Bug Fixes
+
+* refactor to use toArray() for results ([4848e5d](https://github.com/Kysumi/dyno-table/commit/4848e5de502a3d8931334b880f858d483a5e43ec))
+* update result handling to use toArray() ([1fb579e](https://github.com/Kysumi/dyno-table/commit/1fb579ec56d0d8c105e08434c106f54e16a79a22))
+
+
+### Features
+
+* add async result iterator with pagination ([9593175](https://github.com/Kysumi/dyno-table/commit/9593175467e2d6b3c6ab20c3cbbd0bdabbd058f2))
+* BREAKING! implement auto-pagination using a generator function for query and scans ([6c97ff6](https://github.com/Kysumi/dyno-table/commit/6c97ff615cb51b6655ae7c4b2727db36060e9a31))
+
 # [1.7.0](https://github.com/Kysumi/dyno-table/compare/v1.6.0...v1.7.0) (2025-07-07)
 
 
