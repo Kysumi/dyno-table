@@ -112,7 +112,7 @@ async function getDinosaursBySpecies(species: string): Promise<Dinosaur[]> {
     .useIndex("gsi1")
     .execute();
 
-  return result.toArray();
+  return await result.toArray();
 }
 
 async function getDinosaursByPeriod(periodId: string): Promise<Dinosaur[]> {
@@ -123,7 +123,7 @@ async function getDinosaursByPeriod(periodId: string): Promise<Dinosaur[]> {
     .useIndex("gsi2")
     .execute();
 
-  return result.toArray();
+  return await result.toArray();
 }
 
 async function getDinosaursByHabitat(habitatId: string): Promise<Dinosaur[]> {
@@ -134,7 +134,7 @@ async function getDinosaursByHabitat(habitatId: string): Promise<Dinosaur[]> {
     .useIndex("gsi3")
     .execute();
 
-  return result.toArray();
+  return await result.toArray();
 }
 
 async function getDinosaurWithFossils(dinoId: string): Promise<{
@@ -183,7 +183,7 @@ async function demonstrateTypeSafety(page: Record<string, unknown>) {
     .startFrom(page)
     .execute();
 
-  return result.toArray();
+  return await result.toArray();
 }
 
 async function createDinosaur(

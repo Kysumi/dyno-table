@@ -294,15 +294,17 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    *   .limit(5)
    *   .execute();
    *
-   * if (result1.lastEvaluatedKey) {
+   * const lastKey = result1.getLastEvaluatedKey();
+   * if (lastKey) {
    *   // Continue listing dinosaurs
    *   const result2 = await builder
    *     .filter(op => op.eq('status', 'ACTIVE'))
-   *     .startFrom(result1.lastEvaluatedKey)
+   *     .startFrom(lastKey)
    *     .limit(5)
    *     .execute();
    *
-   *   console.log('Additional dinosaurs:', result2.items);
+   *   const items = await result2.toArray();
+   *   console.log('Additional dinosaurs:', items);
    * }
    * ```
    *

@@ -216,9 +216,10 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    *     console.log(`Processing ${dinosaur.name}`);
    *   }
    *
-   *   // Or use array methods
-   *   const dangerousOnes = await results.filter(dino => dino.aggressionLevel > 9);
-   *   const totalCount = await results.getLength();
+   *   // Or convert to array and use array methods
+   *   const allItems = await results.toArray();
+   *   const dangerousOnes = allItems.filter(dino => dino.aggressionLevel > 9);
+   *   const totalCount = allItems.length;
    * } catch (error) {
    *   console.error('Security scan failed:', error);
    * }

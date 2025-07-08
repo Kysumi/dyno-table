@@ -109,9 +109,10 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
    *     console.log(`Processing dangerous dinosaur: ${dinosaur.name}`);
    *   }
    *
-   *   // Or use array methods
-   *   const criticalThreats = await results.filter(dino => dino.aggressionLevel > 9);
-   *   const totalCount = await results.getLength();
+   *   // Or convert to array and use array methods
+   *   const allItems = await results.toArray();
+   *   const criticalThreats = allItems.filter(dino => dino.aggressionLevel > 9);
+   *   const totalCount = allItems.length;
    * } catch (error) {
    *   console.error('Security scan failed:', error);
    * }
