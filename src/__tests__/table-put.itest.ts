@@ -23,8 +23,9 @@ describe("Table Integration Tests - Put Items", () => {
 
     // Verify item was created
     const queryResult = await table.query({ pk: "dinosaur#3" }).execute();
-    expect(queryResult.items).toHaveLength(1);
-    expect(queryResult.items[0]).toEqual(dino);
+    const items = await queryResult.toArray();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toEqual(dino);
   });
 
   it("should put an item with a condition that passes", async () => {

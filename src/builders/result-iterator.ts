@@ -19,12 +19,16 @@ type DirectExecutor<T extends DynamoItem> = () => Promise<{ items: T[]; lastEval
  * ```
  */
 export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = TableConfig> {
-  private lastEvaluatedKey?: DynamoItem;
+  private lastEvaluatedKey?: DynamoItem | null;
+  private itemsYielded = 0;
+  private readonly overallLimit?: number;
 
   constructor(
     private queryBuilder: QueryBuilderInterface<T, TConfig>,
     private directExecutor: DirectExecutor<T>,
-  ) {}
+  ) {
+    this.overallLimit = queryBuilder.getLimit();
+  }
 
   /**
    * Async iterator with automatic pagination
@@ -33,20 +37,33 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
     let hasMorePages = true;
 
     while (hasMorePages) {
-      const query = this.queryBuilder.clone();
-
-      if (this.lastEvaluatedKey) {
-        query.startFrom(this.lastEvaluatedKey);
-      }
-
       const result = await this.directExecutor();
 
       for (const item of result.items) {
+        // Check if we've reached the overall limit
+        if (this.overallLimit !== undefined && this.itemsYielded >= this.overallLimit) {
+          return;
+        }
+        
         yield item;
+        this.itemsYielded++;
       }
 
-      this.lastEvaluatedKey = result.lastEvaluatedKey;
-      hasMorePages = !!result.lastEvaluatedKey;
+      // Update lastEvaluatedKey, but preserve the last non-null value
+      if (result.lastEvaluatedKey !== null && result.lastEvaluatedKey !== undefined) {
+        this.lastEvaluatedKey = result.lastEvaluatedKey;
+        // Update the query builder's options for the next iteration
+        this.queryBuilder.startFrom(result.lastEvaluatedKey);
+      } else if (result.lastEvaluatedKey === null) {
+        // Only set to null if we haven't seen a lastEvaluatedKey yet
+        if (this.lastEvaluatedKey === undefined) {
+          this.lastEvaluatedKey = null;
+        }
+      }
+      
+      // Stop if we've reached the overall limit or no more pages
+      hasMorePages = !!result.lastEvaluatedKey && 
+                    (this.overallLimit === undefined || this.itemsYielded < this.overallLimit);
     }
   }
 
@@ -78,6 +95,6 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
    * Get the last evaluated key
    */
   getLastEvaluatedKey(): DynamoItem | undefined {
-    return this.lastEvaluatedKey;
+    return this.lastEvaluatedKey === null ? undefined : this.lastEvaluatedKey;
   }
 }

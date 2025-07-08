@@ -229,6 +229,7 @@ describe("Table Integration Tests - Batch Operations", () => {
 
     // Verify all 30 items were created by querying
     const queryResult = await table.query({ pk: "dinosaur#batchchunk" }).execute();
-    expect(queryResult.items).toHaveLength(30);
+    const items = await queryResult.toArray();
+    expect(items).toHaveLength(30);
   });
 });

@@ -24,7 +24,8 @@ describe("ScanBuilder", () => {
   it("should set index name", async () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.useIndex("myIndex");
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -36,7 +37,8 @@ describe("ScanBuilder", () => {
   it("should set consistent read", async () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.consistentRead(true);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -49,7 +51,8 @@ describe("ScanBuilder", () => {
     const builder = new ScanBuilder(mockExecutor);
     const filterCondition = eq("status", "active");
     builder.filter(filterCondition);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -61,7 +64,8 @@ describe("ScanBuilder", () => {
   it("should set filter with function", async () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.filter((op) => op.eq("status", "active"));
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -73,7 +77,8 @@ describe("ScanBuilder", () => {
   it("should select fields", async () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.select(["id", "name"]);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -85,7 +90,8 @@ describe("ScanBuilder", () => {
   it("should add a single field to selection", async () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.select("id");
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -97,7 +103,8 @@ describe("ScanBuilder", () => {
   it("should combine multiple select calls", async () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.select("id").select(["name", "email"]);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -116,7 +123,8 @@ describe("ScanBuilder", () => {
     const builder = new ScanBuilder(mockExecutor);
     const lastKey = { id: "lastId" };
     builder.startFrom(lastKey);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -148,7 +156,8 @@ describe("ScanBuilder", () => {
     builder.limit(10).useIndex("myIndex");
 
     mockExecutor.mockResolvedValueOnce({ items: [], lastEvaluatedKey: null });
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -156,6 +165,8 @@ describe("ScanBuilder", () => {
         indexName: "myIndex",
       }),
     );
+    expect(resultIterator).toBeDefined();
+    expect(typeof resultIterator[Symbol.asyncIterator]).toBe("function");
   });
 
   it("should support method chaining", () => {
@@ -174,9 +185,10 @@ describe("ScanBuilder", () => {
     const builder = new ScanBuilder(mockExecutor);
     mockExecutor.mockResolvedValueOnce({ items: [] });
 
-    const result = await builder.execute();
-    expect(result.items).toEqual([]);
-    expect(result.lastEvaluatedKey).toBeUndefined();
+    const resultIterator = await builder.execute();
+    const items = await resultIterator.toArray();
+    expect(items).toEqual([]);
+    expect(resultIterator.getLastEvaluatedKey()).toBeUndefined();
   });
 
   it("should handle results with items", async () => {
@@ -184,24 +196,35 @@ describe("ScanBuilder", () => {
       { id: "1", name: "Item 1" },
       { id: "2", name: "Item 2" },
     ];
+    const builder = new ScanBuilder(mockExecutor);
     mockExecutor.mockResolvedValueOnce({ items: mockItems });
 
-    const builder = new ScanBuilder(mockExecutor);
-    const result = await builder.execute();
+    const resultIterator = await builder.execute();
+    const items = await resultIterator.toArray();
 
-    expect(result.items).toEqual(mockItems);
+    expect(items).toEqual(mockItems);
   });
 
   it("should handle results with lastEvaluatedKey", async () => {
     const lastKey = { id: "lastId" };
+    const builder = new ScanBuilder(mockExecutor);
+    
+    // First call returns items with lastEvaluatedKey
     mockExecutor.mockResolvedValueOnce({
       items: [{ id: "1" }],
       lastEvaluatedKey: lastKey,
     });
+    
+    // Second call returns empty results (no more pages)
+    mockExecutor.mockResolvedValueOnce({
+      items: [],
+      lastEvaluatedKey: null,
+    });
 
-    const builder = new ScanBuilder(mockExecutor);
-    const result = await builder.execute();
+    const resultIterator = await builder.execute();
+    const items = await resultIterator.toArray();
 
-    expect(result.lastEvaluatedKey).toEqual(lastKey);
+    expect(items).toEqual([{ id: "1" }]);
+    expect(resultIterator.getLastEvaluatedKey()).toEqual(lastKey);
   });
 });

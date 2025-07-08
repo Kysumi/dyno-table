@@ -94,12 +94,15 @@ describe("TransactionBuilder Integration Tests", () => {
       // Verify results
       const sourceEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#A" }).execute();
       const destEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#B" }).execute();
+      
+      const sourceItems = await sourceEnclosure.toArray();
+      const destItems = await destEnclosure.toArray();
 
       // Source enclosure should be empty (except for status)
-      expect(sourceEnclosure.items.filter((item) => item.demoSortKey.startsWith("DINO#"))).toHaveLength(0);
+      expect(sourceItems.filter((item) => item.demoSortKey.startsWith("DINO#"))).toHaveLength(0);
 
       // Destination enclosure should have the dinosaur
-      const transferredDino = destEnclosure.items.find((item) => item.demoSortKey === "DINO#001");
+      const transferredDino = destItems.find((item) => item.demoSortKey === "DINO#001");
       expect(transferredDino).toBeDefined();
       expect(transferredDino?.name).toBe("Rex");
       expect(transferredDino?.enclosureId).toBe("B");
@@ -179,14 +182,17 @@ describe("TransactionBuilder Integration Tests", () => {
       const sourceEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#C" }).execute();
       const quarantineEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#QUARANTINE" }).execute();
 
+      const sourceItems = await sourceEnclosure.toArray();
+      const quarantineItems = await quarantineEnclosure.toArray();
+
       // The dinosaur should still be in the original enclosure
-      const originalDino = sourceEnclosure.items.find((item) => item.demoSortKey === "DINO#002");
+      const originalDino = sourceItems.find((item) => item.demoSortKey === "DINO#002");
       expect(originalDino).toBeDefined();
       expect(originalDino?.status).toBe("INJURED");
       expect(originalDino?.enclosureId).toBe("C");
 
       // The quarantine enclosure should not have the dinosaur
-      const quarantineDino = quarantineEnclosure.items.find((item) => item.demoSortKey === "DINO#002");
+      const quarantineDino = quarantineItems.find((item) => item.demoSortKey === "DINO#002");
       expect(quarantineDino).toBeUndefined();
     });
 
