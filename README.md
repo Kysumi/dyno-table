@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🦖 dyno-table
+# 🦖 dyno-table ALPHA
 
 ### **Tame Your DynamoDB Data with Type-Safe Precision**
 
