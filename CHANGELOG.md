@@ -1,3 +1,21 @@
+# [2.0.0](https://github.com/Kysumi/dyno-table/compare/v1.7.0...v2.0.0) (2025-07-09)
+
+
+### Features
+
+* add async result iterator ([8e5cd0c](https://github.com/Kysumi/dyno-table/commit/8e5cd0c33d9380966c92cac55ca0c1e2f27480e7))
+
+
+### BREAKING CHANGES
+
+* The return type of execute is no longer an object containing items, it now returns an iterator object which you can use `for await` to iterate all items from your query result. Alternatively you can use result.toArray() to eager load all results into memory
+
+const result = await table.query<Dinosaur>({ pk: "dinosaur#large" }).execute();
+
+for await (const item of result) {
+  // do stuff here...
+}
+
 # [1.7.0](https://github.com/Kysumi/dyno-table/compare/v1.6.0...v1.7.0) (2025-07-07)
 
 
