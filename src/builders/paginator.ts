@@ -37,14 +37,14 @@ import type { PaginationResult, QueryBuilderInterface } from "./builder-types";
  */
 export class Paginator<T extends DynamoItem, TConfig extends TableConfig = TableConfig> {
   private queryBuilder: QueryBuilderInterface<T, TConfig>;
-  private readonly pageSize: number;
+  private readonly pageSize?: number;
   private currentPage = 0;
   private lastEvaluatedKey?: DynamoItem;
   private hasMorePages = true;
   private totalItemsRetrieved = 0;
   private readonly overallLimit?: number;
 
-  constructor(queryBuilder: QueryBuilderInterface<T, TConfig>, pageSize: number) {
+  constructor(queryBuilder: QueryBuilderInterface<T, TConfig>, pageSize?: number) {
     this.queryBuilder = queryBuilder;
     this.pageSize = pageSize;
     // Store the overall limit from the query builder if it exists
@@ -159,19 +159,44 @@ export class Paginator<T extends DynamoItem, TConfig extends TableConfig = Table
           page: this.currentPage,
         };
       }
-      effectivePageSize = Math.min(effectivePageSize, remainingItems);
+      if (effectivePageSize !== undefined) {
+        effectivePageSize = Math.min(effectivePageSize, remainingItems);
+      } else {
+        effectivePageSize = remainingItems;
+      }
     }
 
     // Clone the query builder to avoid modifying the original
-    const query = this.queryBuilder.clone().limit(effectivePageSize);
+    const query = this.queryBuilder.clone();
+
+    // Only set limit if we have an effective page size (not automatic paging)
+    if (effectivePageSize !== undefined) {
+      query.limit(effectivePageSize);
+    }
 
     // Apply the last evaluated key if we have one
     if (this.lastEvaluatedKey) {
       query.startFrom(this.lastEvaluatedKey);
     }
 
-    // Execute the query
-    const result = await query.execute();
+    // Execute the query and get the first page from the generator
+    const generator = await query.execute();
+    const items: T[] = [];
+
+    // Take items up to the effective page size
+    let itemCount = 0;
+    for await (const item of generator) {
+      if (effectivePageSize !== undefined && itemCount >= effectivePageSize) {
+        break;
+      }
+      items.push(item);
+      itemCount++;
+    }
+
+    // Get the last evaluated key from the generator
+    const lastEvaluatedKey = generator.getLastEvaluatedKey();
+
+    const result = { items, lastEvaluatedKey };
 
     // Update pagination state
     this.currentPage += 1;

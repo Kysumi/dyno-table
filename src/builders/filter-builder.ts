@@ -20,6 +20,7 @@ import {
 import { Paginator } from "./paginator";
 import type { DynamoItem, GSINames, TableConfig } from "../types";
 import type { FilterBuilderInterface } from "./builder-types";
+import type { ResultIterator } from "./result-iterator";
 
 /**
  * Configuration options for DynamoDB filter operations.
@@ -253,10 +254,15 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    *
    * @example
    * ```typescript
-   * // Create a paginator for dinosaur records
+   * // Create a paginator for dinosaur records with specific page size
    * const paginator = builder
    *   .filter(op => op.eq('status', 'ACTIVE'))
    *   .paginate(10);
+   *
+   * // Create a paginator with automatic DynamoDB paging (no page size limit)
+   * const autoPaginator = builder
+   *   .filter(op => op.eq('status', 'ACTIVE'))
+   *   .paginate();
    *
    * // Process pages of dinosaur results
    * while (paginator.hasNextPage()) {
@@ -266,11 +272,11 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    * }
    * ```
    *
-   * @param pageSize - The number of items to return per page
+   * @param pageSize - The number of items to return per page. If not provided, DynamoDB will automatically determine page sizes.
    * @returns A Paginator instance that manages the pagination state
    * @see Paginator for more pagination control options
    */
-  paginate(pageSize: number): Paginator<T, TConfig> {
+  paginate(pageSize?: number): Paginator<T, TConfig> {
     return new Paginator<T, TConfig>(this, pageSize);
   }
 
@@ -288,15 +294,17 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    *   .limit(5)
    *   .execute();
    *
-   * if (result1.lastEvaluatedKey) {
+   * const lastKey = result1.getLastEvaluatedKey();
+   * if (lastKey) {
    *   // Continue listing dinosaurs
    *   const result2 = await builder
    *     .filter(op => op.eq('status', 'ACTIVE'))
-   *     .startFrom(result1.lastEvaluatedKey)
+   *     .startFrom(lastKey)
    *     .limit(5)
    *     .execute();
    *
-   *   console.log('Additional dinosaurs:', result2.items);
+   *   const items = await result2.toArray();
+   *   console.log('Additional dinosaurs:', items);
    * }
    * ```
    *
@@ -339,9 +347,9 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
   abstract clone(): FilterBuilderInterface<T, TConfig>;
 
   /**
-   * Executes the operation against DynamoDB.
+   * Executes the operation against DynamoDB and returns a generator that behaves like an array.
    * This method must be implemented by subclasses to handle
    * their specific execution logic.
    */
-  abstract execute(): Promise<{ items: T[]; lastEvaluatedKey?: DynamoItem }>;
+  abstract execute(): Promise<ResultIterator<T, TConfig>>;
 }

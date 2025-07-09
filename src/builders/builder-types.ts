@@ -1,6 +1,6 @@
-import type { PrimaryKeyWithoutExpression } from "../conditions";
 import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
 import type { DynamoItem, TableConfig } from "../types";
+import type { ResultIterator } from "./result-iterator";
 
 export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
@@ -69,7 +69,7 @@ export interface BaseBuilderInterface<T extends DynamoItem, TConfig extends Tabl
   limit(limit: number): B;
   getLimit(): number | undefined;
   startFrom(lastEvaluatedKey: DynamoItem): B;
-  execute(): Promise<{ items: T[]; lastEvaluatedKey?: DynamoItem }>;
+  execute(): Promise<ResultIterator<T, TConfig>>;
 }
 
 /**

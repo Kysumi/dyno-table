@@ -49,26 +49,27 @@ describe("Table Integration Tests - Query Builder Advanced Features", () => {
   });
 
   it("should paginate query results", async () => {
-    // First page
     const firstPageResult = await table.query({ pk: "dinosaur#query" }).limit(2).execute();
+    const firstPageItems = await firstPageResult.toArray();
 
-    expect(firstPageResult.items).toHaveLength(2);
-    expect(firstPageResult.lastEvaluatedKey).toBeDefined();
+    expect(firstPageItems).toHaveLength(2);
+    expect(firstPageResult.getLastEvaluatedKey()).toBeDefined();
+
+    const key = firstPageResult.getLastEvaluatedKey();
+
+    expect(key).toBeDefined();
 
     // Second page
-    if (firstPageResult.lastEvaluatedKey) {
-      const secondPageResult = await table
-        .query({ pk: "dinosaur#query" })
-        .limit(2)
-        .startFrom(firstPageResult.lastEvaluatedKey)
-        .execute();
+    if (key) {
+      const secondPageResult = await table.query({ pk: "dinosaur#query" }).limit(2).startFrom(key).execute();
 
-      expect(secondPageResult.items).toHaveLength(2);
-      if (secondPageResult.items[0] && firstPageResult.items[0]) {
-        expect(secondPageResult.items[0].name).not.toBe(firstPageResult.items[0].name);
+      const secondPageItems = await secondPageResult.toArray();
+      expect(secondPageItems).toHaveLength(2);
+      if (secondPageItems[0] && firstPageItems[0]) {
+        expect(secondPageItems[0].name).not.toBe(firstPageItems[0].name);
       }
-      if (secondPageResult.items[1] && firstPageResult.items[1]) {
-        expect(secondPageResult.items[1].name).not.toBe(firstPageResult.items[1].name);
+      if (secondPageItems[1] && firstPageItems[1]) {
+        expect(secondPageItems[1].name).not.toBe(firstPageItems[1].name);
       }
     }
   });
@@ -142,7 +143,68 @@ describe("Table Integration Tests - Query Builder Advanced Features", () => {
   it("should use consistent read", async () => {
     // This is mostly a syntax test since we can't easily test the actual consistency
     const result = await table.query({ pk: "dinosaur#query" }).consistentRead(true).execute();
+    const items = await result.toArray();
 
-    expect(result.items.length).toBeGreaterThan(0);
+    expect(items.length).toBeGreaterThan(0);
+  });
+
+  it("should respect limit when using for await iterator", async () => {
+    const result = await table.query<Dinosaur>({ pk: "dinosaur#query" }).limit(3).execute();
+
+    const items: Dinosaur[] = [];
+    for await (const item of result) {
+      items.push(item);
+    }
+
+    expect(items).toHaveLength(3); // Should only get 3 items due to limit
+  });
+
+  it("should iterate through all items when no limit is set using for await", async () => {
+    const result = await table.query<Dinosaur>({ pk: "dinosaur#query" }).execute();
+
+    const items: Dinosaur[] = [];
+    for await (const item of result) {
+      items.push(item);
+    }
+
+    expect(items).toHaveLength(5); // Should get all 5 items
+    expect(items.every((item) => item.demoPartitionKey === "dinosaur#query")).toBe(true);
+  });
+
+  it("should handle large datasets requiring multiple DynamoDB requests with for await", async () => {
+    // Create large items that will exceed DynamoDB's 1MB response limit
+    // Each item will be approximately 50KB to ensure we hit the limit with ~25 items
+    const largeDescription = "A".repeat(50000); // 50KB string
+
+    const largeDinos: Dinosaur[] = [];
+    for (let i = 1; i <= 100; i++) {
+      largeDinos.push({
+        demoPartitionKey: "dinosaur#large",
+        demoSortKey: `large#${i.toString().padStart(3, "0")}`,
+        name: `Large Dino ${i}`,
+        type: "Massive",
+        description: largeDescription, // Large field to make each item ~50KB
+      });
+    }
+
+    // Insert all large items using batch write
+    const operations = largeDinos.map((dino) => ({
+      type: "put" as const,
+      item: dino,
+    }));
+
+    const batchResult = await table.batchWrite<Dinosaur>(operations);
+    expect(batchResult.unprocessedItems).toHaveLength(0);
+
+    // Query all items using for await - this should require multiple DynamoDB requests
+    const result = await table.query<Dinosaur>({ pk: "dinosaur#large" }).execute();
+
+    const items: Dinosaur[] = [];
+    for await (const item of result) {
+      items.push(item);
+    }
+
+    // Ensure we loaded all the items from the DB
+    expect(items).toHaveLength(100);
   });
 });

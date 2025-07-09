@@ -39,13 +39,14 @@ describe("Table Integration Tests - Transaction Operations", () => {
     });
 
     // Verify all items were created
-    const queryResult = await table.query({ pk: "transaction#test" }).execute();
-    expect(queryResult.items).toHaveLength(3);
+    const queryResultIterator = await table.query({ pk: "transaction#test" }).execute();
+    const items = await queryResultIterator.toArray();
+    expect(items).toHaveLength(3);
 
     // Verify individual items
-    const item1 = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "item#1");
-    const item2 = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "item#2");
-    const item3 = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "item#3");
+    const item1 = items.find((item: Record<string, unknown>) => item.demoSortKey === "item#1");
+    const item2 = items.find((item: Record<string, unknown>) => item.demoSortKey === "item#2");
+    const item3 = items.find((item: Record<string, unknown>) => item.demoSortKey === "item#3");
 
     expect(item1).toBeDefined();
     expect(item1?.name).toBe("Transaction Item 1");
@@ -94,17 +95,18 @@ describe("Table Integration Tests - Transaction Operations", () => {
     await expect(transactionPromise).rejects.toThrowError();
 
     // Verify that no items were created/updated
-    const queryResult = await table.query({ pk: "transaction#test" }).execute();
+    const queryResultIterator = await table.query({ pk: "transaction#test" }).execute();
+    const items = await queryResultIterator.toArray();
 
     // The only item should be the original one
-    const conditionalItem = queryResult.items.find(
+    const conditionalItem = items.find(
       (item: Record<string, unknown>) => item.demoSortKey === "conditional#item",
     );
     expect(conditionalItem).toBeDefined();
     expect(conditionalItem?.name).toBe("Existing Item");
 
     // The success item should not exist
-    const successItem = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "success#item");
+    const successItem = items.find((item: Record<string, unknown>) => item.demoSortKey === "success#item");
     expect(successItem).toBeUndefined();
   });
 
@@ -153,28 +155,29 @@ describe("Table Integration Tests - Transaction Operations", () => {
     });
 
     // Verify results
-    const queryResult = await table.query({ pk: "transaction#test" }).execute();
+    const queryResultIterator = await table.query({ pk: "transaction#test" }).execute();
+    const items = await queryResultIterator.toArray();
 
     // Should have 2 items (put and update, delete should be gone)
     expect(
-      queryResult.items.filter(
+      items.filter(
         (item: Record<string, unknown>) => item.demoSortKey === "put#item" || item.demoSortKey === "update#item",
       ),
     ).toHaveLength(2);
 
     // Verify put item
-    const putItem = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "put#item");
+    const putItem = items.find((item: Record<string, unknown>) => item.demoSortKey === "put#item");
     expect(putItem).toBeDefined();
     expect(putItem?.name).toBe("New Item");
 
     // Verify updated item
-    const updatedItem = queryResult.items.find((item: Record<string, unknown>) => item.demoSortKey === "update#item");
+    const updatedItem = items.find((item: Record<string, unknown>) => item.demoSortKey === "update#item");
     expect(updatedItem).toBeDefined();
     expect(updatedItem?.name).toBe("Updated Item");
     expect(updatedItem?.status).toBe("inactive");
 
     // Verify deleted item is gone
-    const deletedItem = queryResult.items.find((item: Record<string, unknown>) => item.sk === "delete#item");
+    const deletedItem = items.find((item: Record<string, unknown>) => item.sk === "delete#item");
     expect(deletedItem).toBeUndefined();
   });
 
@@ -205,8 +208,9 @@ describe("Table Integration Tests - Transaction Operations", () => {
     });
 
     // Verify the dependent item was created
-    const queryResult = await table.query({ pk: "transaction#test" }).execute();
-    const dependentItem = queryResult.items.find(
+    const queryResultIterator = await table.query({ pk: "transaction#test" }).execute();
+    const items = await queryResultIterator.toArray();
+    const dependentItem = items.find(
       (item: Record<string, unknown>) => item.demoSortKey === "dependent#item",
     );
 

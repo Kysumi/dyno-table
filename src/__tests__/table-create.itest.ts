@@ -28,8 +28,9 @@ describe("Table Integration Tests - Create Items", () => {
 
     // Verify item was created in the database
     const queryResult = await table.query({ pk: "dinosaur#1" }).execute();
-    expect(queryResult.items).toHaveLength(1);
-    expect(queryResult.items[0]).toEqual(dino);
+    const items = await queryResult.toArray();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toEqual(dino);
   });
 
   it("should allow customizing return values through returnValues method", async () => {
@@ -50,8 +51,9 @@ describe("Table Integration Tests - Create Items", () => {
 
     // Verify item was still created
     const queryResult = await table.query({ pk: "dinosaur#3" }).execute();
-    expect(queryResult.items).toHaveLength(1);
-    expect(queryResult.items[0]).toEqual(dino);
+    const items = await queryResult.toArray();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toEqual(dino);
   });
 
   it("should fail to create an item that already exists", async () => {

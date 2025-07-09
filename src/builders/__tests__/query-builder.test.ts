@@ -25,7 +25,8 @@ describe("QueryBuilder", () => {
   it("should set index name", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.useIndex("myIndex");
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -38,7 +39,8 @@ describe("QueryBuilder", () => {
   it("should set consistent read", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.consistentRead(true);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -52,7 +54,8 @@ describe("QueryBuilder", () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     const filterCondition = eq("status", "active");
     builder.filter(filterCondition);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -65,7 +68,8 @@ describe("QueryBuilder", () => {
   it("should set filter with function", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.filter((op) => op.eq("status", "active"));
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -78,7 +82,8 @@ describe("QueryBuilder", () => {
   it("should select fields", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.select(["id", "name"]);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -91,7 +96,8 @@ describe("QueryBuilder", () => {
   it("should set sort order ascending", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.sortAscending();
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -104,7 +110,8 @@ describe("QueryBuilder", () => {
   it("should set sort order descending", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.sortDescending();
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -124,7 +131,8 @@ describe("QueryBuilder", () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     const lastKey = { id: "lastId" };
     builder.startFrom(lastKey);
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -163,7 +171,8 @@ describe("QueryBuilder", () => {
     builder.limit(10).useIndex("myIndex");
 
     mockExecutor.mockResolvedValueOnce({ items: [], lastEvaluatedKey: null });
-    await builder.execute();
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
 
     expect(mockExecutor).toHaveBeenCalledWith(
       mockKeyCondition,
@@ -172,6 +181,8 @@ describe("QueryBuilder", () => {
         indexName: "myIndex",
       }),
     );
+    expect(resultIterator).toBeDefined();
+    expect(typeof resultIterator[Symbol.asyncIterator]).toBe("function");
   });
 
   it("should support method chaining", () => {

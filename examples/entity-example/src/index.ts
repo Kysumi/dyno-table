@@ -184,14 +184,17 @@ async function main() {
 
     console.log("Querying dinosaurs by diet...");
     const carnivores = await dinosaurRepo.query.byDiet({ diet: "herbivore" }).execute();
-    console.log(`Found ${carnivores.items.length} carnivore dinosaurs:`);
-    console.log(carnivores.items.map((dino) => dino.name).join(", "));
+    const herbivores = await dinosaurRepo.query.byDiet({ diet: "herbivore" }).execute();
+    const herbivoreItems = await herbivores.toArray();
+    console.log(`Found ${herbivoreItems.length} herbivore dinosaurs:`);
+    console.log(herbivoreItems.map((dino) => dino.name).join(", "));
 
     console.log("\n🦖 Scanning dinosaurs by species...");
     const trexes = await dinosaurRepo.query.bySpecies({ species: "Tyrannosaurus Rex" }).execute();
+    const trexItems = await trexes.toArray();
 
-    console.log(`Found ${trexes.items.length} T-Rex dinosaurs:`);
-    for (const dino of trexes.items) {
+    console.log(`Found ${trexItems.length} T-Rex dinosaurs:`);
+    for (const dino of trexItems) {
       console.log(`- ${dino.name} (ID: ${dino.id}, Status: ${dino.status})`);
     }
 

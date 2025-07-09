@@ -15,6 +15,7 @@ export type Dinosaur = {
   species?: {
     name: string | null;
   };
+  description?: string;
 };
 
 export function createTestTable(): Table {

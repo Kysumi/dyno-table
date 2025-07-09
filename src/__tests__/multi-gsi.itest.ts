@@ -1,6 +1,5 @@
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { Table } from "../table";
-import type { TableConfig } from "../types";
 import { docClient } from "../../tests/ddb-client";
 
 // Define our dinosaur type with multiple GSI attributes
@@ -180,8 +179,9 @@ describe("Multiple GSI Integration Tests", () => {
         .execute();
 
       // Should find 1 Cretaceous herbivore
-      expect(result.items).toHaveLength(1);
-      expect(result.items[0]?.name).toBe("Ankylosaurus");
+      const items = await result.toArray();
+      expect(items).toHaveLength(1);
+      expect(items[0]?.name).toBe("Ankylosaurus");
     });
 
     it("should query dinosaurs by habitat and size range using GSI2", async () => {
@@ -195,10 +195,11 @@ describe("Multiple GSI Integration Tests", () => {
         .execute();
 
       // Should find 3 plains dinosaurs in this size range
-      expect(result.items).toHaveLength(3);
+      const items = await result.toArray();
+      expect(items).toHaveLength(3);
 
       // Verify the correct dinosaurs were returned
-      const dinoNames = result.items.map((dino) => dino.name as string).sort();
+      const dinoNames = items.map((dino) => dino.name as string).sort();
       expect(dinoNames).toEqual(["Ankylosaurus", "Stegosaurus", "Velociraptor"].sort());
     });
 
@@ -212,8 +213,9 @@ describe("Multiple GSI Integration Tests", () => {
         .execute();
 
       // Should find 1 dinosaur discovered in 1877
-      expect(result.items).toHaveLength(1);
-      expect(result.items[0]?.name).toBe("Stegosaurus");
+      const items = await result.toArray();
+      expect(items).toHaveLength(1);
+      expect(items[0]?.name).toBe("Stegosaurus");
     });
 
     it("should combine GSI query with filtering for complex access patterns", async () => {
@@ -227,8 +229,9 @@ describe("Multiple GSI Integration Tests", () => {
         .execute();
 
       // Should find 1 heavy forest dinosaur
-      expect(result.items).toHaveLength(1);
-      expect(result.items[0]?.name).toBe("Brachiosaurus");
+      const items = await result.toArray();
+      expect(items).toHaveLength(1);
+      expect(items[0]?.name).toBe("Brachiosaurus");
     });
 
     it("should handle complex filtering with multiple conditions", async () => {
@@ -242,8 +245,9 @@ describe("Multiple GSI Integration Tests", () => {
         .execute();
 
       // Should find 1 large Jurassic herbivore
-      expect(result.items).toHaveLength(1);
-      expect(result.items[0]?.name).toBe("Brachiosaurus");
+      const items = await result.toArray();
+      expect(items).toHaveLength(1);
+      expect(items[0]?.name).toBe("Brachiosaurus");
     });
 
     it("should support different access patterns with different GSIs", async () => {
@@ -272,17 +276,21 @@ describe("Multiple GSI Integration Tests", () => {
         .execute();
 
       // Verify each query returned the expected results
-      expect(periodResult.items).toHaveLength(2); // 2 Jurassic dinosaurs
-      expect(habitatResult.items).toHaveLength(2); // 2 forest dinosaurs
-      expect(yearResult.items).toHaveLength(1); // 1 dinosaur discovered in 1903
+      const periodItems = await periodResult.toArray();
+      const habitatItems = await habitatResult.toArray();
+      const yearItems = await yearResult.toArray();
+
+      expect(periodItems).toHaveLength(2); // 2 Jurassic dinosaurs
+      expect(habitatItems).toHaveLength(2); // 2 forest dinosaurs
+      expect(yearItems).toHaveLength(1); // 1 dinosaur discovered in 1903
 
       // Verify specific dinosaurs
-      const jurassicNames = periodResult.items.map((d) => d.name as string).sort();
-      const forestNames = habitatResult.items.map((d) => d.name as string).sort();
+      const jurassicNames = periodItems.map((d) => d.name as string).sort();
+      const forestNames = habitatItems.map((d) => d.name as string).sort();
 
       expect(jurassicNames).toEqual(["Brachiosaurus", "Stegosaurus"].sort());
       expect(forestNames).toEqual(["Brachiosaurus", "Tyrannosaurus Rex"].sort());
-      expect(yearResult.items[0]?.name).toBe("Brachiosaurus");
+      expect(yearItems[0]?.name).toBe("Brachiosaurus");
     });
   });
 });

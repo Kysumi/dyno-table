@@ -2,6 +2,7 @@ import type { Condition } from "../conditions";
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
 import type { DynamoItem, TableConfig } from "../types";
 import type { QueryBuilderInterface } from "./builder-types";
+import { ResultIterator } from "./result-iterator";
 
 /**
  * Configuration options for DynamoDB query operations.
@@ -189,16 +190,16 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
   }
 
   /**
-   * Executes the query against DynamoDB.
+   * Executes the query against DynamoDB and returns a generator that behaves like an array.
    *
-   * The method returns both the matched items and, if there are more results,
-   * a lastEvaluatedKey that can be used with startFrom() to continue the query.
+   * The generator automatically handles pagination and provides array-like methods
+   * for processing results efficiently without loading everything into memory at once.
    *
    * @example
    * ```typescript
    * try {
-   *   // Find active carnivores in specific habitat
-   *   const result = await new QueryBuilder(executor, eq('habitatId', 'PADDOCK-A'))
+   *   // Find active carnivores with automatic pagination
+   *   const results = await new QueryBuilder(executor, eq('habitatId', 'PADDOCK-A'))
    *     .useIndex('species-status-index')
    *     .filter(op =>
    *       op.and([
@@ -208,24 +209,26 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    *       ])
    *     )
    *     .sortDescending()
-   *     .limit(5)
    *     .execute();
    *
-   *   console.log(`Found ${result.items.length} dangerous dinosaurs`);
-   *
-   *   if (result.lastEvaluatedKey) {
-   *     console.log('Additional threats detected');
+   *   // Use like an array with automatic pagination
+   *   for await (const dinosaur of results) {
+   *     console.log(`Processing ${dinosaur.name}`);
    *   }
+   *
+   *   // Or convert to array and use array methods
+   *   const allItems = await results.toArray();
+   *   const dangerousOnes = allItems.filter(dino => dino.aggressionLevel > 9);
+   *   const totalCount = allItems.length;
    * } catch (error) {
    *   console.error('Security scan failed:', error);
    * }
    * ```
    *
-   * @returns A promise that resolves to an object containing:
-   *          - items: Array of items matching the query
-   *          - lastEvaluatedKey: Token for continuing the query, if more items exist
+   * @returns A promise that resolves to a ResultGenerator that behaves like an array
    */
-  async execute(): Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }> {
-    return this.executor(this.keyCondition, this.options);
+  async execute(): Promise<ResultIterator<T, TConfig>> {
+    const directExecutor = () => this.executor(this.keyCondition, this.options);
+    return new ResultIterator(this, directExecutor);
   }
 }
