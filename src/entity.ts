@@ -16,6 +16,7 @@ import type {
   EntityAwareGetBuilder,
   EntityAwareDeleteBuilder,
 } from "./builders/entity-aware-builders";
+import { wrapMethodWithPreparation } from "./utils/method-wrapper";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
@@ -182,50 +183,15 @@ export function defineEntity<
   };
 
   /**
-   * Utility function to wrap a method with preparation logic while preserving all properties
-   * for mock compatibility. This reduces boilerplate for withTransaction and withBatch wrappers.
-   */
-  // biome-ignore lint/suspicious/noExplicitAny: Required for flexible method wrapping
-  const wrapMethodWithPreparation = <TMethod extends (...args: any[]) => any>(
-    originalMethod: TMethod,
-    prepareFn: () => void,
-    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible context binding
-    context: any,
-  ): TMethod => {
-    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible argument handling
-    const wrappedMethod = (...args: any[]) => {
-      prepareFn();
-      return originalMethod.call(context, ...args);
-    };
-
-    // Copy all properties from the original function to preserve mock functionality
-    Object.setPrototypeOf(wrappedMethod, originalMethod);
-    const propertyNames = Object.getOwnPropertyNames(originalMethod);
-    for (let i = 0; i < propertyNames.length; i++) {
-      const prop = propertyNames[i] as string;
-      if (prop !== "length" && prop !== "name" && prop !== "prototype") {
-        // Check if the property is writable before attempting to assign it
-        const descriptor = Object.getOwnPropertyDescriptor(originalMethod, prop);
-        if (descriptor && descriptor.writable !== false && !descriptor.get) {
-          // biome-ignore lint/suspicious/noExplicitAny: meh
-          (wrappedMethod as any)[prop] = (originalMethod as any)[prop];
-        }
-      }
-    }
-
-    return wrappedMethod as TMethod;
-  };
-
-  /**
    * Generates an object containing timestamp attributes based on the given configuration settings.
    * The function determines the presence and format of "createdAt" and "updatedAt" timestamps dynamically.
    *
-   * @param {Array<"createdAt" | "updatedAt">} [timestampTypes] - Optional array of timestamp types to generate. If not provided, all configured timestamps will be generated.
-   * @param {Partial<T>} [data] - Optional partial data object to merge with the generated timestamps.
+   * @param {Array<"createdAt" | "updatedAt">} timestampsToGenerate - Array of timestamp types to generate.
+   * @param {Partial<T>} data - Data object to check for existing timestamps.
    * @returns {Record<string, string | number>} An object containing one or both of the "createdAt" and "updatedAt" timestamp attributes, depending on the configuration and requested types. Each timestamp can be formatted as either an ISO string or a UNIX timestamp.
    */
   const generateTimestamps = (
-    timestampTypes: Array<"createdAt" | "updatedAt">,
+    timestampsToGenerate: Array<"createdAt" | "updatedAt">,
     data: Partial<T>,
   ): Record<string, string | number> => {
     if (!config.settings?.timestamps) return {};
@@ -236,13 +202,10 @@ export function defineEntity<
 
     const { createdAt, updatedAt } = config.settings.timestamps;
 
-    // If no specific types are provided, generate all configured timestamps
-    const typesToGenerate = timestampTypes || ["createdAt", "updatedAt"];
-
     /**
      * If the data object already has a createdAt value, skip generating it.
      */
-    if (createdAt && typesToGenerate.includes("createdAt") && !data.createdAt) {
+    if (createdAt && timestampsToGenerate.includes("createdAt") && !data.createdAt) {
       const name = createdAt.attributeName ?? "createdAt";
       timestamps[name] = createdAt.format === "UNIX" ? unixTime : now.toISOString();
     }
@@ -250,7 +213,7 @@ export function defineEntity<
     /**
      * If the data object already has an updatedAt value, skip generating it.
      */
-    if (updatedAt && typesToGenerate.includes("updatedAt") && !data.updatedAt) {
+    if (updatedAt && timestampsToGenerate.includes("updatedAt") && !data.updatedAt) {
       const name = updatedAt.attributeName ?? "updatedAt";
       timestamps[name] = updatedAt.format === "UNIX" ? unixTime : now.toISOString();
     }
