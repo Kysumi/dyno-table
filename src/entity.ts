@@ -16,7 +16,6 @@ import type {
   EntityAwareGetBuilder,
   EntityAwareDeleteBuilder,
 } from "./builders/entity-aware-builders";
-import { wrapMethodWithPreparation } from "./utils/method-wrapper";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
