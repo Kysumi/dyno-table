@@ -2,6 +2,7 @@ import type { ExpressionParams, PrimaryKeyWithoutExpression } from "../condition
 import type { DynamoItem } from "../types";
 import type { BatchBuilder } from "./batch-builder";
 import { generateAttributeName } from "../expression";
+import type { Path } from "./types";
 
 /**
  * Configuration options for DynamoDB get operations.
@@ -100,7 +101,7 @@ export class GetBuilder<T extends DynamoItem> {
    * @param fields - A single field name or an array of field names to return
    * @returns The builder instance for method chaining
    */
-  select(fields: string | string[]): GetBuilder<T> {
+  select<K extends Path<T>>(fields: K | K[]): GetBuilder<T> {
     if (typeof fields === "string") {
       this.selectedFields.add(fields);
     } else if (Array.isArray(fields)) {
