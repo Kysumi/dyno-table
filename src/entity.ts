@@ -159,10 +159,10 @@ export function defineEntity<
    * @param table The DynamoDB table instance containing GSI configurations
    * @returns Record of GSI attribute names to their values
    */
-  const buildIndexes = (dataForKeyGeneration: unknown, table: Table): Record<string, string> => {
+  const buildIndexes = <TData extends T>(dataForKeyGeneration: TData, table: Table): Record<string, string> => {
     return Object.entries(config.indexes ?? {}).reduce(
       (acc, [indexName, index]) => {
-        const key = (index as IndexDefinition<T>).generateKey(dataForKeyGeneration as unknown as T);
+        const key = (index as IndexDefinition<T>).generateKey(dataForKeyGeneration);
         const gsiConfig = table.gsis[indexName];
 
         if (!gsiConfig) {
@@ -179,6 +179,41 @@ export function defineEntity<
       },
       {} as Record<string, string>,
     );
+  };
+
+  /**
+   * Utility function to wrap a method with preparation logic while preserving all properties
+   * for mock compatibility. This reduces boilerplate for withTransaction and withBatch wrappers.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: Required for flexible method wrapping
+  const wrapMethodWithPreparation = <TMethod extends (...args: any[]) => any>(
+    originalMethod: TMethod,
+    prepareFn: () => void,
+    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible context binding
+    context: any,
+  ): TMethod => {
+    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible argument handling
+    const wrappedMethod = (...args: any[]) => {
+      prepareFn();
+      return originalMethod.call(context, ...args);
+    };
+
+    // Copy all properties from the original function to preserve mock functionality
+    Object.setPrototypeOf(wrappedMethod, originalMethod);
+    const propertyNames = Object.getOwnPropertyNames(originalMethod);
+    for (let i = 0; i < propertyNames.length; i++) {
+      const prop = propertyNames[i] as string;
+      if (prop !== "length" && prop !== "name" && prop !== "prototype") {
+        // Check if the property is writable before attempting to assign it
+        const descriptor = Object.getOwnPropertyDescriptor(originalMethod, prop);
+        if (descriptor && descriptor.writable !== false && !descriptor.get) {
+          // biome-ignore lint/suspicious/noExplicitAny: meh
+          (wrappedMethod as any)[prop] = (originalMethod as any)[prop];
+        }
+      }
+    }
+
+    return wrappedMethod as TMethod;
   };
 
   /**
