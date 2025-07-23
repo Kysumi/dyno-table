@@ -21,6 +21,7 @@ import { Paginator } from "./paginator";
 import type { DynamoItem, GSINames, TableConfig } from "../types";
 import type { FilterBuilderInterface } from "./builder-types";
 import type { ResultIterator } from "./result-iterator";
+import type { Path } from "./types";
 
 /**
  * Configuration options for DynamoDB filter operations.
@@ -232,7 +233,7 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    * @param fields - A single field name or an array of field names to return
    * @returns The builder instance for method chaining
    */
-  select(fields: string | string[]): this {
+  select<K extends Path<T>>(fields: K | K[]): this {
     if (typeof fields === "string") {
       this.selectedFields.add(fields);
     } else if (Array.isArray(fields)) {

@@ -1,6 +1,4 @@
-import type { DeleteBuilder } from "./builders/delete-builder";
 import type { GetBuilder } from "./builders/get-builder";
-import type { PutBuilder } from "./builders/put-builder";
 import type { ScanBuilder } from "./builders/scan-builder";
 import type { UpdateBuilder } from "./builders/update-builder";
 import type { StandardSchemaV1 } from "./standard-schema";
@@ -8,7 +6,6 @@ import type { Table } from "./table";
 import type { DynamoItem, Index, TableConfig } from "./types";
 import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "./conditions";
 import type { QueryBuilder } from "./builders/query-builder";
-import type { TransactionBuilder } from "./builders/transaction-builder";
 import {
   createEntityAwarePutBuilder,
   createEntityAwareGetBuilder,
@@ -156,6 +153,35 @@ export function defineEntity<
   const entityTypeAttributeName = config.settings?.entityTypeAttributeName ?? "entityType";
 
   /**
+   * Builds secondary indexes for an item based on the configured indexes
+   *
+   * @param dataForKeyGeneration The validated data to generate keys from
+   * @param table The DynamoDB table instance containing GSI configurations
+   * @returns Record of GSI attribute names to their values
+   */
+  const buildIndexes = <TData extends T>(dataForKeyGeneration: TData, table: Table): Record<string, string> => {
+    return Object.entries(config.indexes ?? {}).reduce(
+      (acc, [indexName, index]) => {
+        const key = (index as IndexDefinition<T>).generateKey(dataForKeyGeneration);
+        const gsiConfig = table.gsis[indexName];
+
+        if (!gsiConfig) {
+          throw new Error(`GSI configuration not found for index: ${indexName}`);
+        }
+
+        if (key.pk) {
+          acc[gsiConfig.partitionKey] = key.pk;
+        }
+        if (key.sk && gsiConfig.sortKey) {
+          acc[gsiConfig.sortKey] = key.sk;
+        }
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+  };
+
+  /**
    * Utility function to wrap a method with preparation logic while preserving all properties
    * for mock compatibility. This reduces boilerplate for withTransaction and withBatch wrappers.
    */
@@ -194,20 +220,14 @@ export function defineEntity<
    * Generates an object containing timestamp attributes based on the given configuration settings.
    * The function determines the presence and format of "createdAt" and "updatedAt" timestamps dynamically.
    *
-   * @param {Array<"createdAt" | "updatedAt">} [timestampTypes] - Optional array of timestamp types to generate. If not provided, all configured timestamps will be generated.
+   * @param {Array<"createdAt" | "updatedAt">} timestampsToGenerate - Array of timestamp types to generate.
+   * @param {Partial<T>} data - Data object to check for existing timestamps.
    * @returns {Record<string, string | number>} An object containing one or both of the "createdAt" and "updatedAt" timestamp attributes, depending on the configuration and requested types. Each timestamp can be formatted as either an ISO string or a UNIX timestamp.
-   *
-   * @throws Will not throw errors but depends on `config.settings?.timestamps` to be properly defined.
-   * - If `createdAt` is configured, the function adds a timestamp using the attribute name specified in `config.settings.timestamps.createdAt.attributeName` or defaults to "createdAt".
-   * - If `updatedAt` is configured, the function adds a timestamp using the attribute name specified in `config.settings.timestamps.updatedAt.attributeName` or defaults to "updatedAt".
-   *
-   * Configuration Details:
-   *  - `config.settings.timestamps.createdAt.format`: Determines the format of the "createdAt" timestamp. Accepts "UNIX" or defaults to ISO string.
-   *  - `config.settings.timestamps.updatedAt.format`: Determines the format of the "updatedAt" timestamp. Accepts "UNIX" or defaults to ISO string.
-   *
-   * The returned object keys and values depend on the provided configuration and requested timestamp types.
    */
-  const generateTimestamps = (timestampTypes?: Array<"createdAt" | "updatedAt">): Record<string, string | number> => {
+  const generateTimestamps = (
+    timestampsToGenerate: Array<"createdAt" | "updatedAt">,
+    data: Partial<T>,
+  ): Record<string, string | number> => {
     if (!config.settings?.timestamps) return {};
 
     const timestamps: Record<string, string | number> = {};
@@ -216,15 +236,18 @@ export function defineEntity<
 
     const { createdAt, updatedAt } = config.settings.timestamps;
 
-    // If no specific types are provided, generate all configured timestamps
-    const typesToGenerate = timestampTypes || ["createdAt", "updatedAt"];
-
-    if (createdAt && typesToGenerate.includes("createdAt")) {
+    /**
+     * If the data object already has a createdAt value, skip generating it.
+     */
+    if (createdAt && timestampsToGenerate.includes("createdAt") && !data.createdAt) {
       const name = createdAt.attributeName ?? "createdAt";
       timestamps[name] = createdAt.format === "UNIX" ? unixTime : now.toISOString();
     }
 
-    if (updatedAt && typesToGenerate.includes("updatedAt")) {
+    /**
+     * If the data object already has an updatedAt value, skip generating it.
+     */
+    if (updatedAt && timestampsToGenerate.includes("updatedAt") && !data.updatedAt) {
       const name = updatedAt.attributeName ?? "updatedAt";
       timestamps[name] = updatedAt.format === "UNIX" ? unixTime : now.toISOString();
     }
@@ -245,45 +268,28 @@ export function defineEntity<
           // Core function that handles validation, key generation, and item preparation (async version)
           const prepareValidatedItemAsync = async () => {
             // Validate data to ensure defaults are applied before key generation
-            const validationResult = config.schema["~standard"].validate(data);
-
-            // Handle Promise case
-            const validatedData = validationResult instanceof Promise ? await validationResult : validationResult;
+            const validatedData = await config.schema["~standard"].validate(data);
 
             if ("issues" in validatedData && validatedData.issues) {
               throw new Error(`Validation failed: ${validatedData.issues.map((i) => i.message).join(", ")}`);
             }
 
+            const dataForKeyGeneration = {
+              ...validatedData.value,
+              ...generateTimestamps(["createdAt", "updatedAt"], validatedData.value),
+            };
+
             // Generate the primary key using validated data (with defaults applied)
-            const primaryKey = config.primaryKey.generateKey(validatedData.value as unknown as I);
+            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = Object.entries(config.indexes ?? {}).reduce(
-              (acc, [indexName, index]) => {
-                const key = (index as IndexDefinition<T>).generateKey(validatedData.value as unknown as T);
-                const gsiConfig = table.gsis[indexName];
-
-                if (!gsiConfig) {
-                  throw new Error(`GSI configuration not found for index: ${indexName}`);
-                }
-
-                if (key.pk) {
-                  acc[gsiConfig.partitionKey] = key.pk;
-                }
-                if (key.sk && gsiConfig.sortKey) {
-                  acc[gsiConfig.sortKey] = key.sk;
-                }
-                return acc;
-              },
-              {} as Record<string, string>,
-            );
+            const indexes = buildIndexes(dataForKeyGeneration, table);
 
             const validatedItem = {
-              ...(validatedData.value as unknown as T),
+              ...(dataForKeyGeneration as unknown as T),
               [entityTypeAttributeName]: config.name,
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
               ...indexes,
-              ...generateTimestamps(["createdAt", "updatedAt"]),
             };
 
             Object.assign(builder, { item: validatedItem });
@@ -297,7 +303,7 @@ export function defineEntity<
             // Handle Promise case - this shouldn't happen for most schemas, but we need to handle it
             if (validationResult instanceof Promise) {
               throw new Error(
-                "Async validation is not supported in create method. The schema must support synchronous validation for transaction compatibility.",
+                "Async validation is not supported in withBatch or withTransaction. The schema must support synchronous validation for compatibility.",
               );
             }
 
@@ -305,36 +311,22 @@ export function defineEntity<
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
+            const dataForKeyGeneration = {
+              ...validationResult.value,
+              ...generateTimestamps(["createdAt", "updatedAt"], validationResult.value),
+            };
+
             // Generate the primary key using validated data (with defaults applied)
-            const primaryKey = config.primaryKey.generateKey(validationResult.value as unknown as I);
+            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = Object.entries(config.indexes ?? {}).reduce(
-              (acc, [indexName, index]) => {
-                const key = (index as IndexDefinition<T>).generateKey(validationResult.value as unknown as T);
-                const gsiConfig = table.gsis[indexName];
-
-                if (!gsiConfig) {
-                  throw new Error(`GSI configuration not found for index: ${indexName}`);
-                }
-
-                if (key.pk) {
-                  acc[gsiConfig.partitionKey] = key.pk;
-                }
-                if (key.sk && gsiConfig.sortKey) {
-                  acc[gsiConfig.sortKey] = key.sk;
-                }
-                return acc;
-              },
-              {} as Record<string, string>,
-            );
+            const indexes = buildIndexes(dataForKeyGeneration, table);
 
             const validatedItem = {
-              ...(validationResult.value as unknown as T),
+              ...(dataForKeyGeneration as unknown as T),
               [entityTypeAttributeName]: config.name,
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
               ...indexes,
-              ...generateTimestamps(["createdAt", "updatedAt"]),
             };
 
             Object.assign(builder, { item: validatedItem });
@@ -374,44 +366,27 @@ export function defineEntity<
 
           // Core function that handles validation, key generation, and item preparation (async version)
           const prepareValidatedItemAsync = async () => {
-            const validationResult = config.schema["~standard"].validate(data);
-
-            // Handle Promise case
-            const validatedData = validationResult instanceof Promise ? await validationResult : validationResult;
+            const validatedData = await config.schema["~standard"].validate(data);
 
             if ("issues" in validatedData && validatedData.issues) {
               throw new Error(`Validation failed: ${validatedData.issues.map((i) => i.message).join(", ")}`);
             }
 
-            const primaryKey = config.primaryKey.generateKey(validatedData.value as unknown as TInput & I);
+            const dataForKeyGeneration = {
+              ...validatedData.value,
+              ...generateTimestamps(["createdAt", "updatedAt"], validatedData.value),
+            };
 
-            const indexes = Object.entries(config.indexes ?? {}).reduce(
-              (acc, [indexName, index]) => {
-                const key = (index as IndexDefinition<T>).generateKey(validatedData.value as unknown as T);
-                const gsiConfig = table.gsis[indexName];
+            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
 
-                if (!gsiConfig) {
-                  throw new Error(`GSI configuration not found for index: ${indexName}`);
-                }
-
-                if (key.pk) {
-                  acc[gsiConfig.partitionKey] = key.pk;
-                }
-                if (key.sk && gsiConfig.sortKey) {
-                  acc[gsiConfig.sortKey] = key.sk;
-                }
-                return acc;
-              },
-              {} as Record<string, string>,
-            );
+            const indexes = buildIndexes(dataForKeyGeneration, table);
 
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-              ...validatedData.value,
+              ...dataForKeyGeneration,
               [entityTypeAttributeName]: config.name,
               ...indexes,
-              ...generateTimestamps(["createdAt", "updatedAt"]),
             };
 
             Object.assign(builder, { item: validatedItem });
@@ -424,42 +399,30 @@ export function defineEntity<
 
             // Handle Promise case - this shouldn't happen in withTransaction but we need to handle it for type safety
             if (validationResult instanceof Promise) {
-              throw new Error("Async validation is not supported in withTransaction. Use execute() instead.");
+              throw new Error(
+                "Async validation is not supported in withTransaction or withBatch. Use execute() instead.",
+              );
             }
 
             if ("issues" in validationResult && validationResult.issues) {
               throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
             }
 
-            const primaryKey = config.primaryKey.generateKey(validationResult.value as unknown as TInput & I);
+            const dataForKeyGeneration = {
+              ...validationResult.value,
+              ...generateTimestamps(["createdAt", "updatedAt"], validationResult.value),
+            };
 
-            const indexes = Object.entries(config.indexes ?? {}).reduce(
-              (acc, [indexName, index]) => {
-                const key = (index as IndexDefinition<T>).generateKey(validationResult.value as unknown as T);
-                const gsiConfig = table.gsis[indexName];
+            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
 
-                if (!gsiConfig) {
-                  throw new Error(`GSI configuration not found for index: ${indexName}`);
-                }
-
-                if (key.pk) {
-                  acc[gsiConfig.partitionKey] = key.pk;
-                }
-                if (key.sk && gsiConfig.sortKey) {
-                  acc[gsiConfig.sortKey] = key.sk;
-                }
-                return acc;
-              },
-              {} as Record<string, string>,
-            );
+            const indexes = buildIndexes(dataForKeyGeneration, table);
 
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
               ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-              ...validationResult.value,
+              ...dataForKeyGeneration,
               [entityTypeAttributeName]: config.name,
               ...indexes,
-              ...generateTimestamps(["createdAt", "updatedAt"]),
             };
 
             Object.assign(builder, { item: validatedItem });
@@ -505,7 +468,7 @@ export function defineEntity<
           builder.condition(eq(entityTypeAttributeName, config.name));
 
           // Use only updatedAt timestamp for updates
-          const timestamps = generateTimestamps(["updatedAt"]);
+          const timestamps = generateTimestamps(["updatedAt"], data);
 
           builder.set({ ...data, ...timestamps });
           return builder;
