@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/Kysumi/dyno-table/compare/v2.0.0...v2.0.1) (2025-07-23)
+
+
+### Bug Fixes
+
+* inconsistent timestamps between index and what is on the item ([#53](https://github.com/Kysumi/dyno-table/issues/53)) ([1a1b3a0](https://github.com/Kysumi/dyno-table/commit/1a1b3a089bceb622b13039cfbd3a640f1b8c5693))
+
 # [2.0.0](https://github.com/Kysumi/dyno-table/compare/v1.7.0...v2.0.0) (2025-07-09)
 
 
