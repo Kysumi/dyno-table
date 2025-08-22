@@ -1,13 +1,13 @@
 // Main exports - re-export the most commonly used functionality
 export { Table } from "./table";
-export { defineEntity, createIndex, createQueries } from "./entity";
+export { defineEntity, createIndex, createQueries } from "./entity/entity";
 export type {
   EntityRepository,
   EntityConfig,
   QueryEntity,
   IndexDefinition,
   QueryRecord,
-} from "./entity";
+} from "./entity/entity";
 
 // Condition builders and types
 export {

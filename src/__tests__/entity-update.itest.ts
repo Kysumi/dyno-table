@@ -1,8 +1,8 @@
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { Table } from "../table";
 
 import { docClient } from "../../tests/ddb-client";
-import { defineEntity, createIndex } from "../entity";
+import { defineEntity, createIndex } from "../entity/entity";
 import type { DynamoItem } from "../types";
 import type { StandardSchemaV1 } from "../standard-schema";
 
