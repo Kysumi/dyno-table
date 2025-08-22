@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/Kysumi/dyno-table/compare/v2.0.1...v2.0.2) (2025-08-22)
+
+
+### Bug Fixes
+
+* Set and Remove not working correctly on nested attributes ([#54](https://github.com/Kysumi/dyno-table/issues/54)) ([e1c6bc4](https://github.com/Kysumi/dyno-table/commit/e1c6bc4340b997126b1e745f6b2d869a10fcd2ee))
+
 ## [2.0.1](https://github.com/Kysumi/dyno-table/compare/v2.0.0...v2.0.1) (2025-07-23)
 
 
