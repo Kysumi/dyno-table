@@ -568,8 +568,8 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
   describe("Comprehensive Dinosaur Management Scenarios", () => {
     it("should validate pre-transport dinosaur conditions", () => {
       const builder = new ConditionCheckBuilder("DinosaurTransport", {
-        transportId: "TRANSPORT-001",
-        dinosaurId: "ANKYLOSAURUS#BUMPY",
+        pk: "TRANSPORT-001",
+        sk: "DINOSAUR-ANKYLOSAURUS#BUMPY",
       });
 
       builder.condition((op) =>
@@ -592,8 +592,8 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
 
     it("should verify breeding program eligibility", () => {
       const builder = new ConditionCheckBuilder("BreedingProgram", {
-        programId: "BREED-PROG-001",
-        dinosaurId: "TRICERATOPS#CERA",
+        pk: "BREED-PROG-001",
+        sk: "TRICERATOPS#CERA",
       });
 
       builder.condition((op) =>
@@ -612,8 +612,8 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
 
     it("should validate research specimen conditions", () => {
       const builder = new ConditionCheckBuilder("ResearchLab", {
-        labId: "LAB-GENETICS-01",
-        specimenId: "DILOPHOSAURUS#SPITTER",
+        pk: "LAB-GENETICS-01",
+        sk: "SPECIMEN-DILOPHOSAURUS#SPITTER",
       });
 
       builder.condition((op) =>
@@ -808,8 +808,8 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
   describe("Nested Attribute Expression Integration", () => {
     it("should generate correct expressions for nested attributes with proper placeholder handling", () => {
       const builder = new ConditionCheckBuilder("DinosaurTracking", {
-        trackingId: "TRACK-001",
-        dinosaurId: "STEGOSAURUS#SPIKE",
+        pk: "TRACK-001",
+        sk: "STEGOSAURUS#SPIKE",
       });
 
       builder.condition((op) =>
@@ -856,8 +856,8 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
 
     it("should handle deeply nested attributes in different logical branches", () => {
       const builder = new ConditionCheckBuilder("DinosaurBreeding", {
-        breedingId: "BREED-2023-001",
-        maleId: "TRICERATOPS#CERA-M",
+        pk: "BREED-2023-001",
+        sk: "TRICERATOPS#CERA-M",
       });
 
       builder.condition((op) =>
