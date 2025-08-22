@@ -860,7 +860,16 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
         sk: "TRICERATOPS#CERA-M",
       });
 
-      builder.condition((op) =>
+      builder.condition<{
+        genetics: {
+          lineage: {
+            maternal: { species: string; generation: number; defects: string };
+            paternal: { species: string };
+          };
+          compatibility: { score: number };
+          risk: { assessment: { level: number } };
+        };
+      }>((op) =>
         op.or(
           op.and(
             op.eq("genetics.lineage.maternal.species", "TRICERATOPS_HORRIDUS"),
