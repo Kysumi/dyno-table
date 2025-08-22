@@ -88,8 +88,11 @@ describe("IN operator", () => {
       const condition = inArray("user.role", ["admin", "moderator", "user"]);
       const expression = buildExpression(condition, params);
 
-      expect(expression).toBe("#0 IN (:0, :1, :2)");
-      expect(params.expressionAttributeNames).toEqual({ "#0": "user.role" });
+      expect(expression).toBe("#0.#1 IN (:0, :1, :2)");
+      expect(params.expressionAttributeNames).toEqual({
+        "#0": "user",
+        "#1": "role",
+      });
       expect(params.expressionAttributeValues).toEqual({
         ":0": "admin",
         ":1": "moderator",
@@ -100,18 +103,14 @@ describe("IN operator", () => {
     it("should throw error for empty array", () => {
       const condition = inArray("status", []);
 
-      expect(() => buildExpression(condition, params)).toThrow(
-        "In condition requires a non-empty array of values"
-      );
+      expect(() => buildExpression(condition, params)).toThrow("In condition requires a non-empty array of values");
     });
 
     it("should throw error for more than 100 values", () => {
       const values = Array.from({ length: 101 }, (_, i) => `value${i}`);
       const condition = inArray("status", values);
 
-      expect(() => buildExpression(condition, params)).toThrow(
-        "In condition supports a maximum of 100 values"
-      );
+      expect(() => buildExpression(condition, params)).toThrow("In condition supports a maximum of 100 values");
     });
 
     it("should handle exactly 100 values", () => {
@@ -125,18 +124,14 @@ describe("IN operator", () => {
 
     it("should throw error when attribute is missing", () => {
       const condition = { type: "in" as const, value: ["test"] };
-      
-      expect(() => buildExpression(condition, params)).toThrow(
-        "Attribute is required for in condition"
-      );
+
+      expect(() => buildExpression(condition, params)).toThrow("Attribute is required for in condition");
     });
 
     it("should throw error when value is not an array", () => {
       const condition = { type: "in" as const, attr: "status", value: "not-array" };
-      
-      expect(() => buildExpression(condition, params)).toThrow(
-        "In condition requires a non-empty array of values"
-      );
+
+      expect(() => buildExpression(condition, params)).toThrow("In condition requires a non-empty array of values");
     });
   });
 
@@ -153,10 +148,7 @@ describe("IN operator", () => {
     });
 
     it("should work with complex conditions", () => {
-      const condition = and(
-        eq("type", "USER"),
-        inArray("status", ["ACTIVE", "PENDING"])
-      );
+      const condition = and(eq("type", "USER"), inArray("status", ["ACTIVE", "PENDING"]));
       const result = prepareExpressionParams(condition);
 
       expect(result.expression).toBe("(#0 = :0 AND #1 IN (:1, :2))");
@@ -180,7 +172,7 @@ describe("IN operator", () => {
       const condition = and(
         eq("type", "ORDER"),
         inArray("status", ["PENDING", "PROCESSING", "SHIPPED"]),
-        eq("priority", "HIGH")
+        eq("priority", "HIGH"),
       );
 
       const expression = buildExpression(condition, params);
@@ -213,7 +205,7 @@ describe("IN operator", () => {
       // Simulate how builders use the condition operator
       const condition = mockConditionOperator.and(
         mockConditionOperator.eq("type", "USER"),
-        mockConditionOperator.inArray("role", ["admin", "moderator", "user"])
+        mockConditionOperator.inArray("role", ["admin", "moderator", "user"]),
       );
 
       const result = prepareExpressionParams(condition);

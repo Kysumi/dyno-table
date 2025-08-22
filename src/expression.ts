@@ -1,6 +1,34 @@
 import type { ComparisonOperator, Condition, ExpressionParams, LogicalOperator } from "./conditions";
 
 export const generateAttributeName = (params: ExpressionParams, attr: string): string => {
+  // Handle nested paths by splitting on dots
+  if (attr.includes(".")) {
+    const pathSegments = attr.split(".");
+    const segmentNames: string[] = [];
+
+    for (const segment of pathSegments) {
+      // Check if this segment already exists in expressionAttributeNames
+      let segmentName: string | undefined;
+      for (const [existingName, existingAttr] of Object.entries(params.expressionAttributeNames)) {
+        if (existingAttr === segment) {
+          segmentName = existingName;
+          break;
+        }
+      }
+
+      // If not found, create a new attribute name for this segment
+      if (!segmentName) {
+        segmentName = `#${Object.keys(params.expressionAttributeNames).length}`;
+        params.expressionAttributeNames[segmentName] = segment;
+      }
+
+      segmentNames.push(segmentName);
+    }
+
+    return segmentNames.join(".");
+  }
+
+  // Handle single-level attributes (original logic)
   // Check if the attribute already exists in the expressionAttributeNames
   for (const [existingName, existingAttr] of Object.entries(params.expressionAttributeNames)) {
     if (existingAttr === attr) {

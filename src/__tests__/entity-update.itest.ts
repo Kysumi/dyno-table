@@ -6,23 +6,46 @@ import { defineEntity, createIndex } from "../entity";
 import type { DynamoItem } from "../types";
 import type { StandardSchemaV1 } from "../standard-schema";
 
-// Define a test entity type
-interface TestEntity extends DynamoItem {
+// Define a dinosaur entity type
+interface DinosaurEntity extends DynamoItem {
   id: string;
-  name: string;
-  type: string;
-  status: string;
-  height?: number;
-  weight?: number;
-  tags?: Set<string>;
+  species: string;
+  period: string;
+  diet: string;
+  heightMeters?: number;
+  weightKg?: number;
+  habitats?: Set<string>;
+  characteristics?: {
+    roar?: string;
+    speed?: string;
+    traits?: {
+      aggressive?: boolean;
+      social?: boolean;
+      hunting?: {
+        packHunter?: boolean;
+        soloHunter?: boolean;
+      };
+    };
+  };
+  discovery?: {
+    firstFound?: string;
+    lastSighting?: string;
+    fossilCount?: number;
+  };
+  classification?: {
+    taxonomy?: {
+      kingdom?: string;
+      phylum?: string;
+    };
+  };
 }
 
 // Create a mock schema with a proper StandardSchemaV1 structure
-const testSchema: StandardSchemaV1<TestEntity> = {
+const dinosaurSchema: StandardSchemaV1<DinosaurEntity> = {
   "~standard": {
     version: 1,
-    vendor: "test",
-    validate: (data: unknown) => ({ value: data as TestEntity }),
+    vendor: "paleontology",
+    validate: (data: unknown) => ({ value: data as DinosaurEntity }),
   },
 };
 
@@ -34,8 +57,8 @@ const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
   },
 };
 
-// Create a test table
-function createTestTable(): Table {
+// Create a dinosaur table
+function createDinosaurTable(): Table {
   return new Table({
     client: docClient,
     tableName: "TestTable",
@@ -46,46 +69,31 @@ function createTestTable(): Table {
   });
 }
 
-// Create a test entity repository
-function createTestEntityRepository() {
-  const entityRepository = defineEntity({
-    name: "TestEntity",
-    schema: testSchema,
-    primaryKey: createIndex()
-      .input(primaryKeySchema)
-      .partitionKey((item) => `ENTITY#${item.id}`)
-      .sortKey(() => "METADATA"),
-    queries: {},
-  });
+const entityRepository = defineEntity({
+  name: "DinosaurEntity",
+  schema: dinosaurSchema,
+  primaryKey: createIndex()
+    .input(primaryKeySchema)
+    .partitionKey((item) => `DINO#${item.id}`)
+    .sortKey(() => "FOSSIL"),
+  queries: {},
+});
 
-  const table = createTestTable();
-  return {
-    repository: entityRepository.createRepository(table),
-    table,
-  };
-}
+const table = createDinosaurTable();
+const repository = entityRepository.createRepository(table);
 
-describe("Entity Integration Tests - Update Operations", () => {
-  let repository: ReturnType<typeof createTestEntityRepository>["repository"];
-  let table: Table;
-
-  beforeAll(() => {
-    const setup = createTestEntityRepository();
-    repository = setup.repository;
-    table = setup.table;
-  });
-
+describe("Dinosaur Integration Tests - Update Operations", () => {
   beforeEach(async () => {
-    // Create a test entity
-    const entity: TestEntity = {
+    // Create a test dinosaur
+    const dinosaur: DinosaurEntity = {
       id: "update-test",
-      name: "Update Test",
-      type: "UpdateType",
-      status: "active",
-      height: 10,
-      weight: 1000,
+      species: "Tyrannosaurus Rex",
+      period: "Cretaceous",
+      diet: "carnivore",
+      heightMeters: 6,
+      weightKg: 8000,
     };
-    await repository.create(entity).execute();
+    await repository.create(dinosaur).execute();
   });
 
   it("should update specific attributes", async () => {
@@ -93,19 +101,19 @@ describe("Entity Integration Tests - Update Operations", () => {
       .update(
         { id: "update-test" },
         {
-          name: "Updated Name",
-          height: 15,
+          species: "Allosaurus",
+          heightMeters: 8,
         },
       )
       .returnValues("ALL_NEW")
       .execute();
 
     expect(result.item).toBeDefined();
-    expect(result.item?.name).toBe("Updated Name");
-    expect(result.item?.height).toBe(15);
-    expect(result.item?.type).toBe("UpdateType"); // Unchanged
-    expect(result.item?.weight).toBe(1000); // Unchanged
-    expect(result.item?.status).toBe("active"); // Unchanged
+    expect(result.item?.species).toBe("Allosaurus");
+    expect(result.item?.heightMeters).toBe(8);
+    expect(result.item?.period).toBe("Cretaceous"); // Unchanged
+    expect(result.item?.weightKg).toBe(8000); // Unchanged
+    expect(result.item?.diet).toBe("carnivore"); // Unchanged
   });
 
   it("should update with a condition that passes", async () => {
@@ -113,13 +121,13 @@ describe("Entity Integration Tests - Update Operations", () => {
       .update(
         { id: "update-test" },
         {
-          name: "Condition Passed",
+          species: "Rex Maximus",
         },
       )
-      .condition((op) => op.eq("type", "UpdateType"))
+      .condition((op) => op.eq("period", "Cretaceous"))
       .execute();
 
-    expect(result.item?.name).toBe("Condition Passed");
+    expect(result.item?.species).toBe("Rex Maximus");
   });
 
   it("should fail to update with a condition that fails", async () => {
@@ -128,44 +136,40 @@ describe("Entity Integration Tests - Update Operations", () => {
         .update(
           { id: "update-test" },
           {
-            name: "Should Not Update",
+            species: "Should Not Update",
           },
         )
-        .condition((op) => op.eq("type", "WrongType"))
+        .condition((op) => op.eq("period", "Jurassic"))
         .execute(),
     ).rejects.toThrow();
 
     // Verify item wasn't updated
     const getResult = await repository.get({ id: "update-test" }).execute();
-    expect(getResult.item?.name).not.toBe("Should Not Update");
+    expect(getResult.item?.species).not.toBe("Should Not Update");
   });
 
   it("should update with timestamps when configured", async () => {
-    // Create a new entity repository with timestamps configured
-    const entityWithTimestamps = createTestEntityRepository();
-    const timestampedRepository = entityWithTimestamps.repository;
-
-    // Create a test entity with the timestamped repository
-    const entity: TestEntity = {
+    // Create a test dinosaur with the timestamped repository
+    const dinosaur: DinosaurEntity = {
       id: "timestamp-test",
-      name: "Timestamp Test",
-      type: "TimestampType",
-      status: "active",
+      species: "Triceratops",
+      period: "Cretaceous",
+      diet: "herbivore",
     };
-    await timestampedRepository.create(entity).execute();
+    await repository.create(dinosaur).execute();
 
-    // Update the entity
+    // Update the dinosaur
     const beforeUpdate = new Date();
-    const result = await timestampedRepository
+    const result = await repository
       .update(
         { id: "timestamp-test" },
         {
-          name: "Updated With Timestamp",
+          species: "Triceratops Horridus",
         },
       )
       .execute();
 
-    expect(result.item?.name).toBe("Updated With Timestamp");
+    expect(result.item?.species).toBe("Triceratops Horridus");
 
     // Check if updatedAt was automatically added
     // Note: This test might need adjustment based on how timestamps are implemented
@@ -176,29 +180,198 @@ describe("Entity Integration Tests - Update Operations", () => {
   });
 
   it("should handle complex update operations", async () => {
-    // Create an entity with tags
-    const entityWithTags: TestEntity = {
+    // Create a dinosaur with habitats
+    const dinosaurWithHabitats: DinosaurEntity = {
       id: "complex-update",
-      name: "Complex Update Test",
-      type: "ComplexType",
-      status: "pending",
-      tags: new Set(["tag1", "tag2", "tag3"]),
+      species: "Velociraptor",
+      period: "Cretaceous",
+      diet: "carnivore",
+      habitats: new Set(["plains", "forests", "mountains"]),
     };
-    await repository.create(entityWithTags).execute();
+    await repository.create(dinosaurWithHabitats).execute();
 
     // Perform a complex update
     const result = await repository
       .update(
         { id: "complex-update" },
         {
-          name: "Updated Complex",
-          status: "completed",
+          species: "Velociraptor Mongoliensis",
+          diet: "omnivore",
         },
       )
       .execute();
 
-    expect(result.item?.name).toBe("Updated Complex");
-    expect(result.item?.status).toBe("completed");
-    expect(result.item?.tags).toEqual(new Set(["tag1", "tag2", "tag3"])); // Tags should be unchanged
+    expect(result.item?.species).toBe("Velociraptor Mongoliensis");
+    expect(result.item?.diet).toBe("omnivore");
+    expect(result.item?.habitats).toEqual(new Set(["plains", "forests", "mountains"])); // Habitats should be unchanged
+  });
+
+  it("should update nested attributes using dot notation", async () => {
+    // Create a dinosaur with nested structure
+    const dinosaurWithNested: DinosaurEntity = {
+      id: "nested-test",
+      species: "Stegosaurus",
+      period: "Jurassic",
+      diet: "herbivore",
+      characteristics: {
+        roar: "deep-bellow",
+        speed: "slow",
+        traits: {
+          aggressive: false,
+          social: true,
+          hunting: {
+            packHunter: false,
+            soloHunter: false,
+          },
+        },
+      },
+      discovery: {
+        firstFound: "1877",
+        lastSighting: "1900",
+        fossilCount: 5,
+      },
+      classification: {
+        taxonomy: {
+          kingdom: "Animalia",
+          phylum: "Chordata",
+        },
+      },
+    };
+    await repository.create(dinosaurWithNested).execute();
+
+    // Update nested attributes using the underlying table's updateItem method
+    const result = await repository
+      .update(
+        {
+          id: "nested-test",
+        },
+        {},
+      )
+      .set("characteristics.roar", "thunderous-roar")
+      .set("characteristics.traits.aggressive", true)
+      .set("discovery.fossilCount", 12)
+      .remove("characteristics.traits.hunting.soloHunter")
+      .returnValues("ALL_NEW")
+      .execute();
+
+    expect(result.item?.characteristics?.roar).toBe("thunderous-roar");
+    expect(result.item?.characteristics?.traits?.aggressive).toBe(true);
+    expect(result.item?.discovery?.fossilCount).toBe(12);
+    expect(result.item?.characteristics?.traits?.hunting?.soloHunter).toBeUndefined();
+
+    // Verify other nested attributes remain unchanged
+    expect(result.item?.characteristics?.speed).toBe("slow");
+    expect(result.item?.characteristics?.traits?.social).toBe(true);
+    expect(result.item?.characteristics?.traits?.hunting?.packHunter).toBe(false);
+    expect(result.item?.discovery?.firstFound).toBe("1877");
+    expect(result.item?.classification?.taxonomy?.kingdom).toBe("Animalia");
+  });
+
+  it("should remove multiple nested attributes", async () => {
+    // Create a dinosaur with nested structure
+    const dinosaurWithNested: DinosaurEntity = {
+      id: "nested-remove-test",
+      species: "Brontosaurus",
+      period: "Jurassic",
+      diet: "herbivore",
+      characteristics: {
+        roar: "low-rumble",
+        speed: "very-slow",
+        traits: {
+          aggressive: false,
+          social: true,
+          hunting: {
+            packHunter: false,
+            soloHunter: false,
+          },
+        },
+      },
+      discovery: {
+        firstFound: "1879",
+        lastSighting: "1903",
+        fossilCount: 3,
+      },
+      classification: {
+        taxonomy: {
+          kingdom: "Animalia",
+          phylum: "Chordata",
+        },
+      },
+    };
+    await repository.create(dinosaurWithNested).execute();
+
+    // Remove multiple nested attributes
+    const result = await repository
+      .update(
+        {
+          id: "nested-remove-test",
+        },
+        {},
+      )
+      .remove("characteristics.traits.aggressive")
+      .remove("discovery.lastSighting")
+      .remove("classification.taxonomy.phylum")
+      .returnValues("ALL_NEW")
+      .execute();
+
+    // Verify attributes were removed
+    expect(result.item?.characteristics?.traits?.aggressive).toBeUndefined();
+    expect(result.item?.discovery?.lastSighting).toBeUndefined();
+    expect(result.item?.classification?.taxonomy?.phylum).toBeUndefined();
+
+    // Verify other nested attributes remain unchanged
+    expect(result.item?.characteristics?.roar).toBe("low-rumble");
+    expect(result.item?.characteristics?.traits?.social).toBe(true);
+    expect(result.item?.discovery?.fossilCount).toBe(3);
+    expect(result.item?.classification?.taxonomy?.kingdom).toBe("Animalia");
+  });
+
+  it("should handle mixed operations on nested attributes", async () => {
+    // Create a dinosaur with nested structure
+    const dinosaurWithNested: DinosaurEntity = {
+      id: "mixed-nested-test",
+      species: "Parasaurolophus",
+      period: "Cretaceous",
+      diet: "herbivore",
+      characteristics: {
+        roar: "trumpet-call",
+        speed: "moderate",
+        traits: {
+          aggressive: false,
+          social: true,
+          hunting: {
+            packHunter: false,
+            soloHunter: false,
+          },
+        },
+      },
+      discovery: {
+        firstFound: "1922",
+        lastSighting: "1950",
+        fossilCount: 2,
+      },
+    };
+    await repository.create(dinosaurWithNested).execute();
+
+    // Perform mixed operations: SET, REMOVE, ADD
+    const result = await repository
+      .update({ id: "mixed-nested-test" }, {})
+      .set("characteristics.roar", "harmonic-whistle")
+      .set("characteristics.traits.social", false)
+      .remove("characteristics.traits.hunting.soloHunter")
+      .add("discovery.fossilCount", 3)
+      .returnValues("ALL_NEW")
+      .execute();
+
+    // Verify all operations worked correctly
+    expect(result.item?.characteristics?.roar).toBe("harmonic-whistle");
+    expect(result.item?.characteristics?.traits?.social).toBe(false);
+    expect(result.item?.characteristics?.traits?.hunting?.soloHunter).toBeUndefined();
+    expect(result.item?.discovery?.fossilCount).toBe(5); // 2 + 3
+
+    // Verify other attributes remain unchanged
+    expect(result.item?.characteristics?.speed).toBe("moderate");
+    expect(result.item?.characteristics?.traits?.aggressive).toBe(false);
+    expect(result.item?.characteristics?.traits?.hunting?.packHunter).toBe(false);
   });
 });
