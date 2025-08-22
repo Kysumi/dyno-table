@@ -285,6 +285,11 @@ export type KeyConditionOperator = {
   and: (...conditions: Condition[]) => Condition;
 };
 
+// Helper types that allow string paths and unknown values when strict typing can't be resolved
+type FlexiblePath<T> = Path<T> extends never ? string : Path<T>;
+// biome-ignore lint: Using any as we don't really know if it's not provided
+type FlexiblePathType<T, K extends keyof any> = PathType<T, K> extends never ? unknown : PathType<T, K>;
+
 /**
  * Type-safe operators for building conditions in DynamoDB operations.
  * Includes all available condition operators with proper type inference.
@@ -307,10 +312,6 @@ export type KeyConditionOperator = {
  *
  * @template T The type of the item being operated on
  */
-// Helper types that allow string paths and unknown values when strict typing can't be resolved
-type FlexiblePath<T> = Path<T> extends never ? string : Path<T>;
-type FlexiblePathType<T, K extends keyof any> = PathType<T, K> extends never ? unknown : PathType<T, K>;
-
 export type ConditionOperator<T extends DynamoItem> = {
   /**
    * Creates an equals (=) condition for type-safe attribute comparison.

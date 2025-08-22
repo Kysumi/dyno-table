@@ -22,7 +22,8 @@
     "enabled": true,
     "rules": {
       "recommended": true
-    }
+    },
+    "ignore": ["coverage"]
   },
   "javascript": {
     "formatter": {

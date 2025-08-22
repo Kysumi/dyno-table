@@ -371,6 +371,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
     it("should throw error when condition fails to generate expression", () => {
       const builder = new ConditionCheckBuilder(tableName, trexKey);
       // Mock a condition that would cause expression generation to fail
+      // biome-ignore lint: Intentionally done for test
       builder.condition({ type: "eq" } as any);
 
       // @ts-expect-error - toDynamoCommand is private but we're testing it
@@ -836,6 +837,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
 
       // Verify attribute names are properly mapped
       expect(command.expressionAttributeNames).toBeDefined();
+      // biome-ignore lint: Intentionally done for test
       const attrNames = Object.values(command.expressionAttributeNames!);
       expect(attrNames).toContain("location");
       expect(attrNames).toContain("zone");
@@ -846,6 +848,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
 
       // Verify values are properly mapped
       expect(command.expressionAttributeValues).toBeDefined();
+      // biome-ignore lint: Intentionally done for test
       const attrValues = Object.values(command.expressionAttributeValues!);
       expect(attrValues).toContain("HERBIVORE-3A");
       expect(attrValues).toContain(98.6);
@@ -893,6 +896,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
       expect(command.conditionExpression).toContain("attribute_not_exists");
 
       // Verify all nested path segments are mapped
+      // biome-ignore lint: Intentionally done for test
       const attrNames = Object.values(command.expressionAttributeNames!);
       expect(attrNames).toContain("genetics");
       expect(attrNames).toContain("lineage");
@@ -905,6 +909,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
       expect(attrNames).toContain("score");
 
       // Verify species values are correctly mapped
+      // biome-ignore lint: Intentionally done for test
       const attrValues = Object.values(command.expressionAttributeValues!);
       expect(attrValues).toContain("TRICERATOPS_HORRIDUS");
       expect(attrValues).toContain("TRICERATOPS_PRORSUS");
