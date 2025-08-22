@@ -732,7 +732,7 @@ export class TransactionBuilder {
    *
    * @returns An array of readable representations of the transaction items
    */
-  debug(): DynamoItem[] {
+  debug() {
     return debugTransaction(this.items);
   }
 

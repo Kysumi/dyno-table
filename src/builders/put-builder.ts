@@ -403,7 +403,7 @@ export class PutBuilder<T extends DynamoItem> {
    *
    * @returns A readable representation of the put command with resolved expressions
    */
-  public debug(): DynamoItem {
+  public debug() {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }

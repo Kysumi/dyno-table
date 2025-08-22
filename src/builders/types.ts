@@ -55,7 +55,7 @@ export type PathType<T, K extends keyof any> = K extends `${infer Key}.${infer R
   ? Key extends keyof T
     ? // biome-ignore lint/suspicious/noExplicitAny: <explanation>
       Rest extends keyof any
-      ? PathType<T[Key], Rest>
+      ? PathType<NonNullable<T[Key]>, Rest>
       : never
     : never
   : K extends keyof T

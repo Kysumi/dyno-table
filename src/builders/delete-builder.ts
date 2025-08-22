@@ -279,7 +279,7 @@ export class DeleteBuilder {
    *
    * @returns A readable representation of the delete command with resolved expressions
    */
-  debug(): DynamoItem {
+  debug() {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }

@@ -285,6 +285,11 @@ export type KeyConditionOperator = {
   and: (...conditions: Condition[]) => Condition;
 };
 
+// Helper types that allow string paths and unknown values when strict typing can't be resolved
+type FlexiblePath<T> = Path<T> extends never ? string : Path<T>;
+// biome-ignore lint: Using any as we don't really know if it's not provided
+type FlexiblePathType<T, K extends keyof any> = PathType<T, K> extends never ? unknown : PathType<T, K>;
+
 /**
  * Type-safe operators for building conditions in DynamoDB operations.
  * Includes all available condition operators with proper type inference.
@@ -332,7 +337,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - Comparison Operators}
    */
-  eq: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  eq: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates a not equals (≠ / <>) condition for type-safe attribute comparison.
@@ -358,7 +363,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - Comparison Operators}
    */
-  ne: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  ne: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates a less than (<) condition for type-safe attribute comparison.
@@ -385,7 +390,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - Comparison Operators}
    */
-  lt: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  lt: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates a less than or equal to (≤) condition for type-safe attribute comparison.
@@ -412,7 +417,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - Comparison Operators}
    */
-  lte: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  lte: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates a greater than (>) condition for type-safe attribute comparison.
@@ -439,7 +444,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - Comparison Operators}
    */
-  gt: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  gt: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates a greater than or equal to (≥) condition for type-safe attribute comparison.
@@ -466,7 +471,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - Comparison Operators}
    */
-  gte: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  gte: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates a between condition for type-safe range comparison.
@@ -494,7 +499,11 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - BETWEEN}
    */
-  between: <K extends Path<T>>(attr: K, lower: PathType<T, K>, upper: PathType<T, K>) => Condition;
+  between: <K extends FlexiblePath<T>>(
+    attr: K,
+    lower: FlexiblePathType<T, K>,
+    upper: FlexiblePathType<T, K>,
+  ) => Condition;
 
   /**
    * Creates an IN condition for type-safe list membership testing.
@@ -522,7 +531,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    * @throws {Error} When values array is empty or contains more than 100 items
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Comparators AWS DynamoDB - IN}
    */
-  inArray: <K extends Path<T>>(attr: K, values: PathType<T, K>[]) => Condition;
+  inArray: <K extends FlexiblePath<T>>(attr: K, values: FlexiblePathType<T, K>[]) => Condition;
 
   /**
    * Creates a begins_with condition for type-safe string prefix testing.
@@ -549,7 +558,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Functions AWS DynamoDB - begins_with}
    */
-  beginsWith: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  beginsWith: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates a contains condition for type-safe substring or set membership testing.
@@ -576,7 +585,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Functions AWS DynamoDB - contains}
    */
-  contains: <K extends Path<T>>(attr: K, value: PathType<T, K>) => Condition;
+  contains: <K extends FlexiblePath<T>>(attr: K, value: FlexiblePathType<T, K>) => Condition;
 
   /**
    * Creates an attribute_exists condition for type-safe attribute presence testing.
@@ -605,7 +614,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Functions AWS DynamoDB - attribute_exists}
    */
-  attributeExists: <K extends Path<T>>(attr: K) => Condition;
+  attributeExists: <K extends FlexiblePath<T>>(attr: K) => Condition;
 
   /**
    * Creates an attribute_not_exists condition for type-safe attribute absence testing.
@@ -634,7 +643,7 @@ export type ConditionOperator<T extends DynamoItem> = {
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Functions AWS DynamoDB - attribute_not_exists}
    */
-  attributeNotExists: <K extends Path<T>>(attr: K) => Condition;
+  attributeNotExists: <K extends FlexiblePath<T>>(attr: K) => Condition;
 
   /**
    * Combines multiple conditions with logical AND operator.
