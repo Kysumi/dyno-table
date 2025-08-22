@@ -215,7 +215,7 @@ export class ConditionCheckBuilder {
    *
    * @returns A readable representation of the condition check command with resolved expressions
    */
-  debug(): DynamoItem {
+  debug() {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }
