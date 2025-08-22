@@ -553,7 +553,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    *
    * @returns A readable representation of the update command with resolved expressions
    */
-  debug(): DynamoItem {
+  debug() {
     const command = this.toDynamoCommand();
     return debugCommand(command);
   }
