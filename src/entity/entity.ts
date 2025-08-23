@@ -4,21 +4,22 @@ import type { UpdateBuilder } from "../builders/update-builder";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
 type Result<T> = StandardSchemaV1Namespace.Result<T>;
-import type { Table } from "../table";
-import type { DynamoItem, Index, TableConfig } from "../types";
-import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "../conditions";
-import type { QueryBuilder } from "../builders/query-builder";
 import {
-  createEntityAwarePutBuilder,
-  createEntityAwareGetBuilder,
   createEntityAwareDeleteBuilder,
+  createEntityAwareGetBuilder,
+  createEntityAwarePutBuilder,
 } from "../builders/entity-aware-builders";
 import type {
-  EntityAwarePutBuilder,
-  EntityAwareGetBuilder,
   EntityAwareDeleteBuilder,
+  EntityAwareGetBuilder,
+  EntityAwarePutBuilder,
 } from "../builders/entity-aware-builders";
+import type { QueryBuilder } from "../builders/query-builder";
+import { type PrimaryKey, type PrimaryKeyWithoutExpression, eq } from "../conditions";
+import type { Table } from "../table";
+import type { DynamoItem, Index, TableConfig } from "../types";
 import { IndexBuilder, type IndexConfig } from "./ddb-indexing";
+import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
@@ -168,27 +169,7 @@ export function defineEntity<
     safeParse = false,
     excludeReadOnly = false,
   ): Record<string, string> => {
-    // Convert IndexDefinition to IndexConfig format
-    const indexConfigs: Record<string, IndexConfig<T>> = {};
-
-    if (config.indexes) {
-      for (const [indexName, indexDef] of Object.entries(config.indexes)) {
-        indexConfigs[indexName] = {
-          name: indexDef.name,
-          partitionKey: indexDef.partitionKey,
-          sortKey: indexDef.sortKey,
-          readOnly: indexDef.isReadOnly || false,
-
-          generateKey: (item: T, options?: { safeParse?: boolean }) => {
-            const result = indexDef.generateKey(item, options?.safeParse);
-            return { pk: result.pk, sk: result.sk };
-          },
-        };
-      }
-    }
-
-    const indexBuilder = new IndexBuilder(table, indexConfigs);
-    return indexBuilder.buildForCreate(dataForKeyGeneration, { safeParse, excludeReadOnly });
+    return buildEntityIndexes(dataForKeyGeneration, table, config.indexes, safeParse, excludeReadOnly);
   };
 
   /**
@@ -481,34 +462,13 @@ export function defineEntity<
           // Use only updatedAt timestamp for updates
           const timestamps = generateTimestamps(["updatedAt"], data);
 
-          // Merge key data with update data so indexes can access primary key fields
-          const updatedData = { ...key, ...data, ...timestamps } as unknown as T;
-
-          // Convert IndexDefinition to IndexConfig format for updates
-          const indexConfigs: Record<string, IndexConfig<T>> = {};
-
-          if (config.indexes) {
-            for (const [indexName, indexDef] of Object.entries(config.indexes)) {
-              const indexDefinition = indexDef as IndexDefinition<T>;
-              indexConfigs[indexName] = {
-                name: indexDefinition.name,
-                partitionKey: indexDefinition.partitionKey,
-                sortKey: indexDefinition.sortKey,
-                readOnly: indexDefinition.isReadOnly || false,
-                generateKey: (item: T, options?: { safeParse?: boolean }) => {
-                  const result = indexDefinition.generateKey(item, options?.safeParse);
-                  return { pk: result.pk, sk: result.sk };
-                },
-              };
-            }
-          }
-
           // Use the index builder for updates
-          const indexBuilder = new IndexBuilder(table, indexConfigs);
-          const indexUpdates = indexBuilder.buildForUpdate(
+          const indexUpdates = buildIndexUpdates(
             { ...key } as unknown as T,
             { ...data, ...timestamps },
-            { safeParse: false },
+            table,
+            config.indexes,
+            false,
           );
 
           builder.set({ ...data, ...timestamps, ...indexUpdates });
@@ -610,9 +570,15 @@ export function createQueries<T extends DynamoItem>() {
     }),
   };
 }
+/**
+ * Defines a DynamoDB index configuration
+ */
 export interface IndexDefinition<T extends DynamoItem> extends Index {
+  /** The name of the index */
   name: string;
+  /** Function to generate the index key from an item */
   generateKey: (item: T, safeParse?: boolean) => { pk: string; sk?: string };
+  /** Whether the index is read-only */
   isReadOnly: boolean;
 }
 

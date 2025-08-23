@@ -1,16 +1,29 @@
-import type { DynamoItem } from "../types";
 import type { Table } from "../table";
+import type { DynamoItem } from "../types";
 
-interface IndexKey {
+/**
+ * Represents a generated key for a DynamoDB index
+ */
+export interface IndexKey {
+  /** The partition key value */
   pk: string;
+  /** The sort key value (optional) */
   sk?: string;
 }
 
+/**
+ * Configuration for a DynamoDB index
+ */
 export interface IndexConfig<T extends DynamoItem> {
+  /** The name of the index */
   name: string;
+  /** The partition key attribute name */
   partitionKey: string;
+  /** The sort key attribute name (optional) */
   sortKey?: string;
+  /** Whether the index is read-only */
   readOnly?: boolean;
+  /** Function to generate the index key from an item */
   generateKey: (item: T, options?: { safeParse?: boolean }) => IndexKey;
 }
 
@@ -18,16 +31,23 @@ export interface IndexConfig<T extends DynamoItem> {
  * Helper class for building indexes for DynamoDB operations
  */
 export class IndexBuilder<T extends DynamoItem> {
+  /**
+   * Creates a new IndexBuilder instance
+   *
+   * @param table - The DynamoDB table instance
+   * @param indexes - The index configurations
+   */
   constructor(
     private readonly table: Table,
-    /**
-     * Records key is the name of the index ie. gsi1 ect
-     */
     private readonly indexes: Record<string, IndexConfig<T>> = {},
   ) {}
 
   /**
    * Build index attributes for item creation
+   *
+   * @param item - The item to generate indexes for
+   * @param options - Options for building indexes
+   * @returns Record of GSI attribute names to their values
    */
   buildForCreate(item: T, options: { safeParse?: boolean; excludeReadOnly?: boolean } = {}): Record<string, string> {
     const attributes: Record<string, string> = {};
@@ -58,6 +78,11 @@ export class IndexBuilder<T extends DynamoItem> {
 
   /**
    * Build index attributes for item updates
+   *
+   * @param currentData - The current data before update
+   * @param updates - The update data
+   * @param options - Options for building indexes
+   * @returns Record of GSI attribute names to their updated values
    */
   buildForUpdate(currentData: T, updates: Partial<T>, options: { safeParse?: boolean } = {}): Record<string, string> {
     const attributes: Record<string, string> = {};
@@ -132,6 +157,9 @@ export class IndexBuilder<T extends DynamoItem> {
 
   /**
    * Check if a key has undefined values
+   *
+   * @param key - The index key to check
+   * @returns True if the key contains undefined values, false otherwise
    */
   private hasUndefinedValues(key: IndexKey): boolean {
     return (key.pk?.includes("undefined") ?? false) || (key.sk?.includes("undefined") ?? false);
