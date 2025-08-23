@@ -388,7 +388,7 @@ describe("Dinosaur Index Update Operations", () => {
         .sortKey((dino) => `DINOSAUR#${dino.id}`)
         .readOnly(true);
 
-      expect(readOnlyIndex._isReadOnly).toBe(true);
+      expect(readOnlyIndex.isReadOnly).toBe(true);
     });
 
     it("should allow creating readOnly indexes without sort key for simple site lookups", () => {
@@ -398,7 +398,7 @@ describe("Dinosaur Index Update Operations", () => {
         .withoutSortKey()
         .readOnly(true);
 
-      expect(readOnlyIndex._isReadOnly).toBe(true);
+      expect(readOnlyIndex.isReadOnly).toBe(true);
     });
 
     it("should default readOnly to false for regular paleontologist indexes", () => {
@@ -407,7 +407,7 @@ describe("Dinosaur Index Update Operations", () => {
         .partitionKey((dino) => `PALEONTOLOGIST#${dino.paleontologistId}`)
         .sortKey((dino) => `DINOSAUR#${dino.id}`);
 
-      expect(normalIndex._isReadOnly).toBe(false);
+      expect(normalIndex.isReadOnly).toBe(false);
     });
   });
 });

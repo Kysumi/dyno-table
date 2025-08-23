@@ -177,7 +177,7 @@ export function defineEntity<
           name: indexDef.name,
           partitionKey: indexDef.partitionKey,
           sortKey: indexDef.sortKey,
-          readOnly: indexDef._isReadOnly || false,
+          readOnly: indexDef.isReadOnly || false,
 
           generateKey: (item: T, options?: { safeParse?: boolean }) => {
             const result = indexDef.generateKey(item, options?.safeParse);
@@ -494,7 +494,7 @@ export function defineEntity<
                 name: indexDefinition.name,
                 partitionKey: indexDefinition.partitionKey,
                 sortKey: indexDefinition.sortKey,
-                readOnly: indexDefinition._isReadOnly || false,
+                readOnly: indexDefinition.isReadOnly || false,
                 generateKey: (item: T, options?: { safeParse?: boolean }) => {
                   const result = indexDefinition.generateKey(item, options?.safeParse);
                   return { pk: result.pk, sk: result.sk };
@@ -613,8 +613,7 @@ export function createQueries<T extends DynamoItem>() {
 export interface IndexDefinition<T extends DynamoItem> extends Index {
   name: string;
   generateKey: (item: T, safeParse?: boolean) => { pk: string; sk?: string };
-  readOnly: boolean;
-  _isReadOnly?: boolean; // Internal property for runtime checking
+  isReadOnly: boolean;
 }
 
 export function createIndex() {
@@ -627,8 +626,7 @@ export function createIndex() {
               name: "custom",
               partitionKey: "pk",
               sortKey: "sk",
-              readOnly: isReadOnly,
-              _isReadOnly: isReadOnly,
+              isReadOnly: isReadOnly,
               generateKey: (item: T, safeParse?: boolean) => {
                 if (safeParse) {
                   try {
@@ -658,8 +656,7 @@ export function createIndex() {
               readOnly: (value = false) =>
                 ({
                   ...index,
-                  readOnly: value,
-                  _isReadOnly: value,
+                  isReadOnly: value,
                 }) as IndexDefinition<T>,
             });
           },
@@ -668,8 +665,7 @@ export function createIndex() {
             const index = {
               name: "custom",
               partitionKey: "pk",
-              readOnly: isReadOnly,
-              _isReadOnly: isReadOnly,
+              isReadOnly: isReadOnly,
               generateKey: (item: T, safeParse?: boolean) => {
                 if (safeParse) {
                   try {
@@ -694,8 +690,7 @@ export function createIndex() {
               readOnly: (value = true) =>
                 ({
                   ...index,
-                  readOnly: value,
-                  _isReadOnly: value,
+                  isReadOnly: value,
                 }) as IndexDefinition<T>,
             });
           },
