@@ -7,7 +7,7 @@ export default defineConfig({
 
     // Individual module entry points
     table: "src/table.ts",
-    entity: "src/entity.ts",
+    entity: "src/entity/entity.ts",
     conditions: "src/conditions.ts",
     types: "src/types.ts",
     "standard-schema": "src/standard-schema.ts",
