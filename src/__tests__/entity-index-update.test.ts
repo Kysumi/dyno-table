@@ -407,10 +407,6 @@ describe("Dinosaur Index Update Operations", () => {
         .partitionKey((dino) => `PALEONTOLOGIST#${dino.paleontologistId}`)
         .sortKey((dino) => `DINOSAUR#${dino.id}`);
 
-      // The index builder returns an object with both the readOnly property and a readOnly method
-      // We need to check the internal _isReadOnly property for the actual boolean value
-
-      // Check the internal _isReadOnly property which should default to false
       expect(normalIndex._isReadOnly).toBe(false);
     });
   });
