@@ -3,7 +3,6 @@ import type { ScanBuilder } from "../builders/scan-builder";
 import type { UpdateBuilder } from "../builders/update-builder";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
-type Result<T> = StandardSchemaV1Namespace.Result<T>;
 import {
   createEntityAwareDeleteBuilder,
   createEntityAwareGetBuilder,
@@ -582,6 +581,8 @@ export interface IndexDefinition<T extends DynamoItem> extends Index<T> {
   /** Function to generate the index key from an item */
   generateKey: (item: T) => { pk: string; sk?: string };
 }
+
+type Result<T> = StandardSchemaV1Namespace.Result<T>;
 
 export function createIndex() {
   return {
