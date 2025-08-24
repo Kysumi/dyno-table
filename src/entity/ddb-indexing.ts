@@ -1,5 +1,6 @@
 import type { DynamoItem, Index } from "../types";
 import type { Table } from "../table";
+import type { IndexDefinition } from "./entity";
 
 /**
  * Represents a generated key for a DynamoDB index
@@ -9,16 +10,6 @@ interface IndexKey {
   pk: string;
   /** The sort key value (optional) */
   sk?: string;
-}
-
-/**
- * Extended Index interface with additional properties for index generation
- */
-export interface IndexWithGeneration<T extends DynamoItem> extends Index<T> {
-  /** Function to generate the index key from an item */
-  generateKey: (item: T) => { pk: string; sk?: string };
-  /** Whether the index is read-only */
-  isReadOnly?: boolean;
 }
 
 /**
@@ -33,7 +24,7 @@ export class IndexBuilder<T extends DynamoItem> {
    */
   constructor(
     private readonly table: Table,
-    private readonly indexes: Record<string, IndexWithGeneration<T>> = {},
+    private readonly indexes: Record<string, IndexDefinition<T>> = {},
   ) {}
 
   /**

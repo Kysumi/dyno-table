@@ -167,7 +167,12 @@ export function defineEntity<
     table: Table,
     excludeReadOnly = false,
   ): Record<string, string> => {
-    return buildEntityIndexes(dataForKeyGeneration, table, config.indexes, excludeReadOnly);
+    return buildEntityIndexes(
+      dataForKeyGeneration,
+      table,
+      config.indexes,
+      excludeReadOnly
+    );
   };
 
   /**
@@ -271,7 +276,12 @@ export function defineEntity<
             // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
+            const indexes = buildEntityIndexes(
+              dataForKeyGeneration,
+              table,
+              config.indexes,
+              false
+            );
 
             const validatedItem = {
               ...(dataForKeyGeneration as unknown as T),
@@ -308,7 +318,12 @@ export function defineEntity<
             // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
+            const indexes = buildEntityIndexes(
+              dataForKeyGeneration,
+              table,
+              config.indexes,
+              false
+            );
 
             const validatedItem = {
               ...(dataForKeyGeneration as unknown as T),
@@ -406,7 +421,12 @@ export function defineEntity<
             // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
 
-            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
+            const indexes = buildEntityIndexes(
+              dataForKeyGeneration,
+              table,
+              config.indexes,
+              false
+            );
 
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,

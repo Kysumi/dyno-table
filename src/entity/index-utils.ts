@@ -1,6 +1,7 @@
 import type { Table } from "../table";
-import type { DynamoItem, Index } from "../types";
-import { IndexBuilder, type IndexWithGeneration } from "./ddb-indexing";
+import type { DynamoItem } from "../types";
+import { IndexBuilder } from "./ddb-indexing";
+import type { IndexDefinition } from "./entity";
 
 /**
  * Builds secondary indexes for an item based on the configured indexes
@@ -14,19 +15,14 @@ import { IndexBuilder, type IndexWithGeneration } from "./ddb-indexing";
 export function buildIndexes<T extends DynamoItem>(
   dataForKeyGeneration: T,
   table: Table,
-  indexes: Record<string, Index<T>> | undefined,
+  indexes: Record<string, IndexDefinition<T>> | undefined,
   excludeReadOnly = false,
 ): Record<string, string> {
   if (!indexes) {
     return {};
   }
 
-  const indexWithGeneration: Record<string, IndexWithGeneration<T>> = {};
-  for (const [key, index] of Object.entries(indexes)) {
-    indexWithGeneration[key] = index as IndexWithGeneration<T>;
-  }
-
-  const indexBuilder = new IndexBuilder(table, indexWithGeneration);
+  const indexBuilder = new IndexBuilder(table, indexes);
   return indexBuilder.buildForCreate(dataForKeyGeneration, { excludeReadOnly });
 }
 
@@ -43,17 +39,12 @@ export function buildIndexUpdates<T extends DynamoItem>(
   currentData: T,
   updates: Partial<T>,
   table: Table,
-  indexes: Record<string, Index<T>> | undefined,
+  indexes: Record<string, IndexDefinition<T>> | undefined,
 ): Record<string, string> {
   if (!indexes) {
     return {};
   }
 
-  const indexWithGeneration: Record<string, IndexWithGeneration<T>> = {};
-  for (const [key, index] of Object.entries(indexes)) {
-    indexWithGeneration[key] = index as IndexWithGeneration<T>;
-  }
-
-  const indexBuilder = new IndexBuilder(table, indexWithGeneration);
+  const indexBuilder = new IndexBuilder(table, indexes);
   return indexBuilder.buildForUpdate(currentData, updates);
 }
