@@ -18,7 +18,7 @@ import type { QueryBuilder } from "../builders/query-builder";
 import { type PrimaryKey, type PrimaryKeyWithoutExpression, eq } from "../conditions";
 import type { Table } from "../table";
 import type { DynamoItem, Index, TableConfig } from "../types";
-import { IndexBuilder, type IndexConfig } from "./ddb-indexing";
+import { IndexBuilder } from "./ddb-indexing";
 import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils";
 
 // Define the QueryFunction type with a generic return type
@@ -166,10 +166,9 @@ export function defineEntity<
   const buildIndexes = <TData extends T>(
     dataForKeyGeneration: TData,
     table: Table,
-    safeParse = false,
     excludeReadOnly = false,
   ): Record<string, string> => {
-    return buildEntityIndexes(dataForKeyGeneration, table, config.indexes, safeParse, excludeReadOnly);
+    return buildEntityIndexes(dataForKeyGeneration, table, config.indexes, excludeReadOnly);
   };
 
   /**
@@ -273,7 +272,7 @@ export function defineEntity<
             // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table, false, true);
+            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
             const validatedItem = {
               ...(dataForKeyGeneration as unknown as T),
@@ -310,7 +309,7 @@ export function defineEntity<
             // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table, false, true);
+            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
             const validatedItem = {
               ...(dataForKeyGeneration as unknown as T),
@@ -368,9 +367,10 @@ export function defineEntity<
               ...generateTimestamps(["createdAt", "updatedAt"], validatedData.value),
             };
 
+            // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table, false, false);
+            const indexes = buildIndexes(dataForKeyGeneration, table, false);
 
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
@@ -404,9 +404,10 @@ export function defineEntity<
               ...generateTimestamps(["createdAt", "updatedAt"], validationResult.value),
             };
 
+            // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table, false, false);
+            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
@@ -450,8 +451,9 @@ export function defineEntity<
           return createEntityAwarePutBuilder(builder, config.name);
         },
 
-        get: <K extends I>(key: K) =>
-          createEntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name),
+        get: <K extends I>(key: K) => {
+          return createEntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name);
+        },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
@@ -468,7 +470,6 @@ export function defineEntity<
             { ...data, ...timestamps },
             table,
             config.indexes,
-            false,
           );
 
           builder.set({ ...data, ...timestamps, ...indexUpdates });
@@ -573,13 +574,13 @@ export function createQueries<T extends DynamoItem>() {
 /**
  * Defines a DynamoDB index configuration
  */
-export interface IndexDefinition<T extends DynamoItem> extends Index {
+export interface IndexDefinition<T extends DynamoItem> extends Index<T> {
   /** The name of the index */
   name: string;
-  /** Function to generate the index key from an item */
-  generateKey: (item: T, safeParse?: boolean) => { pk: string; sk?: string };
   /** Whether the index is read-only */
   isReadOnly: boolean;
+  /** Function to generate the index key from an item */
+  generateKey: (item: T) => { pk: string; sk?: string };
 }
 
 export function createIndex() {
@@ -593,28 +594,13 @@ export function createIndex() {
               partitionKey: "pk",
               sortKey: "sk",
               isReadOnly: isReadOnly,
-              generateKey: (item: T, safeParse?: boolean) => {
-                if (safeParse) {
-                  try {
-                    const data = schema["~standard"].validate(item) as Result<T>;
-                    if ("issues" in data && data.issues) {
-                      throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
-                    }
-                    const validData = "value" in data ? data.value : (data as T);
-                    return { pk: pkFn(validData), sk: skFn(validData) };
-                  } catch (error) {
-                    throw new Error(
-                      `Index validation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-                    );
-                  }
-                } else {
-                  const data = schema["~standard"].validate(item) as Result<T>;
-                  if ("issues" in data && data.issues) {
-                    throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
-                  }
-                  const validData = "value" in data ? data.value : item;
-                  return { pk: pkFn(validData), sk: skFn(validData) };
+              generateKey: (item: T) => {
+                const data = schema["~standard"].validate(item) as Result<T>;
+                if ("issues" in data && data.issues) {
+                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
                 }
+                const validData = "value" in data ? data.value : item;
+                return { pk: pkFn(validData), sk: skFn(validData) };
               },
             } as IndexDefinition<T>;
 
@@ -632,23 +618,13 @@ export function createIndex() {
               name: "custom",
               partitionKey: "pk",
               isReadOnly: isReadOnly,
-              generateKey: (item: T, safeParse?: boolean) => {
-                if (safeParse) {
-                  try {
-                    const data = schema["~standard"].validate(item) as Result<T>;
-                    if ("issues" in data && data.issues) {
-                      throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
-                    }
-                    const validData = "value" in data ? data.value : (data as T);
-                    return { pk: pkFn(validData) };
-                  } catch (error) {
-                    throw new Error(
-                      `Index validation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-                    );
-                  }
-                } else {
-                  return { pk: pkFn(item) };
+              generateKey: (item: T) => {
+                const data = schema["~standard"].validate(item) as Result<T>;
+                if ("issues" in data && data.issues) {
+                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
                 }
+                const validData = "value" in data ? data.value : item;
+                return { pk: pkFn(validData) };
               },
             } as IndexDefinition<T>;
 
