@@ -852,6 +852,14 @@ const enclosureIndex = createIndex()
   .partitionKey(({ enclosureId }) => gsi2PK({ enclosureId }))
   .sortKey(({ id }) => gsi2SK({ id }));
 
+// Example of a read-only index for audit trail data
+// This index will never be updated during entity update operations
+const auditIndex = createIndex()
+  .input(dinosaurSchema)
+  .partitionKey(({ createdAt }) => partitionKey`CREATED#${createdAt}`)
+  .sortKey(({ id }) => sortKey`DINOSAUR#${id}`)
+  .readOnly(); // Mark this index as read-only
+
 // Create query builders
 const createQuery = createQueries<Dinosaur>();
 
@@ -864,6 +872,8 @@ const DinosaurEntity = defineEntity({
     // These keys need to be named after the name of the GSI that is defined in your table instance 
     gsi1: speciesIndex,
     gsi2: enclosureIndex,
+    // Example of a read-only index for audit trail data
+    gsi3: auditIndex, // This index will never be updated during entity update operations
   },
   queries: {
     // ✅ Semantic method names that describe business intent

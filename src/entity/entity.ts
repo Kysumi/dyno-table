@@ -1,21 +1,24 @@
-import type { GetBuilder } from "./builders/get-builder";
-import type { ScanBuilder } from "./builders/scan-builder";
-import type { UpdateBuilder } from "./builders/update-builder";
-import type { StandardSchemaV1 } from "./standard-schema";
-import type { Table } from "./table";
-import type { DynamoItem, Index, TableConfig } from "./types";
-import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "./conditions";
-import type { QueryBuilder } from "./builders/query-builder";
+import type { GetBuilder } from "../builders/get-builder";
+import type { ScanBuilder } from "../builders/scan-builder";
+import type { UpdateBuilder } from "../builders/update-builder";
+import type { StandardSchemaV1 } from "../standard-schema";
+import type { StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
 import {
-  createEntityAwarePutBuilder,
-  createEntityAwareGetBuilder,
   createEntityAwareDeleteBuilder,
-} from "./builders/entity-aware-builders";
+  createEntityAwareGetBuilder,
+  createEntityAwarePutBuilder,
+} from "../builders/entity-aware-builders";
 import type {
-  EntityAwarePutBuilder,
-  EntityAwareGetBuilder,
   EntityAwareDeleteBuilder,
-} from "./builders/entity-aware-builders";
+  EntityAwareGetBuilder,
+  EntityAwarePutBuilder,
+} from "../builders/entity-aware-builders";
+import type { QueryBuilder } from "../builders/query-builder";
+import { type PrimaryKey, type PrimaryKeyWithoutExpression, eq } from "../conditions";
+import type { Table } from "../table";
+import type { DynamoItem, Index, TableConfig } from "../types";
+import { IndexBuilder } from "./ddb-indexing";
+import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
@@ -95,7 +98,7 @@ export interface EntityConfig<
   name: string;
   schema: StandardSchemaV1<TInput, T>;
   primaryKey: IndexDefinition<I>;
-  indexes?: Record<string, Index>;
+  indexes?: Record<string, IndexDefinition<T>>;
   queries: Q;
   settings?: Settings;
 }
@@ -159,26 +162,12 @@ export function defineEntity<
    * @param table The DynamoDB table instance containing GSI configurations
    * @returns Record of GSI attribute names to their values
    */
-  const buildIndexes = <TData extends T>(dataForKeyGeneration: TData, table: Table): Record<string, string> => {
-    return Object.entries(config.indexes ?? {}).reduce(
-      (acc, [indexName, index]) => {
-        const key = (index as IndexDefinition<T>).generateKey(dataForKeyGeneration);
-        const gsiConfig = table.gsis[indexName];
-
-        if (!gsiConfig) {
-          throw new Error(`GSI configuration not found for index: ${indexName}`);
-        }
-
-        if (key.pk) {
-          acc[gsiConfig.partitionKey] = key.pk;
-        }
-        if (key.sk && gsiConfig.sortKey) {
-          acc[gsiConfig.sortKey] = key.sk;
-        }
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
+  const buildIndexes = <TData extends T>(
+    dataForKeyGeneration: TData,
+    table: Table,
+    excludeReadOnly = false,
+  ): Record<string, string> => {
+    return buildEntityIndexes(dataForKeyGeneration, table, config.indexes, excludeReadOnly);
   };
 
   /**
@@ -282,7 +271,7 @@ export function defineEntity<
             // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table);
+            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
             const validatedItem = {
               ...(dataForKeyGeneration as unknown as T),
@@ -319,7 +308,7 @@ export function defineEntity<
             // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table);
+            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
             const validatedItem = {
               ...(dataForKeyGeneration as unknown as T),
@@ -377,9 +366,10 @@ export function defineEntity<
               ...generateTimestamps(["createdAt", "updatedAt"], validatedData.value),
             };
 
+            // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table);
+            const indexes = buildIndexes(dataForKeyGeneration, table, false);
 
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
@@ -413,9 +403,10 @@ export function defineEntity<
               ...generateTimestamps(["createdAt", "updatedAt"], validationResult.value),
             };
 
+            // Generate the primary key using validated data (with defaults applied)
             const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
 
-            const indexes = buildIndexes(dataForKeyGeneration, table);
+            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
             const validatedItem = {
               [table.partitionKey]: primaryKey.pk,
@@ -459,18 +450,28 @@ export function defineEntity<
           return createEntityAwarePutBuilder(builder, config.name);
         },
 
-        get: <K extends I>(key: K) =>
-          createEntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name),
+        get: <K extends I>(key: K) => {
+          return createEntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name);
+        },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
           const builder = table.update<T>(primaryKeyObj);
+
           builder.condition(eq(entityTypeAttributeName, config.name));
 
           // Use only updatedAt timestamp for updates
           const timestamps = generateTimestamps(["updatedAt"], data);
 
-          builder.set({ ...data, ...timestamps });
+          // Use the index builder for updates
+          const indexUpdates = buildIndexUpdates(
+            { ...key } as unknown as T,
+            { ...data, ...timestamps },
+            table,
+            config.indexes,
+          );
+
+          builder.set({ ...data, ...timestamps, ...indexUpdates });
           return builder;
         },
 
@@ -569,31 +570,79 @@ export function createQueries<T extends DynamoItem>() {
     }),
   };
 }
-
-export interface IndexDefinition<T extends DynamoItem> extends Index {
+/**
+ * Defines a DynamoDB index configuration
+ */
+export interface IndexDefinition<T extends DynamoItem> extends Index<T> {
+  /** The name of the index */
   name: string;
+  /** Whether the index is read-only */
+  isReadOnly: boolean;
+  /** Function to generate the index key from an item */
   generateKey: (item: T) => { pk: string; sk?: string };
 }
 
+type Result<T> = StandardSchemaV1Namespace.Result<T>;
+
 export function createIndex() {
   return {
-    input: <T extends DynamoItem>(schema: StandardSchemaV1<T>) => ({
-      partitionKey: <P extends (item: T) => string>(pkFn: P) => ({
-        sortKey: <S extends (item: T) => string>(skFn: S) =>
-          ({
-            name: "custom",
-            partitionKey: "pk",
-            sortKey: "sk",
-            generateKey: (item: T) => ({ pk: pkFn(item), sk: skFn(item) }),
-          }) as IndexDefinition<T>,
+    input: <T extends DynamoItem>(schema: StandardSchemaV1<T>) => {
+      const createIndexBuilder = (isReadOnly = false) => ({
+        partitionKey: <P extends (item: T) => string>(pkFn: P) => ({
+          sortKey: <S extends (item: T) => string>(skFn: S) => {
+            const index = {
+              name: "custom",
+              partitionKey: "pk",
+              sortKey: "sk",
+              isReadOnly: isReadOnly,
+              generateKey: (item: T) => {
+                const data = schema["~standard"].validate(item) as Result<T>;
+                if ("issues" in data && data.issues) {
+                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
+                }
+                const validData = "value" in data ? data.value : item;
+                return { pk: pkFn(validData), sk: skFn(validData) };
+              },
+            } as IndexDefinition<T>;
 
-        withoutSortKey: () =>
-          ({
-            name: "custom",
-            partitionKey: "pk",
-            generateKey: (item: T) => ({ pk: pkFn(item) }),
-          }) as IndexDefinition<T>,
-      }),
-    }),
+            return Object.assign(index, {
+              readOnly: (value = false) =>
+                ({
+                  ...index,
+                  isReadOnly: value,
+                }) as IndexDefinition<T>,
+            });
+          },
+
+          withoutSortKey: () => {
+            const index = {
+              name: "custom",
+              partitionKey: "pk",
+              isReadOnly: isReadOnly,
+              generateKey: (item: T) => {
+                const data = schema["~standard"].validate(item) as Result<T>;
+                if ("issues" in data && data.issues) {
+                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
+                }
+                const validData = "value" in data ? data.value : item;
+                return { pk: pkFn(validData) };
+              },
+            } as IndexDefinition<T>;
+
+            return Object.assign(index, {
+              readOnly: (value = true) =>
+                ({
+                  ...index,
+                  isReadOnly: value,
+                }) as IndexDefinition<T>,
+            });
+          },
+        }),
+
+        readOnly: (value = true) => createIndexBuilder(value),
+      });
+
+      return createIndexBuilder(false);
+    },
   };
 }

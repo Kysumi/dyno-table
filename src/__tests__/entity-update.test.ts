@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
-import { defineEntity, createIndex } from "../entity";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { defineEntity, createIndex } from "../entity/entity";
 import type { Table } from "../table";
 import { eq } from "../conditions";
 import type { DynamoItem } from "../types";

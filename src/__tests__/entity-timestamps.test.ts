@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { defineEntity, createIndex } from "../entity";
+import { defineEntity, createIndex } from "../entity/entity";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
 import type { StandardSchemaV1 } from "../standard-schema";
