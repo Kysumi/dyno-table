@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/Kysumi/dyno-table/compare/v2.0.2...v2.1.0) (2025-08-25)
+
+
+### Features
+
+* Readonly Indexes added and Validation rules for updating GSI index attributes ([03e3407](https://github.com/Kysumi/dyno-table/commit/03e3407e2ce8c27e9d478fbfc58ec141d674a2aa))
+
 ## [2.0.2](https://github.com/Kysumi/dyno-table/compare/v2.0.1...v2.0.2) (2025-08-22)
 
 
