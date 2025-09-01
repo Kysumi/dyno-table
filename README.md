@@ -688,6 +688,75 @@ const dangerousDinos = await dinosaurRepo.query.getDangerousDinosaursInEnclosure
 }).execute();
 ```
 
+**Filter Chaining in Entity Queries**
+
+When defining custom queries, you can chain multiple filters together. These filters are automatically combined using AND logic. Additionally, filters applied in the query definition and filters applied at execution time are both respected:
+
+```ts
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
+  primaryKey,
+  queries: {
+    // Multiple filters are combined with AND logic
+    getHealthyActiveDinosaurs: createQuery
+      .input(z.object({}))
+      .query(({ entity }) => {
+        return entity
+          .scan()
+          .filter((op) => op.eq("status", "active"))
+          .filter((op) => op.gt("health", 80))
+          .filter((op) => op.attributeExists("lastFed"));
+      }),
+      
+    // Complex filter chaining with conditional logic
+    getDinosaursForVetCheck: createQuery
+      .input(z.object({
+        minHealth: z.number().optional(),
+        requiredTag: z.string().optional(),
+      }))
+      .query(({ input, entity }) => {
+        const builder = entity.scan();
+        
+        // Always filter for dinosaurs that need vet attention
+        builder.filter((op) => op.lt("health", 90));
+        
+        // Conditionally apply additional filters
+        if (input.minHealth) {
+          builder.filter((op) => op.gt("health", input.minHealth));
+        }
+        
+        if (input.requiredTag) {
+          builder.filter((op) => op.contains("tags", input.requiredTag));
+        }
+        
+        return builder;
+      }),
+      
+    // Pre-applied filters combined with execution-time filters
+    getActiveDinosaursByDiet: createQuery
+      .input(z.object({
+        diet: z.enum(["carnivore", "herbivore", "omnivore"]),
+      }))
+      .query(({ input, entity }) => {
+        // Apply a filter in the query definition
+        return entity
+          .scan()
+          .filter((op) => op.eq("diet", input.diet))
+          .filter((op) => op.eq("status", "active"));
+      }),
+  },
+});
+
+// Usage with additional execution-time filters
+// Both the pre-applied filters (diet = "carnivore", status = "active") 
+// and the execution-time filter (health > 50) will be applied
+const healthyActiveCarnivores = await dinosaurRepo.query
+  .getActiveDinosaursByDiet({ diet: "carnivore" })
+  .filter((op) => op.gt("health", 50))
+  .execute();
+```
+
 **Benefits of semantic naming:**
 - 🎯 **Clear Intent**: Method names immediately convey what data you're accessing
 - 📖 **Self-Documenting**: No need to look up what `gsi1` or `gsi2` does
@@ -1147,6 +1216,53 @@ Dyno-table provides comprehensive query methods that match DynamoDB's capabiliti
 | **Attribute Exists**      | `.filter(op => op.attributeExists("email"))`                 | `attribute_exists(email)`         |
 | **Attribute Not Exists**  | `.filter(op => op.attributeNotExists("deletedAt"))`          | `attribute_not_exists(deletedAt)` |
 | **Nested Attributes**     | `.filter(op => op.eq("address.city", "London"))`             | `address.city = :v1`              |
+
+### Filter Chaining
+
+Filters can be chained together using multiple `.filter()` calls. When multiple filters are applied, they are automatically combined using AND logic:
+
+```ts
+// Chaining multiple filters - these are combined with AND
+const result = await table
+  .query({ pk: "USER#123" })
+  .filter(op => op.eq("status", "ACTIVE"))
+  .filter(op => op.gt("age", 18))
+  .filter(op => op.contains("tags", "premium"))
+  .execute();
+
+// This is equivalent to:
+const result = await table
+  .query({ pk: "USER#123" })
+  .filter(op => op.and(
+    op.eq("status", "ACTIVE"),
+    op.gt("age", 18),
+    op.contains("tags", "premium")
+  ))
+  .execute();
+```
+
+Both approaches produce the same DynamoDB expression: `status = :v1 AND age > :v2 AND contains(tags, :v3)`
+
+Filter chaining provides a more readable way to build complex conditions, especially when filters are applied conditionally:
+
+```ts
+const builder = table.query({ pk: "USER#123" });
+
+// Conditionally apply filters
+if (statusFilter) {
+  builder.filter(op => op.eq("status", statusFilter));
+}
+
+if (minAge) {
+  builder.filter(op => op.gt("age", minAge));
+}
+
+if (requiredTag) {
+  builder.filter(op => op.contains("tags", requiredTag));
+}
+
+const result = await builder.execute();
+```
 
 ### Logical Operators
 

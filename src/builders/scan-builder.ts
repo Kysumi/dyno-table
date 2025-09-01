@@ -1,3 +1,4 @@
+import type { Condition } from "../conditions";
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
 import type { DynamoItem, TableConfig } from "../types";
 import type { ScanBuilderInterface } from "./builder-types";
@@ -80,9 +81,23 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
    */
   clone(): ScanBuilder<T, TConfig> {
     const clone = new ScanBuilder<T, TConfig>(this.executor);
-    clone.options = { ...this.options };
+    clone.options = { 
+      ...this.options,
+      filter: this.deepCloneFilter(this.options.filter)
+    };
     clone.selectedFields = new Set(this.selectedFields);
     return clone;
+  }
+
+  private deepCloneFilter(filter: Condition | undefined): Condition | undefined {
+    if (!filter) return filter;
+    if (filter.type === "and" || filter.type === "or") {
+      return {
+        ...filter,
+        conditions: filter.conditions?.map(condition => this.deepCloneFilter(condition)).filter((c): c is Condition => c !== undefined)
+      };
+    }
+    return { ...filter };
   }
 
   /**

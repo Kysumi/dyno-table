@@ -105,35 +105,33 @@ export class IndexBuilder<T extends DynamoItem> {
       }
 
       // Now generate the full key and validate it
+      let key: IndexKey;
       try {
-        const key = indexDef.generateKey(updatedItem);
-
-        // Validate the generated keys
-        if (this.hasUndefinedValues(key)) {
-          throw new Error(
-            `Cannot update entity: insufficient data to regenerate index "${indexName}". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.`,
-          );
-        }
-
-        const gsiConfig = this.table.gsis[indexName];
-        if (!gsiConfig) {
-          throw new Error(`GSI configuration not found for index: ${indexName}`);
-        }
-
-        if (key.pk) {
-          attributes[gsiConfig.partitionKey] = key.pk;
-        }
-        if (key.sk && gsiConfig.sortKey) {
-          attributes[gsiConfig.sortKey] = key.sk;
-        }
+        key = indexDef.generateKey(updatedItem);
       } catch (error) {
-        if (error instanceof Error && error.message.includes("insufficient data")) {
-          throw error;
+        if (error instanceof Error) {
+          throw new Error(`Missing attributes: ${error.message}`);
         }
-        // If we can't generate the key due to missing data, throw a descriptive error
+        throw error;
+      }
+
+      // Validate the generated keys
+      if (this.hasUndefinedValues(key)) {
         throw new Error(
-          `Cannot update entity: insufficient data to regenerate index "${indexName}". All attributes required by the index must be provided in the update operation, or the index must be readOnly.`,
+          `Missing attributes: Cannot update entity: insufficient data to regenerate index "${indexName}". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.`,
         );
+      }
+
+      const gsiConfig = this.table.gsis[indexName];
+      if (!gsiConfig) {
+        throw new Error(`GSI configuration not found for index: ${indexName}`);
+      }
+
+      if (key.pk) {
+        attributes[gsiConfig.partitionKey] = key.pk;
+      }
+      if (key.sk && gsiConfig.sortKey) {
+        attributes[gsiConfig.sortKey] = key.sk;
       }
     }
 
