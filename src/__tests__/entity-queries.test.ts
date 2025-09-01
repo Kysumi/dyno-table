@@ -826,7 +826,8 @@ describe("createQuery with chained filters", () => {
     schema: testSchema,
     primaryKey: createIndex()
       .input(primaryKeySchema)
-      .partitionKey((item) => `TEST#${item.id}`),
+      .partitionKey((item) => `TEST#${item.id}`)
+      .sortKey(() => "METADATA#"),
     queries: {
       byStatusAndType: createQueries<TestEntity>()
         .input(byStatusInputSchema)
@@ -933,7 +934,8 @@ describe("createQuery with chained filters", () => {
       schema: testSchema,
       primaryKey: createIndex()
         .input(primaryKeySchema)
-        .partitionKey((item) => `TEST#${item.id}`),
+        .partitionKey((item) => `TEST#${item.id}`)
+        .sortKey(() => "METADATA#"),
       queries: {
         byStatus: createQueries<TestEntity>()
           .input(byStatusInputSchema)
@@ -969,7 +971,8 @@ describe("createQuery with chained filters", () => {
       schema: testSchema,
       primaryKey: createIndex()
         .input(primaryKeySchema)
-        .partitionKey((item) => `TEST#${item.id}`),
+        .partitionKey((item) => `TEST#${item.id}`)
+        .sortKey(() => "METADATA#"),
       queries: {
         activeItems: createQueries<TestEntity>()
           .input(byStatusInputSchema)
@@ -1017,7 +1020,8 @@ describe("createQuery with chained filters", () => {
       schema: testSchema,
       primaryKey: createIndex()
         .input(primaryKeySchema)
-        .partitionKey((item) => `TEST#${item.id}`),
+        .partitionKey((item) => `TEST#${item.id}`)
+        .sortKey(() => "METADATA#"),
       queries: {
         itemsByStatus: createQueries<TestEntity>()
           .input(byStatusInputSchema)
