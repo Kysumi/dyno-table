@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/Kysumi/dyno-table/compare/v2.1.0...v2.1.1) (2025-09-01)
+
+
+### Bug Fixes
+
+* Filters can now be chained ([#56](https://github.com/Kysumi/dyno-table/issues/56)) ([76cf104](https://github.com/Kysumi/dyno-table/commit/76cf10423d59db32e9ff1e7b9fbf4a1c84f1c5d4)), closes [USER#123](https://github.com/USER/issues/123) [USER#123](https://github.com/USER/issues/123)
+
 # [2.1.0](https://github.com/Kysumi/dyno-table/compare/v2.0.2...v2.1.0) (2025-08-25)
 
 
