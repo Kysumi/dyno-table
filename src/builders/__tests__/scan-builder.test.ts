@@ -151,6 +151,32 @@ describe("ScanBuilder", () => {
     expect(cloneCall).toEqual(originalCall);
   });
 
+  it("should maintain immutability when chaining filters after cloning", async () => {
+    const builder = new ScanBuilder(mockExecutor);
+    builder.filter((op) => op.eq("status", "active"));
+    
+    const clone = builder.clone();
+    
+    // Add different filters to each builder
+    builder.filter((op) => op.eq("type", "original"));
+    clone.filter((op) => op.eq("type", "cloned"));
+    
+    // Execute both and verify they have different filters
+    const originalResult = await builder.execute();
+    await originalResult.toArray(); // Consume the iterator to trigger executor call
+    const originalCall = mockExecutor.mock.calls[0]?.[0];
+    
+    mockExecutor.mockClear();
+    const cloneResult = await clone.execute();
+    await cloneResult.toArray(); // Consume the iterator to trigger executor call
+    const cloneCall = mockExecutor.mock.calls[0]?.[0];
+    
+    // Verify the filters are different (proving immutability)
+    expect(originalCall.filter?.conditions?.[1]?.value).toBe("original");
+    expect(cloneCall.filter?.conditions?.[1]?.value).toBe("cloned");
+    expect(originalCall).not.toEqual(cloneCall);
+  });
+
   it("should execute scan with correct parameters", async () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.limit(10).useIndex("myIndex");

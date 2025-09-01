@@ -185,11 +185,14 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
     const newCondition = typeof condition === "function" ? condition(this.getConditionOperator()) : condition;
 
     if (this.options.filter) {
-      // If the existing filter is already an 'and' condition, we can just push the new
-      // condition to it. Otherwise, we need to create a new 'and' condition. This
-      // is to avoid nesting 'and' conditions, which is not ideal.
+      // If the existing filter is already an 'and' condition, create a new AND node
+      // with a new conditions array to avoid mutating the existing one (preserves immutability).
+      // Otherwise, we need to create a new 'and' condition. This avoids nesting 'and' conditions.
       if (this.options.filter.type === "and" && this.options.filter.conditions) {
-        this.options.filter.conditions.push(newCondition);
+        this.options.filter = {
+          type: "and",
+          conditions: [...this.options.filter.conditions, newCondition]
+        };
       } else {
         this.options.filter = and(this.options.filter, newCondition);
       }
