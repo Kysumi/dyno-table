@@ -9,6 +9,7 @@ This example implements a simple dinosaur management system using dyno-table wit
 - Entity definition with Zod schemas
 - Type-safe CRUD operations
 - Query and scan operations with filters
+- Filter chaining with AND logic
 - Data validation
 - Local DynamoDB integration
 

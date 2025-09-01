@@ -182,29 +182,42 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    * @returns The builder instance for method chaining
    */
   filter(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
-    if (typeof condition === "function") {
-      const conditionOperator: ConditionOperator<T> = {
-        eq,
-        ne,
-        lt,
-        lte,
-        gt,
-        gte,
-        between,
-        inArray,
-        beginsWith,
-        contains,
-        attributeExists,
-        attributeNotExists,
-        and,
-        or,
-        not,
-      };
-      this.options.filter = condition(conditionOperator);
+    const newCondition = typeof condition === "function" ? condition(this.getConditionOperator()) : condition;
+
+    if (this.options.filter) {
+      // If the existing filter is already an 'and' condition, we can just push the new
+      // condition to it. Otherwise, we need to create a new 'and' condition. This
+      // is to avoid nesting 'and' conditions, which is not ideal.
+      if (this.options.filter.type === "and" && this.options.filter.conditions) {
+        this.options.filter.conditions.push(newCondition);
+      } else {
+        this.options.filter = and(this.options.filter, newCondition);
+      }
     } else {
-      this.options.filter = condition;
+      this.options.filter = newCondition;
     }
+
     return this;
+  }
+
+  private getConditionOperator(): ConditionOperator<T> {
+    return {
+      eq,
+      ne,
+      lt,
+      lte,
+      gt,
+      gte,
+      between,
+      inArray,
+      beginsWith,
+      contains,
+      attributeExists,
+      attributeNotExists,
+      and,
+      or,
+      not,
+    };
   }
 
   /**
