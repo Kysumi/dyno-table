@@ -765,7 +765,7 @@ describe("Entity Repository - Deferred Validation", () => {
 
     mockTable.create.mockReturnValue(mockBuilder);
 
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    // biome-ignore lint/suspicious/noExplicitAny: Test mock object
     await repository.create(testData).withTransaction({} as any);
 
     // With deferred validation, create() is called with empty object initially
@@ -816,7 +816,7 @@ describe("Entity Repository - Deferred Validation", () => {
     }));
 
     // withTransaction() throws synchronously, not asynchronously
-    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    // biome-ignore lint/suspicious/noExplicitAny: Test mock object
     expect(() => repository.create(testData).withTransaction({} as any)).toThrow("Validation failed");
   });
 });

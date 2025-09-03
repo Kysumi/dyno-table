@@ -1,27 +1,26 @@
-import type { GetBuilder } from "../builders/get-builder";
-import type { ScanBuilder } from "../builders/scan-builder";
-import type { UpdateBuilder } from "../builders/update-builder";
-import type { StandardSchemaV1 } from "../standard-schema";
-import type { StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
-import {
-  createEntityAwareDeleteBuilder,
-  createEntityAwareGetBuilder,
-  createEntityAwarePutBuilder,
-} from "../builders/entity-aware-builders";
 import type {
   EntityAwareDeleteBuilder,
   EntityAwareGetBuilder,
   EntityAwarePutBuilder,
+  EntityAwareUpdateBuilder,
 } from "../builders/entity-aware-builders";
+import {
+  createEntityAwareDeleteBuilder,
+  createEntityAwareGetBuilder,
+  createEntityAwarePutBuilder,
+  createEntityAwareUpdateBuilder,
+} from "../builders/entity-aware-builders";
+import type { GetBuilder } from "../builders/get-builder";
 import type { QueryBuilder } from "../builders/query-builder";
-import { type PrimaryKey, type PrimaryKeyWithoutExpression, eq } from "../conditions";
+import type { ScanBuilder } from "../builders/scan-builder";
+import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "../conditions";
+import type { StandardSchemaV1, StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem, Index, TableConfig } from "../types";
-import { IndexBuilder } from "./ddb-indexing";
 import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils";
 
 // Define the QueryFunction type with a generic return type
-export type QueryFunction<T extends DynamoItem, I, R> = (input: I) => R;
+export type QueryFunction<_T extends DynamoItem, I, R> = (input: I) => R;
 
 // Define a type for the query record that preserves the input type for each query function
 export type QueryFunctionWithSchema<T extends DynamoItem, I, R> = QueryFunction<T, I, R> & {
@@ -124,7 +123,7 @@ export interface EntityRepository<
   create: (data: TInput) => EntityAwarePutBuilder<T>;
   upsert: (data: TInput & I) => EntityAwarePutBuilder<T>;
   get: (key: I) => EntityAwareGetBuilder<T>;
-  update: (key: I, data: Partial<T>) => UpdateBuilder<T>;
+  update: (key: I, data: Partial<T>) => EntityAwareUpdateBuilder<T>;
   delete: (key: I) => EntityAwareDeleteBuilder;
   query: Q;
   scan: () => ScanBuilder<T>;
@@ -460,19 +459,20 @@ export function defineEntity<
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
-          // Use only updatedAt timestamp for updates
-          const timestamps = generateTimestamps(["updatedAt"], data);
-
-          // Use the index builder for updates
-          const indexUpdates = buildIndexUpdates(
-            { ...key } as unknown as T,
-            { ...data, ...timestamps },
+          // Create entity-aware builder with entity-specific functionality
+          const entityAwareBuilder = createEntityAwareUpdateBuilder(builder, config.name);
+          
+          // Configure the entity-aware builder with entity-specific logic
+          entityAwareBuilder.configureEntityLogic({
+            data,
+            key: key as unknown as T,
             table,
-            config.indexes,
-          );
+            indexes: config.indexes,
+            generateTimestamps: () => generateTimestamps(["updatedAt"], data),
+            buildIndexUpdates,
+          });
 
-          builder.set({ ...data, ...timestamps, ...indexUpdates });
-          return builder;
+          return entityAwareBuilder;
         },
 
         delete: <K extends I>(key: K) => {

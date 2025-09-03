@@ -1,5 +1,5 @@
-import type { DynamoItem, Index } from "../types";
 import type { Table } from "../table";
+import type { DynamoItem } from "../types";
 import type { IndexDefinition } from "./entity";
 
 /**
@@ -69,39 +69,49 @@ export class IndexBuilder<T extends DynamoItem> {
    * @param options - Options for building indexes
    * @returns Record of GSI attribute names to their updated values
    */
-  buildForUpdate(currentData: T, updates: Partial<T>): Record<string, string> {
+  buildForUpdate(
+    currentData: T,
+    updates: Partial<T>,
+    options: { forceRebuildIndexes?: string[] } = {},
+  ): Record<string, string> {
     const attributes: Record<string, string> = {};
     const updatedItem = { ...currentData, ...updates } as T;
 
+    // Validate that all force rebuild indexes exist
+    if (options.forceRebuildIndexes && options.forceRebuildIndexes.length > 0) {
+      const invalidIndexes = options.forceRebuildIndexes.filter((indexName) => !this.indexes[indexName]);
+      if (invalidIndexes.length > 0) {
+        throw new Error(
+          `Cannot force rebuild unknown indexes: ${invalidIndexes.join(", ")}. ` +
+            `Available indexes: ${Object.keys(this.indexes).join(", ")}`,
+        );
+      }
+    }
+
     for (const [indexName, indexDef] of Object.entries(this.indexes)) {
-      // Skip read-only indexes - they should never be updated
-      if (indexDef.isReadOnly) {
+      const isForced = options.forceRebuildIndexes?.includes(indexName);
+
+      // Skip read-only indexes if they are not being force-rebuilt
+      if (indexDef.isReadOnly && !isForced) {
         continue;
       }
 
-      // Check if this index uses any fields from the update data
-      // We test this by generating keys with and without the update fields
-      let shouldUpdateIndex = false;
-
-      try {
-        // Generate key with current data only
-        const currentKey = indexDef.generateKey(currentData);
-
-        // Generate key with merged data
-        const updatedKey = indexDef.generateKey(updatedItem);
-
-        // If the keys are different, this index is affected by the update
-        if (currentKey.pk !== updatedKey.pk || currentKey.sk !== updatedKey.sk) {
+      // If the index is not being forcibly rebuilt, check if it needs to be updated
+      if (!isForced) {
+        let shouldUpdateIndex = false;
+        try {
+          const currentKey = indexDef.generateKey(currentData);
+          const updatedKey = indexDef.generateKey(updatedItem);
+          if (currentKey.pk !== updatedKey.pk || currentKey.sk !== updatedKey.sk) {
+            shouldUpdateIndex = true;
+          }
+        } catch {
           shouldUpdateIndex = true;
         }
-      } catch {
-        // If we can't generate both keys for comparison, assume the index needs updating
-        // This happens when we don't have all the required data
-        shouldUpdateIndex = true;
-      }
 
-      if (!shouldUpdateIndex) {
-        continue;
+        if (!shouldUpdateIndex) {
+          continue;
+        }
       }
 
       // Now generate the full key and validate it

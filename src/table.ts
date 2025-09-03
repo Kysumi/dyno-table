@@ -1,43 +1,47 @@
-import type { DynamoDBDocument, QueryCommandInput, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
-import type { DynamoItem, Index, TableConfig } from "./types";
+import type {
+  DynamoDBDocument,
+  QueryCommandInput,
+  ScanCommandInput,
+  TransactWriteCommandInput,
+} from "@aws-sdk/lib-dynamodb";
+import { BatchBuilder } from "./builders/batch-builder";
+import type { DeleteCommandParams, PutCommandParams, UpdateCommandParams } from "./builders/builder-types";
+import { ConditionCheckBuilder } from "./builders/condition-check-builder";
+import { DeleteBuilder } from "./builders/delete-builder";
+import { GetBuilder, type GetCommandParams } from "./builders/get-builder";
+import { PutBuilder } from "./builders/put-builder";
+import { QueryBuilder, type QueryOptions } from "./builders/query-builder";
+import type { ScanOptions } from "./builders/scan-builder";
+import { ScanBuilder } from "./builders/scan-builder";
+import { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
+import type { Path } from "./builders/types";
+import { UpdateBuilder } from "./builders/update-builder";
 import {
   and,
   beginsWith,
   between,
-  eq,
-  gt,
-  gte,
-  lt,
-  lte,
   type Condition,
   type ConditionOperator,
   type ExpressionParams,
+  eq,
+  gt,
+  gte,
   type KeyConditionOperator,
+  lt,
+  lte,
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
 } from "./conditions";
-import { buildExpression, generateAttributeName, prepareExpressionParams } from "./expression";
-import { QueryBuilder, type QueryOptions } from "./builders/query-builder";
-import { PutBuilder } from "./builders/put-builder";
-import { DeleteBuilder } from "./builders/delete-builder";
-import { UpdateBuilder } from "./builders/update-builder";
-import type { Path } from "./builders/types";
-import { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
+import { buildExpression, generateAttributeName } from "./expression";
 import type { BatchWriteOperation } from "./operation-types";
+import type { DynamoItem, Index, TableConfig } from "./types";
 import { chunkArray } from "./utils/chunk-array";
-import { ConditionCheckBuilder } from "./builders/condition-check-builder";
-import { BatchBuilder } from "./builders/batch-builder";
 import { debugCommand } from "./utils/debug-expression";
-import { GetBuilder, type GetCommandParams } from "./builders/get-builder";
-import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
-import type { PutCommandParams, DeleteCommandParams, UpdateCommandParams } from "./builders/builder-types";
-import { ScanBuilder } from "./builders/scan-builder";
-import type { ScanOptions } from "./builders/scan-builder";
 
 const DDB_BATCH_WRITE_LIMIT = 25;
 const DDB_BATCH_GET_LIMIT = 100;
-const DDB_TRANSACT_GET_LIMIT = 100;
-const DDB_TRANSACT_WRITE_LIMIT = 100;
+const _DDB_TRANSACT_GET_LIMIT = 100;
+const _DDB_TRANSACT_WRITE_LIMIT = 100;
 
 export class Table<TConfig extends TableConfig = TableConfig> {
   private readonly dynamoClient: DynamoDBDocument;

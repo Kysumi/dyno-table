@@ -94,11 +94,11 @@ describe("Entity Transaction Support", () => {
 
       // This should not throw an error
       const builder = repository.create(testData);
-      // @ts-ignore
+      // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
       // Verify that the builder has the correct data including keys after withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
@@ -151,11 +151,11 @@ describe("Entity Transaction Support", () => {
 
       // This should not throw an error
       const builder = repoWithTimestamps.create(testData);
-      // @ts-ignore
+      // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
       // Verify that the builder has the correct data including keys and timestamps after withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntityWithTimestamps",
@@ -197,16 +197,16 @@ describe("Entity Transaction Support", () => {
       const builder = repository.create(testData);
 
       // Keys should not be generated yet
-      // @ts-ignore
+      // @ts-expect-error
       expect(builder.item).toBeUndefined();
 
       // Simulate what happens when withTransaction is called
       // This should trigger key generation
-      // @ts-ignore
+      // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
       // Verify that keys are generated when withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
@@ -248,11 +248,11 @@ describe("Entity Transaction Support", () => {
 
       // Create the builder
       const builder = complexRepo.create(testData);
-      // @ts-ignore
+      // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
       // Verify that complex keys are generated correctly after withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "ComplexEntity",
@@ -293,11 +293,11 @@ describe("Entity Transaction Support", () => {
 
       // Create the builder
       const builder = simpleRepo.create(testData);
-      // @ts-ignore
+      // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
       // Verify that only partition key is generated (no sort key) after withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "SimpleEntity",
@@ -361,11 +361,11 @@ describe("Entity Transaction Support", () => {
 
       // Create the builder
       const builder = repoWithGSI.create(testData);
-      // @ts-ignore
+      // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
       // Verify that primary and secondary index keys are generated after withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "EntityWithGSI",
@@ -398,7 +398,7 @@ describe("Entity Transaction Support", () => {
       const builder = repository.create(testData);
 
       // withTransaction should work without validation
-      // @ts-ignore
+      // @ts-expect-error
       expect(() => builder.withTransaction(mockTransaction)).not.toThrow();
 
       // Mock validation failure for execute
@@ -431,7 +431,7 @@ describe("Entity Transaction Support", () => {
       mockTable.create.mockReturnValue(mockBuilder);
 
       // Test method chaining with transaction
-      // @ts-ignore
+      // @ts-expect-error
       const builder = repository.create(testData).withTransaction(mockTransaction);
 
       // Should be able to continue chaining after withTransaction
@@ -464,23 +464,23 @@ describe("Entity Transaction Support", () => {
 
       // Test create
       const createBuilder = repository.create(testData);
-      // @ts-ignore
+      // @ts-expect-error
       createBuilder.withTransaction(mockTransaction);
 
       // Test upsert
       const upsertBuilder = repository.upsert(testData);
-      // @ts-ignore
+      // @ts-expect-error
       upsertBuilder.withTransaction(mockTransaction);
 
       // Both should have complete data including keys after withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(createBuilder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#consistency-test",
         sk: "METADATA#",
       });
-      // @ts-ignore
+      // @ts-expect-error
       expect(upsertBuilder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
@@ -537,13 +537,13 @@ describe("Entity Transaction Support", () => {
       const upsertBuilder = repository.upsert(testData);
 
       // Both should be able to call withTransaction without errors
-      // @ts-ignore
+      // @ts-expect-error
       expect(() => createBuilder.withTransaction(mockTransaction)).not.toThrow();
-      // @ts-ignore
+      // @ts-expect-error
       expect(() => upsertBuilder.withTransaction(mockTransaction)).not.toThrow();
 
       // Both should have complete data including keys after withTransaction is called
-      // @ts-ignore
+      // @ts-expect-error
       expect(createBuilder.item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",
@@ -551,7 +551,7 @@ describe("Entity Transaction Support", () => {
           entityType: "TestEntity",
         }),
       );
-      // @ts-ignore
+      // @ts-expect-error
       expect(upsertBuilder.item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",

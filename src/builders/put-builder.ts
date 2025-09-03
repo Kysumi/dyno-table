@@ -125,7 +125,7 @@ export class PutBuilder<T extends DynamoItem> {
     if (typeof valuesOrPath === "object") {
       Object.assign(this.item, valuesOrPath);
     } else {
-      // @ts-ignore
+      // @ts-expect-error
       this.item[valuesOrPath] = value;
     }
     return this;

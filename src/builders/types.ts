@@ -50,10 +50,10 @@ type PathInternal<T, TraversedTypes = T> = T extends ReadonlyArray<infer V>
 // biome-ignore lint/suspicious/noExplicitAny: RHF
 export type Path<T> = T extends any ? PathInternal<T> : never;
 
-// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+// biome-ignore lint/suspicious/noExplicitAny: Required for type path utilities
 export type PathType<T, K extends keyof any> = K extends `${infer Key}.${infer Rest}`
   ? Key extends keyof T
-    ? // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    ? // biome-ignore lint/suspicious/noExplicitAny: Required for type path utilities
       Rest extends keyof any
       ? PathType<NonNullable<T[Key]>, Rest>
       : never

@@ -4,7 +4,7 @@
 
 ### **Tame Your DynamoDB Data with Type-Safe Precision**
 
-[![npm version](https://img.shields.io/npm/v/dyno-table.svg?style=for-the-badge)](https://www.npmjs.com/package/dyno-table) 
+[![npm version](https://img.shields.io/npm/v/dyno-table.svg?style=for-the-badge)](https://www.npmjs.com/package/dyno-table)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-4.0%2B-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![AWS DynamoDB](https://img.shields.io/badge/AWS-DynamoDB-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com/dynamodb/)
@@ -22,12 +22,12 @@
 // Type-safe dinosaur tracking operations made simple
 await dinoTable
   .update<Dinosaur>({
-    pk: 'SPECIES#trex',
-    sk: 'PROFILE#001'
+    pk: "SPECIES#trex",
+    sk: "PROFILE#001",
   })
-  .set('diet', 'Carnivore')      // Update dietary classification
-  .add('sightings', 1)           // Increment sighting counter
-  .condition(op => op.eq('status', 'ACTIVE'))  // Only if dinosaur is active
+  .set("diet", "Carnivore") // Update dietary classification
+  .add("sightings", 1) // Increment sighting counter
+  .condition((op) => op.eq("status", "ACTIVE")) // Only if dinosaur is active
   .execute();
 ```
 
@@ -97,6 +97,7 @@ await dinoTable
   - [Update Operations](#update-operations)
     - [Condition Operators](#condition-operators)
     - [Multiple Operations](#multiple-operations)
+    - [Force Rebuilding Read-Only Indexes](#force-rebuilding-read-only-indexes)
 - [🔄 Type Safety Features](#-type-safety-features)
   - [Nested Object Support](#nested-object-support)
   - [Type-Safe Conditions](#type-safe-conditions)
@@ -143,6 +144,7 @@ yarn add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 # Using PNPM
 pnpm add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
+
 </details>
 
 ## 🎯 DynamoDB Best Practices
@@ -174,29 +176,35 @@ import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 const docClient = DynamoDBDocument.from(new DynamoDBClient({}));
 
-const users = await docClient.send(new QueryCommand({
-  TableName: "MyTable",
-  IndexName: "gsi1", 
-  KeyConditionExpression: "#pk = :pk",
-  ExpressionAttributeNames: { "#pk": "pk" },
-  ExpressionAttributeValues: { ":pk": "STATUS#active" }
-}));
+const users = await docClient.send(
+  new QueryCommand({
+    TableName: "MyTable",
+    IndexName: "gsi1",
+    KeyConditionExpression: "#pk = :pk",
+    ExpressionAttributeNames: { "#pk": "pk" },
+    ExpressionAttributeValues: { ":pk": "STATUS#active" },
+  }),
+);
 
-const orders = await docClient.send(new QueryCommand({
-  TableName: "MyTable",
-  IndexName: "gsi2",
-  KeyConditionExpression: "#pk = :pk",
-  ExpressionAttributeNames: { "#pk": "pk" },
-  ExpressionAttributeValues: { ":pk": "CUSTOMER#123" }
-}));
+const orders = await docClient.send(
+  new QueryCommand({
+    TableName: "MyTable",
+    IndexName: "gsi2",
+    KeyConditionExpression: "#pk = :pk",
+    ExpressionAttributeNames: { "#pk": "pk" },
+    ExpressionAttributeValues: { ":pk": "CUSTOMER#123" },
+  }),
+);
 
-const products = await docClient.send(new QueryCommand({
-  TableName: "MyTable",
-  IndexName: "gsi3",
-  KeyConditionExpression: "#pk = :pk",
-  ExpressionAttributeNames: { "#pk": "pk" },
-  ExpressionAttributeValues: { ":pk": "CATEGORY#electronics" }
-}));
+const products = await docClient.send(
+  new QueryCommand({
+    TableName: "MyTable",
+    IndexName: "gsi3",
+    KeyConditionExpression: "#pk = :pk",
+    ExpressionAttributeNames: { "#pk": "pk" },
+    ExpressionAttributeValues: { ":pk": "CATEGORY#electronics" },
+  }),
+);
 ```
 
 </td>
@@ -204,9 +212,7 @@ const products = await docClient.send(new QueryCommand({
 
 ```ts
 // Clear business intent
-const activeUsers = await userRepo.query
-  .getActiveUsers()
-  .execute();
+const activeUsers = await userRepo.query.getActiveUsers().execute();
 
 const customerOrders = await orderRepo.query
   .getOrdersByCustomer({ customerId: "123" })
@@ -225,11 +231,11 @@ const electronics = await productRepo.query
 
 When you use generic names like `gsi1`, `gsi2`, `gsi3`, you create several problems:
 
-- **🧠 Cognitive Load**: Developers must remember what each index does
-- **📚 Poor Documentation**: Code doesn't self-document its purpose
-- **🐛 Error-Prone**: Easy to use the wrong index for a query
-- **👥 Team Friction**: New team members struggle to understand data access patterns
-- **🔄 Maintenance Issues**: Refactoring becomes risky and unclear
+- **Cognitive Load**: Developers must remember what each index does
+- **Poor Documentation**: Code doesn't self-document its purpose
+- **Error-Prone**: Easy to use the wrong index for a query
+- **Team Friction**: New team members struggle to understand data access patterns
+- **Maintenance Issues**: Refactoring becomes risky and unclear
 
 ### The Solution: Meaningful Method Names
 
@@ -245,25 +251,36 @@ const UserEntity = defineEntity({
     // ✅ Clear business purpose
     getActiveUsers: createQuery
       .input(z.object({}))
-      .query(({ entity }) => entity.query({ pk: "STATUS#active" }).useIndex("gsi1")),
+      .query(({ entity }) =>
+        entity.query({ pk: "STATUS#active" }).useIndex("gsi1"),
+      ),
 
     getUsersByEmail: createQuery
       .input(z.object({ email: z.string() }))
-      .query(({ input, entity }) => entity.query({ pk: `EMAIL#${input.email}` }).useIndex("gsi1")),
+      .query(({ input, entity }) =>
+        entity.query({ pk: `EMAIL#${input.email}` }).useIndex("gsi1"),
+      ),
 
     getUsersByDepartment: createQuery
       .input(z.object({ department: z.string() }))
-      .query(({ input, entity }) => entity.query({ pk: `DEPT#${input.department}` }).useIndex("gsi2")),
+      .query(({ input, entity }) =>
+        entity.query({ pk: `DEPT#${input.department}` }).useIndex("gsi2"),
+      ),
   },
 });
 
 // Usage in business logic is now self-documenting
 const activeUsers = await userRepo.query.getActiveUsers().execute();
-const engineeringTeam = await userRepo.query.getUsersByDepartment({ department: "engineering" }).execute();
-const user = await userRepo.query.getUsersByEmail({ email: "john@company.com" }).execute();
+const engineeringTeam = await userRepo.query
+  .getUsersByDepartment({ department: "engineering" })
+  .execute();
+const user = await userRepo.query
+  .getUsersByEmail({ email: "john@company.com" })
+  .execute();
 ```
 
 **This pattern promotes:**
+
 - ✅ **Better code readability and maintainability**
 - ✅ **Self-documenting API design**
 - ✅ **Easier onboarding for new team members**
@@ -330,7 +347,7 @@ const rex = await dinoTable
     name: "Tyrannosaurus Rex",
     diet: "carnivore",
     length: 12.3,
-    discoveryYear: 1902
+    discoveryYear: 1902,
   })
   .execute();
 ```
@@ -343,14 +360,11 @@ const rex = await dinoTable
 ```ts
 // Find large carnivorous dinosaurs
 const largeDinos = await dinoTable
-  .query<Dinosaur>({ 
+  .query<Dinosaur>({
     pk: "SPECIES#trex",
-    sk: (op) => op.beginsWith("PROFILE#")
+    sk: (op) => op.beginsWith("PROFILE#"),
   })
-  .filter((op) => op.and(
-    op.gte("length", 10),
-    op.eq("diet", "carnivore")
-  ))
+  .filter((op) => op.and(op.gte("length", 10), op.eq("diet", "carnivore")))
   .limit(10)
   .execute();
 ```
@@ -365,16 +379,14 @@ const largeDinos = await dinoTable
 ```ts
 // Update a dinosaur's classification
 await dinoTable
-  .update<Dinosaur>({ 
+  .update<Dinosaur>({
     pk: "SPECIES#trex",
-    sk: "PROFILE#trex"
+    sk: "PROFILE#trex",
   })
   .set("diet", "omnivore")
   .add("discoveryYear", 1)
   .remove("outdatedField")
-  .condition((op) => 
-    op.attributeExists("discoverySite")
-  )
+  .condition((op) => op.attributeExists("discoverySite"))
   .execute();
 ```
 
@@ -387,13 +399,10 @@ await dinoTable
 // Perform multiple operations atomically
 await dinoTable.transaction((tx) => {
   // Move dinosaur to new enclosure
-  dinoTable
-    .delete({ pk: "ENCLOSURE#A", sk: "DINO#1" })
-    .withTransaction(tx);
+  dinoTable.delete({ pk: "ENCLOSURE#A", sk: "DINO#1" }).withTransaction(tx);
 
   dinoTable
-    .create({ pk: "ENCLOSURE#B", sk: "DINO#1", 
-      status: "ACTIVE" })
+    .create({ pk: "ENCLOSURE#B", sk: "DINO#1", status: "ACTIVE" })
     .withTransaction(tx);
 });
 ```
@@ -416,20 +425,22 @@ await dinoTable.transaction((tx) => {
 
 ```ts
 // Verbose, error-prone, no type safety
-await docClient.send(new QueryCommand({
-  TableName: "JurassicPark",
-  IndexName: "gsi1", // What does gsi1 do?
-  KeyConditionExpression: "#pk = :pk",
-  FilterExpression: "contains(#features, :feathers)",
-  ExpressionAttributeNames: {
-    "#pk": "pk",
-    "#features": "features"
-  },
-  ExpressionAttributeValues: {
-    ":pk": "SPECIES#trex",
-    ":feathers": "feathers"
-  }
-}));
+await docClient.send(
+  new QueryCommand({
+    TableName: "JurassicPark",
+    IndexName: "gsi1", // What does gsi1 do?
+    KeyConditionExpression: "#pk = :pk",
+    FilterExpression: "contains(#features, :feathers)",
+    ExpressionAttributeNames: {
+      "#pk": "pk",
+      "#features": "features",
+    },
+    ExpressionAttributeValues: {
+      ":pk": "SPECIES#trex",
+      ":feathers": "feathers",
+    },
+  }),
+);
 ```
 
 </td>
@@ -439,18 +450,16 @@ await docClient.send(new QueryCommand({
 // Self-documenting, type-safe, semantic
 const featheredTRexes = await dinosaurRepo.query
   .getFeatheredDinosaursBySpecies({
-    species: "trex"
+    species: "trex",
   })
   .execute();
 
 // Or using table directly (still better than raw SDK)
 await dinoTable
   .query<Dinosaur>({
-    pk: "SPECIES#trex"
+    pk: "SPECIES#trex",
   })
-  .filter(op =>
-    op.contains("features", "feathers")
-  )
+  .filter((op) => op.contains("features", "feathers"))
   .execute();
 ```
 
@@ -459,6 +468,7 @@ await dinoTable
 </table>
 
 **Key improvements:**
+
 - 🛡️ **Type Safety**: Compile-time error checking prevents runtime failures
 - 📖 **Self-Documenting**: Code clearly expresses business intent
 - 🧠 **Reduced Complexity**: No manual expression building or attribute mapping
@@ -565,10 +575,10 @@ const DinosaurEntity = defineEntity({
   name: "Dinosaur",
   schema: dinosaurSchema,
   primaryKey: createIndex()
-          .input(z.object({ id: z.string(), diet: z.string(), species: z.string() }))
-          .partitionKey(({ diet }) => dinosaurPK({ diet }))
-          // could also be .withoutSortKey() if your table doesn't use sort keys
-          .sortKey(({ id, species }) => dinosaurSK({ species, id })) 
+    .input(z.object({ id: z.string(), diet: z.string(), species: z.string() }))
+    .partitionKey(({ diet }) => dinosaurPK({ diet }))
+    // could also be .withoutSortKey() if your table doesn't use sort keys
+    .sortKey(({ id, species }) => dinosaurSK({ species, id })),
 });
 ```
 
@@ -578,36 +588,44 @@ Entities provide type-safe CRUD operations:
 
 ```ts
 // Create a new dinosaur
-await dinosaurRepo.create({
-  id: "dino-001",
-  species: "Tyrannosaurus Rex",
-  name: "Rexy",
-  diet: "carnivore",
-  dangerLevel: 10,
-  height: 5.2,
-  weight: 7000,
-  status: "active",
-}).execute();
+await dinosaurRepo
+  .create({
+    id: "dino-001",
+    species: "Tyrannosaurus Rex",
+    name: "Rexy",
+    diet: "carnivore",
+    dangerLevel: 10,
+    height: 5.2,
+    weight: 7000,
+    status: "active",
+  })
+  .execute();
 
 // Get a dinosaur
-const dino = await dinosaurRepo.get({
-  id: "dino-001",
-  diet: "carnivore",
-  species: "Tyrannosaurus Rex",
-}).execute();
+const dino = await dinosaurRepo
+  .get({
+    id: "dino-001",
+    diet: "carnivore",
+    species: "Tyrannosaurus Rex",
+  })
+  .execute();
 
 // Update a dinosaur
-await dinosaurRepo.update(
-  { id: "dino-001", diet: "carnivore", species: "Tyrannosaurus Rex" },
-  { weight: 7200, status: "sick" }
-).execute();
+await dinosaurRepo
+  .update(
+    { id: "dino-001", diet: "carnivore", species: "Tyrannosaurus Rex" },
+    { weight: 7200, status: "sick" },
+  )
+  .execute();
 
 // Delete a dinosaur
-await dinosaurRepo.delete({
-  id: "dino-001",
-  diet: "carnivore",
-  species: "Tyrannosaurus Rex",
-}).execute();
+await dinosaurRepo
+  .delete({
+    id: "dino-001",
+    diet: "carnivore",
+    species: "Tyrannosaurus Rex",
+  })
+  .execute();
 ```
 
 #### 3. Custom Queries
@@ -629,63 +647,68 @@ const DinosaurEntity = defineEntity({
       .input(
         z.object({
           diet: z.enum(["carnivore", "herbivore", "omnivore"]),
-        })
+        }),
       )
       .query(({ input, entity }) => {
-        return entity
-          .query({
-            pk: dinosaurPK({diet: input.diet})
-          });
+        return entity.query({
+          pk: dinosaurPK({ diet: input.diet }),
+        });
       }),
 
     findDinosaursBySpecies: createQuery
       .input(
         z.object({
           species: z.string(),
-        })
+        }),
       )
       .query(({ input, entity }) => {
-        return entity
-          .scan()
-          .filter((op) => op.eq("species", input.species));
+        return entity.scan().filter((op) => op.eq("species", input.species));
       }),
 
-    getActiveCarnivores: createQuery
-      .input(z.object({}))
-      .query(({ entity }) => {
-        return entity
-          .query({
-            pk: dinosaurPK({diet: "carnivore"})
-          })
-          .filter((op) => op.eq("status", "active"));
-      }),
+    getActiveCarnivores: createQuery.input(z.object({})).query(({ entity }) => {
+      return entity
+        .query({
+          pk: dinosaurPK({ diet: "carnivore" }),
+        })
+        .filter((op) => op.eq("status", "active"));
+    }),
 
     getDangerousDinosaursInEnclosure: createQuery
       .input(
         z.object({
           enclosureId: z.string(),
           minDangerLevel: z.number().min(1).max(10),
-        })
+        }),
       )
       .query(({ input, entity }) => {
         return entity
           .scan()
-          .filter((op) => op.and(
-            op.contains("enclosureId", input.enclosureId),
-            op.gte("dangerLevel", input.minDangerLevel)
-          ));
+          .filter((op) =>
+            op.and(
+              op.contains("enclosureId", input.enclosureId),
+              op.gte("dangerLevel", input.minDangerLevel),
+            ),
+          );
       }),
   },
 });
 
 // Usage in business logic is now self-documenting
-const carnivores = await dinosaurRepo.query.getDinosaursByDiet({ diet: "carnivore" }).execute();
-const trexes = await dinosaurRepo.query.findDinosaursBySpecies({ species: "Tyrannosaurus Rex" }).execute();
-const activeCarnivores = await dinosaurRepo.query.getActiveCarnivores().execute();
-const dangerousDinos = await dinosaurRepo.query.getDangerousDinosaursInEnclosure({
-  enclosureId: "PADDOCK-A",
-  minDangerLevel: 8
-}).execute();
+const carnivores = await dinosaurRepo.query
+  .getDinosaursByDiet({ diet: "carnivore" })
+  .execute();
+const trexes = await dinosaurRepo.query
+  .findDinosaursBySpecies({ species: "Tyrannosaurus Rex" })
+  .execute();
+const activeCarnivores = await dinosaurRepo.query
+  .getActiveCarnivores()
+  .execute();
+const dangerousDinos = await dinosaurRepo.query
+  .getDangerousDinosaursInEnclosure({
+    enclosureId: "PADDOCK-A",
+    minDangerLevel: 8,
+  })
+  .execute();
 ```
 
 **Filter Chaining in Entity Queries**
@@ -708,36 +731,40 @@ const DinosaurEntity = defineEntity({
           .filter((op) => op.gt("health", 80))
           .filter((op) => op.attributeExists("lastFed"));
       }),
-      
+
     // Complex filter chaining with conditional logic
     getDinosaursForVetCheck: createQuery
-      .input(z.object({
-        minHealth: z.number().optional(),
-        requiredTag: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          minHealth: z.number().optional(),
+          requiredTag: z.string().optional(),
+        }),
+      )
       .query(({ input, entity }) => {
         const builder = entity.scan();
-        
+
         // Always filter for dinosaurs that need vet attention
         builder.filter((op) => op.lt("health", 90));
-        
+
         // Conditionally apply additional filters
         if (input.minHealth) {
           builder.filter((op) => op.gt("health", input.minHealth));
         }
-        
+
         if (input.requiredTag) {
           builder.filter((op) => op.contains("tags", input.requiredTag));
         }
-        
+
         return builder;
       }),
-      
+
     // Pre-applied filters combined with execution-time filters
     getActiveDinosaursByDiet: createQuery
-      .input(z.object({
-        diet: z.enum(["carnivore", "herbivore", "omnivore"]),
-      }))
+      .input(
+        z.object({
+          diet: z.enum(["carnivore", "herbivore", "omnivore"]),
+        }),
+      )
       .query(({ input, entity }) => {
         // Apply a filter in the query definition
         return entity
@@ -749,7 +776,7 @@ const DinosaurEntity = defineEntity({
 });
 
 // Usage with additional execution-time filters
-// Both the pre-applied filters (diet = "carnivore", status = "active") 
+// Both the pre-applied filters (diet = "carnivore", status = "active")
 // and the execution-time filter (health > 50) will be applied
 const healthyActiveCarnivores = await dinosaurRepo.query
   .getActiveDinosaursByDiet({ diet: "carnivore" })
@@ -758,6 +785,7 @@ const healthyActiveCarnivores = await dinosaurRepo.query
 ```
 
 **Benefits of semantic naming:**
+
 - 🎯 **Clear Intent**: Method names immediately convey what data you're accessing
 - 📖 **Self-Documenting**: No need to look up what `gsi1` or `gsi2` does
 - 🧠 **Reduced Cognitive Load**: Developers can focus on business logic, not database details
@@ -772,11 +800,11 @@ Define GSI access patterns with **meaningful names** that reflect their business
 import { createIndex } from "dyno-table/entity";
 
 // Define GSI templates with descriptive names that reflect their purpose
-const speciesPK = partitionKey`SPECIES#${"species"}`
-const speciesSK = sortKey`DINOSAUR#${"id"}`
+const speciesPK = partitionKey`SPECIES#${"species"}`;
+const speciesSK = sortKey`DINOSAUR#${"id"}`;
 
-const enclosurePK = partitionKey`ENCLOSURE#${"enclosureId"}`
-const enclosureSK = sortKey`DANGER#${"dangerLevel"}#ID#${"id"}`
+const enclosurePK = partitionKey`ENCLOSURE#${"enclosureId"}`;
+const enclosureSK = sortKey`DANGER#${"dangerLevel"}#ID#${"id"}`;
 
 // Create indexes with meaningful names
 const speciesIndex = createIndex()
@@ -804,12 +832,12 @@ const DinosaurEntity = defineEntity({
       .input(
         z.object({
           species: z.string(),
-        })
+        }),
       )
       .query(({ input, entity }) => {
         return entity
           .query({
-            pk: speciesPK({species: input.species}),
+            pk: speciesPK({ species: input.species }),
           })
           .useIndex("gsi1"); // Generic GSI name for table flexibility
       }),
@@ -818,12 +846,12 @@ const DinosaurEntity = defineEntity({
       .input(
         z.object({
           enclosureId: z.string(),
-        })
+        }),
       )
       .query(({ input, entity }) => {
         return entity
           .query({
-            pk: enclosurePK({enclosureId: input.enclosureId}),
+            pk: enclosurePK({ enclosureId: input.enclosureId }),
           })
           .useIndex("gsi2");
       }),
@@ -833,13 +861,13 @@ const DinosaurEntity = defineEntity({
         z.object({
           enclosureId: z.string(),
           minDangerLevel: z.number().min(1).max(10),
-        })
+        }),
       )
       .query(({ input, entity }) => {
         return entity
           .query({
-            pk: enclosurePK({enclosureId: input.enclosureId}),
-            sk: (op) => op.gte(`DANGER#${input.minDangerLevel}`)
+            pk: enclosurePK({ enclosureId: input.enclosureId }),
+            sk: (op) => op.gte(`DANGER#${input.minDangerLevel}`),
           })
           .useIndex("gsi2")
           .sortDescending(); // Get most dangerous first
@@ -848,15 +876,22 @@ const DinosaurEntity = defineEntity({
 });
 
 // Usage is now self-documenting
-const trexes = await dinosaurRepo.query.getDinosaursBySpecies({ species: "Tyrannosaurus Rex" }).execute();
-const paddockADinos = await dinosaurRepo.query.getDinosaursByEnclosure({ enclosureId: "PADDOCK-A" }).execute();
-const dangerousDinos = await dinosaurRepo.query.getMostDangerousInEnclosure({
-  enclosureId: "PADDOCK-A",
-  minDangerLevel: 8
-}).execute();
+const trexes = await dinosaurRepo.query
+  .getDinosaursBySpecies({ species: "Tyrannosaurus Rex" })
+  .execute();
+const paddockADinos = await dinosaurRepo.query
+  .getDinosaursByEnclosure({ enclosureId: "PADDOCK-A" })
+  .execute();
+const dangerousDinos = await dinosaurRepo.query
+  .getMostDangerousInEnclosure({
+    enclosureId: "PADDOCK-A",
+    minDangerLevel: 8,
+  })
+  .execute();
 ```
 
 **Key principles for access pattern naming:**
+
 - 🎯 **Generic GSI Names**: Keep table-level GSI names generic (`gsi1`, `gsi2`) for flexibility across entities
 - 🔍 **Business-Focused**: Method names should reflect what the query achieves, not how it works
 - 📚 **Self-Documenting**: Anyone reading the code should understand the purpose immediately
@@ -897,11 +932,11 @@ type Dinosaur = z.infer<typeof dinosaurSchema>;
 const dinosaurPK = partitionKey`DINOSAUR#${"id"}`;
 const dinosaurSK = sortKey`STATUS#${"status"}`;
 
-const gsi1PK = partitionKey`SPECIES#${"species"}`
-const gsi1SK = sortKey`DINOSAUR#${"id"}`
+const gsi1PK = partitionKey`SPECIES#${"species"}`;
+const gsi1SK = sortKey`DINOSAUR#${"id"}`;
 
-const gsi2PK = partitionKey`ENCLOSURE#${"enclosureId"}`
-const gsi2SK = sortKey`DINOSAUR#${"id"}`
+const gsi2PK = partitionKey`ENCLOSURE#${"enclosureId"}`;
+const gsi2SK = sortKey`DINOSAUR#${"id"}`;
 
 // Create a primary index
 const primaryKey = createIndex()
@@ -938,11 +973,12 @@ const DinosaurEntity = defineEntity({
   schema: dinosaurSchema,
   primaryKey,
   indexes: {
-    // These keys need to be named after the name of the GSI that is defined in your table instance 
+    // These keys need to be named after the name of the GSI that is defined in your table instance
     gsi1: speciesIndex,
     gsi2: enclosureIndex,
     // Example of a read-only index for audit trail data
     gsi3: auditIndex, // This index will never be updated during entity update operations
+    // unless explicitly forced with .forceIndexRebuild('gsi3')
   },
   queries: {
     // ✅ Semantic method names that describe business intent
@@ -950,7 +986,7 @@ const DinosaurEntity = defineEntity({
       .input(
         z.object({
           species: z.string(),
-        })
+        }),
       )
       .query(({ input, entity }) => {
         return entity
@@ -964,7 +1000,7 @@ const DinosaurEntity = defineEntity({
       .input(
         z.object({
           enclosureId: z.string(),
-        })
+        }),
       )
       .query(({ input, entity }) => {
         return entity
@@ -979,7 +1015,7 @@ const DinosaurEntity = defineEntity({
         z.object({
           enclosureId: z.string(),
           minDangerLevel: z.number().int().min(1).max(10),
-        })
+        }),
       )
       .query(({ input, entity }) => {
         return entity
@@ -1014,15 +1050,19 @@ async function main() {
     .execute();
 
   // Query dinosaurs by species using semantic method names
-  const trexes = await dinosaurRepo.query.getDinosaursBySpecies({
-    species: "Tyrannosaurus Rex"
-  }).execute();
+  const trexes = await dinosaurRepo.query
+    .getDinosaursBySpecies({
+      species: "Tyrannosaurus Rex",
+    })
+    .execute();
 
   // Query dangerous dinosaurs in an enclosure
-  const dangerousDinos = await dinosaurRepo.query.getDangerousDinosaursInEnclosure({
-    enclosureId: "enc-001",
-    minDangerLevel: 8,
-  }).execute();
+  const dangerousDinos = await dinosaurRepo.query
+    .getDangerousDinosaursInEnclosure({
+      enclosureId: "enc-001",
+      minDangerLevel: 8,
+    })
+    .execute();
 }
 ```
 
@@ -1031,6 +1071,7 @@ async function main() {
 ### Transactional Operations
 
 **Safe dinosaur transfer between enclosures**
+
 ```ts
 // Start a transaction session for transferring a T-Rex to a new enclosure
 // Critical for safety: All operations must succeed or none will be applied
@@ -1041,53 +1082,57 @@ await dinoTable.transaction(async (tx) => {
   // STEP 1: Check if destination enclosure is ready and compatible with the dinosaur
   // We must verify the enclosure is prepared and suitable for a carnivore
   await dinoTable
-    .conditionCheck({ 
-      pk: "ENCLOSURE#B",          // Target enclosure B
-      sk: "STATUS"                // Check the enclosure status record
+    .conditionCheck({
+      pk: "ENCLOSURE#B", // Target enclosure B
+      sk: "STATUS", // Check the enclosure status record
     })
-    .condition(op => op.and(
-      op.eq("status", "READY"),   // Enclosure must be in READY state
-      op.eq("diet", "Carnivore")  // Must support carnivorous dinosaurs
-    ))
+    .condition((op) =>
+      op.and(
+        op.eq("status", "READY"), // Enclosure must be in READY state
+        op.eq("diet", "Carnivore"), // Must support carnivorous dinosaurs
+      ),
+    )
     .withTransaction(tx);
 
   // STEP 2: Remove dinosaur from current enclosure
   // Only proceed if the dinosaur is healthy enough for transfer
   await dinoTable
-    .delete<Dinosaur>({ 
-      pk: "ENCLOSURE#A",          // Source enclosure A
-      sk: "DINO#001"              // T-Rex with ID 001
+    .delete<Dinosaur>({
+      pk: "ENCLOSURE#A", // Source enclosure A
+      sk: "DINO#001", // T-Rex with ID 001
     })
-    .condition(op => op.and(
-      op.eq("status", "HEALTHY"), // Dinosaur must be in HEALTHY state
-      op.gte("health", 80)        // Health must be at least 80%
-    ))
+    .condition((op) =>
+      op.and(
+        op.eq("status", "HEALTHY"), // Dinosaur must be in HEALTHY state
+        op.gte("health", 80), // Health must be at least 80%
+      ),
+    )
     .withTransaction(tx);
 
   // STEP 3: Add dinosaur to new enclosure
   // Create a fresh record in the destination enclosure
   await dinoTable
     .create<Dinosaur>({
-      pk: "ENCLOSURE#B",          // Destination enclosure B
-      sk: "DINO#001",             // Same dinosaur ID for tracking
-      name: "Rex",                // Dinosaur name
-      species: "Tyrannosaurus",   // Species classification
-      diet: "Carnivore",          // Dietary requirements
-      status: "HEALTHY",          // Current health status
-      health: 100,                // Reset health to 100% after transfer
-      enclosureId: "B",           // Update enclosure reference
-      lastFed: new Date().toISOString() // Reset feeding clock
+      pk: "ENCLOSURE#B", // Destination enclosure B
+      sk: "DINO#001", // Same dinosaur ID for tracking
+      name: "Rex", // Dinosaur name
+      species: "Tyrannosaurus", // Species classification
+      diet: "Carnivore", // Dietary requirements
+      status: "HEALTHY", // Current health status
+      health: 100, // Reset health to 100% after transfer
+      enclosureId: "B", // Update enclosure reference
+      lastFed: new Date().toISOString(), // Reset feeding clock
     })
     .withTransaction(tx);
 
   // STEP 4: Update enclosure occupancy tracking
   // Keep accurate count of dinosaurs in each enclosure
   await dinoTable
-    .update<Dinosaur>({ 
-      pk: "ENCLOSURE#B",          // Target enclosure B
-      sk: "OCCUPANCY"             // Occupancy tracking record
+    .update<Dinosaur>({
+      pk: "ENCLOSURE#B", // Target enclosure B
+      sk: "OCCUPANCY", // Occupancy tracking record
     })
-    .add("currentOccupants", 1)   // Increment occupant count
+    .add("currentOccupants", 1) // Increment occupant count
     .set("lastUpdated", new Date().toISOString()) // Update timestamp
     .withTransaction(tx);
 });
@@ -1100,13 +1145,13 @@ await dinoTable.transaction(
     // Record that the dinosaur has been fed and update its health metrics
     await dinoTable
       .update<Dinosaur>({
-        pk: "ENCLOSURE#D",           // Herbivore enclosure D
-        sk: "DINO#003"               // Stegosaurus with ID 003
+        pk: "ENCLOSURE#D", // Herbivore enclosure D
+        sk: "DINO#003", // Stegosaurus with ID 003
       })
       .set({
-        status: "HEALTHY",           // Update health status
+        status: "HEALTHY", // Update health status
         lastFed: new Date().toISOString(), // Record feeding time
-        health: 100                  // Reset health to 100%
+        health: 100, // Reset health to 100%
       })
       .deleteElementsFromSet("tags", ["needs_feeding"]) // Remove feeding alert tag
       .withTransaction(tx);
@@ -1115,38 +1160,43 @@ await dinoTable.transaction(
     // Schedule next feeding time for tomorrow
     await dinoTable
       .update<Dinosaur>({
-        pk: "ENCLOSURE#D",           // Same herbivore enclosure
-        sk: "SCHEDULE"               // Feeding schedule record
+        pk: "ENCLOSURE#D", // Same herbivore enclosure
+        sk: "SCHEDULE", // Feeding schedule record
       })
-      .set("nextFeedingTime", new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()) // 24 hours from now
+      .set(
+        "nextFeedingTime",
+        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      ) // 24 hours from now
       .withTransaction(tx);
   },
   {
     // Transaction options for tracking and idempotency
     clientRequestToken: "feeding-session-001", // Prevents duplicate feeding operations
-    returnConsumedCapacity: "TOTAL"            // Track capacity usage for park operations
-  }
+    returnConsumedCapacity: "TOTAL", // Track capacity usage for park operations
+  },
 );
 ```
-
 
 ### Pagination Made Simple
 
 **Efficient dinosaur record browsing for park management**
+
 ```ts
 // SCENARIO 1: Herbivore health monitoring with pagination
 // Create a paginator for viewing healthy herbivores in manageable chunks
 // Perfect for veterinary staff doing routine health checks
 const healthyHerbivores = dinoTable
   .query<Dinosaur>({
-    pk: "DIET#herbivore",                    // Target all herbivorous dinosaurs
-    sk: op => op.beginsWith("STATUS#HEALTHY") // Only those with HEALTHY status
+    pk: "DIET#herbivore", // Target all herbivorous dinosaurs
+    sk: (op) => op.beginsWith("STATUS#HEALTHY"), // Only those with HEALTHY status
   })
-  .filter((op) => op.and(
-    op.gte("health", 90),                    // Only those with excellent health (90%+)
-    op.attributeExists("lastFed")            // Must have feeding records
-  ))
-  .paginate(5);                              // Process in small batches of 5 dinosaurs
+  .filter((op) =>
+    op.and(
+      op.gte("health", 90), // Only those with excellent health (90%+)
+      op.attributeExists("lastFed"), // Must have feeding records
+    ),
+  )
+  .paginate(5); // Process in small batches of 5 dinosaurs
 
 // Iterate through all pages of results - useful for processing large datasets
 // without loading everything into memory at once
@@ -1154,11 +1204,15 @@ console.log("🦕 Beginning herbivore health inspection rounds...");
 while (healthyHerbivores.hasNextPage()) {
   // Get the next page of dinosaurs
   const page = await healthyHerbivores.getNextPage();
-  console.log(`Checking herbivores page ${page.page}, found ${page.items.length} dinosaurs`);
+  console.log(
+    `Checking herbivores page ${page.page}, found ${page.items.length} dinosaurs`,
+  );
 
   // Process each dinosaur in the current page
-  page.items.forEach(dino => {
-    console.log(`${dino.name}: Health ${dino.health}%, Last fed: ${dino.lastFed}`);
+  page.items.forEach((dino) => {
+    console.log(
+      `${dino.name}: Health ${dino.health}%, Last fed: ${dino.lastFed}`,
+    );
     // In a real app, you might update health records or schedule next checkup
   });
 }
@@ -1168,12 +1222,12 @@ while (healthyHerbivores.hasNextPage()) {
 // This approach loads all matching items into memory
 const carnivoreSchedule = await dinoTable
   .query<Dinosaur>({
-    pk: "DIET#carnivore",                    // Target all carnivorous dinosaurs
-    sk: op => op.beginsWith("ENCLOSURE#")    // Organized by enclosure
+    pk: "DIET#carnivore", // Target all carnivorous dinosaurs
+    sk: (op) => op.beginsWith("ENCLOSURE#"), // Organized by enclosure
   })
-  .filter(op => op.attributeExists("lastFed")) // Only those with feeding records
-  .paginate(10)                              // Process in pages of 10
-  .getAllPages();                            // But collect all results at once
+  .filter((op) => op.attributeExists("lastFed")) // Only those with feeding records
+  .paginate(10) // Process in pages of 10
+  .getAllPages(); // But collect all results at once
 
 console.log(`Scheduling feeding for ${carnivoreSchedule.length} carnivores`);
 // Now we can sort and organize feeding times based on species, size, etc.
@@ -1181,17 +1235,17 @@ console.log(`Scheduling feeding for ${carnivoreSchedule.length} carnivores`);
 // SCENARIO 3: Visitor information kiosk with limited display
 // Create a paginated view for the public-facing dinosaur information kiosk
 const visitorKiosk = dinoTable
-  .query<Dinosaur>({ 
-    pk: "VISITOR_VIEW",                      // Special partition for visitor-facing data
-    sk: op => op.beginsWith("SPECIES#")      // Organized by species
+  .query<Dinosaur>({
+    pk: "VISITOR_VIEW", // Special partition for visitor-facing data
+    sk: (op) => op.beginsWith("SPECIES#"), // Organized by species
   })
-  .filter(op => op.eq("status", "ON_DISPLAY")) // Only show dinosaurs currently on display
-  .limit(12)                                 // Show maximum 12 dinosaurs total
-  .paginate(4);                              // Display 4 at a time for easy viewing
+  .filter((op) => op.eq("status", "ON_DISPLAY")) // Only show dinosaurs currently on display
+  .limit(12) // Show maximum 12 dinosaurs total
+  .paginate(4); // Display 4 at a time for easy viewing
 
 // Get first page for initial kiosk display
 const firstPage = await visitorKiosk.getNextPage();
-console.log(`🦖 Now showing: ${firstPage.items.map(d => d.name).join(", ")}`);
+console.log(`🦖 Now showing: ${firstPage.items.map((d) => d.name).join(", ")}`);
 // Visitors can press "Next" to see more dinosaurs in the collection
 ```
 
@@ -1201,15 +1255,15 @@ Dyno-table provides comprehensive query methods that match DynamoDB's capabiliti
 
 ### Comparison Operators
 
-| Operation                 | Method Example                                          | Generated Expression              |
-|---------------------------|---------------------------------------------------------|-----------------------------------|
-| **Equals**                | `.filter(op => op.eq("status", "ACTIVE"))`              | `status = :v1`                    |
-| **Not Equals**            | `.filter(op => op.ne("status", "DELETED"))`             | `status <> :v1`                   |
-| **Less Than**             | `.filter(op => op.lt("age", 18))`                       | `age < :v1`                       |
-| **Less Than or Equal**    | `.filter(op => op.lte("score", 100))`                   | `score <= :v1`                    |
-| **Greater Than**          | `.filter(op => op.gt("price", 50))`                     | `price > :v1`                     |
-| **Greater Than or Equal** | `.filter(op => op.gte("rating", 4))`                    | `rating >= :v1`                   |
-| **Between**               | `.filter(op => op.between("age", 18, 65))`              | `age BETWEEN :v1 AND :v2`         |
+| Operation                 | Method Example                                               | Generated Expression              |
+| ------------------------- | ------------------------------------------------------------ | --------------------------------- |
+| **Equals**                | `.filter(op => op.eq("status", "ACTIVE"))`                   | `status = :v1`                    |
+| **Not Equals**            | `.filter(op => op.ne("status", "DELETED"))`                  | `status <> :v1`                   |
+| **Less Than**             | `.filter(op => op.lt("age", 18))`                            | `age < :v1`                       |
+| **Less Than or Equal**    | `.filter(op => op.lte("score", 100))`                        | `score <= :v1`                    |
+| **Greater Than**          | `.filter(op => op.gt("price", 50))`                          | `price > :v1`                     |
+| **Greater Than or Equal** | `.filter(op => op.gte("rating", 4))`                         | `rating >= :v1`                   |
+| **Between**               | `.filter(op => op.between("age", 18, 65))`                   | `age BETWEEN :v1 AND :v2`         |
 | **In Array**              | `.filter(op => op.inArray("status", ["ACTIVE", "PENDING"]))` | `status IN (:v1, :v2)`            |
 | **Begins With**           | `.filter(op => op.beginsWith("email", "@example.com"))`      | `begins_with(email, :v1)`         |
 | **Contains**              | `.filter(op => op.contains("tags", "important"))`            | `contains(tags, :v1)`             |
@@ -1225,19 +1279,21 @@ Filters can be chained together using multiple `.filter()` calls. When multiple 
 // Chaining multiple filters - these are combined with AND
 const result = await table
   .query({ pk: "USER#123" })
-  .filter(op => op.eq("status", "ACTIVE"))
-  .filter(op => op.gt("age", 18))
-  .filter(op => op.contains("tags", "premium"))
+  .filter((op) => op.eq("status", "ACTIVE"))
+  .filter((op) => op.gt("age", 18))
+  .filter((op) => op.contains("tags", "premium"))
   .execute();
 
 // This is equivalent to:
 const result = await table
   .query({ pk: "USER#123" })
-  .filter(op => op.and(
-    op.eq("status", "ACTIVE"),
-    op.gt("age", 18),
-    op.contains("tags", "premium")
-  ))
+  .filter((op) =>
+    op.and(
+      op.eq("status", "ACTIVE"),
+      op.gt("age", 18),
+      op.contains("tags", "premium"),
+    ),
+  )
   .execute();
 ```
 
@@ -1250,15 +1306,15 @@ const builder = table.query({ pk: "USER#123" });
 
 // Conditionally apply filters
 if (statusFilter) {
-  builder.filter(op => op.eq("status", statusFilter));
+  builder.filter((op) => op.eq("status", statusFilter));
 }
 
 if (minAge) {
-  builder.filter(op => op.gt("age", minAge));
+  builder.filter((op) => op.gt("age", minAge));
 }
 
 if (requiredTag) {
-  builder.filter(op => op.contains("tags", requiredTag));
+  builder.filter((op) => op.contains("tags", requiredTag));
 }
 
 const result = await builder.execute();
@@ -1267,7 +1323,7 @@ const result = await builder.execute();
 ### Logical Operators
 
 | Operation | Method Example                                                                    | Generated Expression           |
-|-----------|-----------------------------------------------------------------------------------|--------------------------------|
+| --------- | --------------------------------------------------------------------------------- | ------------------------------ |
 | **AND**   | `.filter(op => op.and(op.eq("status", "ACTIVE"), op.gt("age", 18)))`              | `status = :v1 AND age > :v2`   |
 | **OR**    | `.filter(op => op.or(op.eq("status", "PENDING"), op.eq("status", "PROCESSING")))` | `status = :v1 OR status = :v2` |
 | **NOT**   | `.filter(op => op.not(op.eq("status", "DELETED")))`                               | `NOT status = :v1`             |
@@ -1275,12 +1331,13 @@ const result = await builder.execute();
 ### Query Operations
 
 | Operation                | Method Example                                                                       | Generated Expression                  |
-|--------------------------|--------------------------------------------------------------------------------------|---------------------------------------|
+| ------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------- |
 | **Partition Key Equals** | `.query({ pk: "USER#123" })`                                                         | `pk = :pk`                            |
 | **Sort Key Begins With** | `.query({ pk: "USER#123", sk: op => op.beginsWith("ORDER#2023") })`                  | `pk = :pk AND begins_with(sk, :v1)`   |
 | **Sort Key Between**     | `.query({ pk: "USER#123", sk: op => op.between("ORDER#2023-01", "ORDER#2023-12") })` | `pk = :pk AND sk BETWEEN :v1 AND :v2` |
 
 Additional query options:
+
 ```ts
 // Sort order
 const ascending = await table
@@ -1300,16 +1357,13 @@ const partial = await table
   .execute();
 
 // Limit results
-const limited = await table
-  .query({ pk: "USER#123" })
-  .limit(10)
-  .execute();
+const limited = await table.query({ pk: "USER#123" }).limit(10).execute();
 ```
 
 ### Put Operations
 
 | Operation           | Method Example                                                      | Description                                                            |
-|---------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
+| ------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | **Create New Item** | `.create<Dinosaur>({ pk: "SPECIES#trex", sk: "PROFILE#001", ... })` | Creates a new item with a condition to ensure it doesn't already exist |
 | **Put Item**        | `.put<Dinosaur>({ pk: "SPECIES#trex", sk: "PROFILE#001", ... })`    | Creates or replaces an item                                            |
 | **With Condition**  | `.put(item).condition(op => op.attributeNotExists("pk"))`           | Adds a condition that must be satisfied                                |
@@ -1319,42 +1373,50 @@ const limited = await table
 Control what data is returned from put operations:
 
 | Option         | Description                                                                                                        | Example                                           |
-|----------------|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
+| -------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
 | **NONE**       | Default. No return value.                                                                                          | `.put(item).returnValues("NONE").execute()`       |
 | **ALL_OLD**    | Returns the item's previous state if it existed. (Does not consume any RCU and returns strongly consistent values) | `.put(item).returnValues("ALL_OLD").execute()`    |
 | **CONSISTENT** | Performs a consistent GET operation after the put to retrieve the item's new state. (Does consume RCU)             | `.put(item).returnValues("CONSISTENT").execute()` |
 
 ```ts
 // Create with no return value (default)
-await table.put<Dinosaur>({
-  pk: "SPECIES#trex",
-  sk: "PROFILE#001",
-  name: "Tyrannosaurus Rex",
-  diet: "carnivore"
-}).execute();
+await table
+  .put<Dinosaur>({
+    pk: "SPECIES#trex",
+    sk: "PROFILE#001",
+    name: "Tyrannosaurus Rex",
+    diet: "carnivore",
+  })
+  .execute();
 
 // Create and return the newly created item
-const newDino = await table.put<Dinosaur>({
-  pk: "SPECIES#trex",
-  sk: "PROFILE#002",
-  name: "Tyrannosaurus Rex",
-  diet: "carnivore"
-}).returnValues("CONSISTENT").execute();
+const newDino = await table
+  .put<Dinosaur>({
+    pk: "SPECIES#trex",
+    sk: "PROFILE#002",
+    name: "Tyrannosaurus Rex",
+    diet: "carnivore",
+  })
+  .returnValues("CONSISTENT")
+  .execute();
 
 // Update with condition and get previous values
-const oldDino = await table.put<Dinosaur>({
-  pk: "SPECIES#trex",
-  sk: "PROFILE#001",
-  name: "Tyrannosaurus Rex",
-  diet: "omnivore", // Updated diet
-  discoveryYear: 1905
-}).returnValues("ALL_OLD").execute();
+const oldDino = await table
+  .put<Dinosaur>({
+    pk: "SPECIES#trex",
+    sk: "PROFILE#001",
+    name: "Tyrannosaurus Rex",
+    diet: "omnivore", // Updated diet
+    discoveryYear: 1905,
+  })
+  .returnValues("ALL_OLD")
+  .execute();
 ```
 
 ### Update Operations
 
 | Operation            | Method Example                                        | Generated Expression |
-|----------------------|-------------------------------------------------------|----------------------|
+| -------------------- | ----------------------------------------------------- | -------------------- |
 | **Set Attributes**   | `.update(key).set("name", "New Name")`                | `SET #name = :v1`    |
 | **Add to Number**    | `.update(key).add("score", 10)`                       | `ADD #score :v1`     |
 | **Remove Attribute** | `.update(key).remove("temporary")`                    | `REMOVE #temporary`  |
@@ -1364,32 +1426,94 @@ const oldDino = await table.put<Dinosaur>({
 
 The library supports a comprehensive set of type-safe condition operators:
 
-| Category       | Operators                                    | Example                                                                 |
-|----------------|----------------------------------------------|-------------------------------------------------------------------------|
-| **Comparison** | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`         | `.condition(op => op.gt("age", 18))`                                    |
+| Category       | Operators                                      | Example                                                                 |
+| -------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| **Comparison** | `eq`, `ne`, `lt`, `lte`, `gt`, `gte`           | `.condition(op => op.gt("age", 18))`                                    |
 | **String/Set** | `between`, `beginsWith`, `contains`, `inArray` | `.condition(op => op.inArray("status", ["active", "pending"]))`         |
-| **Existence**  | `attributeExists`, `attributeNotExists`      | `.condition(op => op.attributeExists("email"))`                         |
-| **Logical**    | `and`, `or`, `not`                           | `.condition(op => op.and(op.eq("status", "active"), op.gt("age", 18)))` |
+| **Existence**  | `attributeExists`, `attributeNotExists`        | `.condition(op => op.attributeExists("email"))`                         |
+| **Logical**    | `and`, `or`, `not`                             | `.condition(op => op.and(op.eq("status", "active"), op.gt("age", 18)))` |
 
 All operators are type-safe and will provide proper TypeScript inference for nested attributes.
 
 #### Multiple Operations
+
 Operations can be combined in a single update:
+
 ```ts
 const result = await table
   .update({ pk: "USER#123", sk: "PROFILE" })
   .set("name", "Updated Name")
   .add("loginCount", 1)
   .remove("temporaryFlag")
-  .condition(op => op.attributeExists("email"))
+  .condition((op) => op.attributeExists("email"))
   .execute();
 ```
+
+#### Force Rebuilding Read-Only Indexes
+
+When working with entities, some indexes may be marked as read-only to prevent any updates. However, you can force these indexes to be rebuilt during updates using the `forceIndexRebuild()` method:
+
+```ts
+// Force rebuild a single read-only index
+await dinoRepo
+  .update(
+    { id: "TREX-001" },
+    {
+      name: "Updated T-Rex",
+      excavationSiteId: "new-site-001",
+    },
+  )
+  .forceIndexRebuild("excavation-site-index")
+  .execute();
+
+// Force rebuild multiple read-only indexes
+await dinoRepo
+  .update(
+    { id: "TREX-001" },
+    {
+      name: "Updated T-Rex",
+      excavationSiteId: "new-site-001",
+      species: "Tyrannosaurus Rex",
+      diet: "carnivore",
+    },
+  )
+  .forceIndexRebuild(["excavation-site-index", "species-diet-index"])
+  .execute();
+
+// Chain with other update operations
+await dinoRepo
+  .update(
+    { id: "TREX-001" },
+    {
+      excavationSiteId: "new-site-002",
+    },
+  )
+  .forceIndexRebuild("excavation-site-index")
+  .set("lastUpdated", new Date().toISOString())
+  .condition((op) => op.eq("status", "INACTIVE"))
+  .returnValues("ALL_NEW")
+  .execute();
+```
+
+**When to use `forceIndexRebuild()`:**
+
+- 🔄 You need to update a read-only index with new data
+- 🛠️ You're performing maintenance operations that require index consistency
+- 📊 You have all required attributes available for the index and want to force an update
+- ⚡ You want to override the read-only protection for specific update operations
+
+**Important Notes:**
+
+- This method only works with entity repositories, not direct table operations, as it requires knowledge of the entity's index definitions
+- The index name must be a valid index defined in your entity configuration, otherwise an error will be thrown
+- You must provide all required attributes for the index template variables, otherwise the update will fail with an error
 
 ## 🔄 Type Safety Features
 
 The library provides comprehensive type safety for all operations:
 
 ### Nested Object Support
+
 ```ts
 interface Dinosaur {
   pk: string;
@@ -1427,7 +1551,8 @@ interface Dinosaur {
 }
 
 // TypeScript ensures type safety for all nested dinosaur attributes
-await table.update<Dinosaur>({ pk: "ENCLOSURE#F", sk: "DINO#007" })
+await table
+  .update<Dinosaur>({ pk: "ENCLOSURE#F", sk: "DINO#007" })
   .set("stats.health", 95) // ✓ Valid
   .set("habitat.enclosure.climate", "Tropical") // ✓ Valid
   .set("care.feeding.lastFed", new Date().toISOString()) // ✓ Valid
@@ -1436,6 +1561,7 @@ await table.update<Dinosaur>({ pk: "ENCLOSURE#F", sk: "DINO#007" })
 ```
 
 ### Type-Safe Conditions
+
 ```ts
 interface DinosaurMonitoring {
   species: string;
@@ -1446,19 +1572,22 @@ interface DinosaurMonitoring {
   alertLevel: "LOW" | "MEDIUM" | "HIGH";
 }
 
-await table.query<DinosaurMonitoring>({
-  pk: "MONITORING",
-  sk: op => op.beginsWith("ENCLOSURE#")
-})
-.filter(op => op.and(
-  op.lt("health", "90"), // ❌ TypeScript Error: health expects number
-  op.gt("temperature", 38), // ✓ Valid
-  op.contains("behavior", "aggressive"), // ✓ Valid
-  op.inArray("alertLevel", ["LOW", "MEDIUM", "HIGH"]), // ✓ Valid: matches union type
-  op.inArray("alertLevel", ["UNKNOWN", "INVALID"]), // ❌ TypeScript Error: invalid alert levels
-  op.eq("alertLevel", "UNKNOWN") // ❌ TypeScript Error: invalid alert level
-))
-.execute();
+await table
+  .query<DinosaurMonitoring>({
+    pk: "MONITORING",
+    sk: (op) => op.beginsWith("ENCLOSURE#"),
+  })
+  .filter((op) =>
+    op.and(
+      op.lt("health", "90"), // ❌ TypeScript Error: health expects number
+      op.gt("temperature", 38), // ✓ Valid
+      op.contains("behavior", "aggressive"), // ✓ Valid
+      op.inArray("alertLevel", ["LOW", "MEDIUM", "HIGH"]), // ✓ Valid: matches union type
+      op.inArray("alertLevel", ["UNKNOWN", "INVALID"]), // ❌ TypeScript Error: invalid alert levels
+      op.eq("alertLevel", "UNKNOWN"), // ❌ TypeScript Error: invalid alert level
+    ),
+  )
+  .execute();
 ```
 
 ## 🔄 Batch Operations
@@ -1478,7 +1607,9 @@ const batch = table.batchBuilder<{
 
 // Add operations - entity type is automatically inferred
 dinosaurRepo.create(newDinosaur).withBatch(batch);
-dinosaurRepo.get({ id: 'dino-123', diet: 'carnivore', species: 'Tyrannosaurus Rex' }).withBatch(batch);
+dinosaurRepo
+  .get({ id: "dino-123", diet: "carnivore", species: "Tyrannosaurus Rex" })
+  .withBatch(batch);
 fossilRepo.create(newFossil).withBatch(batch);
 
 // Execute and get typed results
@@ -1495,15 +1626,23 @@ const fossils: FossilEntity[] = result.reads.itemsByType.Fossil;
 // Batch get - retrieve multiple items
 const keys = [
   { pk: "DIET#carnivore", sk: "SPECIES#Tyrannosaurus Rex#ID#dino-123" },
-  { pk: "FOSSIL#456", sk: "DISCOVERY#2024" }
+  { pk: "FOSSIL#456", sk: "DISCOVERY#2024" },
 ];
 
 const { items, unprocessedKeys } = await table.batchGet<DynamoItem>(keys);
 
 // Batch write - mix of operations
 const operations = [
-  { type: "put" as const, item: { pk: "DIET#herbivore", sk: "SPECIES#Triceratops#ID#dino-789", name: "Spike", dangerLevel: 3 } },
-  { type: "delete" as const, key: { pk: "FOSSIL#OLD", sk: "DISCOVERY#1990" } }
+  {
+    type: "put" as const,
+    item: {
+      pk: "DIET#herbivore",
+      sk: "SPECIES#Triceratops#ID#dino-789",
+      name: "Spike",
+      dangerLevel: 3,
+    },
+  },
+  { type: "delete" as const, key: { pk: "FOSSIL#OLD", sk: "DISCOVERY#1990" } },
 ];
 
 const { unprocessedItems } = await table.batchWrite(operations);
@@ -1514,16 +1653,20 @@ if (unprocessedItems.length > 0) {
 }
 ```
 
-
 ## 🔒 Transaction Operations
 
 Perform multiple operations atomically with transaction support:
 
 ### Transaction Builder
+
 ```ts
 const result = await table.transaction(async (tx) => {
   // Building the expression manually
-  tx.put("TableName", { pk: "123", sk: "123"}, and(op.attributeNotExists("pk"), op.attributeExists("sk")));
+  tx.put(
+    "TableName",
+    { pk: "123", sk: "123" },
+    and(op.attributeNotExists("pk"), op.attributeExists("sk")),
+  );
 
   // Using table to build the operation
   table
@@ -1551,6 +1694,7 @@ const result = await table.transaction(async (tx) => {
 ```
 
 ### Transaction Options
+
 ```ts
 const result = await table.transaction(
   async (tx) => {
@@ -1559,11 +1703,10 @@ const result = await table.transaction(
   {
     // Optional transaction settings
     idempotencyToken: "unique-token",
-    returnValuesOnConditionCheckFailure: true
-  }
+    returnValuesOnConditionCheckFailure: true,
+  },
 );
 ```
-
 
 ## 🚨 Error Handling
 
@@ -1577,6 +1720,7 @@ to provide a more clear set of error classes and additional information to allow
 All condition operators are type-safe and will validate against your item type. For detailed information about DynamoDB conditions and expressions, see the [AWS DynamoDB Developer Guide](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html).
 
 #### Comparison Operators
+
 - `eq(attr, value)` - Equals (=)
 - `ne(attr, value)` - Not equals (≠)
 - `lt(attr, value)` - Less than (<)
@@ -1592,29 +1736,37 @@ All condition operators are type-safe and will validate against your item type. 
 // Example: Health and feeding monitoring
 await dinoTable
   .query<Dinosaur>({
-    pk: "ENCLOSURE#G"
+    pk: "ENCLOSURE#G",
   })
-  .filter((op) => op.and(
-    op.lt("stats.health", 85),  // Health below 85%
-    op.lt("care.feeding.lastFed", new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()),  // Not fed in 12 hours
-    op.between("stats.weight", 1000, 5000)  // Medium-sized dinosaurs
-  ))
+  .filter((op) =>
+    op.and(
+      op.lt("stats.health", 85), // Health below 85%
+      op.lt(
+        "care.feeding.lastFed",
+        new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      ), // Not fed in 12 hours
+      op.between("stats.weight", 1000, 5000), // Medium-sized dinosaurs
+    ),
+  )
   .execute();
 
 // Example: Filter dinosaurs by multiple status values using inArray
 await dinoTable
   .query<Dinosaur>({
-    pk: "SPECIES#trex"
+    pk: "SPECIES#trex",
   })
-  .filter((op) => op.and(
-    op.inArray("status", ["ACTIVE", "FEEDING", "RESTING"]),  // Multiple valid statuses
-    op.inArray("diet", ["carnivore", "omnivore"]),           // Meat-eating dinosaurs
-    op.gt("dangerLevel", 5)                                  // High danger level
-  ))
+  .filter((op) =>
+    op.and(
+      op.inArray("status", ["ACTIVE", "FEEDING", "RESTING"]), // Multiple valid statuses
+      op.inArray("diet", ["carnivore", "omnivore"]), // Meat-eating dinosaurs
+      op.gt("dangerLevel", 5), // High danger level
+    ),
+  )
   .execute();
 ```
 
 #### Attribute Operators
+
 - `attributeExists(attr)` - Checks if attribute exists
 - `attributeNotExists(attr)` - Checks if attribute does not exist
 
@@ -1622,23 +1774,26 @@ await dinoTable
 // Example: Validate required attributes for dinosaur transfer
 await dinoTable
   .update<Dinosaur>({
-    pk: "ENCLOSURE#H", 
-    sk: "DINO#008"
+    pk: "ENCLOSURE#H",
+    sk: "DINO#008",
   })
   .set("habitat.enclosure.id", "ENCLOSURE#J")
-  .condition((op) => op.and(
-    // Ensure all required health data is present
-    op.attributeExists("stats.health"),
-    op.attributeExists("care.medical.lastCheckup"),
-    // Ensure not already in transfer
-    op.attributeNotExists("transfer.inProgress"),
-    // Verify required monitoring tags
-    op.attributeExists("care.medical.vaccinations")
-  ))
+  .condition((op) =>
+    op.and(
+      // Ensure all required health data is present
+      op.attributeExists("stats.health"),
+      op.attributeExists("care.medical.lastCheckup"),
+      // Ensure not already in transfer
+      op.attributeNotExists("transfer.inProgress"),
+      // Verify required monitoring tags
+      op.attributeExists("care.medical.vaccinations"),
+    ),
+  )
   .execute();
 ```
 
 #### Logical Operators
+
 - `and(...conditions)` - Combines conditions with AND
 - `or(...conditions)` - Combines conditions with OR
 - `not(condition)` - Negates a condition
@@ -1647,34 +1802,39 @@ await dinoTable
 // Example: Complex safety monitoring conditions
 await dinoTable
   .query<Dinosaur>({
-    pk: "MONITORING#ALERTS"
+    pk: "MONITORING#ALERTS",
   })
-  .filter((op) => op.or(
-    // Alert: Aggressive carnivores with low health
-    op.and(
-      op.eq("care.feeding.diet", "Carnivore"),
-      op.lt("stats.health", 70),
-      op.contains("behavior", "aggressive")
+  .filter((op) =>
+    op.or(
+      // Alert: Aggressive carnivores with low health
+      op.and(
+        op.eq("care.feeding.diet", "Carnivore"),
+        op.lt("stats.health", 70),
+        op.contains("behavior", "aggressive"),
+      ),
+      // Alert: Any dinosaur not fed recently and showing stress
+      op.and(
+        op.lt(
+          "care.feeding.lastFed",
+          new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+        ),
+        op.contains("behavior", "stressed"),
+      ),
+      // Alert: Critical status dinosaurs requiring immediate attention
+      op.and(
+        op.inArray("status", ["SICK", "INJURED", "QUARANTINE"]), // Critical statuses
+        op.inArray("priority", ["HIGH", "URGENT"]), // High priority levels
+      ),
+      // Alert: Enclosure climate issues
+      op.and(
+        op.not(op.eq("habitat.enclosure.climate", "Optimal")),
+        op.or(
+          op.gt("habitat.requirements.temperature", 40),
+          op.lt("habitat.requirements.humidity", 50),
+        ),
+      ),
     ),
-    // Alert: Any dinosaur not fed recently and showing stress
-    op.and(
-      op.lt("care.feeding.lastFed", new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()),
-      op.contains("behavior", "stressed")
-    ),
-    // Alert: Critical status dinosaurs requiring immediate attention
-    op.and(
-      op.inArray("status", ["SICK", "INJURED", "QUARANTINE"]),  // Critical statuses
-      op.inArray("priority", ["HIGH", "URGENT"])                // High priority levels
-    ),
-    // Alert: Enclosure climate issues
-    op.and(
-      op.not(op.eq("habitat.enclosure.climate", "Optimal")),
-      op.or(
-        op.gt("habitat.requirements.temperature", 40),
-        op.lt("habitat.requirements.humidity", 50)
-      )
-    )
-  ))
+  )
   .execute();
 ```
 
@@ -1687,7 +1847,8 @@ Special operators for sort key conditions in queries. See [AWS DynamoDB Key Cond
 const recentHealthChecks = await dinoTable
   .query<Dinosaur>({
     pk: "ENCLOSURE#K",
-    sk: (op) => op.beginsWith(`HEALTH#${new Date().toISOString().slice(0, 10)}`)  // Today's checks
+    sk: (op) =>
+      op.beginsWith(`HEALTH#${new Date().toISOString().slice(0, 10)}`), // Today's checks
   })
   .execute();
 
@@ -1695,10 +1856,11 @@ const recentHealthChecks = await dinoTable
 const largeHerbivores = await dinoTable
   .query<Dinosaur>({
     pk: "DIET#herbivore",
-    sk: (op) => op.between(
-      `WEIGHT#${5000}`,  // 5 tons minimum
-      `WEIGHT#${15000}`  // 15 tons maximum
-    )
+    sk: (op) =>
+      op.between(
+        `WEIGHT#${5000}`, // 5 tons minimum
+        `WEIGHT#${15000}`, // 15 tons maximum
+      ),
   })
   .execute();
 
@@ -1706,10 +1868,11 @@ const largeHerbivores = await dinoTable
 const quarantinedDinos = await dinoTable
   .query<Dinosaur>({
     pk: "STATUS#quarantine",
-    sk: (op) => op.between(
-      `DATE#${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}`,  // Last 7 days
-      `DATE#${new Date().toISOString().slice(0, 10)}`  // Today
-    )
+    sk: (op) =>
+      op.between(
+        `DATE#${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}`, // Last 7 days
+        `DATE#${new Date().toISOString().slice(0, 10)}`, // Today
+      ),
   })
   .execute();
 ```
@@ -1779,6 +1942,7 @@ First you'll need to install the dependencies:
 ```bash
 pnpm install
 ```
+
 Then setup the test table in local DynamoDB by running the following command:
 
 ```bash
