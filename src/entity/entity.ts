@@ -459,32 +459,18 @@ export function defineEntity<
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
-          // Create entity-aware builder with force rebuild functionality
+          // Create entity-aware builder with entity-specific functionality
           const entityAwareBuilder = createEntityAwareUpdateBuilder(builder, config.name);
-
-          // Override the original execute method to handle force rebuild indexes
-          const originalExecute = entityAwareBuilder.execute.bind(entityAwareBuilder);
-          entityAwareBuilder.execute = async () => {
-            // Generate updatedAt timestamp at execution time
-            const timestamps = generateTimestamps(["updatedAt"], data);
-
-            // Get force rebuild indexes from the entity-aware builder
-            const forceRebuildIndexes = entityAwareBuilder.getForceRebuildIndexes();
-
-            // Use the index builder for updates with force rebuild support
-            const indexUpdates = buildIndexUpdates(
-              { ...key } as unknown as T,
-              { ...data, ...timestamps },
-              table,
-              config.indexes,
-              forceRebuildIndexes,
-            );
-
-            // Apply all updates together: data, timestamps, and index updates
-            builder.set({ ...data, ...timestamps, ...indexUpdates });
-
-            return originalExecute();
-          };
+          
+          // Configure the entity-aware builder with entity-specific logic
+          entityAwareBuilder.configureEntityLogic({
+            data,
+            key: key as unknown as T,
+            table,
+            indexes: config.indexes,
+            generateTimestamps: () => generateTimestamps(["updatedAt"], data),
+            buildIndexUpdates,
+          });
 
           return entityAwareBuilder;
         },

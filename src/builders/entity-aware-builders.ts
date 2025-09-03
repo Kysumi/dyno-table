@@ -109,10 +109,33 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   private forceRebuildIndexes: string[] = [];
   public readonly entityName: string;
   private builder: UpdateBuilder<T>;
+  private entityConfig?: {
+    data: Partial<T>;
+    key: T;
+    table: any;
+    indexes: any;
+    generateTimestamps: () => Record<string, any>;
+    buildIndexUpdates: (key: T, data: T, table: any, indexes: any, forceRebuildIndexes?: string[]) => Record<string, string>;
+  };
+  private updateDataApplied = false;
 
   constructor(builder: UpdateBuilder<T>, entityName: string) {
     this.builder = builder;
     this.entityName = entityName;
+  }
+
+  /**
+   * Configure entity-specific logic for automatic timestamp generation and index updates
+   */
+  configureEntityLogic(config: {
+    data: Partial<T>;
+    key: T;
+    table: any;
+    indexes: any;
+    generateTimestamps: () => Record<string, any>;
+    buildIndexUpdates: (key: T, data: T, table: any, indexes: any, forceRebuildIndexes?: string[]) => Record<string, string>;
+  }): void {
+    this.entityConfig = config;
   }
 
   /**
@@ -164,6 +187,30 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     return [...this.forceRebuildIndexes];
   }
 
+  /**
+   * Apply entity-specific update data (timestamps and index updates)
+   * This is called automatically when needed
+   */
+  private applyEntityUpdates(): void {
+    if (!this.entityConfig || this.updateDataApplied) return;
+
+    // Generate timestamps at the time this is called
+    const timestamps = this.entityConfig.generateTimestamps();
+
+    // Build index updates with force rebuild support
+    const indexUpdates = this.entityConfig.buildIndexUpdates(
+      this.entityConfig.key,
+      { ...this.entityConfig.key, ...this.entityConfig.data, ...timestamps } as T,
+      this.entityConfig.table,
+      this.entityConfig.indexes,
+      this.forceRebuildIndexes,
+    );
+
+    // Apply all updates together: data, timestamps, and index updates
+    this.builder.set({ ...this.entityConfig.data, ...timestamps, ...indexUpdates });
+    this.updateDataApplied = true;
+  }
+
   // Delegate all UpdateBuilder methods to the wrapped builder
   set(values: Partial<T>): this;
   set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
@@ -212,6 +259,7 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   }
 
   withTransaction(transaction: TransactionBuilder): void {
+    this.applyEntityUpdates();
     this.builder.withTransaction(transaction);
   }
 
@@ -220,6 +268,9 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   }
 
   async execute(): Promise<{ item?: T }> {
+    // Reset the flag for each execution to ensure fresh timestamps
+    this.updateDataApplied = false;
+    this.applyEntityUpdates();
     return this.builder.execute();
   }
 }
