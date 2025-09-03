@@ -5,6 +5,7 @@ import { docClient } from "../../tests/ddb-client";
 import { defineEntity, createIndex } from "../entity/entity";
 import type { DynamoItem } from "../types";
 import type { StandardSchemaV1 } from "../standard-schema";
+import type { ConditionOperator } from "../conditions";
 
 // Define a dinosaur entity type
 interface DinosaurEntity extends DynamoItem {
@@ -124,7 +125,7 @@ describe("Dinosaur Integration Tests - Update Operations", () => {
           species: "Rex Maximus",
         },
       )
-      .condition((op) => op.eq("period", "Cretaceous"))
+      .condition((op: ConditionOperator<DinosaurEntity>) => op.eq("period", "Cretaceous"))
       .execute();
 
     expect(result.item?.species).toBe("Rex Maximus");
@@ -139,7 +140,7 @@ describe("Dinosaur Integration Tests - Update Operations", () => {
             species: "Should Not Update",
           },
         )
-        .condition((op) => op.eq("period", "Jurassic"))
+        .condition((op: ConditionOperator<DinosaurEntity>) => op.eq("period", "Jurassic"))
         .execute(),
     ).rejects.toThrow();
 

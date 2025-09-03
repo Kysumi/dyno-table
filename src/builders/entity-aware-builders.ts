@@ -3,7 +3,11 @@ import type { BatchBuilder } from "./batch-builder";
 import type { PutBuilder } from "./put-builder";
 import type { GetBuilder } from "./get-builder";
 import type { DeleteBuilder } from "./delete-builder";
-import type { UpdateBuilder } from "./update-builder";
+import { UpdateBuilder } from "./update-builder";
+import type { Path, PathType } from "./types";
+
+type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
+type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
 /**
  * Creates an entity-aware wrapper that automatically provides entity names to batch operations
@@ -98,11 +102,121 @@ export function createEntityAwareDeleteBuilder(builder: DeleteBuilder, entityNam
  * Entity-aware wrapper for UpdateBuilder that adds forceIndexRebuild functionality
  * and automatically provides entity name to batch operations
  */
-export type EntityAwareUpdateBuilder<T extends DynamoItem> = UpdateBuilder<T> & {
-  readonly entityName: string;
-  forceIndexRebuild(indexes: string | string[]): EntityAwareUpdateBuilder<T>;
-  getForceRebuildIndexes(): string[];
-};
+export class EntityAwareUpdateBuilder<T extends DynamoItem> {
+  private forceRebuildIndexes: string[] = [];
+  public readonly entityName: string;
+  private builder: UpdateBuilder<T>;
+
+  constructor(builder: UpdateBuilder<T>, entityName: string) {
+    this.builder = builder;
+    this.entityName = entityName;
+  }
+
+  /**
+   * Forces a rebuild of one or more readonly indexes during the update operation.
+   *
+   * By default, readonly indexes are not updated during entity updates to prevent
+   * errors when required index attributes are missing. This method allows you to
+   * override that behavior and force specific indexes to be rebuilt.
+   *
+   * @example
+   * ```typescript
+   * // Force rebuild a single readonly index
+   * const result = await repo.update({ id: 'TREX-001' }, { status: 'ACTIVE' })
+   *   .forceIndexRebuild('gsi1')
+   *   .execute();
+   *
+   * // Force rebuild multiple readonly indexes
+   * const result = await repo.update({ id: 'TREX-001' }, { status: 'ACTIVE' })
+   *   .forceIndexRebuild(['gsi1', 'gsi2'])
+   *   .execute();
+   *
+   * // Chain with other update operations
+   * const result = await repo.update({ id: 'TREX-001' }, { status: 'ACTIVE' })
+   *   .set('lastUpdated', new Date().toISOString())
+   *   .forceIndexRebuild('gsi1')
+   *   .condition(op => op.eq('status', 'INACTIVE'))
+   *   .execute();
+   * ```
+   *
+   * @param indexes - A single index name or array of index names to force rebuild
+   * @returns The builder instance for method chaining
+   */
+  forceIndexRebuild(indexes: string | string[]): this {
+    if (Array.isArray(indexes)) {
+      this.forceRebuildIndexes = [...this.forceRebuildIndexes, ...indexes];
+    } else {
+      this.forceRebuildIndexes.push(indexes);
+    }
+    return this;
+  }
+
+  /**
+   * Gets the list of indexes that should be force rebuilt.
+   * This is used internally by entity update logic.
+   *
+   * @returns Array of index names to force rebuild
+   */
+  getForceRebuildIndexes(): string[] {
+    return [...this.forceRebuildIndexes];
+  }
+
+  // Delegate all UpdateBuilder methods to the wrapped builder
+  set(values: Partial<T>): this;
+  set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
+  set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
+    if (typeof valuesOrPath === "object") {
+      this.builder.set(valuesOrPath);
+    } else {
+      this.builder.set(valuesOrPath, value!);
+    }
+    return this;
+  }
+
+  remove<K extends Path<T>>(path: K): this {
+    this.builder.remove(path);
+    return this;
+  }
+
+  add<K extends Path<T>>(path: K, value: PathType<T, K>): this {
+    this.builder.add(path, value);
+    return this;
+  }
+
+  deleteElementsFromSet<K extends Path<T>>(
+    path: K,
+    value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
+  ): this {
+    this.builder.deleteElementsFromSet(path, value);
+    return this;
+  }
+
+  condition(condition: any): this {
+    this.builder.condition(condition);
+    return this;
+  }
+
+  returnValues(returnValues: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE"): this {
+    this.builder.returnValues(returnValues);
+    return this;
+  }
+
+  toDynamoCommand(): any {
+    return this.builder.toDynamoCommand();
+  }
+
+  withTransaction(transaction: any): void {
+    this.builder.withTransaction(transaction);
+  }
+
+  debug(): any {
+    return this.builder.debug();
+  }
+
+  async execute(): Promise<{ item?: T }> {
+    return this.builder.execute();
+  }
+}
 
 /**
  * Creates an entity-aware UpdateBuilder with force index rebuild functionality
@@ -111,57 +225,5 @@ export function createEntityAwareUpdateBuilder<T extends DynamoItem>(
   builder: UpdateBuilder<T>,
   entityName: string,
 ): EntityAwareUpdateBuilder<T> {
-  // Track force rebuild indexes
-  let forceRebuildIndexes: string[] = [];
-
-  const proxy = new Proxy(builder, {
-    get(target, prop, receiver) {
-      // Expose the entity name as a readonly property
-      if (prop === "entityName") {
-        return entityName;
-      }
-
-      // Add forceIndexRebuild method
-      if (prop === "forceIndexRebuild") {
-        return (indexes: string | string[]) => {
-          if (Array.isArray(indexes)) {
-            forceRebuildIndexes = [...forceRebuildIndexes, ...indexes];
-          } else {
-            forceRebuildIndexes.push(indexes);
-          }
-          return proxy; // Return the proxy for chaining
-        };
-      }
-
-      // Add getForceRebuildIndexes method
-      if (prop === "getForceRebuildIndexes") {
-        return () => [...forceRebuildIndexes];
-      }
-
-      // Intercept withBatch method to provide automatic entity type inference
-      if (prop === "withBatch" && typeof (target as unknown as Record<string, unknown>)[prop] === "function") {
-        return <
-          TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
-          K extends keyof TEntities = keyof TEntities,
-        >(
-          batch: BatchBuilder<TEntities>,
-          entityType?: K,
-        ) => {
-          // Use provided entityType or fall back to stored entityName
-          const typeToUse = entityType ?? (entityName as K);
-          const fn = (target as unknown as Record<string, unknown>)[prop] as (
-            batch: BatchBuilder<TEntities>,
-            entityType?: K,
-          ) => unknown;
-          // Call the function with the original target as 'this' context
-          return fn.call(target, batch, typeToUse);
-        };
-      }
-
-      // For all other properties/methods, delegate to the original builder
-      return Reflect.get(target, prop, receiver);
-    },
-  }) as EntityAwareUpdateBuilder<T>;
-
-  return proxy;
+  return new EntityAwareUpdateBuilder(builder, entityName);
 }

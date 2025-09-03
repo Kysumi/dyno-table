@@ -105,13 +105,13 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
  * @typeParam T - The type of item being updated
  */
 export class UpdateBuilder<T extends DynamoItem> {
-  private updates: UpdateAction[] = [];
-  private options: UpdateOptions = {
+  protected updates: UpdateAction[] = [];
+  protected options: UpdateOptions = {
     returnValues: "ALL_NEW",
   };
-  private readonly executor: UpdateExecutor<T>;
-  private readonly tableName: string;
-  private readonly key: PrimaryKeyWithoutExpression;
+  protected readonly executor: UpdateExecutor<T>;
+  protected readonly tableName: string;
+  protected readonly key: PrimaryKeyWithoutExpression;
 
   constructor(executor: UpdateExecutor<T>, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;

@@ -462,18 +462,18 @@ export function defineEntity<
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
-          // Use only updatedAt timestamp for updates
-          const timestamps = generateTimestamps(["updatedAt"], data);
-
           // Create entity-aware builder with force rebuild functionality
           const entityAwareBuilder = createEntityAwareUpdateBuilder(builder, config.name);
 
           // Override the original execute method to handle force rebuild indexes
           const originalExecute = entityAwareBuilder.execute.bind(entityAwareBuilder);
           entityAwareBuilder.execute = async function() {
+            // Generate updatedAt timestamp at execution time
+            const timestamps = generateTimestamps(["updatedAt"], data);
+
             // Get force rebuild indexes from the entity-aware builder
             const forceRebuildIndexes = entityAwareBuilder.getForceRebuildIndexes();
-            
+
             // Use the index builder for updates with force rebuild support
             const indexUpdates = buildIndexUpdates(
               { ...key } as unknown as T,
@@ -485,7 +485,7 @@ export function defineEntity<
 
             // Apply all updates together: data, timestamps, and index updates
             builder.set({ ...data, ...timestamps, ...indexUpdates });
-            
+
             return originalExecute();
           };
 
