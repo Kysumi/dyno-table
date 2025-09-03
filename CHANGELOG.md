@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/Kysumi/dyno-table/compare/v2.1.1...v2.2.0) (2025-09-03)
+
+
+### Features
+
+* Adding method to allow for readOnly indexes to be rebuilt ([#57](https://github.com/Kysumi/dyno-table/issues/57)) ([7a21f4a](https://github.com/Kysumi/dyno-table/commit/7a21f4a58872b06789df9734923b3c24a47ecdee))
+
 ## [2.1.1](https://github.com/Kysumi/dyno-table/compare/v2.1.0...v2.1.1) (2025-09-01)
 
 
