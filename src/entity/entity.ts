@@ -7,11 +7,13 @@ import {
   createEntityAwareDeleteBuilder,
   createEntityAwareGetBuilder,
   createEntityAwarePutBuilder,
+  createEntityAwareUpdateBuilder,
 } from "../builders/entity-aware-builders";
 import type {
   EntityAwareDeleteBuilder,
   EntityAwareGetBuilder,
   EntityAwarePutBuilder,
+  EntityAwareUpdateBuilder,
 } from "../builders/entity-aware-builders";
 import type { QueryBuilder } from "../builders/query-builder";
 import { type PrimaryKey, type PrimaryKeyWithoutExpression, eq } from "../conditions";
@@ -124,7 +126,7 @@ export interface EntityRepository<
   create: (data: TInput) => EntityAwarePutBuilder<T>;
   upsert: (data: TInput & I) => EntityAwarePutBuilder<T>;
   get: (key: I) => EntityAwareGetBuilder<T>;
-  update: (key: I, data: Partial<T>) => UpdateBuilder<T>;
+  update: (key: I, data: Partial<T>) => EntityAwareUpdateBuilder<T>;
   delete: (key: I) => EntityAwareDeleteBuilder;
   query: Q;
   scan: () => ScanBuilder<T>;
@@ -463,16 +465,31 @@ export function defineEntity<
           // Use only updatedAt timestamp for updates
           const timestamps = generateTimestamps(["updatedAt"], data);
 
-          // Use the index builder for updates
-          const indexUpdates = buildIndexUpdates(
-            { ...key } as unknown as T,
-            { ...data, ...timestamps },
-            table,
-            config.indexes,
-          );
+          // Create entity-aware builder with force rebuild functionality
+          const entityAwareBuilder = createEntityAwareUpdateBuilder(builder, config.name);
 
-          builder.set({ ...data, ...timestamps, ...indexUpdates });
-          return builder;
+          // Override the original execute method to handle force rebuild indexes
+          const originalExecute = entityAwareBuilder.execute.bind(entityAwareBuilder);
+          entityAwareBuilder.execute = async function() {
+            // Get force rebuild indexes from the entity-aware builder
+            const forceRebuildIndexes = entityAwareBuilder.getForceRebuildIndexes();
+            
+            // Use the index builder for updates with force rebuild support
+            const indexUpdates = buildIndexUpdates(
+              { ...key } as unknown as T,
+              { ...data, ...timestamps },
+              table,
+              config.indexes,
+              forceRebuildIndexes,
+            );
+
+            // Apply all updates together: data, timestamps, and index updates
+            builder.set({ ...data, ...timestamps, ...indexUpdates });
+            
+            return originalExecute();
+          };
+
+          return entityAwareBuilder;
         },
 
         delete: <K extends I>(key: K) => {
