@@ -8,6 +8,8 @@ import type { Path, PathType } from "./types";
 import type { Condition, ConditionOperator } from "../conditions";
 import type { TransactionBuilder } from "./transaction-builder";
 import type { UpdateCommandParams } from "./builder-types";
+import type { Table } from "../table";
+import type { IndexDefinition } from "../entity/entity";
 
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
@@ -112,10 +114,16 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   private entityConfig?: {
     data: Partial<T>;
     key: T;
-    table: any;
-    indexes: any;
-    generateTimestamps: () => Record<string, any>;
-    buildIndexUpdates: (key: T, data: T, table: any, indexes: any, forceRebuildIndexes?: string[]) => Record<string, string>;
+    table: Table;
+    indexes: Record<string, IndexDefinition<T>> | undefined;
+    generateTimestamps: () => Record<string, string | number>;
+    buildIndexUpdates: (
+      currentData: T,
+      updates: Partial<T>,
+      table: Table,
+      indexes: Record<string, IndexDefinition<T>> | undefined,
+      forceRebuildIndexes?: string[],
+    ) => Record<string, string>;
   };
   private updateDataApplied = false;
 
@@ -130,10 +138,16 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   configureEntityLogic(config: {
     data: Partial<T>;
     key: T;
-    table: any;
-    indexes: any;
-    generateTimestamps: () => Record<string, any>;
-    buildIndexUpdates: (key: T, data: T, table: any, indexes: any, forceRebuildIndexes?: string[]) => Record<string, string>;
+    table: Table;
+    indexes: Record<string, IndexDefinition<T>> | undefined;
+    generateTimestamps: () => Record<string, string | number>;
+    buildIndexUpdates: (
+      currentData: T,
+      updates: Partial<T>,
+      table: Table,
+      indexes: Record<string, IndexDefinition<T>> | undefined,
+      forceRebuildIndexes?: string[],
+    ) => Record<string, string>;
   }): void {
     this.entityConfig = config;
   }
@@ -198,9 +212,10 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     const timestamps = this.entityConfig.generateTimestamps();
 
     // Build index updates with force rebuild support
+    const updatedItem = { ...this.entityConfig.key, ...this.entityConfig.data, ...timestamps } as T;
     const indexUpdates = this.entityConfig.buildIndexUpdates(
       this.entityConfig.key,
-      { ...this.entityConfig.key, ...this.entityConfig.data, ...timestamps } as T,
+      updatedItem,
       this.entityConfig.table,
       this.entityConfig.indexes,
       this.forceRebuildIndexes,
