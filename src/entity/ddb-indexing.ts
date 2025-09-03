@@ -1,5 +1,5 @@
-import type { DynamoItem, Index } from "../types";
 import type { Table } from "../table";
+import type { DynamoItem } from "../types";
 import type { IndexDefinition } from "./entity";
 
 /**
@@ -79,13 +79,11 @@ export class IndexBuilder<T extends DynamoItem> {
 
     // Validate that all force rebuild indexes exist
     if (options.forceRebuildIndexes && options.forceRebuildIndexes.length > 0) {
-      const invalidIndexes = options.forceRebuildIndexes.filter(
-        indexName => !this.indexes[indexName]
-      );
+      const invalidIndexes = options.forceRebuildIndexes.filter((indexName) => !this.indexes[indexName]);
       if (invalidIndexes.length > 0) {
         throw new Error(
-          `Cannot force rebuild unknown indexes: ${invalidIndexes.join(', ')}. ` +
-          `Available indexes: ${Object.keys(this.indexes).join(', ')}`
+          `Cannot force rebuild unknown indexes: ${invalidIndexes.join(", ")}. ` +
+            `Available indexes: ${Object.keys(this.indexes).join(", ")}`,
         );
       }
     }

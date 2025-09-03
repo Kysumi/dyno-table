@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { IndexBuilder } from "../ddb-indexing";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { Table } from "../../table";
 import type { DynamoItem } from "../../types";
+import { IndexBuilder } from "../ddb-indexing";
 import type { IndexDefinition } from "../entity";
 
 describe("IndexBuilder", () => {

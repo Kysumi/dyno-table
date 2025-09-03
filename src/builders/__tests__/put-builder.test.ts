@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "../../conditions";
 import { PutBuilder } from "../put-builder";
-import { TransactionBuilder } from "../transaction-builder";
-import { eq, and, attributeExists } from "../../conditions";
 
 interface TestItem extends Record<string, unknown> {
   id: string;

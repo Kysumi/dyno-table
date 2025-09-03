@@ -1,12 +1,12 @@
-import type { DynamoItem } from "../types";
 import type { PrimaryKeyWithoutExpression } from "../conditions";
 import type { BatchWriteOperation } from "../operation-types";
-import type { PutCommandParams, DeleteCommandParams } from "./builder-types";
+import type { DynamoItem } from "../types";
+import type { DeleteCommandParams, PutCommandParams } from "./builder-types";
 import type { GetCommandParams } from "./get-builder";
 
 // Constants for DynamoDB batch limits
-const DDB_BATCH_WRITE_LIMIT = 25;
-const DDB_BATCH_GET_LIMIT = 100;
+const _DDB_BATCH_WRITE_LIMIT = 25;
+const _DDB_BATCH_GET_LIMIT = 100;
 
 /**
  * Represents a single operation within a DynamoDB batch.

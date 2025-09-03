@@ -3,8 +3,11 @@ import type { BatchBuilder } from "./batch-builder";
 import type { PutBuilder } from "./put-builder";
 import type { GetBuilder } from "./get-builder";
 import type { DeleteBuilder } from "./delete-builder";
-import { UpdateBuilder } from "./update-builder";
+import type { UpdateBuilder } from "./update-builder";
 import type { Path, PathType } from "./types";
+import type { Condition, ConditionOperator } from "../conditions";
+import type { TransactionBuilder } from "./transaction-builder";
+import type { UpdateCommandParams } from "./builder-types";
 
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
@@ -168,7 +171,10 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     if (typeof valuesOrPath === "object") {
       this.builder.set(valuesOrPath);
     } else {
-      this.builder.set(valuesOrPath, value!);
+      if (value === undefined) {
+        throw new Error("Value is required when setting a single path");
+      }
+      this.builder.set(valuesOrPath, value);
     }
     return this;
   }
@@ -191,7 +197,7 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     return this;
   }
 
-  condition(condition: any): this {
+  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
     this.builder.condition(condition);
     return this;
   }
@@ -201,15 +207,15 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     return this;
   }
 
-  toDynamoCommand(): any {
+  toDynamoCommand(): UpdateCommandParams {
     return this.builder.toDynamoCommand();
   }
 
-  withTransaction(transaction: any): void {
+  withTransaction(transaction: TransactionBuilder): void {
     this.builder.withTransaction(transaction);
   }
 
-  debug(): any {
+  debug(): ReturnType<UpdateBuilder<T>['debug']> {
     return this.builder.debug();
   }
 

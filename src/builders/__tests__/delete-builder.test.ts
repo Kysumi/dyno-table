@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "../../conditions";
 import { DeleteBuilder } from "../delete-builder";
-import { TransactionBuilder } from "../transaction-builder";
-import { eq, and, attributeExists } from "../../conditions";
 
 describe("DeleteBuilder", () => {
   const tableName = "TestTable";
