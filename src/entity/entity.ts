@@ -461,7 +461,7 @@ export function defineEntity<
 
           // Create entity-aware builder with entity-specific functionality
           const entityAwareBuilder = createEntityAwareUpdateBuilder(builder, config.name);
-          
+
           // Configure the entity-aware builder with entity-specific logic
           entityAwareBuilder.configureEntityLogic({
             data,

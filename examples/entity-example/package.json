@@ -12,7 +12,12 @@
     "docker": "docker compose up -d",
     "check-types": "tsc --noEmit"
   },
-  "keywords": ["dyno-table", "zod", "dynamodb", "typescript"],
+  "keywords": [
+    "dyno-table",
+    "zod",
+    "dynamodb",
+    "typescript"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {

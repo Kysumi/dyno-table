@@ -44,7 +44,7 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
         if (this.overallLimit !== undefined && this.itemsYielded >= this.overallLimit) {
           return;
         }
-        
+
         yield item;
         this.itemsYielded++;
       }
@@ -60,10 +60,10 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
           this.lastEvaluatedKey = null;
         }
       }
-      
+
       // Stop if we've reached the overall limit or no more pages
-      hasMorePages = !!result.lastEvaluatedKey && 
-                    (this.overallLimit === undefined || this.itemsYielded < this.overallLimit);
+      hasMorePages =
+        !!result.lastEvaluatedKey && (this.overallLimit === undefined || this.itemsYielded < this.overallLimit);
     }
   }
 
