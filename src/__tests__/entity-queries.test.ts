@@ -832,10 +832,7 @@ describe("createQuery with chained filters", () => {
       byStatusAndType: createQueries<TestEntity>()
         .input(byStatusInputSchema)
         .query(({ input, entity }) => {
-          return entity
-            .scan()
-            .filter(eq("status", input.status))
-            .filter(eq("type", "test"));
+          return entity.scan().filter(eq("status", input.status)).filter(eq("type", "test"));
         }),
       byComplexFilters: createQueries<TestEntity>()
         .input(byStatusInputSchema)
@@ -849,12 +846,13 @@ describe("createQuery with chained filters", () => {
       byQueryWithMultipleFilters: createQueries<TestEntity>()
         .input(byStatusInputSchema)
         .query(({ input, entity }) => {
-          return entity.query({
-            pk: `TEST#${input.id}`,
-            sk: (op) => op.beginsWith("METADATA#"),
-          })
-          .filter(eq("status", input.status))
-          .filter(eq("type", "test"));
+          return entity
+            .query({
+              pk: `TEST#${input.id}`,
+              sk: (op) => op.beginsWith("METADATA#"),
+            })
+            .filter(eq("status", input.status))
+            .filter(eq("type", "test"));
         }),
     },
   });
@@ -863,9 +861,7 @@ describe("createQuery with chained filters", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repository = entityWithChainedFilters.createRepository(
-      mockTable as unknown as Table
-    );
+    repository = entityWithChainedFilters.createRepository(mockTable as unknown as Table);
   });
 
   it("should chain filters with AND", async () => {
@@ -876,9 +872,7 @@ describe("createQuery with chained filters", () => {
 
     mockTable.scan.mockReturnValue(mockBuilder);
 
-    await repository.query
-      .byStatusAndType({ status: "active", id: "123", test: "test" })
-      .execute();
+    await repository.query.byStatusAndType({ status: "active", id: "123", test: "test" }).execute();
 
     // Check that filters are applied in the correct order
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
@@ -894,9 +888,7 @@ describe("createQuery with chained filters", () => {
 
     mockTable.scan.mockReturnValue(mockBuilder);
 
-    await repository.query
-      .byComplexFilters({ status: "active", id: "123", test: "test" })
-      .execute();
+    await repository.query.byComplexFilters({ status: "active", id: "123", test: "test" }).execute();
 
     // Check that filters are applied in the correct order
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
@@ -913,15 +905,13 @@ describe("createQuery with chained filters", () => {
 
     mockTable.query.mockReturnValue(mockBuilder);
 
-    await repository.query
-      .byQueryWithMultipleFilters({ status: "active", id: "123", test: "test" })
-      .execute();
+    await repository.query.byQueryWithMultipleFilters({ status: "active", id: "123", test: "test" }).execute();
 
     expect(mockTable.query).toHaveBeenCalledWith({
       pk: "TEST#123",
       sk: expect.any(Function),
     });
-    
+
     // For query builders, user filters are applied first, then entity type filter
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("status", "active"));
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("type", "test"));
@@ -945,9 +935,7 @@ describe("createQuery with chained filters", () => {
       },
     });
 
-    const repo = entityWithSingleFilter.createRepository(
-      mockTable as unknown as Table
-    );
+    const repo = entityWithSingleFilter.createRepository(mockTable as unknown as Table);
 
     const mockBuilder = {
       filter: vi.fn().mockReturnThis(),
@@ -956,9 +944,7 @@ describe("createQuery with chained filters", () => {
 
     mockTable.scan.mockReturnValue(mockBuilder);
 
-    await repo.query
-      .byStatus({ status: "active", id: "123", test: "test" })
-      .execute();
+    await repo.query.byStatus({ status: "active", id: "123", test: "test" }).execute();
 
     // Check that filters are applied in the correct order
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntitySingle"));
@@ -978,16 +964,12 @@ describe("createQuery with chained filters", () => {
           .input(byStatusInputSchema)
           .query(({ input, entity }) => {
             // Apply a filter in the query definition
-            return entity
-              .scan()
-              .filter(eq("status", input.status)); // This is "active" from the input
+            return entity.scan().filter(eq("status", input.status)); // This is "active" from the input
           }),
       },
     });
 
-    const repo = entityWithPreAppliedFilters.createRepository(
-      mockTable as unknown as Table
-    );
+    const repo = entityWithPreAppliedFilters.createRepository(mockTable as unknown as Table);
 
     const mockBuilder = {
       filter: vi.fn().mockReturnThis(),
@@ -997,10 +979,7 @@ describe("createQuery with chained filters", () => {
     mockTable.scan.mockReturnValue(mockBuilder);
 
     // Apply another filter when executing the query
-    await repo.query
-      .activeItems({ status: "active", id: "123", test: "test" })
-      .filter(eq("type", "test"))
-      .execute();
+    await repo.query.activeItems({ status: "active", id: "123", test: "test" }).filter(eq("type", "test")).execute();
 
     // Check that all filters are applied in the correct order:
     // 1. Entity type filter (applied by scan())
@@ -1027,16 +1006,12 @@ describe("createQuery with chained filters", () => {
           .input(byStatusInputSchema)
           .query(({ input, entity }) => {
             // Apply a filter in the query definition
-            return entity
-              .query({ pk: `TEST#${input.id}` })
-              .filter(eq("status", input.status)); // This is "active" from the input
+            return entity.query({ pk: `TEST#${input.id}` }).filter(eq("status", input.status)); // This is "active" from the input
           }),
       },
     });
 
-    const repo = entityWithPreAppliedQueryFilters.createRepository(
-      mockTable as unknown as Table
-    );
+    const repo = entityWithPreAppliedQueryFilters.createRepository(mockTable as unknown as Table);
 
     const mockBuilder = {
       filter: vi.fn().mockReturnThis(),
@@ -1046,10 +1021,7 @@ describe("createQuery with chained filters", () => {
     mockTable.query.mockReturnValue(mockBuilder);
 
     // Apply another filter when executing the query
-    await repo.query
-      .itemsByStatus({ status: "active", id: "123", test: "test" })
-      .filter(eq("type", "test"))
-      .execute();
+    await repo.query.itemsByStatus({ status: "active", id: "123", test: "test" }).filter(eq("type", "test")).execute();
 
     expect(mockTable.query).toHaveBeenCalledWith({
       pk: "TEST#123",

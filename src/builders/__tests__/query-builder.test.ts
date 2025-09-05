@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { QueryBuilder } from "../query-builder";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "../../conditions";
+import { QueryBuilder } from "../query-builder";
 
 describe("QueryBuilder", () => {
   const mockExecutor = vi.fn();
@@ -169,23 +169,23 @@ describe("QueryBuilder", () => {
   it("should maintain immutability when chaining filters after cloning", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.filter((op) => op.eq("status", "active"));
-    
+
     const clone = builder.clone();
-    
+
     // Add different filters to each builder
     builder.filter((op) => op.eq("type", "original"));
     clone.filter((op) => op.eq("type", "cloned"));
-    
+
     // Execute both and verify they have different filters
     const originalResult = await builder.execute();
     await originalResult.toArray(); // Consume the iterator to trigger executor call
     const originalCall = mockExecutor.mock.calls[0]?.[1];
-    
+
     mockExecutor.mockClear();
     const cloneResult = await clone.execute();
     await cloneResult.toArray(); // Consume the iterator to trigger executor call
     const cloneCall = mockExecutor.mock.calls[0]?.[1];
-    
+
     // Verify the filters are different (proving immutability)
     expect(originalCall.filter?.conditions?.[1]?.value).toBe("original");
     expect(cloneCall.filter?.conditions?.[1]?.value).toBe("cloned");
@@ -226,9 +226,7 @@ describe("QueryBuilder", () => {
 
   it("should chain two filters with AND", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
-    builder
-      .filter((op) => op.eq("status", "active"))
-      .filter((op) => op.eq("type", "test"));
+    builder.filter((op) => op.eq("status", "active")).filter((op) => op.eq("type", "test"));
 
     const resultIterator = await builder.execute();
     await resultIterator.toArray(); // Consume the iterator to trigger executor call
@@ -327,13 +325,8 @@ describe("QueryBuilder", () => {
               ],
             },
             { type: "gt", attr: "createdAt", value: "2023-01-01" },
-            {
-              type: "and",
-              conditions: [
-                { type: "lt", attr: "score", value: 100 },
-                { type: "ne", attr: "category", value: "deleted" },
-              ],
-            },
+            { type: "lt", attr: "score", value: 100 },
+            { type: "ne", attr: "category", value: "deleted" },
           ],
         },
       }),
@@ -342,10 +335,10 @@ describe("QueryBuilder", () => {
 
   it("should handle filter chaining with existing AND condition", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
-    
+
     // First add a complex filter that creates an AND condition
     builder.filter((op) => op.and(op.eq("status", "active"), op.eq("type", "test")));
-    
+
     // Then add more filters that should be appended to the existing AND
     builder.filter((op) => op.gt("createdAt", "2023-01-01"));
     builder.filter((op) => op.lt("score", 100));
@@ -371,10 +364,10 @@ describe("QueryBuilder", () => {
 
   it("should handle initial filter as single condition", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
-    
+
     // Add a single condition first
     builder.filter((op) => op.eq("status", "active"));
-    
+
     // Then add more filters
     builder.filter((op) => op.eq("type", "test"));
 
@@ -435,10 +428,9 @@ describe("QueryBuilder", () => {
     builder
       .filter((op) => op.or(op.eq("status", "active"), op.eq("status", "pending")))
       .filter((op) => op.eq("verified", true))
-      .filter((op) => op.or(
-        op.and(op.eq("type", "premium"), op.gt("score", 80)),
-        op.and(op.eq("type", "basic"), op.gt("score", 60))
-      ));
+      .filter((op) =>
+        op.or(op.and(op.eq("type", "premium"), op.gt("score", 80)), op.and(op.eq("type", "basic"), op.gt("score", 60))),
+      );
 
     const resultIterator = await builder.execute();
     await resultIterator.toArray(); // Consume the iterator to trigger executor call
@@ -515,19 +507,12 @@ describe("QueryBuilder", () => {
 
   it("should chain OR with existing OR condition", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
-    
+
     // Start with a complex OR condition
-    builder.filter((op) => op.or(
-      op.eq("status", "active"), 
-      op.eq("status", "pending"), 
-      op.eq("status", "review")
-    ));
-    
+    builder.filter((op) => op.or(op.eq("status", "active"), op.eq("status", "pending"), op.eq("status", "review")));
+
     // Add another OR condition - should be wrapped in AND
-    builder.filter((op) => op.or(
-      op.eq("priority", "high"), 
-      op.eq("priority", "urgent")
-    ));
+    builder.filter((op) => op.or(op.eq("priority", "high"), op.eq("priority", "urgent")));
 
     const resultIterator = await builder.execute();
     await resultIterator.toArray(); // Consume the iterator to trigger executor call
@@ -557,6 +542,167 @@ describe("QueryBuilder", () => {
         },
       }),
     );
+  });
+
+  // Regression tests for the bug where single filter call with op.and() doesn't work
+  it("should handle single filter call with multiple AND conditions (bug reproduction)", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
+
+    // This is the exact pattern that was failing
+    builder.filter((op) =>
+      op.and(
+        op.eq("organisationId", "5b94480f-fe36-47e6-9369-e8c9534634c6"),
+        op.eq("status", "finalised"),
+        op.eq("digitised", true),
+      ),
+    );
+
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
+
+    expect(mockExecutor).toHaveBeenCalledWith(
+      mockKeyCondition,
+      expect.objectContaining({
+        filter: {
+          type: "and",
+          conditions: [
+            { type: "eq", attr: "organisationId", value: "5b94480f-fe36-47e6-9369-e8c9534634c6" },
+            { type: "eq", attr: "status", value: "finalised" },
+            { type: "eq", attr: "digitised", value: true },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("should flatten nested AND conditions when adding new AND filter to existing AND", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
+
+    // First add an AND condition
+    builder.filter((op) => op.and(op.eq("status", "active"), op.eq("type", "test")));
+
+    // Then add another AND condition - should flatten into single AND with all conditions
+    builder.filter((op) => op.and(op.eq("verified", true), op.gt("score", 50)));
+
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
+
+    expect(mockExecutor).toHaveBeenCalledWith(
+      mockKeyCondition,
+      expect.objectContaining({
+        filter: {
+          type: "and",
+          conditions: [
+            { type: "eq", attr: "status", value: "active" },
+            { type: "eq", attr: "type", value: "test" },
+            { type: "eq", attr: "verified", value: true },
+            { type: "gt", attr: "score", value: 50 },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("should flatten nested AND conditions when adding AND filter to non-AND condition", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
+
+    // Start with a single condition
+    builder.filter((op) => op.eq("status", "active"));
+
+    // Add an AND condition - should flatten into single AND
+    builder.filter((op) => op.and(op.eq("verified", true), op.gt("score", 50), op.ne("category", "deleted")));
+
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
+
+    expect(mockExecutor).toHaveBeenCalledWith(
+      mockKeyCondition,
+      expect.objectContaining({
+        filter: {
+          type: "and",
+          conditions: [
+            { type: "eq", attr: "status", value: "active" },
+            { type: "eq", attr: "verified", value: true },
+            { type: "gt", attr: "score", value: 50 },
+            { type: "ne", attr: "category", value: "deleted" },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("should handle mixed single conditions and AND groups properly", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
+
+    // Mix of single conditions and AND groups
+    builder
+      .filter((op) => op.eq("status", "active")) // Single
+      .filter((op) =>
+        op.and(
+          // AND group
+          op.eq("verified", true),
+          op.ne("deleted", true),
+        ),
+      )
+      .filter((op) => op.gt("score", 50)) // Single
+      .filter((op) =>
+        op.and(
+          // Another AND group
+          op.contains("tags", "important"),
+          op.between("priority", 1, 5),
+        ),
+      );
+
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
+
+    expect(mockExecutor).toHaveBeenCalledWith(
+      mockKeyCondition,
+      expect.objectContaining({
+        filter: {
+          type: "and",
+          conditions: [
+            { type: "eq", attr: "status", value: "active" },
+            { type: "eq", attr: "verified", value: true },
+            { type: "ne", attr: "deleted", value: true },
+            { type: "gt", attr: "score", value: 50 },
+            { type: "contains", attr: "tags", value: "important" },
+            { type: "between", attr: "priority", value: [1, 5] },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("should maintain immutability when flattening AND conditions", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
+
+    // Create a base filter
+    builder.filter((op) => op.and(op.eq("status", "active"), op.eq("type", "test")));
+
+    // Clone before adding more filters
+    const clone = builder.clone();
+
+    // Add different filters to each
+    builder.filter((op) => op.eq("variant", "original"));
+    clone.filter((op) => op.and(op.eq("variant", "cloned"), op.gt("score", 100)));
+
+    // Execute both
+    const originalResult = await builder.execute();
+    await originalResult.toArray();
+    const originalCall = mockExecutor.mock.calls[0]?.[1];
+
+    mockExecutor.mockClear();
+    const cloneResult = await clone.execute();
+    await cloneResult.toArray();
+    const cloneCall = mockExecutor.mock.calls[0]?.[1];
+
+    // Verify different results (proving immutability)
+    expect(originalCall.filter.conditions).toHaveLength(3);
+    expect(cloneCall.filter.conditions).toHaveLength(4);
+    expect(originalCall.filter.conditions[2].value).toBe("original");
+    expect(cloneCall.filter.conditions[2].value).toBe("cloned");
+    expect(cloneCall.filter.conditions[3].value).toBe(100);
   });
 });
 

@@ -1,25 +1,25 @@
 import {
-  eq,
-  ne,
-  lt,
-  lte,
-  gt,
-  gte,
-  between,
-  inArray,
-  beginsWith,
-  contains,
+  and,
   attributeExists,
   attributeNotExists,
-  and,
-  or,
-  not,
+  beginsWith,
+  between,
   type Condition,
   type ConditionOperator,
+  contains,
+  eq,
+  gt,
+  gte,
+  inArray,
+  lt,
+  lte,
+  ne,
+  not,
+  or,
 } from "../conditions";
-import { Paginator } from "./paginator";
 import type { DynamoItem, GSINames, TableConfig } from "../types";
 import type { FilterBuilderInterface } from "./builder-types";
+import { Paginator } from "./paginator";
 import type { ResultIterator } from "./result-iterator";
 import type { Path } from "./types";
 
@@ -185,16 +185,30 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
     const newCondition = typeof condition === "function" ? condition(this.getConditionOperator()) : condition;
 
     if (this.options.filter) {
-      // If the existing filter is already an 'and' condition, create a new AND node
-      // with a new conditions array to avoid mutating the existing one (preserves immutability).
-      // Otherwise, we need to create a new 'and' condition. This avoids nesting 'and' conditions.
+      // If the existing filter is already an 'and' condition, flatten the new condition into it
       if (this.options.filter.type === "and" && this.options.filter.conditions) {
-        this.options.filter = {
-          type: "and",
-          conditions: [...this.options.filter.conditions, newCondition]
-        };
+        // If the new condition is also an 'and' condition, flatten its conditions
+        if (newCondition.type === "and" && newCondition.conditions) {
+          this.options.filter = {
+            type: "and",
+            conditions: [...this.options.filter.conditions, ...newCondition.conditions],
+          };
+        } else {
+          this.options.filter = {
+            type: "and",
+            conditions: [...this.options.filter.conditions, newCondition],
+          };
+        }
       } else {
-        this.options.filter = and(this.options.filter, newCondition);
+        // If the new condition is an 'and' condition, flatten it
+        if (newCondition.type === "and" && newCondition.conditions) {
+          this.options.filter = {
+            type: "and",
+            conditions: [this.options.filter, ...newCondition.conditions],
+          };
+        } else {
+          this.options.filter = and(this.options.filter, newCondition);
+        }
       }
     } else {
       this.options.filter = newCondition;

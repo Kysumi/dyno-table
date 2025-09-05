@@ -94,7 +94,7 @@ describe("TransactionBuilder Integration Tests", () => {
       // Verify results
       const sourceEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#A" }).execute();
       const destEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#B" }).execute();
-      
+
       const sourceItems = await sourceEnclosure.toArray();
       const destItems = await destEnclosure.toArray();
 

@@ -378,7 +378,6 @@ export class UpdateBuilder<T extends DynamoItem> {
     return this;
   }
 
-
   /**
    * Generate the DynamoDB command parameters
    */

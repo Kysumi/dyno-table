@@ -278,7 +278,7 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     this.builder.withTransaction(transaction);
   }
 
-  debug(): ReturnType<UpdateBuilder<T>['debug']> {
+  debug(): ReturnType<UpdateBuilder<T>["debug"]> {
     return this.builder.debug();
   }
 

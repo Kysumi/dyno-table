@@ -81,9 +81,9 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
    */
   clone(): ScanBuilder<T, TConfig> {
     const clone = new ScanBuilder<T, TConfig>(this.executor);
-    clone.options = { 
+    clone.options = {
       ...this.options,
-      filter: this.deepCloneFilter(this.options.filter)
+      filter: this.deepCloneFilter(this.options.filter),
     };
     clone.selectedFields = new Set(this.selectedFields);
     return clone;
@@ -94,7 +94,9 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
     if (filter.type === "and" || filter.type === "or") {
       return {
         ...filter,
-        conditions: filter.conditions?.map(condition => this.deepCloneFilter(condition)).filter((c): c is Condition => c !== undefined)
+        conditions: filter.conditions
+          ?.map((condition) => this.deepCloneFilter(condition))
+          .filter((c): c is Condition => c !== undefined),
       };
     }
     return { ...filter };
