@@ -1,9 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { defineEntity, createIndex } from "../entity/entity";
-import type { Table } from "../table";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "../conditions";
-import type { DynamoItem } from "../types";
+import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
+import type { Table } from "../table";
+import type { DynamoItem } from "../types";
 
 interface Dinosaur extends DynamoItem {
   id: string;

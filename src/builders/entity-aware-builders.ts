@@ -1,15 +1,15 @@
+import type { Condition, ConditionOperator } from "../conditions";
+import type { IndexDefinition } from "../entity/entity";
+import type { Table } from "../table";
 import type { DynamoItem } from "../types";
 import type { BatchBuilder } from "./batch-builder";
-import type { PutBuilder } from "./put-builder";
-import type { GetBuilder } from "./get-builder";
-import type { DeleteBuilder } from "./delete-builder";
-import type { UpdateBuilder } from "./update-builder";
-import type { Path, PathType } from "./types";
-import type { Condition, ConditionOperator } from "../conditions";
-import type { TransactionBuilder } from "./transaction-builder";
 import type { UpdateCommandParams } from "./builder-types";
-import type { Table } from "../table";
-import type { IndexDefinition } from "../entity/entity";
+import type { DeleteBuilder } from "./delete-builder";
+import type { GetBuilder } from "./get-builder";
+import type { PutBuilder } from "./put-builder";
+import type { TransactionBuilder } from "./transaction-builder";
+import type { Path, PathType } from "./types";
+import type { UpdateBuilder } from "./update-builder";
 
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;

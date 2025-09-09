@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { Table } from "../table";
+import { describe, expect, it } from "vitest";
 import { docClient } from "../../tests/ddb-client";
+import { Table } from "../table";
 
 type Dinosaur = {
   demoPartitionKey: string;

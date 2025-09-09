@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Table } from "../table";
-import { type Dinosaur, createTestTable } from "./table-test-setup";
+import { createTestTable, type Dinosaur } from "./table-test-setup";
 
 describe("Table Integration Tests - Create Items", () => {
   let table: Table;

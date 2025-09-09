@@ -1,8 +1,8 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { defineEntity, createIndex } from "../entity/entity";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createIndex, defineEntity } from "../entity/entity";
+import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
-import type { StandardSchemaV1 } from "../standard-schema";
 
 /**
  * This test file verifies that the timestamp functionality in the entity module works as expected.

@@ -1,6 +1,7 @@
 import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
 import type { Condition, PrimaryKeyWithoutExpression } from "../conditions";
 import { prepareExpressionParams } from "../expression";
+import type { DynamoItem } from "../types";
 import { debugTransaction } from "../utils/debug-transaction";
 import type {
   ConditionCheckCommandParams,
@@ -9,7 +10,6 @@ import type {
   TransactionItem,
   UpdateCommandParams,
 } from "./builder-types";
-import type { DynamoItem } from "../types";
 
 /**
  * Configuration options for DynamoDB transactions.

@@ -1,10 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { Table } from "../table";
-
 import { docClient } from "../../tests/ddb-client";
-import type { DynamoItem } from "../types";
-import type { StandardSchemaV1 } from "../standard-schema";
 import { createIndex, defineEntity } from "../entity/entity";
+import type { StandardSchemaV1 } from "../standard-schema";
+import { Table } from "../table";
+import type { DynamoItem } from "../types";
 
 // Define test entity types
 interface UserEntity extends DynamoItem {

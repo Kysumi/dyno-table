@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import type { Table } from "../table";
 import { attributeNotExists, eq } from "../conditions";
+import type { Table } from "../table";
 import { createTestTable } from "./table-test-setup";
 
 describe("Table Integration Tests - Transaction Operations", () => {

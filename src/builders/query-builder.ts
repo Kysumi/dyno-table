@@ -1,7 +1,7 @@
 import type { Condition } from "../conditions";
-import { FilterBuilder, type FilterOptions } from "./filter-builder";
 import type { DynamoItem, TableConfig } from "../types";
 import type { QueryBuilderInterface } from "./builder-types";
+import { FilterBuilder, type FilterOptions } from "./filter-builder";
 import { ResultIterator } from "./result-iterator";
 
 /**

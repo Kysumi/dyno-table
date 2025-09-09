@@ -1,7 +1,7 @@
 import type { ExpressionParams, PrimaryKeyWithoutExpression } from "../conditions";
+import { generateAttributeName } from "../expression";
 import type { DynamoItem } from "../types";
 import type { BatchBuilder } from "./batch-builder";
-import { generateAttributeName } from "../expression";
 import type { Path } from "./types";
 
 /**
