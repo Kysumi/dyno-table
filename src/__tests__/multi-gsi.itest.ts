@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Table } from "../table";
 import { docClient } from "../../tests/ddb-client";
+import { Table } from "../table";
 
 // Define our dinosaur type with multiple GSI attributes
 interface Dinosaur extends Record<string, unknown> {

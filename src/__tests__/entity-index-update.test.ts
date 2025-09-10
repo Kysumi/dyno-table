@@ -1,9 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { defineEntity, createIndex } from "../entity/entity";
-import type { Table } from "../table";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "../conditions";
-import type { DynamoItem } from "../types";
+import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
+import type { Table } from "../table";
+import type { DynamoItem } from "../types";
 
 interface Dinosaur extends DynamoItem {
   id: string;
@@ -190,9 +190,13 @@ describe("Dinosaur Index Update Operations", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockRejectedValue(
-          new Error("Missing attributes: Cannot update entity: insufficient data to regenerate index \"species-diet-index\". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.")
-        ),
+        execute: vi
+          .fn()
+          .mockRejectedValue(
+            new Error(
+              'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
+            ),
+          ),
       };
 
       mockTable.update.mockReturnValue(mockBuilder);
@@ -382,155 +386,159 @@ describe("Dinosaur Index Update Operations", () => {
     });
 
     describe("forceIndexRebuild functionality", () => {
-    it("should force rebuild a single readOnly index when explicitly requested", async () => {
-      const fossilKey = { id: "triceratops-789" };
-      const updateData = {
-        name: "Triceratops Maximus Updated",
-        excavationSiteId: "badlands-site-002", // This should trigger excavation-site-index when forced
-      };
-
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("excavation-site-index");
-      await updateBuilder.execute();
-
-      // Verify that the set method was called with the readOnly index keys included
-      // The entity-aware builder should have added the readonly index keys when execute was called
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
+      it("should force rebuild a single readOnly index when explicitly requested", async () => {
+        const fossilKey = { id: "triceratops-789" };
+        const updateData = {
           name: "Triceratops Maximus Updated",
-          excavationSiteId: "badlands-site-002",
-          gsi3pk: "SITE#badlands-site-002",
-          gsi3sk: "DINOSAUR#triceratops-789",
-        }),
-      );
-    });
+          excavationSiteId: "badlands-site-002", // This should trigger excavation-site-index when forced
+        };
 
-    it("should force rebuild multiple readOnly indexes when array is provided", async () => {
-      const fossilKey = { id: "allosaurus-456" };
-      const updateData = {
-        name: "Allosaurus Updated",
-        excavationSiteId: "site-001",
-        paleontologistId: "dr-grant-123",
-        species: "Allosaurus fragilis",
-        diet: "carnivore",
-      };
+        const mockBuilder = {
+          condition: vi.fn().mockReturnThis(),
+          set: vi.fn().mockReturnThis(),
+          execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
+        };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+        mockTable.update.mockReturnValue(mockBuilder);
 
-      mockTable.update.mockReturnValue(mockBuilder);
+        const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("excavation-site-index");
+        await updateBuilder.execute();
 
-      const updateBuilder = repository
-        .update(fossilKey, updateData)
-        .forceIndexRebuild(["excavation-site-index", "species-diet-index"]);
-      await updateBuilder.execute();
+        // Verify that the set method was called with the readOnly index keys included
+        // The entity-aware builder should have added the readonly index keys when execute was called
+        expect(mockBuilder.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: "Triceratops Maximus Updated",
+            excavationSiteId: "badlands-site-002",
+            gsi3pk: "SITE#badlands-site-002",
+            gsi3sk: "DINOSAUR#triceratops-789",
+          }),
+        );
+      });
 
-      // Verify that the set method includes all indexes (regular + forced readonly)
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
+      it("should force rebuild multiple readOnly indexes when array is provided", async () => {
+        const fossilKey = { id: "allosaurus-456" };
+        const updateData = {
           name: "Allosaurus Updated",
           excavationSiteId: "site-001",
           paleontologistId: "dr-grant-123",
           species: "Allosaurus fragilis",
           diet: "carnivore",
-          // Regular index should be included
-          gsi1pk: "PALEONTOLOGIST#dr-grant-123",
-          gsi1sk: "DINOSAUR#allosaurus-456",
-          // Force rebuilt indexes should be included
-          gsi2pk: "SPECIES#Allosaurus fragilis",
-          gsi2sk: "DIET#carnivore#allosaurus-456",
-          gsi3pk: "SITE#site-001",
-          gsi3sk: "DINOSAUR#allosaurus-456",
-        }),
-      );
-    });
+        };
 
-    it("should allow chaining forceIndexRebuild with other update methods", async () => {
-      const fossilKey = { id: "stegosaurus-321" };
-      const updateData = { excavationSiteId: "morrison-site-001" };
+        const mockBuilder = {
+          condition: vi.fn().mockReturnThis(),
+          set: vi.fn().mockReturnThis(),
+          execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
+        };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        returnValues: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+        mockTable.update.mockReturnValue(mockBuilder);
 
-      mockTable.update.mockReturnValue(mockBuilder);
+        const updateBuilder = repository
+          .update(fossilKey, updateData)
+          .forceIndexRebuild(["excavation-site-index", "species-diet-index"]);
+        await updateBuilder.execute();
 
-      const updateBuilder = repository
-        .update(fossilKey, updateData)
-        .forceIndexRebuild("excavation-site-index")
-        .set("name", "Additional name update")
-        .returnValues("ALL_NEW");
-      await updateBuilder.execute();
+        // Verify that the set method includes all indexes (regular + forced readonly)
+        expect(mockBuilder.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: "Allosaurus Updated",
+            excavationSiteId: "site-001",
+            paleontologistId: "dr-grant-123",
+            species: "Allosaurus fragilis",
+            diet: "carnivore",
+            // Regular index should be included
+            gsi1pk: "PALEONTOLOGIST#dr-grant-123",
+            gsi1sk: "DINOSAUR#allosaurus-456",
+            // Force rebuilt indexes should be included
+            gsi2pk: "SPECIES#Allosaurus fragilis",
+            gsi2sk: "DIET#carnivore#allosaurus-456",
+            gsi3pk: "SITE#site-001",
+            gsi3sk: "DINOSAUR#allosaurus-456",
+          }),
+        );
+      });
 
-      // Verify all methods were called in chain
-      expect(mockBuilder.set).toHaveBeenCalledWith("name", "Additional name update");
-      expect(mockBuilder.returnValues).toHaveBeenCalledWith("ALL_NEW");
-    });
+      it("should allow chaining forceIndexRebuild with other update methods", async () => {
+        const fossilKey = { id: "stegosaurus-321" };
+        const updateData = { excavationSiteId: "morrison-site-001" };
 
-    it("should throw error for unrecognized index", async () => {
-      const fossilKey = { id: "triceratops-789" };
-      const updateData = { name: "Updated name" };
+        const mockBuilder = {
+          condition: vi.fn().mockReturnThis(),
+          set: vi.fn().mockReturnThis(),
+          returnValues: vi.fn().mockReturnThis(),
+          execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
+        };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockRejectedValue(
-          new Error("Cannot force rebuild unknown indexes: non-existent-index. Available indexes: paleontologist-index, species-diet-index, excavation-site-index")
-        ),
-      };
+        mockTable.update.mockReturnValue(mockBuilder);
 
-      mockTable.update.mockReturnValue(mockBuilder);
+        const updateBuilder = repository
+          .update(fossilKey, updateData)
+          .forceIndexRebuild("excavation-site-index")
+          .set("name", "Additional name update")
+          .returnValues("ALL_NEW");
+        await updateBuilder.execute();
 
-      // This should throw an error for unrecognized index
-      const updateBuilder = repository
-        .update(fossilKey, updateData)
-        .forceIndexRebuild("non-existent-index");
-      
-      await expect(updateBuilder.execute()).rejects.toThrowError(
-        /Cannot force rebuild unknown indexes.*non-existent-index.*Available indexes/
-      );
-    });
+        // Verify all methods were called in chain
+        expect(mockBuilder.set).toHaveBeenCalledWith("name", "Additional name update");
+        expect(mockBuilder.returnValues).toHaveBeenCalledWith("ALL_NEW");
+      });
 
-    it("should throw error when forcing rebuild of index with missing template variables", async () => {
-      const fossilKey = { id: "velociraptor-456" };
-      // Trying to force rebuild species-diet-index but only providing species, not diet
-      const updateData = {
-        species: "Velociraptor mongoliensis", // This index requires both species and diet
-        paleontologistId: "dr-sattler-789", // This should work fine for paleontologist-index
-      };
+      it("should throw error for unrecognized index", async () => {
+        const fossilKey = { id: "triceratops-789" };
+        const updateData = { name: "Updated name" };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockRejectedValue(
-          new Error("Missing attributes: Cannot update entity: insufficient data to regenerate index \"species-diet-index\". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.")
-        ),
-      };
+        const mockBuilder = {
+          condition: vi.fn().mockReturnThis(),
+          set: vi.fn().mockReturnThis(),
+          execute: vi
+            .fn()
+            .mockRejectedValue(
+              new Error(
+                "Cannot force rebuild unknown indexes: non-existent-index. Available indexes: paleontologist-index, species-diet-index, excavation-site-index",
+              ),
+            ),
+        };
 
-      mockTable.update.mockReturnValue(mockBuilder);
+        mockTable.update.mockReturnValue(mockBuilder);
 
-      // This should throw an error because we're forcing rebuild but missing required attributes
-      const updateBuilder = repository
-        .update(fossilKey, updateData)
-        .forceIndexRebuild("species-diet-index");
-      
-      await expect(updateBuilder.execute()).rejects.toThrowError(
-        /Cannot update entity: insufficient data to regenerate index.*species-diet-index/
-      );
-    });
+        // This should throw an error for unrecognized index
+        const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("non-existent-index");
+
+        await expect(updateBuilder.execute()).rejects.toThrowError(
+          /Cannot force rebuild unknown indexes.*non-existent-index.*Available indexes/,
+        );
+      });
+
+      it("should throw error when forcing rebuild of index with missing template variables", async () => {
+        const fossilKey = { id: "velociraptor-456" };
+        // Trying to force rebuild species-diet-index but only providing species, not diet
+        const updateData = {
+          species: "Velociraptor mongoliensis", // This index requires both species and diet
+          paleontologistId: "dr-sattler-789", // This should work fine for paleontologist-index
+        };
+
+        const mockBuilder = {
+          condition: vi.fn().mockReturnThis(),
+          set: vi.fn().mockReturnThis(),
+          execute: vi
+            .fn()
+            .mockRejectedValue(
+              new Error(
+                'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
+              ),
+            ),
+        };
+
+        mockTable.update.mockReturnValue(mockBuilder);
+
+        // This should throw an error because we're forcing rebuild but missing required attributes
+        const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("species-diet-index");
+
+        await expect(updateBuilder.execute()).rejects.toThrowError(
+          /Cannot update entity: insufficient data to regenerate index.*species-diet-index/,
+        );
+      });
     });
   });
 

@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Table } from "../table";
-
 import { docClient } from "../../tests/ddb-client";
-import { defineEntity, createIndex } from "../entity/entity";
-import type { DynamoItem } from "../types";
-import type { StandardSchemaV1 } from "../standard-schema";
 import type { ConditionOperator } from "../conditions";
+import { createIndex, defineEntity } from "../entity/entity";
+import type { StandardSchemaV1 } from "../standard-schema";
+import { Table } from "../table";
+import type { DynamoItem } from "../types";
 
 // Define a dinosaur entity type
 interface DinosaurEntity extends DynamoItem {

@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { Table } from "../table";
+import { describe, expect, it } from "vitest";
 import { docClient } from "../../tests/ddb-client";
+import { Table } from "../table";
 
 type Dinosaur = {
   demoPartitionKey: string;
@@ -94,7 +94,7 @@ describe("TransactionBuilder Integration Tests", () => {
       // Verify results
       const sourceEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#A" }).execute();
       const destEnclosure = await table.query<Dinosaur>({ pk: "ENCLOSURE#B" }).execute();
-      
+
       const sourceItems = await sourceEnclosure.toArray();
       const destItems = await destEnclosure.toArray();
 

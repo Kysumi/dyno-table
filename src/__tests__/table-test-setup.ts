@@ -1,5 +1,5 @@
-import { Table } from "../table";
 import { docClient } from "../../tests/ddb-client";
+import { Table } from "../table";
 
 export type Dinosaur = {
   demoPartitionKey: string;

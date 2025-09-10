@@ -1,27 +1,27 @@
 import type { Condition, ConditionOperator, PrimaryKeyWithoutExpression } from "../conditions";
 import {
-  eq,
-  ne,
-  lt,
-  lte,
-  gt,
-  gte,
-  between,
-  inArray,
-  beginsWith,
-  contains,
+  and,
   attributeExists,
   attributeNotExists,
-  and,
-  or,
+  beginsWith,
+  between,
+  contains,
+  eq,
+  gt,
+  gte,
+  inArray,
+  lt,
+  lte,
+  ne,
   not,
+  or,
 } from "../conditions";
-import type { Path, PathType } from "./types";
-import type { TransactionBuilder } from "./transaction-builder";
 import { buildExpression, generateAttributeName, generateValueName } from "../expression";
+import type { DynamoItem } from "../types";
 import { debugCommand } from "../utils/debug-expression";
 import type { UpdateCommandParams } from "./builder-types";
-import type { DynamoItem } from "../types";
+import type { TransactionBuilder } from "./transaction-builder";
+import type { Path, PathType } from "./types";
 
 /**
  * Configuration options for DynamoDB update operations.
@@ -377,7 +377,6 @@ export class UpdateBuilder<T extends DynamoItem> {
     this.options.returnValues = returnValues;
     return this;
   }
-
 
   /**
    * Generate the DynamoDB command parameters

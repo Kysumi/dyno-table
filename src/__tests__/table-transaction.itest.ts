@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import type { Table } from "../table";
 import { attributeNotExists, eq } from "../conditions";
+import type { Table } from "../table";
 import { createTestTable } from "./table-test-setup";
 
 describe("Table Integration Tests - Transaction Operations", () => {
@@ -99,9 +99,7 @@ describe("Table Integration Tests - Transaction Operations", () => {
     const items = await queryResultIterator.toArray();
 
     // The only item should be the original one
-    const conditionalItem = items.find(
-      (item: Record<string, unknown>) => item.demoSortKey === "conditional#item",
-    );
+    const conditionalItem = items.find((item: Record<string, unknown>) => item.demoSortKey === "conditional#item");
     expect(conditionalItem).toBeDefined();
     expect(conditionalItem?.name).toBe("Existing Item");
 
@@ -210,9 +208,7 @@ describe("Table Integration Tests - Transaction Operations", () => {
     // Verify the dependent item was created
     const queryResultIterator = await table.query({ pk: "transaction#test" }).execute();
     const items = await queryResultIterator.toArray();
-    const dependentItem = items.find(
-      (item: Record<string, unknown>) => item.demoSortKey === "dependent#item",
-    );
+    const dependentItem = items.find((item: Record<string, unknown>) => item.demoSortKey === "dependent#item");
 
     expect(dependentItem).toBeDefined();
     expect(dependentItem?.name).toBe("Dependent Item");

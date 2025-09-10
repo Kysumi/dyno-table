@@ -1,26 +1,26 @@
 import type { Condition, ConditionOperator, PrimaryKeyWithoutExpression } from "../conditions";
 import {
-  eq,
-  ne,
-  lt,
-  lte,
-  gt,
-  gte,
-  between,
-  inArray,
-  beginsWith,
-  contains,
+  and,
   attributeExists,
   attributeNotExists,
-  and,
-  or,
+  beginsWith,
+  between,
+  contains,
+  eq,
+  gt,
+  gte,
+  inArray,
+  lt,
+  lte,
+  ne,
   not,
+  or,
 } from "../conditions";
-import type { TransactionBuilder } from "./transaction-builder";
 import { prepareExpressionParams } from "../expression";
+import type { DynamoItem } from "../types";
 import { debugCommand } from "../utils/debug-expression";
 import type { ConditionCheckCommandParams } from "./builder-types";
-import type { DynamoItem } from "../types";
+import type { TransactionBuilder } from "./transaction-builder";
 
 /**
  * Builder for creating DynamoDB condition check operations.

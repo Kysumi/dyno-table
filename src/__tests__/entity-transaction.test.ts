@@ -1,8 +1,8 @@
-import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
-import { defineEntity, createIndex } from "../entity/entity";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { createIndex, defineEntity } from "../entity/entity";
+import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
-import type { StandardSchemaV1 } from "../standard-schema";
 
 // Define a test entity type
 interface TestEntity extends DynamoItem {

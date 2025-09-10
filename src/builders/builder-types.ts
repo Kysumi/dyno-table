@@ -1,5 +1,5 @@
-import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
 import type { DynamoItem, TableConfig } from "../types";
+import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
 import type { ResultIterator } from "./result-iterator";
 
 export interface DeleteCommandParams extends DynamoCommandWithExpressions {

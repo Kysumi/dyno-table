@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { inArray, eq, and } from "../conditions";
-import { buildExpression, prepareExpressionParams } from "../expression";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { ExpressionParams } from "../conditions";
+import { and, eq, inArray } from "../conditions";
+import { buildExpression, prepareExpressionParams } from "../expression";
 
 describe("IN operator", () => {
   describe("inArray function", () => {

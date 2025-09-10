@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
-import { ConditionCheckBuilder } from "../condition-check-builder";
+import { describe, expect, it, vi } from "vitest";
 import { eq, gt } from "../../conditions";
+import { ConditionCheckBuilder } from "../condition-check-builder";
 import { TransactionBuilder } from "../transaction-builder";
 
 describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
