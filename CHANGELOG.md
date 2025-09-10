@@ -1,3 +1,10 @@
+## [2.2.1](https://github.com/Kysumi/dyno-table/compare/v2.2.0...v2.2.1) (2025-09-10)
+
+
+### Bug Fixes
+
+* Adding additional tests to prove nested filters work as expected ([62ee6e5](https://github.com/Kysumi/dyno-table/commit/62ee6e53285679859cbce6c17d359c03bfd57a81))
+
 # [2.2.0](https://github.com/Kysumi/dyno-table/compare/v2.1.1...v2.2.0) (2025-09-03)
 
 
