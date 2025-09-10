@@ -145,9 +145,9 @@ describe("Nested AND Conditions Integration Test - Large Dataset", () => {
         dinoSpecies: dinoSpecies[speciesIndex],
         period: periods[periodIndex],
         site: sites[siteIndex],
-        weight: Math.floor(Math.random() * 15000) + 100, // 100-15000 kg
-        length: Math.floor(Math.random() * 30) + 1, // 1-30 meters
-        completeness: Math.floor(Math.random() * 100) + 1, // 1-100%
+        weight: ((i * 7) % 14901) + 100, // 100-15000 kg (deterministic, better distribution)
+        length: ((i * 3) % 30) + 1, // 1-30 meters (deterministic, better distribution)
+        completeness: ((i * 11) % 100) + 1, // 1-100% (deterministic, better distribution)
       });
     }
 
