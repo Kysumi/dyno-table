@@ -18,8 +18,18 @@ type DinosaurExcavation = {
   completeness?: number;
 };
 
+interface TestExpectedCounts {
+  targetOrg: number;
+  finalized: number;
+  digitised: number;
+  perfectMatch: number;
+  totalRecords: number;
+}
+
 describe("Nested AND Conditions Integration Test - Large Dataset", () => {
   let table: Table;
+  // Test state management (type-safe alternative to global)
+  let testExpectedCounts: TestExpectedCounts;
 
   // Dinosaur species for variety
   const dinoSpecies = [
