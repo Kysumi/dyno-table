@@ -142,7 +142,7 @@ describe("Nested AND Conditions Integration Test - Large Dataset", () => {
     }
 
     // Store expected counts for test verification using deterministic counters
-    (global as any).testExpectedCounts = {
+    testExpectedCounts = {
       targetOrg: targetOrgCount,
       finalized: finalizedCount,
       digitised: digitisedCount,
@@ -181,12 +181,11 @@ describe("Nested AND Conditions Integration Test - Large Dataset", () => {
       .execute();
 
     const items = await results.toArray();
-    const expectedCounts = (global as any).testExpectedCounts;
 
     // Verify we got the exact expected count using deterministic counter
-    expect(items.length).toBe(expectedCounts.perfectMatch);
+    expect(items.length).toBe(testExpectedCounts.perfectMatch);
     expect(items.length).toBeGreaterThan(0);
-    expect(items.length).toBeLessThan(expectedCounts.totalRecords); // Should be filtered subset
+    expect(items.length).toBeLessThan(testExpectedCounts.totalRecords); // Should be filtered subset
 
     // Verify all returned items match the filter conditions
     for (const item of items) {
