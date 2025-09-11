@@ -106,6 +106,8 @@ await userRepo.delete({ id: "123" }).execute();
 
 That's it! You now have a fully type-safe, validated DynamoDB repository.
 
+**Ready to build type-safe DynamoDB applications?** Start with our [5-minute quick start guide](docs/query-builder.md) or dive into the [Entity Pattern documentation](docs/entities.md).
+
 ## Core Concepts
 
 ### Entities vs Direct Table Access
@@ -307,72 +309,6 @@ const Entity = defineEntity({
 });
 ```
 
-## Project Structure
-
-Organize your DynamoDB application:
-
-```
-src/
-├── entities/
-│   ├── user.entity.ts        # User entity definition
-│   ├── product.entity.ts     # Product entity definition
-│   └── index.ts              # Export all entities
-├── repositories/
-│   ├── user.repository.ts    # User repository with custom methods
-│   └── index.ts              # Export all repositories
-├── db/
-│   ├── client.ts             # DynamoDB client setup
-│   └── table.ts              # Table configuration
-└── types/
-    └── entities.ts           # Shared entity types
-```
-
-## Migration from Other ORMs
-
-### From Prisma
-```ts
-// Prisma
-const users = await prisma.user.findMany({
-  where: { status: 'active' },
-  select: { name: true, email: true }
-});
-
-// dyno-table
-const users = await userRepo.scan()
-  .filter((op) => op.eq("status", "active"))
-  .select(["name", "email"])
-  .execute();
-```
-
-### From TypeORM
-```ts
-// TypeORM
-const users = await userRepository.find({
-  where: { status: 'active' },
-  select: ['name', 'email']
-});
-
-// dyno-table
-const users = await userRepo.scan()
-  .filter((op) => op.eq("status", "active"))
-  .select(["name", "email"])
-  .execute();
-```
-
-## Performance
-
-dyno-table is built for DynamoDB's unique characteristics:
-
-- **Memory Efficient**: Stream large result sets with `ResultIterator`
-- **Type-Safe Projections**: Reduce bandwidth with field selection
-- **Automatic Pagination**: Handle large datasets seamlessly
-- **Single-Table Design**: Optimized for DynamoDB best practices
-- **Zero Dependencies**: Lightweight core with tree-shaking support
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
 ### Development Setup
 
 ```bash
@@ -406,5 +342,3 @@ pnpm build
 MIT © [dyno-table contributors](LICENSE)
 
 ---
-
-**Ready to build type-safe DynamoDB applications?** Start with our [5-minute quick start guide](docs/query-builder.md) or dive into the [Entity Pattern documentation](docs/entities.md).
