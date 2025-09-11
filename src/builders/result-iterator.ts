@@ -1,5 +1,7 @@
 import type { DynamoItem, TableConfig } from "../types";
 import type { QueryBuilderInterface } from "./builder-types";
+import { type ProjectedResult, projectItem } from "./projection-types";
+import type { Path } from "./types";
 
 /**
  * Function type for executing DynamoDB operations and returning raw results.
@@ -8,17 +10,29 @@ type DirectExecutor<T extends DynamoItem> = () => Promise<{ items: T[]; lastEval
 
 /**
  * Minimal result generator that provides async iteration over DynamoDB results with automatic pagination.
+ * Supports type-safe projection when fields are selected.
  *
  * @example
  * ```typescript
+ * // Without projection - returns full items
  * const results = await queryBuilder.execute();
- *
  * for await (const item of results) {
- *   console.log(item);
+ *   console.log(item); // Full item type
+ * }
+ *
+ * // With projection - returns projected items
+ * const results = await queryBuilder.select(['name', 'email']).execute();
+ * for await (const user of results) {
+ *   console.log(user.name, user.email); // Only selected fields, fully typed
  * }
  * ```
  */
-export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = TableConfig> {
+export class ResultIterator<
+  T extends DynamoItem,
+  TConfig extends TableConfig = TableConfig,
+  TSelected extends Path<T>[] = [],
+  TResult = TSelected extends readonly [] ? T : ProjectedResult<T, TSelected>,
+> {
   private lastEvaluatedKey?: DynamoItem | null;
   private itemsYielded = 0;
   private readonly overallLimit?: number;
@@ -26,14 +40,15 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
   constructor(
     private queryBuilder: QueryBuilderInterface<T, TConfig>,
     private directExecutor: DirectExecutor<T>,
+    private selectedFields?: TSelected,
   ) {
     this.overallLimit = queryBuilder.getLimit();
   }
 
   /**
-   * Async iterator with automatic pagination
+   * Async iterator with automatic pagination and projection
    */
-  async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
+  async *[Symbol.asyncIterator](): AsyncIterableIterator<TResult> {
     let hasMorePages = true;
 
     while (hasMorePages) {
@@ -45,7 +60,11 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
           return;
         }
 
-        yield item;
+        // Apply projection if fields are selected
+        const projectedItem =
+          this.selectedFields && this.selectedFields.length > 0 ? projectItem(item, this.selectedFields) : item;
+
+        yield projectedItem as TResult;
         this.itemsYielded++;
       }
 
@@ -68,23 +87,22 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
   }
 
   /**
-   * Convert to array (loads all pages).
+   * Convert to array (loads all pages) with projection applied.
    *
    * ```ts
+   * // Without projection
    * const result = await table.query({ pk: "foo" }).execute();
-   * const allItemsFromDynamo = await result.toArray();
+   * const allItems = await result.toArray(); // Type: T[]
+   *
+   * // With projection
+   * const result = await table.query({ pk: "foo" }).select(['name', 'email']).execute();
+   * const users = await result.toArray(); // Type: { name: string; email: string }[]
    * ```
    *
    * Note: This will load all pages into memory. For large datasets, consider using async iteration instead.
-   *```ts
-   * const result = await table.query({ pk: "foo" }).execute();
-   * for await (const item of result) {
-   *   // Process each item
-   * }
-   * ```
    */
-  async toArray(): Promise<T[]> {
-    const items: T[] = [];
+  async toArray(): Promise<TResult[]> {
+    const items: TResult[] = [];
     for await (const item of this) {
       items.push(item);
     }

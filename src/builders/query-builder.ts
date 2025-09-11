@@ -2,7 +2,9 @@ import type { Condition } from "../conditions";
 import type { DynamoItem, TableConfig } from "../types";
 import type { QueryBuilderInterface } from "./builder-types";
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
+import { type ProjectedResult, projectItem } from "./projection-types";
 import { ResultIterator } from "./result-iterator";
+import type { Path } from "./types";
 
 /**
  * Configuration options for DynamoDB query operations.
@@ -245,6 +247,7 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    */
   async execute(): Promise<ResultIterator<T, TConfig>> {
     const directExecutor = () => this.executor(this.keyCondition, this.options);
-    return new ResultIterator(this, directExecutor);
+    const selectedFields = (this as any).__selectedFields;
+    return new ResultIterator(this, directExecutor, selectedFields);
   }
 }
