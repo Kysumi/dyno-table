@@ -10,16 +10,13 @@ type SafePathType<T, K extends Path<T>> = PathType<T, K> extends infer U ? U : n
  * Creates a projected type with only the selected fields.
  * This preserves the nested structure for dot-notation paths.
  */
-export type ProjectedResult<
-  T extends DynamoItem,
-  Selected extends ReadonlyArray<Path<T>>,
-> = Selected extends readonly []
+export type ProjectedResult<T extends DynamoItem, Selected extends Path<T>[]> = Selected extends readonly []
   ? T
   : {
       [K in Selected[number] as K extends `${infer Root}.${string}` ? Root : K]: K extends `${infer Root}.${infer Rest}`
         ? Root extends keyof T
           ? Rest extends Path<NonNullable<T[Root]>>
-            ? ProjectedResult<NonNullable<T[Root]>, readonly [Rest]>
+            ? ProjectedResult<NonNullable<T[Root]>, [Rest]>
             : never
           : never
         : K extends keyof T
@@ -29,27 +26,13 @@ export type ProjectedResult<
 
 /**
  * Type guard and projection utility for runtime projection of items.
- * Overload: When no selectedFields provided, return the original item
  */
-export function projectItem<T extends DynamoItem>(item: T): T;
-
-/**
- * Overload: When selectedFields provided, return projected result with support for readonly arrays
- */
-export function projectItem<T extends DynamoItem, S extends ReadonlyArray<Path<T>>>(
-  item: T,
-  selectedFields: S,
-): S extends readonly [] ? T : ProjectedResult<T, S>;
-
-/**
- * Implementation with general signature
- */
-export function projectItem<T extends DynamoItem, S extends ReadonlyArray<Path<T>>>(
+export function projectItem<T extends DynamoItem, S extends Path<T>[]>(
   item: T,
   selectedFields?: S,
-): T | ProjectedResult<T, S> {
+): S extends readonly [] ? T : ProjectedResult<T, S> {
   if (!selectedFields || selectedFields.length === 0) {
-    return item as T;
+    return item as any;
   }
 
   const projected: any = {};
@@ -60,7 +43,7 @@ export function projectItem<T extends DynamoItem, S extends ReadonlyArray<Path<T
     setNestedValue(projected, field, value);
   }
 
-  return projected as ProjectedResult<T, S>;
+  return projected;
 }
 
 /**
