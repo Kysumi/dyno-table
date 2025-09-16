@@ -20,7 +20,6 @@ import {
 import type { DynamoItem, GSINames, TableConfig } from "../types";
 import type { FilterBuilderInterface } from "./builder-types";
 import { Paginator } from "./paginator";
-import type { ProjectedResult } from "./projection-types";
 import type { ResultIterator } from "./result-iterator";
 import type { Path } from "./types";
 
@@ -239,29 +238,32 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
   }
 
   /**
-   * Specifies which attributes to return in the results with type inference.
+   * Specifies which attributes to return in the results.
    *
    * @example
    * ```typescript
-   * // Get basic dinosaur info with inferred result type
-   * const result = await builder.select([
+   * // Get basic dinosaur info
+   * builder.select([
    *   'species',
    *   'status',
    *   'stats.health',
    *   'stats.aggressionLevel'
-   * ]).execute();
+   * ]);
    *
-   * // Type-safe access to projected fields
-   * for await (const dino of result) {
-   *   console.log(dino.species, dino.status); // Fully typed!
-   *   console.log(dino.stats.health); // Nested access works too!
-   * }
+   * // Monitor habitat conditions
+   * builder
+   *   .select('securityStatus')
+   *   .select([
+   *     'currentOccupants',
+   *     'temperature',
+   *     'lastInspectionDate'
+   *   ]);
    * ```
    *
    * @param fields - A single field name or an array of field names to return
-   * @returns The builder instance with type information for the selected fields
+   * @returns The builder instance for method chaining
    */
-  select<K extends Path<T>>(fields: K | K[]): this & { __selectedFields: K[] } {
+  select<K extends Path<T>>(fields: K | K[]): this {
     if (typeof fields === "string") {
       this.selectedFields.add(fields);
     } else if (Array.isArray(fields)) {
@@ -271,9 +273,7 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
     }
 
     this.options.projection = Array.from(this.selectedFields);
-    // Store the selected fields for projection during execution
-    (this as any).__selectedFields = Array.isArray(fields) ? fields : [fields];
-    return this as any;
+    return this;
   }
 
   /**
