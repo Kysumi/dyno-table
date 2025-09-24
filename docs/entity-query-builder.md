@@ -452,6 +452,353 @@ const targetUsers = await userRepo.scan()
   .execute();
 ```
 
+### Advanced AND/OR Business Logic Patterns
+
+Here are comprehensive real-world examples using entities with schema validation:
+
+```ts
+// Find VIP candidates
+const vipCandidates = await userRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.gt("lifetimeValue", 10000),
+      op.gt("totalOrders", 100)
+    ),
+    op.eq("status", "active"),
+    op.eq("emailVerified", true),
+    op.attributeNotExists("vipStatus")
+  ))
+  .execute();
+
+// Find priority orders requiring immediate attention
+const priorityOrders = await orderRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.gt("amount", 1000),
+      op.attributeExists("rushDelivery"),
+      op.contains("items", { priority: "urgent" })
+    ),
+    op.or(
+      op.eq("status", "pending"),
+      op.eq("status", "processing")
+    ),
+    op.or(
+      op.eq("customerTier", "platinum"),
+      op.eq("customerTier", "gold")
+    )
+  ))
+  .execute();
+
+// User Engagement: Find users who need re-engagement
+// Need re-engagement = (Inactive recently OR low engagement) AND (was active) AND (has value)
+const usersNeedingReengagement = await userRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.lt("lastLoginAt", "2024-01-01"),   // Haven't logged in recently
+      op.lt("sessionCount", 5),             // Low session count
+      op.eq("engagementScore", 0)           // No engagement
+    ),
+    op.or(
+      op.eq("status", "inactive"),          // Currently inactive
+      op.attributeExists("dormant")         // Marked as dormant
+    ),
+    op.or(
+      op.gt("lifetimeValue", 100),          // Has spent money
+      op.gt("credits", 0),                  // Has credits
+      op.attributeExists("purchaseHistory") // Has purchase history
+    )
+  ))
+  .execute();
+
+// Multi-tenant SaaS: Find organizations needing account review
+// Need review = (Usage anomaly OR payment issues) AND (active subscription) AND (not recently reviewed)
+const organizationsNeedingReview = await organizationRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.gt("monthlyApiCalls", 1000000),    // High API usage
+      op.gt("storageGB", 500),              // High storage usage
+      op.gt("failedPayments", 1),           // Payment issues
+      op.lt("paymentSuccessRate", 0.8)      // Low payment success rate
+    ),
+    op.eq("subscriptionStatus", "active"),  // Active subscription
+    op.or(
+      op.attributeNotExists("lastReviewedAt"), // Never reviewed
+      op.lt("lastReviewedAt", "2024-01-01")    // Not reviewed recently
+    )
+  ))
+  .execute();
+
+// E-commerce Inventory: Find products needing attention
+// Need attention = (Low stock OR high return rate OR poor reviews) AND (currently active) AND (profitable)
+const productsNeedingAttention = await productRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.lt("stockQuantity", 10),           // Low stock
+      op.gt("returnRate", 0.15),            // High return rate (>15%)
+      op.lt("averageRating", 3.0),          // Poor reviews
+      op.gt("supportTickets", 10)           // Many support tickets
+    ),
+    op.eq("status", "active"),              // Currently active
+    op.or(
+      op.gt("profitMargin", 0.2),           // Good profit margin
+      op.gt("salesVolume", 100),            // High sales volume
+      op.eq("strategic", true)              // Strategic product
+    )
+  ))
+  .execute();
+
+// Healthcare: Patient priority triage
+// High priority = (Critical symptoms OR emergency referral) AND (not seen today) AND (insurance or emergency)
+const highPriorityPatients = await patientRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.contains("symptoms", "chest pain"),     // Critical symptoms
+      op.contains("symptoms", "difficulty breathing"),
+      op.contains("symptoms", "severe pain"),
+      op.eq("emergencyReferral", true),          // Emergency referral
+      op.eq("triageLevel", "immediate")          // Immediate triage
+    ),
+    op.or(
+      op.attributeNotExists("seenToday"),        // Not seen today
+      op.ne("lastVisitDate", new Date().toISOString().split('T')[0])  // Not today
+    ),
+    op.or(
+      op.eq("insuranceVerified", true),          // Insurance verified
+      op.eq("emergencyCase", true),              // Emergency case
+      op.eq("membershipTier", "premium")         // Premium member
+    )
+  ))
+  .execute();
+
+// Financial Services: Risk assessment
+// High risk = (Suspicious activity OR high transaction volume) AND (new account OR previous flags) AND (not verified)
+const highRiskAccounts = await accountRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.gt("dailyTransactionCount", 100),       // High transaction frequency
+      op.gt("dailyTransactionVolume", 50000),    // High transaction volume
+      op.attributeExists("suspiciousActivityFlag"), // Flagged activity
+      op.contains("transactionPatterns", "unusual")  // Unusual patterns
+    ),
+    op.or(
+      op.lt("accountAgeInDays", 30),             // New account
+      op.attributeExists("previousFlags"),       // Previous red flags
+      op.gt("velocityWarnings", 2)               // Multiple velocity warnings
+    ),
+    op.or(
+      op.ne("kycStatus", "verified"),            // Not KYC verified
+      op.attributeNotExists("documentsVerified"), // Documents not verified
+      op.eq("manualReviewRequired", true)        // Requires manual review
+    )
+  ))
+  .execute();
+
+// Gaming: Matchmaking system
+// Good match = (Similar skill AND region) OR (skill difference compensated by latency) AND availability
+const potentialGameMatches = await playerRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.and(                                    // Similar skill same region
+        op.between("skillRating", 1800, 2200),
+        op.eq("region", "us-west")
+      ),
+      op.and(                                    // Skill difference with good latency
+        op.between("skillRating", 1600, 2400),
+        op.lt("averageLatency", 30)
+      )
+    ),
+    op.or(
+      op.eq("status", "online"),                 // Currently online
+      op.eq("status", "looking-for-game"),       // Looking for game
+      op.gte("lastActiveAt", "2024-01-20")       // Recently active
+    ),
+    op.or(
+      op.eq("gameMode", "ranked"),               // Ranked player
+      op.eq("gameMode", "competitive"),          // Competitive player
+      op.and(                                    // Casual but experienced
+        op.eq("gameMode", "casual"),
+        op.gt("gamesPlayed", 100)
+      )
+    )
+  ))
+  .execute();
+
+// Content Moderation: Find content for review
+// Needs review = (User reports OR AI detection OR viral content) AND (not reviewed) AND (significant reach)
+const contentForModeration = await contentRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.gt("userReports", 2),                   // Multiple user reports
+      op.attributeExists("aiModerationFlag"),    // AI detected issues
+      op.contains("detectedContent", "sensitive"), // Sensitive content detected
+      op.gt("viralityScore", 8.0)                // Highly viral content
+    ),
+    op.or(
+      op.attributeNotExists("moderationStatus"), // Not moderated
+      op.eq("moderationStatus", "pending")       // Pending moderation
+    ),
+    op.or(
+      op.gt("viewCount", 10000),                 // High view count
+      op.gt("shareCount", 1000),                 // High share count
+      op.gt("engagementRate", 0.1),              // High engagement
+      op.eq("trending", true)                    // Currently trending
+    )
+  ))
+  .execute();
+
+// Real Estate: Property recommendations
+// Good match = (Price range OR negotiable) AND (location preferences) AND (feature requirements)
+const recommendedProperties = await propertyRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.between("price", 400000, 600000),       // In price range
+      op.eq("negotiable", true),                 // Price negotiable
+      op.eq("auctionProperty", true)             // Auction property
+    ),
+    op.or(
+      op.eq("neighborhood", "downtown"),         // Preferred neighborhoods
+      op.eq("neighborhood", "westside"),
+      op.eq("neighborhood", "suburb"),
+      op.lt("commuteTime", 30)                   // Acceptable commute
+    ),
+    op.or(
+      op.and(                                    // Family requirements
+        op.gte("bedrooms", 3),
+        op.gte("bathrooms", 2),
+        op.eq("schoolDistrict", "excellent")
+      ),
+      op.and(                                    // Young professional
+        op.gte("bedrooms", 1),
+        op.attributeExists("publicTransport"),
+        op.attributeExists("walkabilityScore")
+      ),
+      op.and(                                    // Investment property
+        op.gt("rentalYield", 0.05),
+        op.eq("rentabilityGrade", "A"),
+        op.lt("maintenanceScore", 3)
+      )
+    )
+  ))
+  .execute();
+```
+
+### Entity-Specific Query Patterns
+
+Leverage entity schemas for domain-specific filtering:
+
+```ts
+// User lifecycle queries using schema-validated enums
+const usersInTransition = await userRepo.scan()
+  .filter(op => op.and(
+    op.inArray("status", ["pending", "trial", "converting"]),  // Transitional states
+    op.or(
+      op.gte("trialExpiresAt", new Date().toISOString()),      // Trial not expired
+      op.attributeExists("conversionIntent")                    // Shows conversion intent
+    ),
+    op.gt("engagementScore", 5)                                // Engaged users
+  ))
+  .execute();
+
+// Order fulfillment optimization
+const ordersForOptimization = await orderRepo.scan()
+  .filter(op => op.and(
+    op.inArray("status", ["pending", "processing"]),           // Processable orders
+    op.or(
+      op.eq("shippingMethod", "standard"),                     // Standard shipping
+      op.eq("shippingMethod", "expedited")                     // Expedited shipping
+    ),
+    op.or(
+      op.eq("warehouseRegion", "west"),                        // Western warehouse
+      op.eq("warehouseRegion", "central"),                     // Central warehouse
+      op.lt("estimatedShippingDays", 3)                        // Fast shipping available
+    )
+  ))
+  .execute();
+
+// Subscription management with business rules
+const subscriptionsForReview = await subscriptionRepo.scan()
+  .filter(op => op.and(
+    op.or(
+      op.eq("autoRenew", false),                               // No auto-renewal
+      op.lt("paymentSuccessRate", 0.8),                        // Payment issues
+      op.attributeExists("downgradeRequest")                   // Downgrade requested
+    ),
+    op.or(
+      op.gte("daysUntilExpiry", 7),                            // Expiring soon
+      op.gte("daysUntilExpiry", 30)                            // Expiring in month
+    ),
+    op.or(
+      op.gt("lifetimeValue", 500),                             // Valuable customers
+      op.eq("tier", "enterprise"),                             // Enterprise customers
+      op.gt("usageMetrics", 1000)                              // High usage
+    )
+  ))
+  .execute();
+```
+
+### Performance-Optimized Complex Queries
+
+```ts
+// ❌ Inefficient: Multiple OR conditions for status
+const inefficientStatusQuery = await userRepo.scan()
+  .filter(op => op.or(
+    op.eq("status", "active"),
+    op.eq("status", "premium"),
+    op.eq("status", "trial"),
+    op.eq("status", "vip")
+  ))
+  .execute();
+
+// ✅ Better: Use inArray for multiple equality checks
+const efficientStatusQuery = await userRepo.scan()
+  .filter(op => op.inArray("status", ["active", "premium", "trial", "vip"]))
+  .execute();
+
+// ✅ Best: Use entity indexes with semantic queries
+const optimizedStatusQuery = await userRepo.query
+  .getActiveUsers()  // Uses GSI index
+  .execute();
+
+// Complex business logic with efficient patterns
+const businessOptimizedQuery = await userRepo.scan()
+  .filter(op => op.and(
+    op.inArray("status", ["active", "premium"]),              // Efficient multi-value
+    op.or(
+      op.gt("credits", 1000),                                 // High value
+      op.attributeExists("vipMembership")                     // VIP status
+    ),
+    op.attributeNotExists("suspendedAt")                      // Not suspended
+  ))
+  .execute();
+```
+
+### Chaining Filters with Entity Queries
+
+```ts
+// Entity queries support chaining additional filters
+const advancedUserQuery = await userRepo.query
+  .getActiveUsers()                                           // Use semantic query
+  .filter(op => op.gt("credits", 500))                       // Add runtime filter
+  .filter(op => op.or(                                       // Add complex logic
+    op.eq("settings.theme", "dark"),
+    op.eq("preferences.notifications", true)
+  ))
+  .select(["name", "email", "credits", "settings"])          // Type-safe selection
+  .limit(50)                                                  // Limit results
+  .execute();
+
+// Chain multiple business filters
+const targetCustomersQuery = await orderRepo.query
+  .getOrdersByStatus({ status: "processing" })               // Semantic query
+  .filter(op => op.gt("amount", 100))                        // Minimum value
+  .filter(op => op.or(                                       // Shipping preferences
+    op.eq("shippingMethod", "express"),
+    op.eq("customerTier", "premium")
+  ))
+  .sortDescending()                                           // Latest first
+  .execute();
+```
+
 ## Query Constraints
 
 ### Limiting Results

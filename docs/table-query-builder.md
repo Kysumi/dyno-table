@@ -341,6 +341,229 @@ const targetUsers = await table
   .execute();
 ```
 
+### Advanced AND/OR Query Patterns
+
+Here are comprehensive examples of complex logical operations for real-world scenarios:
+
+```ts
+// Find VIP customers
+const vipCustomers = await table
+  .scan<User>()
+  .filter(op => op.and(
+    op.or(
+      op.gt("totalSpent", 10000),
+      op.gt("orderCount", 50)
+    ),
+    op.eq("status", "active"),
+    op.eq("emailVerified", true)
+  ))
+  .execute();
+
+// Find products that need attention
+const productsNeedingAttention = await table
+  .scan<Product>()
+  .filter(op => op.and(
+    op.or(
+      op.lt("stock", 10),
+      op.gt("returnRate", 0.15)
+    ),
+    op.ne("status", "discontinued")
+  ))
+  .execute();
+
+// Find content requiring review
+const contentForReview = await table
+  .scan<Content>()
+  .filter(op => op.and(
+    op.or(
+      op.gt("flagCount", 0),
+      op.contains("text", "sensitive"),
+      op.contains("tags", "needs-review")
+    ),
+    op.ne("moderationStatus", "reviewed")
+  ))
+  .execute();
+
+// Find engaged users with specific patterns
+const engagedUsers = await table
+  .scan<User>()
+  .filter(op => op.and(
+    op.or(
+      op.gte("lastLoginAt", "2024-01-01"),
+      op.eq("hasActiveSession", true)
+    ),
+    op.or(
+      op.eq("plan", "premium"),
+      op.eq("plan", "trial")
+    ),
+    op.or(
+      op.attributeExists("mobileAppVersion"),
+      op.attributeExists("webAppLastUsed")
+    )
+  ))
+  .execute();
+
+// High risk account assessment
+const highRiskAccounts = await table
+  .scan<Account>()
+  .filter(op => op.and(
+    op.or(
+      op.gt("failedPayments", 2),
+      op.eq("suspiciousActivityFlag", true)
+    ),
+    op.or(
+      op.gt("monthlyTransactionVolume", 50000),
+      op.lt("accountAgeInDays", 30)
+    )
+  ))
+  .execute();
+
+// Find organizations with usage anomalies
+const organizationsWithAnomalies = await table
+  .scan<Organization>()
+  .filter(op => op.and(
+    op.or(
+      op.gt("dailyApiCalls", 100000),
+      op.gt("storageUsedGB", 1000)
+    ),
+    op.ne("plan", "enterprise"),
+    op.eq("subscriptionStatus", "active")
+  ))
+  .execute();
+
+// Find players for matchmaking
+const potentialMatches = await table
+  .query<Player>({ pk: "SKILL_TIER#gold" })
+  .filter(op => op.and(
+    op.between("skillRating", 1800, 2200),
+    op.or(
+      op.eq("region", "us-west"),
+      op.lt("averageLatency", 50)
+    ),
+    op.or(
+      op.eq("status", "online"),
+      op.gte("lastActiveAt", "2024-01-20")
+    )
+  ))
+  .execute();
+
+// Patient priority screening
+const highPriorityPatients = await table
+  .scan<Patient>()
+  .filter(op => op.and(
+    op.or(
+      op.contains("symptoms", "chest pain"),
+      op.contains("symptoms", "difficulty breathing"),
+      op.eq("emergencyContact", true)
+    ),
+    op.ne("visitStatus", "completed"),
+    op.or(
+      op.eq("insuranceVerified", true),
+      op.eq("emergencyCase", true)
+    )
+  ))
+  .execute();
+
+// Property search with complex criteria
+const matchingProperties = await table
+  .scan<Property>()
+  .filter(op => op.and(
+    op.or(
+      op.between("price", 300000, 500000),
+      op.eq("negotiable", true)
+    ),
+    op.or(
+      op.gte("bedrooms", 3),
+      op.eq("flexibleLayout", true)
+    ),
+    op.or(
+      op.eq("neighborhood", "downtown"),
+      op.eq("neighborhood", "westside"),
+      op.lt("commuteTimeMinutes", 30)
+    )
+  ))
+  .execute();
+
+// System health monitoring
+const systemsNeedingAttention = await table
+  .scan<Service>()
+  .filter(op => op.and(
+    op.or(
+      op.gt("errorRate", 0.05),
+      op.lt("responseTimeMs", 2000),
+      op.gt("cpuUsage", 0.8)
+    ),
+    op.eq("environment", "production"),
+    op.ne("maintenanceMode", true)
+  ))
+  .execute();
+```
+
+### Chaining Multiple Filter Conditions
+
+You can also chain multiple `.filter()` calls, which creates an implicit AND between them:
+
+```ts
+// These are equivalent approaches:
+
+// Approach 1: Single filter with op.and()
+const results1 = await table
+  .scan<Order>()
+  .filter(op => op.and(
+    op.eq("status", "shipped"),
+    op.gt("amount", 100),
+    op.eq("region", "us-west")
+  ))
+  .execute();
+
+// Approach 2: Multiple filter calls (implicit AND)
+const results2 = await table
+  .scan<Order>()
+  .filter(op => op.eq("status", "shipped"))
+  .filter(op => op.gt("amount", 100))
+  .filter(op => op.eq("region", "us-west"))
+  .execute();
+
+// Approach 3: Mixed - combining both patterns
+const results3 = await table
+  .scan<Order>()
+  .filter(op => op.or(
+    op.eq("status", "shipped"),
+    op.eq("status", "delivered")
+  ))
+  .filter(op => op.gt("amount", 100))        // AND with the OR condition above
+  .filter(op => op.eq("region", "us-west"))  // AND with all previous conditions
+  .execute();
+```
+
+### Performance Considerations for Complex Filters
+
+```ts
+// ❌ Inefficient: Complex scan with many OR conditions
+const inefficientQuery = await table
+  .scan<User>()
+  .filter(op => op.or(
+    op.eq("status", "active"),
+    op.eq("status", "pending"),
+    op.eq("status", "trial"),
+    op.eq("status", "premium"),
+    op.eq("status", "enterprise")
+  ))
+  .execute();
+
+// ✅ Better: Use inArray for multiple equality checks
+const efficientQuery = await table
+  .scan<User>()
+  .filter(op => op.inArray("status", ["active", "pending", "trial", "premium", "enterprise"]))
+  .execute();
+
+// ✅ Best: Design GSI for common filter patterns
+const optimizedQuery = await table
+  .query<User>({ pk: "STATUS#active" })  // Use GSI instead of scan
+  .useIndex("status-index")
+  .execute();
+```
+
 ## Query Constraints
 
 ### Limiting Results

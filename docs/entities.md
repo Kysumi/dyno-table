@@ -369,10 +369,12 @@ await table.transaction((tx) => {
 });
 
 // Create with batch
-await table.batchWrite((batch) => {
-  userRepo.create(user1).withBatch(batch);
-  userRepo.create(user2).withBatch(batch);
-});
+const batch = table.batchBuilder();
+
+userRepo.create(user1).withBatch(batch);
+userRepo.create(user2).withBatch(batch);
+
+await batch.execute();
 ```
 
 ### Upsert Operations
@@ -744,18 +746,22 @@ await table.transaction((tx) => {
 
 ```ts
 // Batch write operations
-await table.batchWrite((batch) => {
-  users.forEach(userData => {
-    userRepo.create(userData).withBatch(batch);
-  });
+const batch = table.batchBuilder();
+
+users.forEach(userData => {
+  userRepo.create(userData).withBatch(batch);
 });
 
+await batch.execute();
+
 // Mixed batch operations
-await table.batchWrite((batch) => {
-  userRepo.create(newUser).withBatch(batch);
-  userRepo.delete({ id: "old-user" }).withBatch(batch);
-  profileRepo.create(newProfile).withBatch(batch);
-});
+const mixedBatch = table.batchBuilder();
+
+userRepo.create(newUser).withBatch(mixedBatch);
+userRepo.delete({ id: "old-user" }).withBatch(mixedBatch);
+profileRepo.create(newProfile).withBatch(mixedBatch);
+
+await mixedBatch.execute();
 ```
 
 ### Index Updates
