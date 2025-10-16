@@ -1,6 +1,6 @@
 # dyno-table
 
-A modern, type-safe DynamoDB ORM for TypeScript applications with powerful single-table design patterns and schema validation.
+> A powerful, type-safe DynamoDB library for TypeScript that simplifies working with DynamoDB through intuitive APIs and comprehensive type safety.
 
 [![npm version](https://img.shields.io/npm/v/dyno-table.svg)](https://www.npmjs.com/package/dyno-table)
 [![npm downloads](https://img.shields.io/npm/dm/dyno-table.svg)](https://www.npmjs.com/package/dyno-table)
@@ -9,336 +9,291 @@ A modern, type-safe DynamoDB ORM for TypeScript applications with powerful singl
 
 ## Why dyno-table?
 
-- 🛡️ **Type Safety First** - Complete TypeScript integration with automatic type inference
-- 🏗️ **Schema Validation** - Built-in support for Zod, ArkType, Valibot, and other Standard Schema libraries
-- 🎯 **Semantic Queries** - Write `getUserByEmail()` instead of cryptic `gsi1` references
-- ⚡ **Zero Learning Curve** - If you know DynamoDB, you know dyno-table
-- 🔍 **Field Selection** - Type-safe projections with automatic type inference
-- 📦 **Single-Table Design** - Built for DynamoDB best practices from day one
-- 🔄 **Repository Pattern** - Clean separation between data access and business logic
+- **Type Safety First** - Full TypeScript support with compile-time error checking
+- **Schema Validation** - Built-in support for Zod, ArkType, Valibot, and other validation libraries
+- **Semantic Queries** - Write meaningful method names like `getDinosaurBySpecies()` instead of cryptic `gsi1` references
+- **Single-Table Design** - Optimized for modern DynamoDB best practices
+- **Repository Pattern** - Clean, maintainable code architecture
 
-## Installation
+## Quick Start
 
 ```bash
 npm install dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
-**Peer Dependencies**: Requires AWS SDK v3 for DynamoDB operations.
-
-## Quick Start
-
-### 1. Set up your DynamoDB client
-
-```ts
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import { Table } from "dyno-table/table";
-
-const client = new DynamoDBClient({ region: "us-west-2" });
-const docClient = DynamoDBDocument.from(client);
-
-const table = new Table({
-  client: docClient,
-  tableName: "MyTable",
-  indexes: {
-    partitionKey: "pk",
-    sortKey: "sk",
-  },
-});
-```
-
-### 2. Define your schema and entity
-
 ```ts
 import { z } from "zod";
-import { defineEntity, createIndex } from "dyno-table/entity";
+import { defineEntity, createIndex, createQueries } from "dyno-table/entity";
 
-// Define your schema with validation
-const userSchema = z.object({
+const createQuery = createQueries<typeof dinosaurSchema._type>();
+
+// 🦕 Define your dinosaur schema
+const dinosaurSchema = z.object({
   id: z.string(),
-  name: z.string(),
-  email: z.string().email(),
-  status: z.enum(["active", "inactive"]),
-  createdAt: z.string().optional(), // Auto-generated
-  updatedAt: z.string().optional(), // Auto-generated
+  species: z.string(),
+  period: z.enum(["triassic", "jurassic", "cretaceous"]),
+  diet: z.enum(["herbivore", "carnivore", "omnivore"]),
+  discoveryYear: z.number(),
+  weight: z.number(),
 });
 
-type User = z.infer<typeof userSchema>;
-
-// Create your entity
-const UserEntity = defineEntity({
-  name: "User",
-  schema: userSchema,
+// Create your entity with indexes for efficient queries
+const DinosaurEntity = defineEntity({
+  name: "Dinosaur",
+  schema: dinosaurSchema,
   primaryKey: createIndex()
     .input(z.object({ id: z.string() }))
-    .partitionKey(({ id }) => `USER#${id}`)
+    .partitionKey(({ id }) => `DINO#${id}`)
     .sortKey(() => "PROFILE"),
-  queries: {},
-});
-
-// Get your repository
-const userRepo = UserEntity.createRepository(table);
-```
-
-### 3. Start using your repository
-
-```ts
-// Create a user
-const user = await userRepo.create({
-  id: "123",
-  name: "John Doe",
-  email: "john@example.com",
-  status: "active",
-}).execute();
-
-// Get a user
-const foundUser = await userRepo.get({ id: "123" }).execute();
-
-// Update a user
-await userRepo.update(
-  { id: "123" },
-  { name: "Jane Doe" }
-).execute();
-
-// Delete a user
-await userRepo.delete({ id: "123" }).execute();
-```
-
-That's it! You now have a fully type-safe, validated DynamoDB repository.
-
-**Ready to build type-safe DynamoDB applications?** Start with our [5-minute quick start guide](docs/query-builder.md) or dive into the [Entity Pattern documentation](docs/entities.md).
-
-## Core Concepts
-
-### Entities vs Direct Table Access
-
-dyno-table provides two approaches - choose what fits your needs:
-
-#### Entity Pattern (Recommended)
-High-level abstraction with schema validation and semantic queries:
-
-```ts
-// ✅ Entity Pattern - Type-safe, validated, semantic
-const activeUsers = await userRepo.query
-  .getActiveUsers()
-  .execute();
-
-const userProfile = await userRepo.get({ id: "123" })
-  .select(["name", "email"])
-  .execute();
-```
-
-#### Direct Table Access
-Low-level control for simple operations:
-
-```ts
-// Direct table access - More control, less safety
-const items = await table
-  .query({ pk: "USER#123" })
-  .filter((op) => op.eq("status", "active"))
-  .execute();
-```
-
-### Type-Safe Field Selection
-
-Get exactly what you need with automatic type inference:
-
-```ts
-// Select specific fields - TypeScript knows the result type
-const profiles = await userRepo.scan()
-  .select(["name", "email", "metadata.preferences"])
-  .execute();
-
-for await (const profile of profiles) {
-  console.log(profile.name);    // ✅ string
-  console.log(profile.email);   // ✅ string
-  console.log(profile.metadata.preferences); // ✅ nested object
-  // console.log(profile.id);   // ❌ TypeScript error - not selected
-}
-```
-
-### Query Building
-
-Fluent, chainable API for complex operations:
-
-```ts
-// Simple query
-const users = await table
-  .query({ pk: "USER#active" })
-  .execute();
-
-// Complex query with filters and pagination
-const results = await table
-  .query({ pk: "PRODUCT#electronics" })
-  .filter((op) =>
-    op.and(
-      op.gt("price", 100),
-      op.eq("inStock", true)
-    )
-  )
-  .limit(20)
-  .execute();
-
-// Stream large results efficiently
-for await (const product of results) {
-  console.log(product.name);
-  // Process one item at a time - memory efficient
-}
-```
-
-## Advanced Examples
-
-### Semantic Queries with Entities
-
-```ts
-import { createQueries } from "dyno-table/entity";
-
-const createQuery = createQueries<User>();
-
-const UserEntity = defineEntity({
-  name: "User",
-  schema: userSchema,
-  primaryKey: primaryKey,
   indexes: {
-    byStatus: createIndex()
-      .input(userSchema)
-      .partitionKey(({ status }) => `STATUS#${status}`)
-      .sortKey(({ createdAt }) => createdAt),
-    byEmail: createIndex()
-      .input(userSchema)
-      .partitionKey(({ email }) => `EMAIL#${email}`)
-      .withoutSortKey(),
+    byDiet: createIndex()
+      .input(dinosaurSchema)
+      .partitionKey(({ diet }) => `DIET#${diet}`)
+      .sortKey(({ species }) => species),
   },
   queries: {
-    // Define semantic query methods
-    getActiveUsers: createQuery
-      .input(z.object({}))
-      .query(({ entity }) =>
-        entity.query({ pk: "STATUS#active" }).useIndex("byStatus")
-      ),
-
-    getUserByEmail: createQuery
-      .input(z.object({ email: z.string().email() }))
+    getDinosaursByDiet: createQuery
+      .input(z.object({ diet: z.enum(["herbivore", "carnivore", "omnivore"]) }))
       .query(({ input, entity }) =>
-        entity.query({ pk: `EMAIL#${input.email}` }).useIndex("byEmail")
+        entity.query({ pk: `DIET#${input.diet}` }).useIndex("byDiet")
       ),
   },
 });
 
-// Usage - clear, validated, type-safe
-const activeUsers = await userRepo.query.getActiveUsers().execute();
-const user = await userRepo.query.getUserByEmail({
-  email: "john@example.com"
+// Start using it!
+const dinoRepo = DinosaurEntity.createRepository(table);
+
+// Create a T-Rex
+const tRex = await dinoRepo.create({
+  id: "t-rex-1",
+  species: "Tyrannosaurus Rex",
+  period: "cretaceous",
+  diet: "carnivore",
+  discoveryYear: 1905,
+  weight: 8000,
 }).execute();
+
+// Find all carnivores (efficient query using index!)
+const carnivores = await dinoRepo.query
+  .getDinosaursByDiet({ diet: "carnivore" })
+  .execute();
 ```
 
-### Transactions and Batch Operations
+**That's it!** You now have a fully type-safe, validated database with semantic queries.
+
+---
+
+## Feature Overview
+
+### Entity Pattern (Recommended)
+*Schema-validated, semantic queries with business logic*
 
 ```ts
-// ACID transactions
-await table.transaction((tx) => {
-  userRepo.create(newUser).withTransaction(tx);
-  userRepo.update({ id: "456" }, { status: "inactive" }).withTransaction(tx);
-  userRepo.delete({ id: "789" }).withTransaction(tx);
-});
+// Get specific dinosaur
+const tRex = await dinoRepo.get({ id: "t-rex-1" });
 
-// Batch operations with automatic chunking
-await table.batchWrite((batch) => {
-  users.forEach(user => {
-    userRepo.create(user).withBatch(batch);
-  });
-});
+// Semantic queries
+const cretaceousDinos = await dinoRepo.query
+  .getDinosaursByPeriod({ period: "cretaceous" })
+  .execute();
 ```
+**[Complete Entity Guide →](docs/entities.md)**
 
-### Schema Evolution
+### Direct Table Operations
+*Low-level control for advanced use cases*
 
 ```ts
-// Start simple
-const userSchemaV1 = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string(),
+// Direct DynamoDB access with query
+const carnivoresInCretaceous = await table
+  .query({ pk: "PERIOD#cretaceous" })
+  .filter(op => op.eq("diet", "carnivore"))
+  .execute();
+```
+**[Table Operations Guide →](docs/table-query-builder.md)**
+
+### Advanced Querying & Filtering
+*Complex business logic with AND/OR operations*
+
+```ts
+// Find large herbivores from Jurassic period using query + filter
+const conditions = await dinoRepo.query
+  .getDinosaursByDiet({ diet: "herbivore" })
+  .filter(op => op.and(
+    op.eq("period", "jurassic"),
+    op.gt("weight", 3000)
+  ))
+  .execute();
+```
+**[Advanced Queries Guide →](docs/query-builder.md)**
+
+### Batch Operations
+*Efficient bulk operations*
+
+```ts
+// Get multiple dinosaurs at once
+const dinos = await dinoRepo.batchGet([
+  { id: "t-rex-1" },
+  { id: "triceratops-1" },
+  { id: "stegosaurus-1" }
+]).execute();
+
+// Bulk create carnivores
+const batch = table.batchBuilder();
+
+carnivores.forEach(dino =>
+  dinoRepo.create(dino).withBatch(batch)
+);
+
+await batch.execute();
+```
+**[Batch Operations Guide →](docs/batch-operations.md)**
+
+### Transactions
+*ACID transactions for data consistency*
+
+```ts
+// Atomic dinosaur discovery
+await table.transaction(tx => [
+  dinoRepo.create(newDinosaur).withTransaction(tx),
+  researchRepo.update(
+    { id: "paleontologist-1" },
+    { discoveriesCount: val => val.add(1) }
+  ).withTransaction(tx),
+]);
+```
+**[Transactions Guide →](docs/transactions.md)**
+
+### Type-Safe Field Selection
+*Get exactly what you need with automatic TypeScript inference*
+
+```ts
+// Select specific fields - TypeScript knows the result type!
+const basicInfo = await dinoRepo.query
+  .getDinosaursByDiet({ diet: "herbivore" })
+  .select(["species", "period", "diet"])
+  .execute();
+
+for await (const dino of basicInfo) {
+  console.log(dino.species);  // ✅ string
+  console.log(dino.period);   // ✅ "triassic" | "jurassic" | "cretaceous"
+  // console.log(dino.weight); // ❌ TypeScript error - not selected
+}
+```
+**[Type Safety Guide →](docs/type-safety.md)**
+
+### Pagination & Memory Management
+*Handle large datasets efficiently*
+
+```ts
+// Stream large datasets (memory efficient)
+const allCarnivores = await dinoRepo.query
+  .getDinosaursByDiet({ diet: "carnivore" })
+  .execute();
+for await (const dino of allCarnivores) {
+  await processDiscovery(dino); // Process one at a time
+}
+
+// Paginated results
+const paginator = dinoRepo.query
+  .getDinosaursByDiet({ diet: "herbivore" })
+  .paginate(50);
+while (paginator.hasNextPage()) {
+  const page = await paginator.getNextPage();
+  console.log(`Processing ${page.items.length} herbivores...`);
+}
+```
+**[Pagination Guide →](docs/pagination.md)**
+
+### Schema Validation
+*Works with any Standard Schema library*
+
+```ts
+// Zod (included)
+const dinoSchema = z.object({
+  species: z.string().min(3),
+  weight: z.number().positive(),
 });
 
-// Evolve with defaults for backward compatibility
-const userSchemaV2 = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string(),
-  status: z.enum(["active", "inactive"]).default("active"), // New field with default
-  preferences: z.object({
-    theme: z.enum(["light", "dark"]).default("light"),
-    notifications: z.boolean().default(true),
-  }).default({ theme: "light", notifications: true }), // New nested object
+// ArkType
+const dinoSchema = type({
+  species: "string>2",
+  weight: "number>0",
+});
+
+// Valibot
+const dinoSchema = v.object({
+  species: v.pipe(v.string(), v.minLength(3)),
+  weight: v.pipe(v.number(), v.minValue(1)),
 });
 ```
+**[Schema Validation Guide →](docs/schema-validation.md)**
+
+### Performance Optimization
+*Built for scale*
+
+```ts
+// Use indexes for fast lookups
+const jurassicCarnivores = await dinoRepo.query
+  .getDinosaursByPeriodAndDiet({
+    period: "jurassic",
+    diet: "carnivore"
+  })
+  .useIndex("period-diet-index")
+  .execute();
+
+// Efficient filtering with batchGet for known species
+const largeDinos = await dinoRepo.batchGet([
+  { id: "t-rex-1" },
+  { id: "triceratops-1" },
+  { id: "brontosaurus-1" }
+]).execute();
+```
+**[Performance Guide →](docs/performance.md)**
+
+---
 
 ## Documentation
 
-### 📚 Complete Guides
-- **[Query Builder Guide](docs/query-builder.md)** - Complete guide to queries, filters, pagination, and optimization
-- **[Entity Pattern Guide](docs/entities.md)** - Schema validation, semantic queries, and advanced entity features
+### Getting Started
+- **[Quick Start Tutorial →](docs/quick-start.md)** - Get up and running quickly
+- **[Installation Guide →](docs/installation.md)** - Setup and configuration
+- **[Your First Entity →](docs/first-entity.md)** - Create your first entity
 
-### 🚀 Examples
-- **[Entity Pattern Example](examples/entity-example/)** - Complete entity setup with schema validation
-- **[Basic Table Operations](examples/)** - Simple CRUD operations
-- **[Advanced Queries](examples/)** - Complex filtering and pagination
+### Core Concepts
+- **[Entity vs Table →](docs/entity-vs-table.md)** - Choose your approach
+- **[Single Table Design →](docs/single-table.md)** - DynamoDB best practices
+- **[Key Design Patterns →](docs/key-patterns.md)** - Partition and sort keys
 
-## Schema Library Support
+### Features
+- **[Query Building →](docs/query-builder.md)** - Complex queries and filtering
+- **[Schema Validation →](docs/schema-validation.md)** - Type safety and validation
+- **[Transactions →](docs/transactions.md)** - ACID operations
+- **[Batch Operations →](docs/batch-operations.md)** - Bulk operations
+- **[Pagination →](docs/pagination.md)** - Handle large datasets
+- **[Type Safety →](docs/type-safety.md)** - TypeScript integration
 
-Works with any Standard Schema library:
+### Advanced Topics
+- **[Performance →](docs/performance.md)** - Optimization strategies
+- **[Error Handling →](docs/error-handling.md)** - Robust error management
+- **[Migration →](docs/migration.md)** - Evolving your schema
 
-```ts
-// Zod
-import { z } from "zod";
-const zodSchema = z.object({ name: z.string() });
-
-// ArkType
-import { type } from "arktype";
-const arkSchema = type({ name: "string" });
-
-// Valibot
-import * as v from "valibot";
-const valibotSchema = v.object({ name: v.string() });
-
-// All work with defineEntity
-const Entity = defineEntity({
-  name: "MyEntity",
-  schema: zodSchema, // or arkSchema, or valibotSchema
-  // ... rest of config
-});
-```
-
-### Development Setup
-
-```bash
-# Install dependencies
-pnpm install
-
-# Start local DynamoDB for testing
-pnpm run ddb:start
-pnpm run local:setup
-
-# Run tests
-pnpm test
-
-# Run integration tests
-pnpm test:int
-
-# Build the project
-pnpm build
-```
-
-### Testing
-
-- `pnpm test` - Unit tests
-- `pnpm test:int` - Integration tests (requires local DynamoDB)
-- `pnpm run format` - Format code
-- `pnpm run lint` - Lint code
-- `pnpm run check-types` - Type check
-
-## License
-
-MIT © [dyno-table contributors](LICENSE)
+### Examples
+- **[E-commerce Store →](examples/ecommerce)** - Product catalog and orders
+- **[User Management →](examples/users)** - Authentication and profiles
+- **[Content Management →](examples/cms)** - Blog posts and comments
+- **[Analytics →](examples/analytics)** - Event tracking and reporting
 
 ---
+
+## Links
+
+- **[Documentation](docs/)** - Complete guides and references
+- **[Issues](https://github.com/Kysumi/dyno-table/issues)** - Report bugs or request features
+- **[Discussions](https://github.com/Kysumi/dyno-table/discussions)** - Ask questions and share ideas
+- **[NPM](https://www.npmjs.com/package/dyno-table)** - Package information
+
+---
+
+<div align="center">
+  <em>Built by developers who believe working with DynamoDB should be intuitive and type-safe</em>
+</div>
