@@ -67,8 +67,14 @@ const [dino, expedition, budget] = snapshot;
 
 ## 🎯 Common Patterns
 
+Transactions become powerful when combined with conditions to enforce business rules atomically.
+
+**→ For comprehensive conditional operation patterns, see [Conditions Guide](./conditions.md)**
+
 ### Conditional Updates
 Ensure business rules are enforced:
+
+**→ For detailed condition patterns and examples, see [Conditions Guide](./conditions.md)**
 
 ```typescript
 // Transfer dinosaur between expeditions

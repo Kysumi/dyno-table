@@ -221,6 +221,10 @@ const timeBasedQuery = await table
 
 ## Filter Conditions
 
+Filters control which items are returned from queries and scans. They're applied **after** items are retrieved from DynamoDB but **before** being returned to your application.
+
+**→ For comprehensive condition patterns including conditional writes and duplicate prevention, see [Conditions Guide](./conditions.md)**
+
 ### Comparison Operators
 
 ```ts
@@ -705,6 +709,8 @@ await table
   .execute();
 ```
 
+**→ For comprehensive condition examples and patterns, see [Conditions Guide](./conditions.md)**
+
 ### Conditional Updates
 
 ```ts
@@ -739,6 +745,8 @@ await table
   .condition(op => op.eq("status", "inactive"))
   .execute();
 ```
+
+**→ For detailed conditional operations and duplicate prevention patterns, see [Conditions Guide](./conditions.md)**
 
 ## Pagination & Results
 

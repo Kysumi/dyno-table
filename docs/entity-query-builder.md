@@ -346,6 +346,10 @@ const recentUsers = await userRepo.query
 
 ## Filter Conditions
 
+Filters control which items are returned from queries and scans with automatic type safety and schema validation.
+
+**→ For comprehensive condition patterns including conditional writes and duplicate prevention, see [Conditions Guide](./conditions.md)**
+
 ### Comparison Operations
 
 ```ts

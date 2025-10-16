@@ -5,6 +5,7 @@ This directory contains comprehensive documentation for the dyno-table library, 
 ## Files
 
 - **`query-builder.md`** - Comprehensive guide to the query builder system with DynamoDB best practices
+- **`conditions.md`** - Detailed guide to DynamoDB conditions, conditional operations, and duplicate prevention patterns
 - **`geoff-the-dyno.png`** - Library mascot and visual branding
 - **`images/`** - Directory for documentation images and diagrams
 
@@ -19,6 +20,7 @@ This directory contains comprehensive documentation for the dyno-table library, 
 - **Query vs Scan**: Performance implications and when to use each approach
 - **Memory Management**: Streaming vs batch loading patterns for different dataset sizes
 - **Index Design**: GSI and LSI patterns for efficient access patterns
+- **Conditional Operations**: How to use conditions for data integrity, duplicate prevention, and race condition handling
 
 **Performance Guidance**: Clear guidance on:
 - When to use streaming (`for await`) vs batch loading (`.toArray()`)
