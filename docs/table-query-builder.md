@@ -665,21 +665,23 @@ do {
 
 ```ts
 // Ensure inventory before purchase
-await table.transactWrite([
+await table.transaction(async (tx) => {
   // Check stock exists
-  table.conditionCheck(
+  tx.conditionCheck(
+    "TableName",
     { pk: "PRODUCT#123", sk: "INVENTORY" },
     op => op.gt("quantity", 0)
-  ),
+  );
 
   // Reduce inventory
-  table.update(
+  tx.update(
+    "TableName",
     { pk: "PRODUCT#123", sk: "INVENTORY" },
     { quantity: val => val.add(-1) }
-  ),
+  );
 
   // Create order
-  table.put({
+  tx.put("TableName", {
     pk: "USER#456",
     sk: "ORDER#789",
     orderId: "789",
@@ -687,8 +689,8 @@ await table.transactWrite([
     amount: 29.99,
     status: "processing",
     createdAt: new Date().toISOString()
-  })
-]).execute();
+  });
+});
 ```
 
 ### Conditional Put Operations
@@ -980,43 +982,36 @@ async function getCustomerOrderSummary(userId: string) {
 
 ```ts
 async function processOrder(userId: string, orderId: string, items: Array<{productId: string, quantity: number}>) {
-  // Build transaction operations
-  const transactionOps = [];
-
-  // Check inventory for each item
-  for (const item of items) {
-    transactionOps.push(
-      table.conditionCheck(
+  // Execute transaction with all operations
+  await table.transaction(async (tx) => {
+    // Check inventory for each item
+    for (const item of items) {
+      tx.conditionCheck(
+        "TableName",
         { pk: `PRODUCT#${item.productId}`, sk: "INVENTORY" },
         op => op.gte("quantity", item.quantity)
-      )
-    );
-  }
+      );
+    }
 
-  // Update inventory for each item
-  for (const item of items) {
-    transactionOps.push(
-      table.update(
+    // Update inventory for each item
+    for (const item of items) {
+      tx.update(
+        "TableName",
         { pk: `PRODUCT#${item.productId}`, sk: "INVENTORY" },
         { quantity: val => val.add(-item.quantity) }
-      )
-    );
-  }
+      );
+    }
 
-  // Create the order
-  transactionOps.push(
-    table.put({
+    // Create the order
+    tx.put("TableName", {
       pk: `USER#${userId}`,
       sk: `ORDER#${orderId}`,
       orderId,
       items,
       status: "processing",
       createdAt: new Date().toISOString()
-    })
-  );
-
-  // Execute transaction
-  await table.transactWrite(transactionOps).execute();
+    });
+  });
 }
 ```
 

@@ -902,21 +902,21 @@ do {
 
 ```ts
 // Ensure inventory before purchase with full validation
-await table.transactWrite([
+await table.transaction(async (tx) => {
   // Check stock exists
-  inventoryRepo.conditionCheck(
+  tx.conditionCheckWithCommand(inventoryRepo.conditionCheck(
     { productId: "123" },
     op => op.gt("quantity", 0)
-  ),
+  ));
 
   // Reduce inventory
-  inventoryRepo.update(
+  tx.updateWithCommand(inventoryRepo.update(
     { productId: "123" },
     { quantity: val => val.add(-1) }
-  ),
+  ));
 
   // Create order (automatically validated against schema)
-  orderRepo.put({
+  tx.putWithCommand(orderRepo.put({
     id: "789",
     userId: "456",
     amount: 29.99,
@@ -927,8 +927,8 @@ await table.transactWrite([
       quantity: 1,
       price: 29.99
     }]
-  })
-]).execute();
+  }));
+});
 ```
 
 ### Conditional Put with Schema Validation
@@ -1284,37 +1284,34 @@ async function processOrderWithValidation(orderData: {
     items: orderData.items,
   };
 
-  // Build transaction with validation at each step
-  const transactionOps = [];
+  // Execute transaction with validation at each step
+  await table.transaction(async (tx) => {
+    // Check inventory for each item
+    for (const item of orderData.items) {
+      tx.conditionCheckWithCommand(
+        inventoryRepo.conditionCheck(
+          { productId: item.productId },
+          op => op.gte("quantity", item.quantity)
+        )
+      );
+    }
 
-  // Check inventory for each item
-  for (const item of orderData.items) {
-    transactionOps.push(
-      inventoryRepo.conditionCheck(
-        { productId: item.productId },
-        op => op.gte("quantity", item.quantity)
-      )
-    );
-  }
+    // Update inventory
+    for (const item of orderData.items) {
+      tx.updateWithCommand(
+        inventoryRepo.update(
+          { productId: item.productId },
+          {
+            quantity: val => val.add(-item.quantity),
+            lastSold: new Date().toISOString()
+          }
+        )
+      );
+    }
 
-  // Update inventory
-  for (const item of orderData.items) {
-    transactionOps.push(
-      inventoryRepo.update(
-        { productId: item.productId },
-        {
-          quantity: val => val.add(-item.quantity),
-          lastSold: new Date().toISOString()
-        }
-      )
-    );
-  }
-
-  // Create the order with automatic validation
-  transactionOps.push(orderRepo.put(order));
-
-  // Execute transaction
-  await table.transactWrite(transactionOps).execute();
+    // Create the order with automatic validation
+    tx.putWithCommand(orderRepo.put(order));
+  });
 
   return order;
 }
