@@ -5,29 +5,66 @@ ACID transactions let you perform multiple operations atomically - either all su
 ## 📋 Quick Reference
 
 ```typescript
-// Multi-table atomic operations using callback-based API
 await table.transaction(async (tx) => {
-  tx.putWithCommand(dinoRepo.put({
+  dinoRepo.put({
     id: "trex-001",
     species: "T-Rex",
     status: "discovered"
-  }));
+  }).withTransaction(tx);
 
-  tx.updateWithCommand(expeditionRepo.update({ expeditionId: "exp-123" })
+  expeditionRepo.update({ expeditionId: "exp-123" })
     .set({ remainingSlots: op => op.subtract(1) })
-    .condition(op => op.gt("remainingSlots", 0)));
+    .condition(op => op.gt("remainingSlots", 0))
+    .withTransaction(tx);
 
-  tx.updateWithCommand(budgetRepo.update({ department: "paleontology" })
-    .set({ spentAmount: op => op.add(50000) }));
+  budgetRepo.update({ department: "paleontology" })
+    .set({ spentAmount: op => op.add(50000) })
+    .withTransaction(tx);
 });
 
-// Or using builder pattern
+// Alternative: Builder pattern (for programmatic construction)
 const tx = table.transactionBuilder();
-tx.putWithCommand(dinoRepo.put({ id: "trex-001", species: "T-Rex", status: "discovered" }));
-tx.updateWithCommand(expeditionRepo.update({ expeditionId: "exp-123" })
+dinoRepo.put({ id: "trex-001", species: "T-Rex", status: "discovered" }).withTransaction(tx);
+expeditionRepo.update({ expeditionId: "exp-123" })
   .set({ remainingSlots: op => op.subtract(1) })
-  .condition(op => op.gt("remainingSlots", 0)));
+  .condition(op => op.gt("remainingSlots", 0))
+  .withTransaction(tx);
 await tx.execute();
+```
+
+## 🎨 Choosing a Pattern
+
+### Callback Pattern (Recommended)
+
+```typescript
+// ✅ Preferred approach
+await table.transaction(async (tx) => {
+  repo.put({ id: "1", name: "Item 1" }).withTransaction(tx);
+  repo.update({ id: "2" }).set({ count: op => op.add(1) }).withTransaction(tx);
+});
+```
+
+### Builder Pattern
+Use `table.transactionBuilder()` when you need to:
+- Conditionally build transactions based on runtime logic
+- Construct transactions programmatically across multiple functions
+- Defer execution until a specific point
+
+```typescript
+// Use builder for conditional/programmatic construction
+const tx = table.transactionBuilder();
+
+if (shouldCreateNew) {
+  repo.put(newItem).withTransaction(tx);
+} else {
+  repo.update(existingKey).set(updates).withTransaction(tx);
+}
+
+if (updateRelated) {
+  relatedRepo.update(relatedKey).set(relatedUpdates).withTransaction(tx);
+}
+
+await tx.execute(); // Explicit execution when ready
 ```
 
 ## ✨ Transaction Types
@@ -39,24 +76,26 @@ Perform up to 25 write operations atomically:
 // Dinosaur discovery workflow
 await table.transaction(async (tx) => {
   // 1. Register the discovery
-  tx.putWithCommand(dinoRepo.put({
+  dinoRepo.put({
     id: "spino-042",
     species: "Spinosaurus",
     discoveredAt: new Date(),
     status: "pending-verification"
-  }));
+  }).withTransaction(tx);
 
   // 2. Update expedition progress
-  tx.updateWithCommand(expeditionRepo.update({ id: "sahara-2024" })
+  expeditionRepo.update({ id: "sahara-2024" })
     .set({
       totalDiscoveries: op => op.add(1),
       lastDiscovery: new Date()
-    }));
+    })
+    .withTransaction(tx);
 
   // 3. Reserve lab slot
-  tx.updateWithCommand(expeditionRepo.update({ location: "paleontology-lab" })
+  expeditionRepo.update({ location: "paleontology-lab" })
     .set({ occupiedSlots: op => op.add(1) })
-    .condition(op => op.lt("occupiedSlots", "maxCapacity")));
+    .condition(op => op.lt("occupiedSlots", "maxCapacity"))
+    .withTransaction(tx);
 });
 ```
 
@@ -84,19 +123,22 @@ Ensure business rules are enforced:
 // Transfer dinosaur between expeditions
 await table.transaction(async (tx) => {
   // Remove from source expedition
-  tx.updateWithCommand(expeditionRepo.update({ id: "expedition-a" })
+  expeditionRepo.update({ id: "expedition-a" })
     .set({ dinoCount: op => op.subtract(1) })
-    .condition(op => op.gt("dinoCount", 0)));
+    .condition(op => op.gt("dinoCount", 0))
+    .withTransaction(tx);
 
   // Add to target expedition
-  tx.updateWithCommand(expeditionRepo.update({ id: "expedition-b" })
+  expeditionRepo.update({ id: "expedition-b" })
     .set({ dinoCount: op => op.add(1) })
-    .condition(op => op.lt("dinoCount", "maxCapacity")));
+    .condition(op => op.lt("dinoCount", "maxCapacity"))
+    .withTransaction(tx);
 
   // Update dinosaur assignment
-  tx.updateWithCommand(dinoRepo.update({ id: "trex-001" })
+  dinoRepo.update({ id: "trex-001" })
     .set({ assignedExpedition: "expedition-b" })
-    .condition(op => op.eq("status", "active")));
+    .condition(op => op.eq("status", "active"))
+    .withTransaction(tx);
 });
 ```
 
@@ -107,28 +149,30 @@ Track resources atomically:
 // Equipment checkout system
 await table.transaction(async (tx) => {
   // Reserve equipment
-  tx.updateWithCommand(equipmentRepo.update({ id: "excavator-pro" })
+  equipmentRepo.update({ id: "excavator-pro" })
     .set({
       status: "checked-out",
       checkedOutBy: "researcher-123",
       checkedOutAt: new Date()
     })
-    .condition(op => op.eq("status", "available")));
+    .condition(op => op.eq("status", "available"))
+    .withTransaction(tx);
 
   // Update researcher's equipment list
-  tx.updateWithCommand(researcherRepo.update({ id: "researcher-123" })
+  researcherRepo.update({ id: "researcher-123" })
     .set({
       checkedOutEquipment: op => op.listAppend(["excavator-pro"])
-    }));
+    })
+    .withTransaction(tx);
 
   // Log the transaction
-  tx.putWithCommand(activityLogRepo.put({
+  activityLogRepo.put({
     id: `checkout-${Date.now()}`,
     action: "equipment-checkout",
     equipment: "excavator-pro",
     researcher: "researcher-123",
     timestamp: new Date()
-  }));
+  }).withTransaction(tx);
 });
 ```
 
@@ -139,9 +183,10 @@ Transactions can fail for several reasons:
 ```typescript
 try {
   await table.transaction(async (tx) => {
-    tx.putWithCommand(dinoRepo.put({ id: "new-dino", species: "Unknown" }));
-    tx.updateWithCommand(expeditionRepo.update({ id: "exp-1" })
-      .set({ dinoCount: op => op.add(1) }));
+    dinoRepo.put({ id: "new-dino", species: "Unknown" }).withTransaction(tx);
+    expeditionRepo.update({ id: "exp-1" })
+      .set({ dinoCount: op => op.add(1) })
+      .withTransaction(tx);
   });
 } catch (error) {
   if (error.name === "TransactionCanceledException") {
@@ -158,12 +203,13 @@ try {
 ```typescript
 // Update with version check
 await table.transaction(async (tx) => {
-  tx.updateWithCommand(dinoRepo.update({ id: "trex-001" })
+  dinoRepo.update({ id: "trex-001" })
     .set({
       classification: "updated-classification",
       version: op => op.add(1)
     })
-    .condition(op => op.eq("version", currentVersion)));
+    .condition(op => op.eq("version", currentVersion))
+    .withTransaction(tx);
 });
 ```
 
