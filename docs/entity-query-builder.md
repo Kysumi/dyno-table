@@ -849,33 +849,6 @@ const newestFirst = await orderRepo.query
   .execute();
 ```
 
-### Type-Safe Field Selection
-
-```ts
-// Select specific fields - automatically typed
-const userSummaries = await userRepo.scan()
-  .select(['name', 'email', 'status'])  // Type: { name: string; email: string; status: "active" | "inactive" | "suspended" }
-  .execute();
-
-for await (const user of userSummaries) {
-  console.log(user.name);    // ✅ Available and typed
-  console.log(user.email);   // ✅ Available and typed
-  console.log(user.status);  // ✅ Available and typed as union
-  // console.log(user.credits); // ❌ TypeScript error - not selected
-}
-
-// Nested field selection
-const userPreferences = await userRepo.scan()
-  .select(['name', 'settings.theme', 'settings.notifications'])
-  .execute();
-
-for await (const user of userPreferences) {
-  console.log(user.name);                      // ✅ string
-  console.log(user.settings.theme);            // ✅ "light" | "dark"
-  console.log(user.settings.notifications);    // ✅ boolean
-}
-```
-
 ### Pagination Control
 
 ```ts

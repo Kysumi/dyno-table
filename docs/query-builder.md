@@ -91,7 +91,6 @@ Both approaches support the complete feature set of dyno-table:
 - ✅ All DynamoDB condition operators (`eq`, `gt`, `between`, `beginsWith`, etc.)
 - ✅ Complex logical operations (`and`, `or`, `not`)
 - ✅ Global Secondary Index support
-- ✅ Type-safe field selection with automatic inference
 - ✅ Pagination with multiple strategies
 - ✅ Memory-efficient streaming with `ResultIterator`
 
@@ -121,7 +120,6 @@ Each approach has comprehensive documentation covering:
 - **Query Constraints** - Limits, consistency, sorting, field selection
 - **Transaction Operations** - ACID operations with conditions
 - **Pagination & Results** - Different result handling strategies
-- **Type Safety** - TypeScript integration and validation
 - **Advanced Examples** - Real-world patterns and best practices
 
 ## Migration Between Approaches

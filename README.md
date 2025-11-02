@@ -163,24 +163,6 @@ await table.transaction(tx => [
 ```
 **[Transactions Guide →](docs/transactions.md)**
 
-### Type-Safe Field Selection
-*Get exactly what you need with automatic TypeScript inference*
-
-```ts
-// Select specific fields - TypeScript knows the result type!
-const basicInfo = await dinoRepo.query
-  .getDinosaursByDiet({ diet: "herbivore" })
-  .select(["species", "period", "diet"])
-  .execute();
-
-for await (const dino of basicInfo) {
-  console.log(dino.species);  // ✅ string
-  console.log(dino.period);   // ✅ "triassic" | "jurassic" | "cretaceous"
-  // console.log(dino.weight); // ❌ TypeScript error - not selected
-}
-```
-**[Type Safety Guide →](docs/type-safety.md)**
-
 ### Pagination & Memory Management
 *Handle large datasets efficiently*
 
