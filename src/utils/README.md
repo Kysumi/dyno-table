@@ -1,138 +1,47 @@
-# Debug Utilities
+# src/utils/ Directory
 
-This directory contains utility functions for debugging DynamoDB expressions and commands.
+This directory contains utility functions and helpers used throughout the dyno-table library. These utilities provide common functionality for DynamoDB operations, debugging, and data processing.
 
-## Debug Expression
+## Files
 
-The `debug-expression.ts` file provides utilities to make DynamoDB expressions more readable by replacing attribute name and value placeholders with their actual values.
+- **`index.ts`** - Main exports for utility functions
+- **`chunk-array.ts`** - Array chunking utilities for batch operations (respects DynamoDB limits: 25 items for writes, 100 for reads)
+- **`debug-expression.ts`** - Debug utilities for DynamoDB expressions and attribute handling
+- **`debug-transaction.ts`** - Transaction debugging and inspection utilities
+- **`partition-key-template.ts`** - Template system for generating consistent partition keys
+- **`sort-key-template.ts`** - Template system for generating consistent sort keys with proper lexical sorting
 
-### Example Usage
+## Key Utilities
 
+**Array Chunking**: Critical for batch operations since DynamoDB has strict limits on batch sizes. Automatically handles chunking for optimal performance.
+
+**Key Templates**: Provide consistent, predictable key generation patterns:
 ```typescript
-import { debugExpression, debugCommand } from './utils/debug-expression';
+// Partition key templates ensure consistent formatting
+const userPK = partitionKeyTemplate("USER#{id}");
 
-// Example with a simple expression
-const expression = '#name = :value AND attribute_exists(#age)';
-const names = { '#name': 'userName', '#age': 'userAge' };
-const values = { ':value': 'John Doe' };
-
-const readableExpression = debugExpression(expression, names, values);
-console.log(readableExpression);
-// Output: "userName" = "John Doe" AND attribute_exists("userAge")
-
-// Example with a complete command
-const updateCommand = {
-  tableName: 'Users',
-  key: { pk: 'user#123', sk: 'profile' },
-  updateExpression: 'SET #name = :name, #age = :age, #status = :status',
-  conditionExpression: 'attribute_exists(#id)',
-  expressionAttributeNames: {
-    '#name': 'userName',
-    '#age': 'userAge',
-    '#status': 'userStatus',
-    '#id': 'userId'
-  },
-  expressionAttributeValues: {
-    ':name': 'Jane Doe',
-    ':age': 30,
-    ':status': 'active'
-  }
-};
-
-const debuggedCommand = debugCommand(updateCommand);
-console.log(JSON.stringify(debuggedCommand, null, 2));
-/* Output:
-{
-  "tableName": "Users",
-  "key": { "pk": "user#123", "sk": "profile" },
-  "updateExpression": "SET #name = :name, #age = :age, #status = :status",
-  "conditionExpression": "attribute_exists(#id)",
-  "expressionAttributeNames": {
-    "#name": "userName",
-    "#age": "userAge",
-    "#status": "userStatus",
-    "#id": "userId"
-  },
-  "expressionAttributeValues": {
-    ":name": "Jane Doe",
-    ":age": 30,
-    ":status": "active"
-  },
-  "readableUpdateExpression": "SET \"userName\" = \"Jane Doe\", \"userAge\" = 30, \"userStatus\" = \"active\"",
-  "readableConditionExpression": "attribute_exists(\"userId\")"
-}
-*/
+// Sort key templates handle lexical sorting requirements
+const dateSK = sortKeyTemplate("DATE#{date}"); // Ensures ISO format for proper sorting
 ```
 
-## Debug Transaction
+**Debug Tools**: Help developers understand what's happening under the hood:
+- Expression debugging shows attribute names and values
+- Transaction debugging reveals the actual DynamoDB operations being performed
 
-The `debug-transaction.ts` file provides utilities to make DynamoDB transaction items more readable by replacing attribute name and value placeholders with their actual values.
+**DynamoDB Best Practices**: Utilities encode DynamoDB best practices:
+- Proper lexical sorting for numeric values (zero-padding)
+- Consistent key formatting patterns
+- Optimal batch sizing for performance
 
-### Example Usage
+## Design Philosophy
 
-```typescript
-import { Table } from '../table';
-import { dynamoClient } from '../config';
+**DynamoDB Expertise Encoded**: These utilities capture years of DynamoDB experience and best practices, so library users don't need to become DynamoDB experts.
 
-// Create a table instance
-const table = new Table(dynamoClient, {
-  name: 'MyTable',
-  partitionKey: 'pk',
-  sortKey: 'sk'
-});
+**Lexical Sorting Awareness**: Key template utilities ensure proper lexical sorting behavior, which is critical for range queries but often overlooked by developers.
 
-// Create a transaction
-const transaction = table.transactionBuilder();
+**Performance Optimization**: Chunking and batching utilities optimize for DynamoDB's performance characteristics and limitations.
 
-// Add operations to the transaction
-transaction.put('MyTable', {
-  pk: 'user#123',
-  sk: 'profile',
-  name: 'John Doe',
-  email: 'john@example.com'
-});
+**Debugging Support**: Debug utilities make it easier to troubleshoot DynamoDB operations, which can be opaque without proper tooling.
 
-const updateBuilder = table.update({
-  pk: 'user#123',
-  sk: 'settings'
-});
-
-updateBuilder
-  .set('theme', 'dark')
-  .set('notifications', true)
-  .condition(op => op.attributeExists('pk'))
-  .withTransaction(transaction);
-
-// Debug the transaction
-const debugInfo = transaction.debug();
-console.log(JSON.stringify(debugInfo, null, 2));
-/* Output:
-[
-  {
-    "type": "Put",
-    "tableName": "MyTable",
-    "item": {
-      "pk": "user#123",
-      "sk": "profile",
-      "name": "John Doe",
-      "email": "john@example.com"
-    }
-  },
-  {
-    "type": "Update",
-    "tableName": "MyTable",
-    "key": {
-      "pk": "user#123",
-      "sk": "settings"
-    },
-    "readableUpdate": "SET \"theme\" = \"dark\", \"notifications\" = true",
-    "readableCondition": "attribute_exists(\"pk\")"
-  }
-]
-*/
-
-// Execute the transaction
-await transaction.execute();
-```
-
-These utilities are particularly useful when debugging complex DynamoDB operations, as they make it easier to understand what's happening with the expressions and attribute values. 
+## Testing
+- **`__tests__/`** - Unit tests for all utility functions

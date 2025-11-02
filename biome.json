@@ -19,7 +19,11 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "style": {
+        "recommended": true,
+        "noNonNullAssertion": "warn"
+      }
     },
     "includes": ["**", "!**/coverage"]
   },
