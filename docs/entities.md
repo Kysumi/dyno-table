@@ -791,23 +791,6 @@ const UserEntityWithReadOnlyIndex = defineEntity({
 });
 ```
 
-### Type-Safe Field Selection
-
-```ts
-// Select specific fields with automatic type inference
-const userProfiles = await userRepo.scan()
-  .select(["name", "email", "metadata.preferences"])
-  .execute();
-
-// TypeScript knows the result type:
-for await (const profile of userProfiles) {
-  console.log(profile.name);    // ✅ string
-  console.log(profile.email);   // ✅ string
-  console.log(profile.metadata.preferences); // ✅ nested object
-  // console.log(profile.id);   // ❌ TypeScript error - not selected
-}
-```
-
 ## Error Handling
 
 ### Entity-Specific Errors
