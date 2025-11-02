@@ -216,5 +216,3 @@ await table.transaction(async (tx) => {
 ## 📚 Related Guides
 
 - [Batch Operations](./batch-operations.md) - For non-transactional bulk operations
-- [Error Handling](./error-handling.md) - Comprehensive error handling strategies
-- [Type Safety](./type-safety.md) - TypeScript integration
