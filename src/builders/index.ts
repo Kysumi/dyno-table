@@ -10,7 +10,5 @@ export { QueryBuilder } from "./query-builder.js";
 export { ResultIterator } from "./result-iterator.js";
 export { ScanBuilder } from "./scan-builder.js";
 export { TransactionBuilder } from "./transaction-builder.js";
-
-// Re-export types
 export type * from "./types.js";
 export { UpdateBuilder } from "./update-builder.js";
