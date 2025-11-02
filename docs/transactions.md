@@ -176,29 +176,6 @@ await table.transaction(async (tx) => {
 });
 ```
 
-## 🚨 Error Handling
-
-Transactions can fail for several reasons:
-
-```typescript
-try {
-  await table.transaction(async (tx) => {
-    dinoRepo.put({ id: "new-dino", species: "Unknown" }).withTransaction(tx);
-    expeditionRepo.update({ id: "exp-1" })
-      .set({ dinoCount: op => op.add(1) })
-      .withTransaction(tx);
-  });
-} catch (error) {
-  if (error.name === "TransactionCanceledException") {
-    // One of the conditions failed
-    console.log("Transaction cancelled:", error.CancellationReasons);
-  } else if (error.name === "ValidationException") {
-    // Invalid operation or too many items
-    console.log("Invalid transaction:", error.message);
-  }
-}
-```
-
 ### Optimistic Locking with Transactions
 ```typescript
 // Update with version check
