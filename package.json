@@ -77,74 +77,14 @@
         "default": "./dist/utils.cjs"
       }
     },
-    "./builders/query-builder": {
+    "./builders": {
       "import": {
-        "types": "./dist/builders/query-builder.d.ts",
-        "default": "./dist/builders/query-builder.js"
+        "types": "./dist/builders.d.ts",
+        "default": "./dist/builders.js"
       },
       "require": {
-        "types": "./dist/builders/query-builder.d.cts",
-        "default": "./dist/builders/query-builder.cjs"
-      }
-    },
-    "./builders/paginator": {
-      "import": {
-        "types": "./dist/builders/paginator.d.ts",
-        "default": "./dist/builders/paginator.js"
-      },
-      "require": {
-        "types": "./dist/builders/paginator.d.cts",
-        "default": "./dist/builders/paginator.cjs"
-      }
-    },
-    "./builders/put-builder": {
-      "import": {
-        "types": "./dist/builders/put-builder.d.ts",
-        "default": "./dist/builders/put-builder.js"
-      },
-      "require": {
-        "types": "./dist/builders/put-builder.d.cts",
-        "default": "./dist/builders/put-builder.cjs"
-      }
-    },
-    "./builders/update-builder": {
-      "import": {
-        "types": "./dist/builders/update-builder.d.ts",
-        "default": "./dist/builders/update-builder.js"
-      },
-      "require": {
-        "types": "./dist/builders/update-builder.d.cts",
-        "default": "./dist/builders/update-builder.cjs"
-      }
-    },
-    "./builders/delete-builder": {
-      "import": {
-        "types": "./dist/builders/delete-builder.d.ts",
-        "default": "./dist/builders/delete-builder.js"
-      },
-      "require": {
-        "types": "./dist/builders/delete-builder.d.cts",
-        "default": "./dist/builders/delete-builder.cjs"
-      }
-    },
-    "./builders/transaction-builder": {
-      "import": {
-        "types": "./dist/builders/transaction-builder.d.ts",
-        "default": "./dist/builders/transaction-builder.js"
-      },
-      "require": {
-        "types": "./dist/builders/transaction-builder.d.cts",
-        "default": "./dist/builders/transaction-builder.cjs"
-      }
-    },
-    "./builders/condition-check-builder": {
-      "import": {
-        "types": "./dist/builders/condition-check-builder.d.ts",
-        "default": "./dist/builders/condition-check-builder.js"
-      },
-      "require": {
-        "types": "./dist/builders/condition-check-builder.d.cts",
-        "default": "./dist/builders/condition-check-builder.cjs"
+        "types": "./dist/builders.d.cts",
+        "default": "./dist/builders.cjs"
       }
     }
   },
