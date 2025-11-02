@@ -1,3 +1,10 @@
+# [2.3.0](https://github.com/Kysumi/dyno-table/compare/v2.2.1...v2.3.0) (2025-11-02)
+
+
+### Features
+
+* Documentation Updates and Bundling improvements ([#59](https://github.com/Kysumi/dyno-table/issues/59)) ([a53a71e](https://github.com/Kysumi/dyno-table/commit/a53a71e055e035b6f84c7e91cb8e052b0620612a))
+
 ## [2.2.1](https://github.com/Kysumi/dyno-table/compare/v2.2.0...v2.2.1) (2025-09-10)
 
 
