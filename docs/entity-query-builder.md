@@ -137,7 +137,7 @@ const userRepo = UserEntity.createRepository(table);
 
 ```ts
 const orderSchema = z.object({
-  id: z.string(),
+  orderId: z.string(),
   userId: z.string(),
   amount: z.number().positive(),
   status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]),
@@ -212,7 +212,7 @@ console.log(`User: ${user.name} (${user.status})`);
 
 // Get specific order
 const order = await orderRepo.get({ userId: "123", orderId: "456" });
-console.log(`Order ${order.id}: $${order.amount}`);
+console.log(`Order ${order.orderId}: $${order.amount}`);
 
 // Strong consistency read
 const criticalUser = await userRepo.get({ id: "123" }).consistentRead(true);
@@ -227,7 +227,7 @@ const userOrders = await orderRepo.query
   .execute();
 
 for await (const order of userOrders) {
-  console.log(`Order ${order.id}: $${order.amount}`);
+  console.log(`Order ${order.orderId}: $${order.amount}`);
 }
 
 // Get active users
@@ -917,7 +917,7 @@ await table.transaction(async (tx) => {
 
   // Create order (automatically validated against schema)
   tx.putWithCommand(orderRepo.put({
-    id: "789",
+    orderId: "789",
     userId: "456",
     amount: 29.99,
     status: "processing",
@@ -1014,7 +1014,7 @@ while (paginator.hasNextPage()) {
   console.log(`Page ${page.page}: ${page.items.length} orders`);
 
   page.items.forEach(order => {
-    console.log(`  Order ${order.id}: $${order.amount}`);
+    console.log(`  Order ${order.orderId}: $${order.amount}`);
   });
 }
 ```
@@ -1048,7 +1048,7 @@ for await (const order of orderIterator) {
 
   // Can break early to save API calls
   if (order.amount > 10000) {
-    console.log(`Found high-value order: ${order.id}`);
+    console.log(`Found high-value order: ${order.orderId}`);
     break;
   }
 }
@@ -1276,7 +1276,7 @@ async function processOrderWithValidation(orderData: {
 
   // Create order - schema automatically validates structure
   const order: Order = {
-    id: orderData.orderId,
+    orderId: orderData.orderId,
     userId: orderData.userId,
     amount,
     status: "pending",
