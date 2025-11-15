@@ -19,6 +19,7 @@ import {
 import { buildExpression, generateAttributeName, generateValueName } from "../expression";
 import type { DynamoItem } from "../types";
 import { debugCommand } from "../utils/debug-expression";
+import { ValidationErrors } from "../utils/error-factory";
 import type { UpdateCommandParams } from "./builder-types";
 import type { TransactionBuilder } from "./transaction-builder";
 import type { Path, PathType } from "./types";
@@ -383,7 +384,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    */
   toDynamoCommand(): UpdateCommandParams {
     if (this.updates.length === 0) {
-      throw new Error("No update actions specified");
+      throw ValidationErrors.noUpdateActions(this.tableName, this.key);
     }
 
     const expressionParams: {

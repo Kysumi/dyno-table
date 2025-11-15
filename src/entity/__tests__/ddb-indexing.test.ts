@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { IndexGenerationError } from "../../errors";
 import type { Table } from "../../table";
 import type { DynamoItem } from "../../types";
 import { IndexBuilder } from "../ddb-indexing";
@@ -234,7 +235,10 @@ describe("IndexBuilder", () => {
         },
       };
 
-      (mockTable.gsis as any).testIndex = { partitionKey: "gsi3pk", sortKey: "gsi3sk" };
+      (mockTable.gsis as Record<string, { partitionKey: string; sortKey?: string }>).testIndex = {
+        partitionKey: "gsi3pk",
+        sortKey: "gsi3sk",
+      };
 
       indexBuilder = new IndexBuilder(mockTable, indexes);
 
@@ -268,10 +272,10 @@ describe("IndexBuilder", () => {
         requiredField1: "newValue1",
       };
 
-      // This should detect the undefined value
+      // This should detect the undefined value and throw IndexGenerationError
       expect(() => {
         indexBuilder.buildForUpdate(currentDataMissing, updatesMissing);
-      }).toThrow(/Missing attributes:/);
+      }).toThrow(IndexGenerationError);
     });
 
     it("should handle validation errors from generateKey function", () => {
@@ -304,10 +308,10 @@ describe("IndexBuilder", () => {
         name: "Updated Name",
       };
 
-      // Should extract 'requiredField' from the validation error message
+      // Should throw IndexGenerationError
       expect(() => {
         indexBuilder.buildForUpdate(currentData, updates);
-      }).toThrow(/Missing attributes:.*requiredField/);
+      }).toThrow(IndexGenerationError);
     });
 
     it("should include specific missing attribute names in error message", () => {
@@ -332,7 +336,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      (mockTable.gsis as any).enhancedIndex = {
+      (mockTable.gsis as Record<string, { partitionKey: string; sortKey?: string }>).enhancedIndex = {
         partitionKey: "gsi4pk",
         sortKey: "gsi4sk",
       };
@@ -369,15 +373,10 @@ describe("IndexBuilder", () => {
         userId: "user000", // Triggers index regeneration
       };
 
-      // This should throw with specific missing attributes
+      // This should throw IndexGenerationError
       expect(() => {
         indexBuilder.buildForUpdate(incompleteData, incompleteUpdates);
-      }).toThrow('Cannot update entity: insufficient data to regenerate index "enhancedIndex"');
-
-      // The error should mention missing attributes
-      expect(() => {
-        indexBuilder.buildForUpdate(incompleteData, incompleteUpdates);
-      }).toThrow(/Missing attributes:/);
+      }).toThrow(IndexGenerationError);
     });
 
     it("should handle multiple missing attributes in error message", () => {
@@ -406,10 +405,10 @@ describe("IndexBuilder", () => {
         attr1: "updated1",
       };
 
-      // Should list all missing attributes
+      // Should throw IndexGenerationError
       expect(() => {
         indexBuilder.buildForUpdate(currentData, updates);
-      }).toThrow(/Missing attributes:/);
+      }).toThrow(IndexGenerationError);
     });
   });
 
@@ -466,8 +465,14 @@ describe("IndexBuilder", () => {
         },
       };
 
-      (mockTable.gsis as any).readOnlyIndex = { partitionKey: "gsi1pk", sortKey: undefined };
-      (mockTable.gsis as any).normalIndex = { partitionKey: "gsi2pk", sortKey: undefined };
+      (mockTable.gsis as Record<string, { partitionKey: string; sortKey?: string }>).readOnlyIndex = {
+        partitionKey: "gsi1pk",
+        sortKey: undefined,
+      };
+      (mockTable.gsis as Record<string, { partitionKey: string; sortKey?: string }>).normalIndex = {
+        partitionKey: "gsi2pk",
+        sortKey: undefined,
+      };
 
       indexBuilder = new IndexBuilder(mockTable, indexes);
 

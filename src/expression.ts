@@ -1,4 +1,5 @@
 import type { ComparisonOperator, Condition, ExpressionParams, LogicalOperator } from "./conditions";
+import { ExpressionErrors } from "./utils/error-factory";
 
 export const generateAttributeName = (params: ExpressionParams, attr: string): string => {
   // Handle nested paths by splitting on dots
@@ -50,11 +51,11 @@ export const generateValueName = (params: ExpressionParams, value: unknown): str
 
 const validateCondition = (condition: Condition, requiresAttr = true, requiresValue = true): void => {
   if (requiresAttr && !condition.attr) {
-    throw new Error(`Attribute is required for ${condition.type} condition`);
+    throw ExpressionErrors.missingAttribute(condition.type, condition);
   }
 
   if (requiresValue && condition.value === undefined) {
-    throw new Error(`Value is required for ${condition.type} condition`);
+    throw ExpressionErrors.missingValue(condition.type, condition);
   }
 };
 
@@ -62,7 +63,7 @@ const buildComparisonExpression = (condition: Condition, operator: string, param
   validateCondition(condition);
 
   if (!condition.attr) {
-    throw new Error(`Attribute is required for ${condition.type} condition`);
+    throw ExpressionErrors.missingAttribute(condition.type, condition);
   }
 
   const attrName = generateAttributeName(params, condition.attr);
@@ -75,11 +76,15 @@ const buildBetweenExpression = (condition: Condition, params: ExpressionParams):
   validateCondition(condition);
 
   if (!condition.attr) {
-    throw new Error(`Attribute is required for ${condition.type} condition`);
+    throw ExpressionErrors.missingAttribute(condition.type, condition);
   }
 
   if (!Array.isArray(condition.value) || condition.value.length !== 2) {
-    throw new Error("Between condition requires an array of two values");
+    throw ExpressionErrors.invalidCondition(
+      condition.type,
+      condition,
+      "Provide an array with exactly two values: [lowerBound, upperBound]",
+    );
   }
 
   const attrName = generateAttributeName(params, condition.attr);
@@ -93,15 +98,19 @@ const buildInExpression = (condition: Condition, params: ExpressionParams): stri
   validateCondition(condition);
 
   if (!condition.attr) {
-    throw new Error(`Attribute is required for ${condition.type} condition`);
+    throw ExpressionErrors.missingAttribute(condition.type, condition);
   }
 
   if (!Array.isArray(condition.value) || condition.value.length === 0) {
-    throw new Error("In condition requires a non-empty array of values");
+    throw ExpressionErrors.emptyArray(condition.type, condition.value);
   }
 
   if (condition.value.length > 100) {
-    throw new Error("In condition supports a maximum of 100 values");
+    throw ExpressionErrors.invalidCondition(
+      condition.type,
+      condition,
+      "Split your query into multiple operations or use a different condition type",
+    );
   }
 
   const attrName = generateAttributeName(params, condition.attr);
@@ -114,7 +123,7 @@ const buildFunctionExpression = (functionName: string, condition: Condition, par
   validateCondition(condition);
 
   if (!condition.attr) {
-    throw new Error(`Attribute is required for ${condition.type} condition`);
+    throw ExpressionErrors.missingAttribute(condition.type, condition);
   }
 
   const attrName = generateAttributeName(params, condition.attr);
@@ -127,7 +136,7 @@ const buildAttributeFunction = (functionName: string, condition: Condition, para
   validateCondition(condition, true, false);
 
   if (!condition.attr) {
-    throw new Error(`Attribute is required for ${condition.type} condition`);
+    throw ExpressionErrors.missingAttribute(condition.type, condition);
   }
 
   const attrName = generateAttributeName(params, condition.attr);
@@ -136,7 +145,7 @@ const buildAttributeFunction = (functionName: string, condition: Condition, para
 
 const buildLogicalExpression = (operator: string, conditions: Condition[], params: ExpressionParams): string => {
   if (!conditions || conditions.length === 0) {
-    throw new Error(`At least one condition is required for ${operator} expression`);
+    throw ExpressionErrors.emptyArray(operator, conditions);
   }
 
   const expressions = conditions.map((c) => buildExpression(c, params));
@@ -163,19 +172,27 @@ export const buildExpression = (condition: Condition, params: ExpressionParams):
       attributeNotExists: () => buildAttributeFunction("attribute_not_exists", condition, params),
       and: () => {
         if (!condition.conditions) {
-          throw new Error("Conditions array is required for AND operator");
+          throw ExpressionErrors.invalidCondition(
+            condition.type,
+            condition,
+            "Provide an array of conditions to combine with AND",
+          );
         }
         return buildLogicalExpression("AND", condition.conditions, params);
       },
       or: () => {
         if (!condition.conditions) {
-          throw new Error("Conditions array is required for OR operator");
+          throw ExpressionErrors.invalidCondition(
+            condition.type,
+            condition,
+            "Provide an array of conditions to combine with OR",
+          );
         }
         return buildLogicalExpression("OR", condition.conditions, params);
       },
       not: () => {
         if (!condition.condition) {
-          throw new Error("Condition is required for NOT operator");
+          throw ExpressionErrors.invalidCondition(condition.type, condition, "Provide a condition to negate with NOT");
         }
         return `NOT (${buildExpression(condition.condition, params)})`;
       },
@@ -183,7 +200,7 @@ export const buildExpression = (condition: Condition, params: ExpressionParams):
 
     const builder = expressionBuilders[condition.type];
     if (!builder) {
-      throw new Error(`Unknown condition type: ${condition.type}`);
+      throw ExpressionErrors.unknownType(condition.type, condition);
     }
 
     return builder();

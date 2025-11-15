@@ -1,5 +1,7 @@
+import { DynoTableError } from "../errors";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
+import { ConfigurationErrors, IndexErrors } from "../utils/error-factory";
 import type { IndexDefinition } from "./entity";
 
 /**
@@ -43,11 +45,30 @@ export class IndexBuilder<T extends DynamoItem> {
         continue;
       }
 
-      const key = indexDef.generateKey(item);
-      const gsiConfig = this.table.gsis[indexName];
+      let key: IndexKey;
+      try {
+        key = indexDef.generateKey(item);
 
+        // Validate generated key doesn't contain undefined
+        if (this.hasUndefinedValues(key)) {
+          throw IndexErrors.undefinedValues(indexName, "create", key, item);
+        }
+      } catch (error) {
+        if (error instanceof DynoTableError) throw error;
+
+        throw IndexErrors.generationFailed(
+          indexName,
+          "create",
+          item,
+          indexDef.partitionKey,
+          indexDef.sortKey,
+          error instanceof Error ? error : undefined,
+        );
+      }
+
+      const gsiConfig = this.table.gsis[indexName];
       if (!gsiConfig) {
-        throw new Error(`GSI configuration not found for index: ${indexName}`);
+        throw ConfigurationErrors.gsiNotFound(indexName, this.table.tableName, Object.keys(this.table.gsis));
       }
 
       if (key.pk) {
@@ -81,10 +102,7 @@ export class IndexBuilder<T extends DynamoItem> {
     if (options.forceRebuildIndexes && options.forceRebuildIndexes.length > 0) {
       const invalidIndexes = options.forceRebuildIndexes.filter((indexName) => !this.indexes[indexName]);
       if (invalidIndexes.length > 0) {
-        throw new Error(
-          `Cannot force rebuild unknown indexes: ${invalidIndexes.join(", ")}. ` +
-            `Available indexes: ${Object.keys(this.indexes).join(", ")}`,
-        );
+        throw IndexErrors.notFound(invalidIndexes, Object.keys(this.indexes), undefined, this.table.tableName);
       }
     }
 
@@ -119,22 +137,25 @@ export class IndexBuilder<T extends DynamoItem> {
       try {
         key = indexDef.generateKey(updatedItem);
       } catch (error) {
-        if (error instanceof Error) {
-          throw new Error(`Missing attributes: ${error.message}`);
-        }
-        throw error;
+        if (error instanceof DynoTableError) throw error;
+
+        throw IndexErrors.missingAttributes(
+          indexName,
+          "update",
+          [], // We don't know which specific attributes are missing from the error
+          updates,
+          indexDef.isReadOnly,
+        );
       }
 
       // Validate the generated keys
       if (this.hasUndefinedValues(key)) {
-        throw new Error(
-          `Missing attributes: Cannot update entity: insufficient data to regenerate index "${indexName}". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.`,
-        );
+        throw IndexErrors.undefinedValues(indexName, "update", key, updates);
       }
 
       const gsiConfig = this.table.gsis[indexName];
       if (!gsiConfig) {
-        throw new Error(`GSI configuration not found for index: ${indexName}`);
+        throw ConfigurationErrors.gsiNotFound(indexName, this.table.tableName, Object.keys(this.table.gsis));
       }
 
       if (key.pk) {

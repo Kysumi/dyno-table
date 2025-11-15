@@ -19,6 +19,7 @@ import {
 import { prepareExpressionParams } from "../expression";
 import type { DynamoItem } from "../types";
 import { debugCommand } from "../utils/debug-expression";
+import { ConfigurationErrors, ValidationErrors } from "../utils/error-factory";
 import type { ConditionCheckCommandParams } from "./builder-types";
 import type { TransactionBuilder } from "./transaction-builder";
 
@@ -147,13 +148,13 @@ export class ConditionCheckBuilder {
    */
   private toDynamoCommand(): ConditionCheckCommandParams {
     if (!this.conditionExpression) {
-      throw new Error("Condition is required for condition check operations");
+      throw ValidationErrors.conditionRequired(this.tableName, this.key);
     }
 
     const { expression, names, values } = prepareExpressionParams(this.conditionExpression);
 
     if (!expression) {
-      throw new Error("Failed to generate condition expression");
+      throw ConfigurationErrors.conditionGenerationFailed(this.conditionExpression);
     }
 
     return {
@@ -187,7 +188,7 @@ export class ConditionCheckBuilder {
    */
   withTransaction(transaction: TransactionBuilder): this {
     if (!this.conditionExpression) {
-      throw new Error("Condition is required for condition check operations");
+      throw ValidationErrors.conditionRequired(this.tableName, this.key);
     }
 
     const command = this.toDynamoCommand();

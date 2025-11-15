@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
+import { IndexGenerationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -203,9 +204,7 @@ describe("Dinosaur Index Update Operations", () => {
 
       // The error should be thrown during execute, not during builder creation
       const updateBuilder = repository.update(fossilKey, updateData);
-      await expect(updateBuilder.execute()).rejects.toThrowError(
-        /Cannot update entity: insufficient data to regenerate index.*species-diet-index/,
-      );
+      await expect(updateBuilder.execute()).rejects.toThrow(IndexGenerationError);
     });
 
     it("should successfully update when all required attributes are provided", async () => {
@@ -505,9 +504,7 @@ describe("Dinosaur Index Update Operations", () => {
         // This should throw an error for unrecognized index
         const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("non-existent-index");
 
-        await expect(updateBuilder.execute()).rejects.toThrowError(
-          /Cannot force rebuild unknown indexes.*non-existent-index.*Available indexes/,
-        );
+        await expect(updateBuilder.execute()).rejects.toThrow(IndexGenerationError);
       });
 
       it("should throw error when forcing rebuild of index with missing template variables", async () => {
@@ -535,9 +532,7 @@ describe("Dinosaur Index Update Operations", () => {
         // This should throw an error because we're forcing rebuild but missing required attributes
         const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("species-diet-index");
 
-        await expect(updateBuilder.execute()).rejects.toThrowError(
-          /Cannot update entity: insufficient data to regenerate index.*species-diet-index/,
-        );
+        await expect(updateBuilder.execute()).rejects.toThrow(IndexGenerationError);
       });
     });
   });

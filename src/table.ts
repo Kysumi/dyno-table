@@ -36,7 +36,7 @@ import { buildExpression, generateAttributeName } from "./expression";
 import type { BatchWriteOperation } from "./operation-types";
 import type { DynamoItem, Index, TableConfig } from "./types";
 import { chunkArray } from "./utils/chunk-array";
-import { debugCommand } from "./utils/debug-expression";
+import { ConfigurationErrors, OperationErrors } from "./utils/error-factory";
 
 const DDB_BATCH_WRITE_LIMIT = 25;
 const DDB_BATCH_GET_LIMIT = 100;
@@ -75,7 +75,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     //  If the table has a sort key, we need to add it to the condition
     if (this.sortKey) {
       if (!keyCondition.sk) {
-        throw new Error("Sort key has not been provided but the Table has a sort key");
+        throw ConfigurationErrors.sortKeyRequired(this.tableName, this.partitionKey, this.sortKey);
       }
       // Apply the sort key condition
       primaryCondition[this.sortKey] = keyCondition.sk;
@@ -136,8 +136,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           item: result.Item ? (result.Item as T) : undefined,
         };
       } catch (error) {
-        console.error("Error getting item:", error);
-        throw error;
+        throw OperationErrors.getFailed(params.tableName, keyCondition, error instanceof Error ? error : undefined);
       }
     };
 
@@ -189,8 +188,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
         return result.Attributes as T;
       } catch (error) {
-        console.error("Error creating item:", error);
-        throw error;
+        throw OperationErrors.putFailed(params.tableName, params.item, error instanceof Error ? error : undefined);
       }
     };
 
@@ -211,7 +209,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
     if (keyCondition.sk) {
       if (!skAttributeName) {
-        throw new Error("Sort key is not defined for Index");
+        throw ConfigurationErrors.sortKeyNotDefined(this.tableName, pkAttributeName);
       }
 
       const keyConditionOperator: KeyConditionOperator = {
@@ -241,7 +239,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         const gsi = this.gsis[gsiName];
 
         if (!gsi) {
-          throw new Error(`GSI with name "${gsiName}" does not exist on table "${this.tableName}"`);
+          throw ConfigurationErrors.gsiNotFound(gsiName, this.tableName, Object.keys(this.gsis));
         }
 
         // For GSI queries, we need to rebuild the key condition expression using the GSI's keys
@@ -282,7 +280,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         }
 
         if (!pkValue) {
-          throw new Error("Could not extract partition key value from key condition");
+          throw ConfigurationErrors.pkExtractionFailed(this.tableName, options.indexName, originalKeyCondition);
         }
 
         // Build a new key condition expression for the GSI
@@ -353,9 +351,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           lastEvaluatedKey: result.LastEvaluatedKey,
         };
       } catch (error) {
-        console.log(debugCommand(params));
-        console.error("Error querying items:", error);
-        throw error;
+        throw OperationErrors.queryFailed(
+          this.tableName,
+          { indexName, keyConditionExpression, filterExpression },
+          error instanceof Error ? error : undefined,
+        );
       }
     };
 
@@ -413,9 +413,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           lastEvaluatedKey: result.LastEvaluatedKey,
         };
       } catch (error) {
-        console.log(debugCommand(params));
-        console.error("Error scanning items:", error);
-        throw error;
+        throw OperationErrors.scanFailed(
+          this.tableName,
+          { indexName: options.indexName, filterExpression },
+          error instanceof Error ? error : undefined,
+        );
       }
     };
 
@@ -437,8 +439,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           item: result.Attributes as DynamoItem,
         };
       } catch (error) {
-        console.error("Error deleting item:", error);
-        throw error;
+        throw OperationErrors.deleteFailed(params.tableName, keyCondition, error instanceof Error ? error : undefined);
       }
     };
 
@@ -467,8 +468,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           item: result.Attributes as T,
         };
       } catch (error) {
-        console.error("Error updating item:", error);
-        throw error;
+        throw OperationErrors.updateFailed(params.tableName, keyCondition, error instanceof Error ? error : undefined);
       }
     };
 
@@ -633,8 +633,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           allUnprocessedKeys.push(...unprocessedKeys);
         }
       } catch (error) {
-        console.error("Error in batch get operation:", error);
-        throw error;
+        throw OperationErrors.batchGetFailed(
+          this.tableName,
+          { requestedKeys: keys.length },
+          error instanceof Error ? error : undefined,
+        );
       }
     }
 
@@ -711,8 +714,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           allUnprocessedItems.push(...unprocessedItems);
         }
       } catch (error) {
-        console.error("Error in batch write operation:", error);
-        throw error;
+        throw OperationErrors.batchWriteFailed(
+          this.tableName,
+          { requestedOperations: operations.length },
+          error instanceof Error ? error : undefined,
+        );
       }
     }
 
