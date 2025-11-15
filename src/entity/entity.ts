@@ -29,7 +29,7 @@ export type QueryFunctionWithSchema<T extends DynamoItem, I, R> = QueryFunction<
 
 export type QueryRecord<T extends DynamoItem> = {
   // biome-ignore lint/suspicious/noExplicitAny: This is for flexibility
-  [K: string]: QueryFunctionWithSchema<T, any, ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>;
+  [K: string]: QueryFunctionWithSchema<T, any, any>;
 };
 
 // Define a type for entity with only scan, get and query methods
@@ -493,12 +493,11 @@ export function defineEntity<
               },
             };
 
-            // Execute the query function to get the builder - This type is incorrect and needs to be fixed
+            // Execute the query function to get the builder
             const queryBuilderCallback = inputCallback(input);
 
             // Run the inner handler which allows the user to apply their desired contraints
             // to the query builder of their choice
-            // @ts-expect-error - We need to cast the queryBuilderCallback to a function that takes a QueryEntity
             const builder = queryBuilderCallback(queryEntity);
 
             // Add entity type filter if the builder has filter method
@@ -557,10 +556,7 @@ export function defineEntity<
 export function createQueries<T extends DynamoItem>() {
   return {
     input: <I>(schema: StandardSchemaV1<I>) => ({
-      query: <
-        Q extends QueryRecord<T> = QueryRecord<T>,
-        R = ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>,
-      >(
+      query: <R extends ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
         const queryFn = (input: I) => (entity: QueryEntity<T>) => handler({ input, entity });
