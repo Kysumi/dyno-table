@@ -273,9 +273,3 @@ const largeDinos = await dinoRepo.batchGet([
 - **[Issues](https://github.com/Kysumi/dyno-table/issues)** - Report bugs or request features
 - **[Discussions](https://github.com/Kysumi/dyno-table/discussions)** - Ask questions and share ideas
 - **[NPM](https://www.npmjs.com/package/dyno-table)** - Package information
-
----
-
-<div align="center">
-  <em>Built by developers who believe working with DynamoDB should be intuitive and type-safe</em>
-</div>
