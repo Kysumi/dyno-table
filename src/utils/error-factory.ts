@@ -94,6 +94,15 @@ export const ValidationErrors = {
         suggestion: "Ensure the query input matches the expected schema",
       },
     ),
+
+  undefinedValue: (path: string, tableName: string, key: Record<string, unknown>) =>
+    new ValidationError(`Cannot set undefined value for attribute "${path}"`, ErrorCodes.UNDEFINED_VALUE, {
+      path,
+      tableName,
+      key,
+      suggestion:
+        "DynamoDB does not support undefined values. Use remove() to delete an attribute, or provide a valid value (null, string, number, etc.)",
+    }),
 };
 
 /**
