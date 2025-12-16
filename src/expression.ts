@@ -155,63 +155,54 @@ const buildLogicalExpression = (operator: string, conditions: Condition[], param
 export const buildExpression = (condition: Condition, params: ExpressionParams): string => {
   if (!condition) return "";
 
-  try {
-    // Map of condition types to their expression builders
-    const expressionBuilders: Record<ComparisonOperator | LogicalOperator, () => string> = {
-      eq: () => buildComparisonExpression(condition, "=", params),
-      ne: () => buildComparisonExpression(condition, "<>", params),
-      lt: () => buildComparisonExpression(condition, "<", params),
-      lte: () => buildComparisonExpression(condition, "<=", params),
-      gt: () => buildComparisonExpression(condition, ">", params),
-      gte: () => buildComparisonExpression(condition, ">=", params),
-      between: () => buildBetweenExpression(condition, params),
-      in: () => buildInExpression(condition, params),
-      beginsWith: () => buildFunctionExpression("begins_with", condition, params),
-      contains: () => buildFunctionExpression("contains", condition, params),
-      attributeExists: () => buildAttributeFunction("attribute_exists", condition, params),
-      attributeNotExists: () => buildAttributeFunction("attribute_not_exists", condition, params),
-      and: () => {
-        if (!condition.conditions) {
-          throw ExpressionErrors.invalidCondition(
-            condition.type,
-            condition,
-            "Provide an array of conditions to combine with AND",
-          );
-        }
-        return buildLogicalExpression("AND", condition.conditions, params);
-      },
-      or: () => {
-        if (!condition.conditions) {
-          throw ExpressionErrors.invalidCondition(
-            condition.type,
-            condition,
-            "Provide an array of conditions to combine with OR",
-          );
-        }
-        return buildLogicalExpression("OR", condition.conditions, params);
-      },
-      not: () => {
-        if (!condition.condition) {
-          throw ExpressionErrors.invalidCondition(condition.type, condition, "Provide a condition to negate with NOT");
-        }
-        return `NOT (${buildExpression(condition.condition, params)})`;
-      },
-    };
+  // Map of condition types to their expression builders
+  const expressionBuilders: Record<ComparisonOperator | LogicalOperator, () => string> = {
+    eq: () => buildComparisonExpression(condition, "=", params),
+    ne: () => buildComparisonExpression(condition, "<>", params),
+    lt: () => buildComparisonExpression(condition, "<", params),
+    lte: () => buildComparisonExpression(condition, "<=", params),
+    gt: () => buildComparisonExpression(condition, ">", params),
+    gte: () => buildComparisonExpression(condition, ">=", params),
+    between: () => buildBetweenExpression(condition, params),
+    in: () => buildInExpression(condition, params),
+    beginsWith: () => buildFunctionExpression("begins_with", condition, params),
+    contains: () => buildFunctionExpression("contains", condition, params),
+    attributeExists: () => buildAttributeFunction("attribute_exists", condition, params),
+    attributeNotExists: () => buildAttributeFunction("attribute_not_exists", condition, params),
+    and: () => {
+      if (!condition.conditions) {
+        throw ExpressionErrors.invalidCondition(
+          condition.type,
+          condition,
+          "Provide an array of conditions to combine with AND",
+        );
+      }
+      return buildLogicalExpression("AND", condition.conditions, params);
+    },
+    or: () => {
+      if (!condition.conditions) {
+        throw ExpressionErrors.invalidCondition(
+          condition.type,
+          condition,
+          "Provide an array of conditions to combine with OR",
+        );
+      }
+      return buildLogicalExpression("OR", condition.conditions, params);
+    },
+    not: () => {
+      if (!condition.condition) {
+        throw ExpressionErrors.invalidCondition(condition.type, condition, "Provide a condition to negate with NOT");
+      }
+      return `NOT (${buildExpression(condition.condition, params)})`;
+    },
+  };
 
-    const builder = expressionBuilders[condition.type];
-    if (!builder) {
-      throw ExpressionErrors.unknownType(condition.type, condition);
-    }
-
-    return builder();
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      console.error(`Error building expression for condition type ${condition.type}:`, error.message);
-    } else {
-      console.error(`Error building expression for condition type ${condition.type}:`, error);
-    }
-    throw error;
+  const builder = expressionBuilders[condition.type];
+  if (!builder) {
+    throw ExpressionErrors.unknownType(condition.type, condition);
   }
+
+  return builder();
 };
 
 export const prepareExpressionParams = (
