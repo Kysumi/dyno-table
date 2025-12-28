@@ -239,4 +239,88 @@ describe("UpdateBuilder", () => {
       });
     });
   });
+
+  describe("undefined value validation", () => {
+    it("should throw error when set is called with undefined value (single path)", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      expect(() => builder.set("status", undefined as unknown as string)).toThrow();
+    });
+
+    it("should throw error when set is called with undefined value in object", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      expect(() => builder.set({ status: undefined })).toThrow();
+    });
+
+    it("should include attribute name in error message for single path set", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      try {
+        builder.set("status", undefined as unknown as string);
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toHaveProperty("message");
+        expect((error as Error).message).toContain("status");
+      }
+    });
+
+    it("should include attribute name in error message for object set", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      try {
+        builder.set({ count: undefined });
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toHaveProperty("message");
+        expect((error as Error).message).toContain("count");
+      }
+    });
+
+    it("should throw error when add is called with undefined value", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      expect(() => builder.add("count", undefined as unknown as number)).toThrow();
+    });
+
+    it("should include attribute name in add error message", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      try {
+        builder.add("count", undefined as unknown as number);
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toHaveProperty("message");
+        expect((error as Error).message).toContain("count");
+      }
+    });
+
+    it("should throw error when deleteElementsFromSet is called with undefined value", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      expect(() => builder.deleteElementsFromSet("tags", undefined as unknown as string[])).toThrow();
+    });
+
+    it("should include attribute name in deleteElementsFromSet error message", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      try {
+        builder.deleteElementsFromSet("tags", undefined as unknown as string[]);
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toHaveProperty("message");
+        expect((error as Error).message).toContain("tags");
+      }
+    });
+
+    it("should allow valid values after undefined validation check", () => {
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);
+
+      // These should not throw
+      expect(() => builder.set("status", "active")).not.toThrow();
+      expect(() => builder.set({ count: 0 })).not.toThrow();
+      expect(() => builder.add("count", 5)).not.toThrow();
+      expect(() => builder.deleteElementsFromSet("tags", ["tag1"])).not.toThrow();
+    });
+  });
 });

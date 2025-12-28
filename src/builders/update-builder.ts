@@ -156,6 +156,9 @@ export class UpdateBuilder<T extends DynamoItem> {
   set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
     if (typeof valuesOrPath === "object") {
       for (const [key, value] of Object.entries(valuesOrPath)) {
+        if (value === undefined) {
+          throw ValidationErrors.undefinedValue(key, this.tableName, this.key);
+        }
         this.updates.push({
           type: "SET",
           path: key,
@@ -163,6 +166,9 @@ export class UpdateBuilder<T extends DynamoItem> {
         });
       }
     } else {
+      if (value === undefined) {
+        throw ValidationErrors.undefinedValue(valuesOrPath, this.tableName, this.key);
+      }
       this.updates.push({
         type: "SET",
         path: valuesOrPath,
@@ -221,6 +227,9 @@ export class UpdateBuilder<T extends DynamoItem> {
    * @returns The builder instance for method chaining
    */
   add<K extends Path<T>>(path: K, value: PathType<T, K>): this {
+    if (value === undefined) {
+      throw ValidationErrors.undefinedValue(path, this.tableName, this.key);
+    }
     this.updates.push({
       type: "ADD",
       path,
@@ -261,6 +270,10 @@ export class UpdateBuilder<T extends DynamoItem> {
     path: K,
     value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
   ): this {
+    if (value === undefined) {
+      throw ValidationErrors.undefinedValue(path, this.tableName, this.key);
+    }
+
     let valuesToDelete: Set<PathSetElementType<T, K>>;
 
     if (Array.isArray(value)) {
