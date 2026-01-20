@@ -1,3 +1,12 @@
+## [2.3.3](https://github.com/Kysumi/dyno-table/compare/v2.3.2...v2.3.3) (2025-11-16)
+
+## [2.3.2](https://github.com/Kysumi/dyno-table/compare/v2.3.1...v2.3.2) (2025-11-15)
+
+
+### Bug Fixes
+
+* Builder instances have the correct return types on entities ([500c543](https://github.com/Kysumi/dyno-table/commit/500c5434b2e63ee046f400a0c48414ca06fc9663))
+
 ## [2.3.1](https://github.com/Kysumi/dyno-table/compare/v2.3.0...v2.3.1) (2025-11-02)
 
 # [2.3.0](https://github.com/Kysumi/dyno-table/compare/v2.2.1...v2.3.0) (2025-11-02)

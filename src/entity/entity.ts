@@ -32,7 +32,11 @@ export type QueryFunctionWithSchema<T extends DynamoItem, I, R> = QueryFunction<
 
 export type QueryRecord<T extends DynamoItem> = {
   // biome-ignore lint/suspicious/noExplicitAny: This is for flexibility
-  [K: string]: QueryFunctionWithSchema<T, any, ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>;
+  [K: string]: QueryFunctionWithSchema<T, any, any>;
+};
+
+export type MappedQueries<T extends DynamoItem, Q extends QueryRecord<T>> = {
+  [K in keyof Q]: Q[K] extends QueryFunctionWithSchema<T, infer I, infer R> ? (input: I) => R : never;
 };
 
 // Define a type for entity with only scan, get and query methods
@@ -128,7 +132,7 @@ export interface EntityRepository<
   get: (key: I) => EntityAwareGetBuilder<T>;
   update: (key: I, data: Partial<T>) => EntityAwareUpdateBuilder<T>;
   delete: (key: I) => EntityAwareDeleteBuilder;
-  query: Q;
+  query: MappedQueries<T, Q>;
   scan: () => ScanBuilder<T>;
 }
 
@@ -553,64 +557,70 @@ export function defineEntity<
           return createEntityAwareDeleteBuilder(builder, config.name);
         },
 
-        query: Object.entries(config.queries || {}).reduce((acc, [key, inputCallback]) => {
-          // @ts-expect-error - We need to cast the queryFn to a function that takes an unknown input
-          acc[key] = (input: unknown) => {
-            // Create a QueryEntity object with only the necessary methods
-            const queryEntity: QueryEntity<T> = {
-              scan: repository.scan,
-              get: (key: PrimaryKeyWithoutExpression) => createEntityAwareGetBuilder(table.get<T>(key), config.name),
-              query: (keyCondition: PrimaryKey) => {
-                return table.query<T>(keyCondition);
-              },
-            };
+        query: Object.entries(config.queries || {}).reduce(
+          (acc, [key, inputCallback]) => {
+            (acc as any)[key] = (input: unknown) => {
+              // Create a QueryEntity object with only the necessary methods
+              const queryEntity: QueryEntity<T> = {
+                scan: repository.scan,
+                get: (key: PrimaryKeyWithoutExpression) => createEntityAwareGetBuilder(table.get<T>(key), config.name),
+                query: (keyCondition: PrimaryKey) => {
+                  return table.query<T>(keyCondition);
+                },
+              };
 
-            // Execute the query function to get the builder - This type is incorrect and needs to be fixed
-            const queryBuilderCallback = inputCallback(input);
+              // Execute the query function to get the builder
+              const queryBuilderCallback = inputCallback(input);
 
-            // Run the inner handler which allows the user to apply their desired contraints
-            // to the query builder of their choice
-            // @ts-expect-error - We need to cast the queryBuilderCallback to a function that takes a QueryEntity
-            const builder = queryBuilderCallback(queryEntity);
+              // Run the inner handler which allows the user to apply their desired contraints
+              // to the query builder of their choice
+              const builder = queryBuilderCallback(queryEntity);
 
-            // Add entity type filter if the builder has filter method
-            if (builder && typeof builder === "object" && "filter" in builder && typeof builder.filter === "function") {
-              builder.filter(eq(entityTypeAttributeName, config.name));
-            }
+              // Add entity type filter if the builder has filter method
+              if (
+                builder &&
+                typeof builder === "object" &&
+                "filter" in builder &&
+                typeof builder.filter === "function"
+              ) {
+                builder.filter(eq(entityTypeAttributeName, config.name));
+              }
 
-            // Wrap the builder's execute method if it exists
-            if (builder && typeof builder === "object" && "execute" in builder) {
-              const originalExecute = builder.execute;
-              builder.execute = async () => {
-                // Validate the input before executing the query
-                const queryFn = (
-                  config.queries as unknown as Record<string, QueryFunctionWithSchema<T, I, typeof builder>>
-                )[key];
+              // Wrap the builder's execute method if it exists
+              if (builder && typeof builder === "object" && "execute" in builder) {
+                const originalExecute = builder.execute;
+                builder.execute = async () => {
+                  // Validate the input before executing the query
+                  const queryFn = (
+                    config.queries as unknown as Record<string, QueryFunctionWithSchema<T, I, typeof builder>>
+                  )[key];
 
-                if (queryFn && typeof queryFn === "function") {
-                  // Get the schema from the query function
-                  const schema = queryFn.schema;
-                  if (schema?.["~standard"]?.validate && typeof schema["~standard"].validate === "function") {
-                    const validationResult = schema["~standard"].validate(input);
-                    if ("issues" in validationResult && validationResult.issues) {
-                      throw EntityErrors.queryInputValidationFailed(config.name, key, validationResult.issues, input);
+                  if (queryFn && typeof queryFn === "function") {
+                    // Get the schema from the query function
+                    const schema = queryFn.schema;
+                    if (schema?.["~standard"]?.validate && typeof schema["~standard"].validate === "function") {
+                      const validationResult = schema["~standard"].validate(input);
+                      if ("issues" in validationResult && validationResult.issues) {
+                        throw EntityErrors.queryInputValidationFailed(config.name, key, validationResult.issues, input);
+                      }
                     }
                   }
-                }
 
-                // Execute the original builder
-                const result = await originalExecute.call(builder);
-                if (!result) {
-                  throw OperationErrors.queryFailed(config.name, { queryName: key }, undefined);
-                }
-                return result;
-              };
-            }
+                  // Execute the original builder
+                  const result = await originalExecute.call(builder);
+                  if (!result) {
+                    throw OperationErrors.queryFailed(config.name, { queryName: key }, undefined);
+                  }
+                  return result;
+                };
+              }
 
-            return builder;
-          };
-          return acc;
-        }, {} as Q),
+              return builder;
+            };
+            return acc;
+          },
+          {} as MappedQueries<T, Q>,
+        ),
 
         scan: () => {
           const builder = table.scan<T>();
@@ -627,10 +637,7 @@ export function defineEntity<
 export function createQueries<T extends DynamoItem>() {
   return {
     input: <I>(schema: StandardSchemaV1<I>) => ({
-      query: <
-        _Q extends QueryRecord<T> = QueryRecord<T>,
-        R = ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>,
-      >(
+      query: <R extends ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
         const queryFn = (input: I) => (entity: QueryEntity<T>) => handler({ input, entity });
