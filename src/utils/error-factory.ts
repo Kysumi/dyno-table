@@ -63,6 +63,19 @@ export const ExpressionErrors = {
  * Factory functions for Validation errors
  */
 export const ValidationErrors = {
+  indexSchemaValidationFailed: (validationIssues: unknown, keyType: "partition" | "sort" | "both") => {
+    const keyLabel = keyType === "partition" ? "partition key" : keyType === "sort" ? "sort key" : "partition/sort key";
+    return new ValidationError(
+      `Index validation failed while generating ${keyLabel}: missing required attribute(s) or invalid values.`,
+      ErrorCodes.SCHEMA_VALIDATION_FAILED,
+      {
+        keyType,
+        validationIssues,
+        suggestion: `Provide the required attributes to construct the index ${keyLabel}`,
+      },
+    );
+  },
+
   noUpdateActions: (tableName: string, key: Record<string, unknown>) =>
     new ValidationError("No update actions specified", ErrorCodes.NO_UPDATE_ACTIONS, {
       tableName,
@@ -109,6 +122,12 @@ export const ValidationErrors = {
  * Factory functions for Configuration errors
  */
 export const ConfigurationErrors = {
+  invalidChunkSize: (size: number) =>
+    new ConfigurationError("Chunk size must be greater than 0", ErrorCodes.INVALID_CHUNK_SIZE, {
+      size,
+      suggestion: "Provide a chunk size greater than 0",
+    }),
+
   sortKeyRequired: (tableName: string, partitionKey: string, sortKey?: string) =>
     new ConfigurationError("Sort key is required for this operation", ErrorCodes.SORT_KEY_REQUIRED, {
       tableName,

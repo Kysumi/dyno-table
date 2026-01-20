@@ -1,4 +1,5 @@
 import type { PrimaryKeyWithoutExpression } from "../conditions";
+import { BatchError } from "../errors";
 import type { BatchWriteOperation } from "../operation-types";
 import type { DynamoItem } from "../types";
 import { BatchErrors } from "../utils/error-factory";
@@ -310,7 +311,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
 
       return await this.batchWriteExecutor(operations);
     } catch (error) {
-      if (error instanceof Error && error.name === "BatchError") throw error;
+      if (error instanceof BatchError) throw error;
 
       throw BatchErrors.batchWriteFailed(
         [],
@@ -353,7 +354,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
 
       return await this.batchGetExecutor(keys);
     } catch (error) {
-      if (error instanceof Error && error.name === "BatchError") throw error;
+      if (error instanceof BatchError) throw error;
 
       throw BatchErrors.batchGetFailed(
         [],

@@ -18,7 +18,7 @@ import { DynoTableError } from "../errors";
 import type { StandardSchemaV1, StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem, Index, TableConfig } from "../types";
-import { EntityErrors, OperationErrors } from "../utils/error-factory";
+import { EntityErrors, OperationErrors, ValidationErrors } from "../utils/error-factory";
 import { extractRequiredAttributes } from "../utils/error-utils";
 import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils";
 
@@ -521,7 +521,8 @@ export function defineEntity<
         },
 
         get: <K extends I>(key: K) => {
-          return createEntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name);
+          const builder = table.get<T>(config.primaryKey.generateKey(key));
+          return createEntityAwareGetBuilder(builder, config.name);
         },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
@@ -667,7 +668,7 @@ export function createIndex() {
               generateKey: (item: T) => {
                 const data = schema["~standard"].validate(item) as Result<T>;
                 if ("issues" in data && data.issues) {
-                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
+                  throw ValidationErrors.indexSchemaValidationFailed(data.issues, "both");
                 }
                 const validData = "value" in data ? data.value : item;
                 return { pk: pkFn(validData), sk: skFn(validData) };
@@ -691,7 +692,7 @@ export function createIndex() {
               generateKey: (item: T) => {
                 const data = schema["~standard"].validate(item) as Result<T>;
                 if ("issues" in data && data.issues) {
-                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
+                  throw ValidationErrors.indexSchemaValidationFailed(data.issues, "partition");
                 }
                 const validData = "value" in data ? data.value : item;
                 return { pk: pkFn(validData) };
