@@ -3,6 +3,7 @@ import type { Condition, PrimaryKeyWithoutExpression } from "../conditions";
 import { prepareExpressionParams } from "../expression";
 import type { DynamoItem } from "../types";
 import { debugTransaction } from "../utils/debug-transaction";
+import { ConfigurationErrors, TransactionErrors } from "../utils/error-factory";
 import type {
   ConditionCheckCommandParams,
   DeleteCommandParams,
@@ -113,7 +114,7 @@ export class TransactionBuilder {
     const skValue = skName ? newItem[skName] : undefined;
 
     if (!pkValue) {
-      throw new Error(`Primary key value for '${pkName}' is missing`);
+      throw ConfigurationErrors.primaryKeyMissing(tableName, pkName, newItem);
     }
 
     const duplicateItem = this.items.find((item) => {
@@ -155,8 +156,10 @@ export class TransactionBuilder {
     });
 
     if (duplicateItem) {
-      throw new Error(
-        `Duplicate item detected in transaction: Table=${tableName}, ${pkName}=${String(pkValue)}, ${skName}=${skValue !== undefined ? String(skValue) : "undefined"}. DynamoDB transactions do not allow multiple operations on the same item.`,
+      throw TransactionErrors.duplicateItem(
+        tableName,
+        { name: pkName, value: pkValue },
+        skName ? { name: skName, value: skValue } : undefined,
       );
     }
   }
@@ -169,7 +172,7 @@ export class TransactionBuilder {
 
     if (this.indexConfig.sortKey) {
       if (key.sk === undefined) {
-        throw new Error("Sort key is required for delete operation");
+        throw ConfigurationErrors.sortKeyRequired("", this.indexConfig.partitionKey, this.indexConfig.sortKey);
       }
       keyCondition[this.indexConfig.sortKey] = key.sk;
     }
@@ -443,7 +446,7 @@ export class TransactionBuilder {
    * @returns The transaction builder for method chaining
    * @throws {Error} If a duplicate item is detected in the transaction
    */
-  update<T extends DynamoItem>(
+  update<_T extends DynamoItem>(
     tableName: string,
     key: PrimaryKeyWithoutExpression,
     updateExpression: string,
@@ -603,7 +606,7 @@ export class TransactionBuilder {
     const { expression, names, values } = prepareExpressionParams(condition);
 
     if (!expression) {
-      throw new Error("Failed to generate condition expression");
+      throw ConfigurationErrors.conditionGenerationFailed(condition);
     }
 
     const transactionItem: TransactionItem = {
@@ -773,7 +776,7 @@ export class TransactionBuilder {
    */
   async execute(): Promise<void> {
     if (this.items.length === 0) {
-      throw new Error("No transaction items specified");
+      throw TransactionErrors.transactionEmpty();
     }
 
     const transactItems = this.items.map((item) => {
@@ -822,7 +825,7 @@ export class TransactionBuilder {
         default: {
           // This should never happen as we've covered all cases in the union type
           const exhaustiveCheck: never = item;
-          throw new Error(`Unsupported transaction item type: ${String(exhaustiveCheck)}`);
+          throw TransactionErrors.unsupportedType(exhaustiveCheck);
         }
       }
     });
@@ -837,9 +840,7 @@ export class TransactionBuilder {
     try {
       await this.executor(params);
     } catch (error) {
-      console.log(this.debug());
-      console.error("Error executing transaction:", error);
-      throw error;
+      throw TransactionErrors.transactionFailed(this.items.length, {}, error instanceof Error ? error : undefined);
     }
   }
 }

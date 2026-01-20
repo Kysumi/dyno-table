@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { eq, gt } from "../../conditions";
+import { ExpressionError, ValidationError } from "../../errors";
 import { ConditionCheckBuilder } from "../condition-check-builder";
 import { TransactionBuilder } from "../transaction-builder";
 
@@ -365,7 +366,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
       const builder = new ConditionCheckBuilder(tableName, raptorKey);
 
       // @ts-expect-error - toDynamoCommand is private but we're testing it
-      expect(() => builder.toDynamoCommand()).toThrow("Condition is required");
+      expect(() => builder.toDynamoCommand()).toThrow(ValidationError);
     });
 
     it("should throw error when condition fails to generate expression", () => {
@@ -375,7 +376,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
       builder.condition({ type: "eq" } as any);
 
       // @ts-expect-error - toDynamoCommand is private but we're testing it
-      expect(() => builder.toDynamoCommand()).toThrow();
+      expect(() => builder.toDynamoCommand()).toThrow(ExpressionError);
     });
   });
 
@@ -445,7 +446,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
       const transaction = new TransactionBuilder(mockExecutor, indexConfig);
       const builder = new ConditionCheckBuilder(tableName, trexKey);
 
-      expect(() => builder.withTransaction(transaction)).toThrow("Condition is required");
+      expect(() => builder.withTransaction(transaction)).toThrow(ValidationError);
     });
   });
 
@@ -562,7 +563,7 @@ describe("ConditionCheckBuilder - Jurassic Park Operations", () => {
 
     it("should throw error when debugging without condition", () => {
       const builder = new ConditionCheckBuilder(tableName, raptorKey);
-      expect(() => builder.debug()).toThrow("Condition is required");
+      expect(() => builder.debug()).toThrow(ValidationError);
     });
   });
 

@@ -711,5 +711,3 @@ describe("QueryBuilder", () => {
 // array.[0] = { "NANAN" }
 
 //TODO test NaN, INF and -INF
-
-// test the

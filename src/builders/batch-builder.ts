@@ -1,6 +1,8 @@
 import type { PrimaryKeyWithoutExpression } from "../conditions";
+import { BatchError, ErrorCodes } from "../errors";
 import type { BatchWriteOperation } from "../operation-types";
 import type { DynamoItem } from "../types";
+import { BatchErrors } from "../utils/error-factory";
 import type { DeleteCommandParams, PutCommandParams } from "./builder-types";
 import type { GetCommandParams } from "./get-builder";
 
@@ -51,20 +53,7 @@ type BatchGetExecutor = (keys: Array<PrimaryKeyWithoutExpression>) => Promise<{
   unprocessedKeys: PrimaryKeyWithoutExpression[];
 }>;
 
-/**
- * Error class for batch operation failures
- */
-export class BatchError extends Error {
-  public readonly operation: "write" | "read";
-  public override readonly cause?: Error;
-
-  constructor(message: string, operation: "write" | "read", cause?: Error) {
-    super(message);
-    this.name = "BatchError";
-    this.operation = operation;
-    this.cause = cause;
-  }
-}
+// BatchError is now imported from errors.ts
 
 /**
  * Result structure for batch operations
@@ -215,10 +204,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    */
   private validateNotEmpty(): void {
     if (this.isEmpty()) {
-      throw new BatchError(
-        "Cannot execute empty batch. Add operations using entity builders with .withBatch()",
-        "write",
-      );
+      throw BatchErrors.batchEmpty("write");
     }
   }
 
@@ -320,14 +306,16 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
           };
         }
 
-        throw new BatchError(`Unsupported batch item type for write operation: ${item.type}`, "write");
+        throw BatchErrors.unsupportedType("write", item);
       });
 
       return await this.batchWriteExecutor(operations);
     } catch (error) {
-      throw new BatchError(
-        `Failed to execute batch write operations: ${error instanceof Error ? error.message : "Unknown error"}`,
-        "write",
+      if (error instanceof BatchError) throw error;
+
+      throw BatchErrors.batchWriteFailed(
+        [],
+        { operationCount: this.writeItems.length },
         error instanceof Error ? error : undefined,
       );
     }
@@ -361,14 +349,16 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
           };
         }
 
-        throw new BatchError(`Unsupported batch item type for get operation: ${item.type}`, "read");
+        throw BatchErrors.unsupportedType("read", item);
       });
 
       return await this.batchGetExecutor(keys);
     } catch (error) {
-      throw new BatchError(
-        `Failed to execute batch get operations: ${error instanceof Error ? error.message : "Unknown error"}`,
-        "read",
+      if (error instanceof BatchError) throw error;
+
+      throw BatchErrors.batchGetFailed(
+        [],
+        { operationCount: this.getItems.length },
         error instanceof Error ? error : undefined,
       );
     }
@@ -430,7 +420,10 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
           errors.push(
             new BatchError(
               "Unexpected error during write operations",
+              ErrorCodes.BATCH_WRITE_FAILED,
               "write",
+              [],
+              {},
               error instanceof Error ? error : undefined,
             ),
           );
@@ -449,7 +442,10 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
           errors.push(
             new BatchError(
               "Unexpected error during read operations",
+              ErrorCodes.BATCH_GET_FAILED,
               "read",
+              [],
+              {},
               error instanceof Error ? error : undefined,
             ),
           );

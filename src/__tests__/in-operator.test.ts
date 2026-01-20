@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ExpressionParams } from "../conditions";
 import { and, eq, inArray } from "../conditions";
+import { ExpressionError } from "../errors";
 import { buildExpression, prepareExpressionParams } from "../expression";
 
 describe("IN operator", () => {
@@ -103,14 +104,14 @@ describe("IN operator", () => {
     it("should throw error for empty array", () => {
       const condition = inArray("status", []);
 
-      expect(() => buildExpression(condition, params)).toThrow("In condition requires a non-empty array of values");
+      expect(() => buildExpression(condition, params)).toThrow(ExpressionError);
     });
 
     it("should throw error for more than 100 values", () => {
       const values = Array.from({ length: 101 }, (_, i) => `value${i}`);
       const condition = inArray("status", values);
 
-      expect(() => buildExpression(condition, params)).toThrow("In condition supports a maximum of 100 values");
+      expect(() => buildExpression(condition, params)).toThrow(ExpressionError);
     });
 
     it("should handle exactly 100 values", () => {
@@ -125,13 +126,13 @@ describe("IN operator", () => {
     it("should throw error when attribute is missing", () => {
       const condition = { type: "in" as const, value: ["test"] };
 
-      expect(() => buildExpression(condition, params)).toThrow("Attribute is required for in condition");
+      expect(() => buildExpression(condition, params)).toThrow(ExpressionError);
     });
 
     it("should throw error when value is not an array", () => {
       const condition = { type: "in" as const, attr: "status", value: "not-array" };
 
-      expect(() => buildExpression(condition, params)).toThrow("In condition requires a non-empty array of values");
+      expect(() => buildExpression(condition, params)).toThrow(ExpressionError);
     });
   });
 

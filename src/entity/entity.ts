@@ -14,9 +14,12 @@ import type { GetBuilder } from "../builders/get-builder";
 import type { QueryBuilder } from "../builders/query-builder";
 import type { ScanBuilder } from "../builders/scan-builder";
 import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "../conditions";
+import { DynoTableError } from "../errors";
 import type { StandardSchemaV1, StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem, Index, TableConfig } from "../types";
+import { EntityErrors, OperationErrors, ValidationErrors } from "../utils/error-factory";
+import { extractRequiredAttributes } from "../utils/error-utils";
 import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils";
 
 // Define the QueryFunction type with a generic return type
@@ -263,7 +266,7 @@ export function defineEntity<
             const validatedData = await config.schema["~standard"].validate(data);
 
             if ("issues" in validatedData && validatedData.issues) {
-              throw new Error(`Validation failed: ${validatedData.issues.map((i) => i.message).join(", ")}`);
+              throw EntityErrors.validationFailed(config.name, "create", validatedData.issues, data);
             }
 
             const dataForKeyGeneration = {
@@ -272,7 +275,25 @@ export function defineEntity<
             };
 
             // Generate the primary key using validated data (with defaults applied)
-            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
+            let primaryKey: { pk: string; sk?: string };
+            try {
+              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
+
+              // Validate generated key
+              if (primaryKey.pk === undefined || primaryKey.pk === null) {
+                throw EntityErrors.keyInvalidFormat(config.name, "create", dataForKeyGeneration, primaryKey);
+              }
+            } catch (error) {
+              if (error instanceof DynoTableError) throw error;
+
+              throw EntityErrors.keyGenerationFailed(
+                config.name,
+                "create",
+                dataForKeyGeneration,
+                extractRequiredAttributes(error),
+                error instanceof Error ? error : undefined,
+              );
+            }
 
             const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
@@ -294,13 +315,11 @@ export function defineEntity<
 
             // Handle Promise case - this shouldn't happen for most schemas, but we need to handle it
             if (validationResult instanceof Promise) {
-              throw new Error(
-                "Async validation is not supported in withBatch or withTransaction. The schema must support synchronous validation for compatibility.",
-              );
+              throw EntityErrors.asyncValidationNotSupported(config.name, "create");
             }
 
             if ("issues" in validationResult && validationResult.issues) {
-              throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+              throw EntityErrors.validationFailed(config.name, "create", validationResult.issues, data);
             }
 
             const dataForKeyGeneration = {
@@ -309,7 +328,25 @@ export function defineEntity<
             };
 
             // Generate the primary key using validated data (with defaults applied)
-            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
+            let primaryKey: { pk: string; sk?: string };
+            try {
+              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
+
+              // Validate generated key
+              if (primaryKey.pk === undefined || primaryKey.pk === null) {
+                throw EntityErrors.keyInvalidFormat(config.name, "create", dataForKeyGeneration, primaryKey);
+              }
+            } catch (error) {
+              if (error instanceof DynoTableError) throw error;
+
+              throw EntityErrors.keyGenerationFailed(
+                config.name,
+                "create",
+                dataForKeyGeneration,
+                extractRequiredAttributes(error),
+                error instanceof Error ? error : undefined,
+              );
+            }
 
             const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
@@ -361,7 +398,7 @@ export function defineEntity<
             const validatedData = await config.schema["~standard"].validate(data);
 
             if ("issues" in validatedData && validatedData.issues) {
-              throw new Error(`Validation failed: ${validatedData.issues.map((i) => i.message).join(", ")}`);
+              throw EntityErrors.validationFailed(config.name, "upsert", validatedData.issues, data);
             }
 
             const dataForKeyGeneration = {
@@ -370,7 +407,25 @@ export function defineEntity<
             };
 
             // Generate the primary key using validated data (with defaults applied)
-            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
+            let primaryKey: { pk: string; sk?: string };
+            try {
+              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
+
+              // Validate generated key
+              if (primaryKey.pk === undefined || primaryKey.pk === null) {
+                throw EntityErrors.keyInvalidFormat(config.name, "upsert", dataForKeyGeneration, primaryKey);
+              }
+            } catch (error) {
+              if (error instanceof DynoTableError) throw error;
+
+              throw EntityErrors.keyGenerationFailed(
+                config.name,
+                "upsert",
+                dataForKeyGeneration,
+                extractRequiredAttributes(error),
+                error instanceof Error ? error : undefined,
+              );
+            }
 
             const indexes = buildIndexes(dataForKeyGeneration, table, false);
 
@@ -392,13 +447,11 @@ export function defineEntity<
 
             // Handle Promise case - this shouldn't happen in withTransaction but we need to handle it for type safety
             if (validationResult instanceof Promise) {
-              throw new Error(
-                "Async validation is not supported in withTransaction or withBatch. Use execute() instead.",
-              );
+              throw EntityErrors.asyncValidationNotSupported(config.name, "upsert");
             }
 
             if ("issues" in validationResult && validationResult.issues) {
-              throw new Error(`Validation failed: ${validationResult.issues.map((i) => i.message).join(", ")}`);
+              throw EntityErrors.validationFailed(config.name, "upsert", validationResult.issues, data);
             }
 
             const dataForKeyGeneration = {
@@ -407,7 +460,25 @@ export function defineEntity<
             };
 
             // Generate the primary key using validated data (with defaults applied)
-            const primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
+            let primaryKey: { pk: string; sk?: string };
+            try {
+              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
+
+              // Validate generated key
+              if (primaryKey.pk === undefined || primaryKey.pk === null) {
+                throw EntityErrors.keyInvalidFormat(config.name, "upsert", dataForKeyGeneration, primaryKey);
+              }
+            } catch (error) {
+              if (error instanceof DynoTableError) throw error;
+
+              throw EntityErrors.keyGenerationFailed(
+                config.name,
+                "upsert",
+                dataForKeyGeneration,
+                extractRequiredAttributes(error),
+                error instanceof Error ? error : undefined,
+              );
+            }
 
             const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
 
@@ -429,7 +500,7 @@ export function defineEntity<
             await prepareValidatedItemAsync();
             const result = await originalExecute.call(builder);
             if (!result) {
-              throw new Error("Failed to upsert item");
+              throw OperationErrors.putFailed(config.name, {}, undefined);
             }
             return result;
           };
@@ -454,7 +525,8 @@ export function defineEntity<
         },
 
         get: <K extends I>(key: K) => {
-          return createEntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name);
+          const builder = table.get<T>(config.primaryKey.generateKey(key));
+          return createEntityAwareGetBuilder(builder, config.name);
         },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
@@ -529,9 +601,7 @@ export function defineEntity<
                     if (schema?.["~standard"]?.validate && typeof schema["~standard"].validate === "function") {
                       const validationResult = schema["~standard"].validate(input);
                       if ("issues" in validationResult && validationResult.issues) {
-                        throw new Error(
-                          `Validation failed: ${validationResult.issues.map((issue) => issue.message).join(", ")}`,
-                        );
+                        throw EntityErrors.queryInputValidationFailed(config.name, key, validationResult.issues, input);
                       }
                     }
                   }
@@ -539,7 +609,7 @@ export function defineEntity<
                   // Execute the original builder
                   const result = await originalExecute.call(builder);
                   if (!result) {
-                    throw new Error("Failed to execute query");
+                    throw OperationErrors.queryFailed(config.name, { queryName: key }, undefined);
                   }
                   return result;
                 };
@@ -605,7 +675,7 @@ export function createIndex() {
               generateKey: (item: T) => {
                 const data = schema["~standard"].validate(item) as Result<T>;
                 if ("issues" in data && data.issues) {
-                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
+                  throw ValidationErrors.indexSchemaValidationFailed(data.issues, "both");
                 }
                 const validData = "value" in data ? data.value : item;
                 return { pk: pkFn(validData), sk: skFn(validData) };
@@ -629,7 +699,7 @@ export function createIndex() {
               generateKey: (item: T) => {
                 const data = schema["~standard"].validate(item) as Result<T>;
                 if ("issues" in data && data.issues) {
-                  throw new Error(`Index validation failed: ${data.issues.map((i) => i.message).join(", ")}`);
+                  throw ValidationErrors.indexSchemaValidationFailed(data.issues, "partition");
                 }
                 const validData = "value" in data ? data.value : item;
                 return { pk: pkFn(validData) };

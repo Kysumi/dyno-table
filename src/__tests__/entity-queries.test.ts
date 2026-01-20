@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { eq } from "../conditions";
 import { createIndex, createQueries, defineEntity } from "../entity/entity";
+import { EntityValidationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -197,7 +198,7 @@ describe("Entity Repository", () => {
       expect(mockTable.create).toHaveBeenCalledWith({});
 
       // Validation error should happen during execute()
-      await expect(builder.execute()).rejects.toThrow("Validation failed");
+      await expect(builder.execute()).rejects.toThrow(EntityValidationError);
     });
   });
 
@@ -264,7 +265,7 @@ describe("Entity Repository", () => {
       }));
 
       // execute() should fail with validation error
-      await expect(builder.execute()).rejects.toThrow("Validation failed");
+      await expect(builder.execute()).rejects.toThrow(EntityValidationError);
     });
 
     it("should add timestamps when configured and execute is called", async () => {
@@ -593,7 +594,7 @@ describe("Entity Repository", () => {
         throw new Error("Query byId is not defined");
       }
 
-      await expect(repository.query.byId(input).execute()).rejects.toThrow("Validation failed");
+      await expect(repository.query.byId(input).execute()).rejects.toThrow(EntityValidationError);
     });
   });
 
@@ -790,7 +791,7 @@ describe("Entity Repository - Deferred Validation", () => {
 
     mockTable.create.mockReturnValue(mockBuilder);
 
-    await expect(repository.create(testData).execute()).rejects.toThrow("Validation failed");
+    await expect(repository.create(testData).execute()).rejects.toThrow(EntityValidationError);
   });
 
   it("should throw validation errors when withTransaction() is called", () => {
@@ -817,7 +818,7 @@ describe("Entity Repository - Deferred Validation", () => {
 
     // withTransaction() throws synchronously, not asynchronously
     // biome-ignore lint/suspicious/noExplicitAny: Test mock object
-    expect(() => repository.create(testData).withTransaction({} as any)).toThrow("Validation failed");
+    expect(() => repository.create(testData).withTransaction({} as any)).toThrow(EntityValidationError);
   });
 });
 describe("createQuery with chained filters", () => {

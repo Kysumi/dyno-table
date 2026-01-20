@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Table } from "../table";
-import { createTestTable, type Dinosaur } from "./table-test-setup";
+import { createTestTable } from "./table-test-setup";
 
 type DinosaurExcavation = {
   demoPartitionKey: string;
@@ -244,7 +244,9 @@ describe("Nested AND Conditions Integration Test - Large Dataset", () => {
         expect(item.digitised).toBe(true);
 
         // Track excavation IDs for pagination validation
-        allExcavationIds.add(item.excavationId!);
+        if (item.excavationId) {
+          allExcavationIds.add(item.excavationId);
+        }
       }
 
       if (!page.hasNextPage) break;
@@ -281,9 +283,9 @@ describe("Nested AND Conditions Integration Test - Large Dataset", () => {
     for (const item of items) {
       expect(item.organisationId).toBe("5b94480f-fe36-47e6-9369-e8c9534634c6");
       expect(item.digitised).toBe(true);
-      expect(item.weight!).toBeGreaterThan(5000);
-      expect(item.length!).toBeGreaterThan(15);
-      expect(item.completeness!).toBeGreaterThan(80);
+      expect(item.weight).toBeGreaterThan(5000);
+      expect(item.length).toBeGreaterThan(15);
+      expect(item.completeness).toBeGreaterThan(80);
     }
 
     // Should have some matches but not too many due to strict criteria
@@ -316,8 +318,8 @@ describe("Nested AND Conditions Integration Test - Large Dataset", () => {
       expect(item.digitised).toBe(true);
 
       // Should match one of the OR conditions
-      const isHighlyComplete = item.completeness! > 90 && item.status === "finalised";
-      const isVeryLarge = item.weight! > 10000 && item.length! > 20;
+      const isHighlyComplete = (item.completeness ?? 0) > 90 && item.status === "finalised";
+      const isVeryLarge = (item.weight ?? 0) > 10000 && (item.length ?? 0) > 20;
       expect(isHighlyComplete || isVeryLarge).toBe(true);
     }
   }, 120000);

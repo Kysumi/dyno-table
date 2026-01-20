@@ -233,10 +233,7 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     if (typeof valuesOrPath === "object") {
       this.builder.set(valuesOrPath);
     } else {
-      if (value === undefined) {
-        throw new Error("Value is required when setting a single path");
-      }
-      this.builder.set(valuesOrPath, value);
+      this.builder.set(valuesOrPath, value as PathType<T, K>);
     }
     return this;
   }

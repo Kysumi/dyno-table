@@ -1,6 +1,6 @@
 // Main exports - re-export the most commonly used functionality
 
-export { BatchBuilder, BatchError, type BatchResult } from "./builders/batch-builder";
+export { BatchBuilder, type BatchResult } from "./builders/batch-builder";
 export { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder";
 export { PutBuilder, type PutOptions } from "./builders/put-builder";
 // Builder types
@@ -43,7 +43,20 @@ export type {
   QueryRecord,
 } from "./entity/entity";
 export { createIndex, createQueries, defineEntity } from "./entity/entity";
+// Error classes and utilities
+export * from "./errors";
 export { Table } from "./table";
+export {
+  BatchErrors,
+  ConfigurationErrors,
+  EntityErrors,
+  ExpressionErrors,
+  IndexErrors,
+  OperationErrors,
+  TransactionErrors,
+  ValidationErrors,
+} from "./utils/error-factory";
+export * from "./utils/error-utils";
 
 // Utility functions for key templates
 export { partitionKey } from "./utils/partition-key-template";

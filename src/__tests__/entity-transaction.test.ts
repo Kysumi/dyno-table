@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { createIndex, defineEntity } from "../entity/entity";
+import { EntityValidationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -407,7 +408,7 @@ describe("Entity Transaction Support", () => {
       }));
 
       // execute should fail with validation error
-      await expect(builder.execute()).rejects.toThrow("Validation failed during execute");
+      await expect(builder.execute()).rejects.toThrow(EntityValidationError);
 
       // Verify that withTransaction was called successfully despite later validation failure
       expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);

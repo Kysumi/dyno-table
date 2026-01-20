@@ -19,6 +19,7 @@ import {
 import { buildExpression, generateAttributeName, generateValueName } from "../expression";
 import type { DynamoItem } from "../types";
 import { debugCommand } from "../utils/debug-expression";
+import { ValidationErrors } from "../utils/error-factory";
 import type { UpdateCommandParams } from "./builder-types";
 import type { TransactionBuilder } from "./transaction-builder";
 import type { Path, PathType } from "./types";
@@ -155,6 +156,9 @@ export class UpdateBuilder<T extends DynamoItem> {
   set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
     if (typeof valuesOrPath === "object") {
       for (const [key, value] of Object.entries(valuesOrPath)) {
+        if (value === undefined) {
+          throw ValidationErrors.undefinedValue(key, this.tableName, this.key);
+        }
         this.updates.push({
           type: "SET",
           path: key,
@@ -162,6 +166,9 @@ export class UpdateBuilder<T extends DynamoItem> {
         });
       }
     } else {
+      if (value === undefined) {
+        throw ValidationErrors.undefinedValue(valuesOrPath, this.tableName, this.key);
+      }
       this.updates.push({
         type: "SET",
         path: valuesOrPath,
@@ -220,6 +227,9 @@ export class UpdateBuilder<T extends DynamoItem> {
    * @returns The builder instance for method chaining
    */
   add<K extends Path<T>>(path: K, value: PathType<T, K>): this {
+    if (value === undefined) {
+      throw ValidationErrors.undefinedValue(path, this.tableName, this.key);
+    }
     this.updates.push({
       type: "ADD",
       path,
@@ -260,6 +270,10 @@ export class UpdateBuilder<T extends DynamoItem> {
     path: K,
     value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
   ): this {
+    if (value === undefined) {
+      throw ValidationErrors.undefinedValue(path, this.tableName, this.key);
+    }
+
     let valuesToDelete: Set<PathSetElementType<T, K>>;
 
     if (Array.isArray(value)) {
@@ -383,7 +397,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    */
   toDynamoCommand(): UpdateCommandParams {
     if (this.updates.length === 0) {
-      throw new Error("No update actions specified");
+      throw ValidationErrors.noUpdateActions(this.tableName, this.key);
     }
 
     const expressionParams: {
