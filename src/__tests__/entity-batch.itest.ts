@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { docClient } from "../../tests/ddb-client";
 import { createIndex, defineEntity } from "../entity/entity";
+import { BatchError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -519,7 +520,7 @@ describe("Entity Integration Tests - Batch Operations", () => {
     const batch = table.batchBuilder();
 
     // Try to execute empty batch
-    await expect(batch.execute()).rejects.toThrow("Cannot execute empty batch");
+    await expect(batch.execute()).rejects.toThrow(BatchError);
   });
 
   it("should handle large batch operations with chunking", async () => {
