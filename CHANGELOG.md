@@ -1,3 +1,10 @@
+# [2.4.0](https://github.com/Kysumi/dyno-table/compare/v2.3.3...v2.4.0) (2026-01-20)
+
+
+### Features
+
+* enhanced error reporting ([1b43aa1](https://github.com/Kysumi/dyno-table/commit/1b43aa1a3af7f820bb3ed9edf78800faa15d4d9f))
+
 ## [2.3.3](https://github.com/Kysumi/dyno-table/compare/v2.3.2...v2.3.3) (2025-11-16)
 
 ## [2.3.2](https://github.com/Kysumi/dyno-table/compare/v2.3.1...v2.3.2) (2025-11-15)
