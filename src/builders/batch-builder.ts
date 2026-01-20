@@ -1,5 +1,5 @@
 import type { PrimaryKeyWithoutExpression } from "../conditions";
-import { BatchError } from "../errors";
+import { BatchError, ErrorCodes } from "../errors";
 import type { BatchWriteOperation } from "../operation-types";
 import type { DynamoItem } from "../types";
 import { BatchErrors } from "../utils/error-factory";
@@ -422,6 +422,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
               "Unexpected error during write operations",
               ErrorCodes.BATCH_WRITE_FAILED,
               "write",
+              [],
               {},
               error instanceof Error ? error : undefined,
             ),
@@ -443,6 +444,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
               "Unexpected error during read operations",
               ErrorCodes.BATCH_GET_FAILED,
               "read",
+              [],
               {},
               error instanceof Error ? error : undefined,
             ),
