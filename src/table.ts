@@ -69,6 +69,19 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     this.gsis = config.indexes.gsis || {};
   }
 
+  private getIndexAttributeNames(): string[] {
+    const names = new Set<string>();
+
+    for (const gsi of Object.values(this.gsis)) {
+      names.add(gsi.partitionKey);
+      if (gsi.sortKey) {
+        names.add(gsi.sortKey);
+      }
+    }
+
+    return Array.from(names);
+  }
+
   protected createKeyForPrimaryIndex(keyCondition: PrimaryKeyWithoutExpression): Record<string, unknown> {
     const primaryCondition = { [this.partitionKey]: keyCondition.pk };
 
@@ -122,6 +135,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
   }
 
   get<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
+    const indexAttributeNames = this.getIndexAttributeNames();
     const executor = async (params: GetCommandParams): Promise<{ item: T | undefined }> => {
       try {
         const result = await this.dynamoClient.get({
@@ -140,7 +154,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       }
     };
 
-    return new GetBuilder<T>(executor, keyCondition, this.tableName);
+    return new GetBuilder<T>(executor, keyCondition, this.tableName, indexAttributeNames);
   }
 
   /**
@@ -200,6 +214,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * If useIndex is called on the returned QueryBuilder, it will use the GSI configuration
    */
   query<T extends DynamoItem>(keyCondition: PrimaryKey): QueryBuilder<T, TConfig> {
+    const indexAttributeNames = this.getIndexAttributeNames();
     // Default to main table's partition and sort keys
     const pkAttributeName = this.partitionKey;
     const skAttributeName = this.sortKey;
@@ -359,7 +374,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       }
     };
 
-    return new QueryBuilder<T, TConfig>(executor, keyConditionExpression);
+    return new QueryBuilder<T, TConfig>(executor, keyConditionExpression, indexAttributeNames);
   }
 
   /**

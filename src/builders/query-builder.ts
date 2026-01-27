@@ -3,6 +3,7 @@ import type { DynamoItem, TableConfig } from "../types";
 import type { QueryBuilderInterface } from "./builder-types";
 import { FilterBuilder, type FilterOptions } from "./filter-builder";
 import { ResultIterator } from "./result-iterator";
+import type { Path } from "./types";
 
 /**
  * Configuration options for DynamoDB query operations.
@@ -69,11 +70,14 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
   private readonly keyCondition: Condition;
   protected override options: QueryOptions = {};
   protected readonly executor: QueryExecutor<T>;
+  private includeIndexAttributes = false;
+  private readonly indexAttributeNames: string[];
 
-  constructor(executor: QueryExecutor<T>, keyCondition: Condition) {
+  constructor(executor: QueryExecutor<T>, keyCondition: Condition, indexAttributeNames: string[] = []) {
     super();
     this.executor = executor;
     this.keyCondition = keyCondition;
+    this.indexAttributeNames = indexAttributeNames;
   }
 
   /**
@@ -150,6 +154,26 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
   }
 
   /**
+   * Ensures index attributes are included in the result.
+   * By default, index attributes are removed from query responses.
+   */
+  includeIndexes(): this {
+    this.includeIndexAttributes = true;
+    if (this.selectedFields.size > 0) {
+      this.addIndexAttributesToSelection();
+    }
+    return this;
+  }
+
+  override select<K extends Path<T>>(fields: K | K[]): this {
+    super.select(fields);
+    if (this.includeIndexAttributes) {
+      this.addIndexAttributesToSelection();
+    }
+    return this;
+  }
+
+  /**
    * Creates a deep clone of this QueryBuilder instance.
    *
    * This is particularly useful when:
@@ -183,12 +207,13 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    * @returns A new QueryBuilder instance with the same configuration
    */
   clone(): QueryBuilder<T, TConfig> {
-    const clone = new QueryBuilder<T, TConfig>(this.executor, this.keyCondition);
+    const clone = new QueryBuilder<T, TConfig>(this.executor, this.keyCondition, this.indexAttributeNames);
     clone.options = {
       ...this.options,
       filter: this.deepCloneFilter(this.options.filter),
     };
     clone.selectedFields = new Set(this.selectedFields);
+    clone.includeIndexAttributes = this.includeIndexAttributes;
     return clone;
   }
 
@@ -244,7 +269,45 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    * @returns A promise that resolves to a ResultGenerator that behaves like an array
    */
   async execute(): Promise<ResultIterator<T, TConfig>> {
-    const directExecutor = () => this.executor(this.keyCondition, this.options);
+    const directExecutor = async () => {
+      const result = await this.executor(this.keyCondition, this.options);
+      if (this.includeIndexAttributes || this.indexAttributeNames.length === 0) {
+        return result;
+      }
+
+      return {
+        ...result,
+        items: result.items.map((item) => this.omitIndexAttributes(item)),
+      };
+    };
     return new ResultIterator(this, directExecutor);
+  }
+
+  private addIndexAttributesToSelection(): void {
+    if (this.indexAttributeNames.length === 0) return;
+
+    for (const attributeName of this.indexAttributeNames) {
+      this.selectedFields.add(attributeName);
+    }
+
+    this.options.projection = Array.from(this.selectedFields);
+  }
+
+  private omitIndexAttributes(item: T): T {
+    if (this.indexAttributeNames.length === 0) {
+      return item;
+    }
+
+    let didOmit = false;
+    const cleaned = { ...item } as T;
+
+    for (const attributeName of this.indexAttributeNames) {
+      if (attributeName in cleaned) {
+        delete (cleaned as Record<string, unknown>)[attributeName];
+        didOmit = true;
+      }
+    }
+
+    return didOmit ? cleaned : item;
   }
 }

@@ -121,6 +121,54 @@ describe("QueryBuilder", () => {
     );
   });
 
+  it("should omit index attributes by default", async () => {
+    mockExecutor.mockResolvedValueOnce({
+      items: [{ id: "dino-1", name: "Rex", gsi1pk: "STATUS#active", gsi1sk: "TYPE#raptor" }],
+      lastEvaluatedKey: null,
+    });
+
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition, ["gsi1pk", "gsi1sk"]);
+    const resultIterator = await builder.execute();
+    const items = await resultIterator.toArray();
+
+    expect(items).toEqual([{ id: "dino-1", name: "Rex" }]);
+  });
+
+  it("should include index attributes when includeIndexes is used", async () => {
+    mockExecutor.mockResolvedValueOnce({
+      items: [{ id: "dino-1", name: "Rex", gsi1pk: "STATUS#active", gsi1sk: "TYPE#raptor" }],
+      lastEvaluatedKey: null,
+    });
+
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition, ["gsi1pk", "gsi1sk"]).includeIndexes();
+    const resultIterator = await builder.execute();
+    const items = await resultIterator.toArray();
+
+    expect(items).toEqual([
+      {
+        id: "dino-1",
+        name: "Rex",
+        gsi1pk: "STATUS#active",
+        gsi1sk: "TYPE#raptor",
+      },
+    ]);
+  });
+
+  it("should include index attributes in projection when selected", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition, ["gsi1pk", "gsi1sk"]);
+    builder.includeIndexes().select(["id"]);
+
+    const resultIterator = await builder.execute();
+    await resultIterator.toArray(); // Consume the iterator to trigger executor call
+
+    expect(mockExecutor).toHaveBeenCalledWith(
+      mockKeyCondition,
+      expect.objectContaining({
+        projection: expect.arrayContaining(["id", "gsi1pk", "gsi1sk"]),
+      }),
+    );
+  });
+
   it("should create paginator", () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     const paginator = builder.paginate(10);
