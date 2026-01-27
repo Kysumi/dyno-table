@@ -62,6 +62,8 @@ export class GetBuilder<T extends DynamoItem> {
   private readonly params: GetCommandParams;
   private options: GetOptions = {};
   private selectedFields: Set<string> = new Set();
+  private includeIndexAttributes = false;
+  private readonly indexAttributeNames: string[];
 
   /**
    * Creates a new GetBuilder instance.
@@ -74,11 +76,13 @@ export class GetBuilder<T extends DynamoItem> {
     private readonly executor: GetExecutor<T>,
     key: PrimaryKeyWithoutExpression,
     tableName: string,
+    indexAttributeNames: string[] = [],
   ) {
     this.params = {
       tableName,
       key,
     };
+    this.indexAttributeNames = indexAttributeNames;
   }
 
   /**
@@ -110,7 +114,23 @@ export class GetBuilder<T extends DynamoItem> {
       }
     }
 
+    if (this.includeIndexAttributes) {
+      this.addIndexAttributesToSelection();
+    }
+
     this.options.projection = Array.from(this.selectedFields);
+    return this;
+  }
+
+  /**
+   * Ensures index attributes are included in the result.
+   * By default, index attributes are removed from get responses.
+   */
+  includeIndexes(): GetBuilder<T> {
+    this.includeIndexAttributes = true;
+    if (this.selectedFields.size > 0) {
+      this.addIndexAttributesToSelection();
+    }
     return this;
   }
 
@@ -206,6 +226,34 @@ export class GetBuilder<T extends DynamoItem> {
     };
   }
 
+  private addIndexAttributesToSelection(): void {
+    if (this.indexAttributeNames.length === 0) return;
+
+    for (const attributeName of this.indexAttributeNames) {
+      this.selectedFields.add(attributeName);
+    }
+
+    this.options.projection = Array.from(this.selectedFields);
+  }
+
+  private omitIndexAttributes(item: T | undefined): T | undefined {
+    if (!item || this.includeIndexAttributes || this.indexAttributeNames.length === 0) {
+      return item;
+    }
+
+    let didOmit = false;
+    const cleaned = { ...item } as T;
+
+    for (const attributeName of this.indexAttributeNames) {
+      if (attributeName in cleaned) {
+        delete (cleaned as Record<string, unknown>)[attributeName];
+        didOmit = true;
+      }
+    }
+
+    return didOmit ? cleaned : item;
+  }
+
   /**
    * Executes the get operation against DynamoDB.
    *
@@ -232,6 +280,9 @@ export class GetBuilder<T extends DynamoItem> {
    */
   async execute(): Promise<{ item: T | undefined }> {
     const command = this.toDynamoCommand();
-    return this.executor(command);
+    const result = await this.executor(command);
+    return {
+      item: this.omitIndexAttributes(result.item),
+    };
   }
 }
