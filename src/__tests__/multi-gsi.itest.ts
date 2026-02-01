@@ -218,6 +218,57 @@ describe("Multiple GSI Integration Tests", () => {
       expect(items[0]?.name).toBe("Stegosaurus");
     });
 
+    it("should omit index attributes by default in query results", async () => {
+      const result = await table
+        .query<Dinosaur>({
+          pk: "PERIOD#cretaceous",
+          sk: (op) => op.beginsWith("DIET#herbivore"),
+        })
+        .useIndex("GSI1")
+        .execute();
+
+      const items = await result.toArray();
+      expect(items).toHaveLength(1);
+      expect(items[0]).toHaveProperty("name");
+      expect(items[0]).not.toHaveProperty("GSI1PK");
+      expect(items[0]).not.toHaveProperty("GSI1SK");
+    });
+
+    it("should include index attributes when includeIndexes is used on query results", async () => {
+      const result = await table
+        .query<Dinosaur>({
+          pk: "PERIOD#cretaceous",
+          sk: (op) => op.beginsWith("DIET#herbivore"),
+        })
+        .useIndex("GSI1")
+        .includeIndexes()
+        .execute();
+
+      const items = await result.toArray();
+      expect(items).toHaveLength(1);
+      expect(items[0]).toHaveProperty("name");
+      expect(items[0]).toHaveProperty("GSI1PK");
+      expect(items[0]).toHaveProperty("GSI1SK");
+    });
+
+    it("should omit index attributes by default in get results", async () => {
+      const result = await table.get<Dinosaur>({ pk: "DINO#trex1", sk: "METADATA#trex1" }).execute();
+
+      expect(result.item).toBeDefined();
+      expect(result.item).toHaveProperty("name");
+      expect(result.item).not.toHaveProperty("GSI1PK");
+      expect(result.item).not.toHaveProperty("GSI1SK");
+    });
+
+    it("should include index attributes when includeIndexes is used on get results", async () => {
+      const result = await table.get<Dinosaur>({ pk: "DINO#trex1", sk: "METADATA#trex1" }).includeIndexes().execute();
+
+      expect(result.item).toBeDefined();
+      expect(result.item).toHaveProperty("name");
+      expect(result.item).toHaveProperty("GSI1PK");
+      expect(result.item).toHaveProperty("GSI1SK");
+    });
+
     it("should combine GSI query with filtering for complex access patterns", async () => {
       // Query for forest dinosaurs and filter by weight
       const result = await table
