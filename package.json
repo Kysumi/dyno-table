@@ -118,16 +118,16 @@
     "url": "git+https://github.com/Kysumi/dyno-table.git"
   },
   "devDependencies": {
-    "@babel/preset-typescript": "^7.26.0",
+    "@babel/preset-typescript": "^7.28.5",
     "@biomejs/biome": "2.2.2",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
-    "@types/node": "^20.17.11",
+    "@types/node": "^20.19.31",
     "husky": "^9.1.7",
     "rimraf": "^5.0.10",
     "semantic-release": "24.2.3",
-    "tsup": "^8.3.5",
-    "typescript": "^5.7.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
     "vitest": "3.0.5"
   },
   "peerDependencies": {
