@@ -70,6 +70,7 @@ export interface BaseBuilderInterface<T extends DynamoItem, TConfig extends Tabl
   getLimit(): number | undefined;
   startFrom(lastEvaluatedKey: DynamoItem): B;
   execute(): Promise<ResultIterator<T, TConfig>>;
+  findOne(): Promise<T | undefined>;
 }
 
 /**

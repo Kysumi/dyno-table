@@ -224,6 +224,27 @@ describe("QueryBuilder", () => {
     expect(result).toBe(builder);
   });
 
+  it("should return the first matching item with findOne", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
+    mockExecutor.mockResolvedValueOnce({ items: [{ id: "1" }], lastEvaluatedKey: null });
+
+    const result = await builder.findOne();
+
+    expect(result).toEqual({ id: "1" });
+  });
+
+  it("should paginate until it finds a matching item with findOne", async () => {
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
+    mockExecutor
+      .mockResolvedValueOnce({ items: [], lastEvaluatedKey: { id: "next" } })
+      .mockResolvedValueOnce({ items: [{ id: "2" }], lastEvaluatedKey: null });
+
+    const result = await builder.findOne();
+
+    expect(result).toEqual({ id: "2" });
+    expect(mockExecutor).toHaveBeenCalledTimes(2);
+  });
+
   it("should chain two filters with AND", async () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.filter((op) => op.eq("status", "active")).filter((op) => op.eq("type", "test"));

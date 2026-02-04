@@ -383,4 +383,31 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    * their specific execution logic.
    */
   abstract execute(): Promise<ResultIterator<T, TConfig>>;
+
+  /**
+   * Executes the operation and returns the first matching item, if any.
+   *
+   * This helper:
+   * - Applies an internal limit of 1
+   * - Streams results until a match is found or there are no more pages
+   * - Avoids mutating the current builder by using a clone
+   *
+   * @example
+   * ```typescript
+   * const latest = await table
+   *   .query(eq("moduleId", moduleId))
+   *   .useIndex("module-version-index")
+   *   .sortDescending()
+   *   .findOne();
+   * ```
+   *
+   * @returns The first matching item, or undefined if none found
+   */
+  async findOne(): Promise<T | undefined> {
+    const iterator = await this.clone().limit(1).execute();
+    for await (const item of iterator) {
+      return item;
+    }
+    return undefined;
+  }
 }
