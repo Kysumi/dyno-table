@@ -813,6 +813,21 @@ for await (const order of orderIterator) {
 console.log(`Processed ${orderCount} orders, total: $${totalAmount}`);
 ```
 
+### Find One Item
+
+```ts
+// Get the latest order without manual paging
+const latestOrder = await table
+  .query<Order>({ pk: "USER#123" })
+  .filter(op => op.beginsWith("sk", "ORDER#"))
+  .sortDescending()
+  .findOne();
+
+if (latestOrder) {
+  console.log(`Latest order: ${latestOrder.orderId}`);
+}
+```
+
 ### Array Loading
 
 ```ts
