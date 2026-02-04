@@ -1,3 +1,10 @@
+# [2.5.0](https://github.com/Kysumi/dyno-table/compare/v2.4.0...v2.5.0) (2026-02-04)
+
+
+### Features
+
+* Add findOne method to the builders ([#65](https://github.com/Kysumi/dyno-table/issues/65)) ([a90dd84](https://github.com/Kysumi/dyno-table/commit/a90dd8483af74c20e6dbb02e2007a95a221cd249))
+
 # [2.4.0](https://github.com/Kysumi/dyno-table/compare/v2.3.3...v2.4.0) (2026-01-20)
 
 
