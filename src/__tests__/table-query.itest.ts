@@ -147,4 +147,14 @@ describe("Table Integration Tests - Query Items", () => {
     expect(items).toHaveLength(2);
     expect(items.map((item) => item.name)).toEqual(expect.arrayContaining(["T-Rex 1", "T-Rex 2"]));
   });
+
+  it("should apply filters at the DB level when using findOne", async () => {
+    const result = await table
+      .query({ pk: "dinosaur#group1" })
+      .filter((op) => op.lt("weight", 100))
+      .sortDescending()
+      .findOne();
+
+    expect(result?.name).toBe("Velociraptor 1");
+  });
 });
