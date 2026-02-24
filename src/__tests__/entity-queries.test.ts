@@ -347,7 +347,8 @@ describe("Entity Repository", () => {
 
       // NOW validation should have been called
       expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
-      expect(result).toEqual(testData);
+      // Result is the enriched item (includes generated keys and entityType), not just the raw input
+      expect(result).toMatchObject(testData);
     });
 
     it("should add timestamps when configured and execute is called", async () => {
@@ -660,7 +661,8 @@ describe("Entity Repository", () => {
 
       // With deferred validation, put() is called with empty object initially
       expect(mockTable.put).toHaveBeenCalledWith({});
-      expect(result).toEqual(testData);
+      // Result is the enriched item (includes generated keys and entityType), not just the raw input
+      expect(result).toMatchObject(testData);
     });
 
     it("should add timestamps when configured", async () => {
