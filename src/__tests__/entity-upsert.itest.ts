@@ -89,10 +89,10 @@ describe("Entity Upsert Integration Tests", () => {
     // Original fields preserved
     expect(result).toMatchObject(dino);
     // Generated keys present
-    expect(result.demoPartitionKey).toBe("DINO-UPSERT#new-dino");
-    expect(result.demoSortKey).toBe("PROFILE");
+    expect(result!.demoPartitionKey).toBe("DINO-UPSERT#new-dino");
+    expect(result!.demoSortKey).toBe("PROFILE");
     // Entity type attribute present
-    expect(result.entityType).toBe("DinosaurUpsert");
+    expect(result!.entityType).toBe("DinosaurUpsert");
   });
 
   it("should persist the item to DynamoDB so it can be retrieved afterwards", async () => {
@@ -133,8 +133,8 @@ describe("Entity Upsert Integration Tests", () => {
     const result = await repository.upsert(updated).execute();
 
     expect(result).toBeDefined();
-    expect(result.species).toBe("T-Rex Updated");
-    expect(result.heightMeters).toBe(7);
+    expect(result!.species).toBe("T-Rex Updated");
+    expect(result!.heightMeters).toBe(7);
 
     // Verify the change is persisted
     const getResult = await repository.get({ id: "overwrite-dino" }).execute();
@@ -153,9 +153,9 @@ describe("Entity Upsert Integration Tests", () => {
     const upsertResult = await repository.upsert(dino).execute();
     const getResult = await repository.get({ id: "existing-dino" }).execute();
 
-    expect(upsertResult.demoPartitionKey).toBe(getResult.item?.demoPartitionKey);
-    expect(upsertResult.demoSortKey).toBe(getResult.item?.demoSortKey);
-    expect(upsertResult.entityType).toBe(getResult.item?.entityType);
-    expect(upsertResult.species).toBe(getResult.item?.species);
+    expect(upsertResult!.demoPartitionKey).toBe(getResult.item?.demoPartitionKey);
+    expect(upsertResult!.demoSortKey).toBe(getResult.item?.demoSortKey);
+    expect(upsertResult!.entityType).toBe(getResult.item?.entityType);
+    expect(upsertResult!.species).toBe(getResult.item?.species);
   });
 });
