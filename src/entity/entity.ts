@@ -391,7 +391,7 @@ export function defineEntity<
         upsert: (data: TInput & I) => {
           // Create a minimal builder without validation or key generation
           // We'll defer all processing until execute() or withTransaction() is called
-          const builder = table.put<T>({} as T);
+          const builder = table.put<T>({} as T).returnValues("INPUT");
 
           // Core function that handles validation, key generation, and item preparation (async version)
           const prepareValidatedItemAsync = async () => {
