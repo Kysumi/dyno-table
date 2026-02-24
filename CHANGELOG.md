@@ -1,3 +1,10 @@
+## [2.5.2](https://github.com/Kysumi/dyno-table/compare/v2.5.1...v2.5.2) (2026-02-24)
+
+
+### Bug Fixes
+
+* Upsert would always fail due to no return values ([#68](https://github.com/Kysumi/dyno-table/issues/68)) ([67d4e53](https://github.com/Kysumi/dyno-table/commit/67d4e53cc1703f868f86837d97450b843c90cff1))
+
 ## [2.5.1](https://github.com/Kysumi/dyno-table/compare/v2.5.0...v2.5.1) (2026-02-04)
 
 # [2.5.0](https://github.com/Kysumi/dyno-table/compare/v2.4.0...v2.5.0) (2026-02-04)
