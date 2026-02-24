@@ -156,8 +156,6 @@ describe("entity upsert", () => {
 
     const failingRepo = failingEntity.createRepository(mockTable as unknown as Table);
 
-    await expect(
-      failingRepo.upsert({ id: "", name: "Bad Item", status: "active" }).execute(),
-    ).rejects.toThrow();
+    await expect(failingRepo.upsert({ id: "", name: "Bad Item", status: "active" }).execute()).rejects.toThrow();
   });
 });
