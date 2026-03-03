@@ -37,7 +37,12 @@ export {
 } from "./conditions";
 export type {
   EntityConfig,
+  EntityDefinition,
+  EntityDeleteBuilder,
+  EntityGetBuilder,
+  EntityPutBuilder,
   EntityRepository,
+  EntityUpdateBuilder,
   IndexDefinition,
   QueryEntity,
   QueryRecord,
