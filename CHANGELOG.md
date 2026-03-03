@@ -1,3 +1,10 @@
+# [2.6.0](https://github.com/Kysumi/dyno-table/compare/v2.5.2...v2.6.0) (2026-03-03)
+
+
+### Features
+
+* Adjusting the package to avoid TS2742 type error ([#69](https://github.com/Kysumi/dyno-table/issues/69)) ([fdf181e](https://github.com/Kysumi/dyno-table/commit/fdf181ed9d0303ebb098401448629bcf9ead9d62))
+
 ## [2.5.2](https://github.com/Kysumi/dyno-table/compare/v2.5.1...v2.5.2) (2026-02-24)
 
 
