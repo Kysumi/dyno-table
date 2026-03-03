@@ -62,4 +62,3 @@ This example implements a simple dinosaur management system using dyno-table wit
 The example demonstrates:
 - Entity definition using Zod schemas (Valibot and ArkType are also supported)
 - Constructing and building queries
-

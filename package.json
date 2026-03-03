@@ -13,7 +13,7 @@
         "default": "./dist/index.js"
       },
       "require": {
-        "types": "./dist/index.d.cts",
+        "types": "./dist/index.d.ts",
         "default": "./dist/index.cjs"
       }
     },
@@ -23,7 +23,7 @@
         "default": "./dist/table.js"
       },
       "require": {
-        "types": "./dist/table.d.cts",
+        "types": "./dist/table.d.ts",
         "default": "./dist/table.cjs"
       }
     },
@@ -33,7 +33,7 @@
         "default": "./dist/entity.js"
       },
       "require": {
-        "types": "./dist/entity.d.cts",
+        "types": "./dist/entity.d.ts",
         "default": "./dist/entity.cjs"
       }
     },
@@ -43,7 +43,7 @@
         "default": "./dist/conditions.js"
       },
       "require": {
-        "types": "./dist/conditions.d.cts",
+        "types": "./dist/conditions.d.ts",
         "default": "./dist/conditions.cjs"
       }
     },
@@ -53,7 +53,7 @@
         "default": "./dist/types.js"
       },
       "require": {
-        "types": "./dist/types.d.cts",
+        "types": "./dist/types.d.ts",
         "default": "./dist/types.cjs"
       }
     },
@@ -63,7 +63,7 @@
         "default": "./dist/standard-schema.js"
       },
       "require": {
-        "types": "./dist/standard-schema.d.cts",
+        "types": "./dist/standard-schema.d.ts",
         "default": "./dist/standard-schema.cjs"
       }
     },
@@ -73,7 +73,7 @@
         "default": "./dist/utils.js"
       },
       "require": {
-        "types": "./dist/utils.d.cts",
+        "types": "./dist/utils.d.ts",
         "default": "./dist/utils.cjs"
       }
     },
@@ -83,13 +83,15 @@
         "default": "./dist/builders.js"
       },
       "require": {
-        "types": "./dist/builders.d.cts",
+        "types": "./dist/builders.d.ts",
         "default": "./dist/builders.cjs"
       }
     }
   },
   "scripts": {
-    "build": "tsup --config tsup.config.ts",
+    "build": "pnpm run clean && pnpm run build:js && pnpm run build:types",
+    "build:js": "tsup --config tsup.config.ts",
+    "build:types": "tsc -p tsconfig.types.json",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:w": "vitest watch",

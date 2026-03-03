@@ -10,7 +10,9 @@
     "debug": "tsx --inspect-brk src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "docker": "docker compose up -d",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "check-types:portable": "tsc -p tsconfig.portable.json",
+    "verify": "pnpm run check-types && pnpm run check-types:portable"
   },
   "keywords": [
     "dyno-table",
