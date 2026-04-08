@@ -246,13 +246,11 @@ describe("UpdateBuilder", () => {
     });
 
     it("should not persist prepared updates across multiple renders", async () => {
-      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key)
-        .set("count", 1)
-        .prepare({
-          prepare: () => {
-            builder.set("status", "prepared-once");
-          },
-        });
+      const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key).set("count", 1).prepare({
+        prepare: () => {
+          builder.set("status", "prepared-once");
+        },
+      });
 
       const firstDebug = builder.debug();
       const secondDebug = builder.debug();

@@ -291,8 +291,7 @@ export function defineEntity<
   };
 
   const createEntityPutBuilder = (mode: EntityWriteMode, table: Table, data: TInput): EntityAwarePutBuilder<T> => {
-    const builder =
-      mode === "create" ? table.create<T>({} as T) : table.put<T>({} as T).returnValues("INPUT");
+    const builder = mode === "create" ? table.create<T>({} as T) : table.put<T>({} as T).returnValues("INPUT");
 
     builder.prepareItem({
       prepareForExecute: async () => (await prepareEntityWriteAsync(mode, table, data)).item,
@@ -388,7 +387,12 @@ export function defineEntity<
                 builder.filter(eq(entityTypeAttributeName, config.name));
               }
 
-              if (builder && typeof builder === "object" && "execute" in builder && typeof builder.execute === "function") {
+              if (
+                builder &&
+                typeof builder === "object" &&
+                "execute" in builder &&
+                typeof builder.execute === "function"
+              ) {
                 return new Proxy(builder, {
                   get(target, prop, receiver) {
                     if (prop === "execute") {

@@ -77,10 +77,7 @@ const mockTable = {
 
 const queryBuilder = createQueries<TestEntity>();
 
-function createMockPutBuilder<T extends DynamoItem>(
-  mode: "create" | "upsert",
-  executeResult?: T,
-): PutBuilder<T> {
+function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", executeResult?: T): PutBuilder<T> {
   const builder = new PutBuilder<T>(
     vi.fn().mockImplementation(async (params) => {
       if (params.returnValues === "INPUT") {
@@ -765,12 +762,12 @@ describe("Entity Repository - Deferred Validation", () => {
 
     // With deferred validation, create() is called with empty object initially
     expect(mockTable.create).toHaveBeenCalledWith({});
-      expect(result).toMatchObject({
-        ...testData,
-        entityType: "TestEntity",
-        pk: "TEST#123",
-        sk: "METADATA#",
-      });
+    expect(result).toMatchObject({
+      ...testData,
+      entityType: "TestEntity",
+      pk: "TEST#123",
+      sk: "METADATA#",
+    });
   });
 
   it("should validate and generate keys when withTransaction() is called", async () => {
