@@ -1,4 +1,16 @@
 import type {
+  DeleteBuilder,
+  GetBuilder,
+  Path,
+  PathType,
+  PutBuilder,
+  QueryBuilder,
+  ScanBuilder,
+  TransactionBuilder,
+  UpdateBuilder,
+  UpdateCommandParams,
+} from "../builders";
+import type {
   EntityAwareDeleteBuilder,
   EntityAwareGetBuilder,
   EntityAwarePutBuilder,
@@ -10,11 +22,13 @@ import {
   createEntityAwarePutBuilder,
   createEntityAwareUpdateBuilder,
 } from "../builders/entity-aware-builders";
-import type { GetBuilder } from "../builders/get-builder";
-import type { PutBuilder } from "../builders/put-builder";
-import type { QueryBuilder } from "../builders/query-builder";
-import type { ScanBuilder } from "../builders/scan-builder";
-import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "../conditions";
+import {
+  type Condition,
+  type ConditionOperator,
+  eq,
+  type PrimaryKey,
+  type PrimaryKeyWithoutExpression,
+} from "../conditions";
 import { DynoTableError } from "../errors";
 import type { StandardSchemaV1, StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
 import type { Table } from "../table";
@@ -43,7 +57,7 @@ export type MappedQueries<T extends DynamoItem, Q extends QueryRecord<T>> = {
 // Define a type for entity with only scan, get and query methods
 export type QueryEntity<T extends DynamoItem> = {
   scan: () => ScanBuilder<T>;
-  get: (key: PrimaryKeyWithoutExpression) => EntityAwareGetBuilder<T>;
+  get: (key: PrimaryKeyWithoutExpression) => EntityGetBuilder<T>;
   query: (keyCondition: PrimaryKey) => QueryBuilder<T, TableConfig>;
 };
 
@@ -52,6 +66,41 @@ type EntityWriteMode = "create" | "upsert";
 interface PreparedEntityWrite<TItem> {
   item: TItem;
 }
+
+type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
+type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
+
+export type EntityPutBuilder<T extends DynamoItem> = PutBuilder<T> & {
+  readonly entityName: string;
+};
+
+export type EntityGetBuilder<T extends DynamoItem> = GetBuilder<T> & {
+  readonly entityName: string;
+};
+
+export type EntityDeleteBuilder = DeleteBuilder & {
+  readonly entityName: string;
+};
+
+export type EntityUpdateBuilder<T extends DynamoItem> = {
+  readonly entityName: string;
+  set(values: Partial<T>): EntityUpdateBuilder<T>;
+  set<K extends Path<T>>(path: K, value: PathType<T, K>): EntityUpdateBuilder<T>;
+  remove<K extends Path<T>>(path: K): EntityUpdateBuilder<T>;
+  add<K extends Path<T>>(path: K, value: PathType<T, K>): EntityUpdateBuilder<T>;
+  deleteElementsFromSet<K extends Path<T>>(
+    path: K,
+    value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
+  ): EntityUpdateBuilder<T>;
+  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): EntityUpdateBuilder<T>;
+  returnValues(returnValues: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE"): EntityUpdateBuilder<T>;
+  toDynamoCommand(): UpdateCommandParams;
+  withTransaction(transaction: TransactionBuilder): void;
+  debug(): ReturnType<UpdateBuilder<T>["debug"]>;
+  execute(): Promise<{ item?: T }>;
+  forceIndexRebuild(indexes: string | string[]): EntityUpdateBuilder<T>;
+  getForceRebuildIndexes(): string[];
+};
 
 interface Settings {
   /**
@@ -134,13 +183,23 @@ export interface EntityRepository<
    */
   Q extends QueryRecord<T> = QueryRecord<T>,
 > {
-  create: (data: TInput) => EntityAwarePutBuilder<T>;
-  upsert: (data: TInput & I) => EntityAwarePutBuilder<T>;
-  get: (key: I) => EntityAwareGetBuilder<T>;
-  update: (key: I, data: Partial<T>) => EntityAwareUpdateBuilder<T>;
-  delete: (key: I) => EntityAwareDeleteBuilder;
+  create: (data: TInput) => EntityPutBuilder<T>;
+  upsert: (data: TInput & I) => EntityPutBuilder<T>;
+  get: (key: I) => EntityGetBuilder<T>;
+  update: (key: I, data: Partial<T>) => EntityUpdateBuilder<T>;
+  delete: (key: I) => EntityDeleteBuilder;
   query: MappedQueries<T, Q>;
   scan: () => ScanBuilder<T>;
+}
+
+export interface EntityDefinition<
+  T extends DynamoItem,
+  TInput extends DynamoItem = T,
+  I extends DynamoItem = T,
+  Q extends QueryRecord<T> = QueryRecord<T>,
+> {
+  name: string;
+  createRepository: (table: Table) => EntityRepository<T, TInput, I, Q>;
 }
 
 /**
@@ -165,7 +224,7 @@ export function defineEntity<
   TInput extends DynamoItem = T,
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
->(config: EntityConfig<T, TInput, I, Q>) {
+>(config: EntityConfig<T, TInput, I, Q>): EntityDefinition<T, TInput, I, Q> {
   const entityTypeAttributeName = config.settings?.entityTypeAttributeName ?? "entityType";
 
   /**

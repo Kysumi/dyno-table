@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": false,
+    "composite": true,
+    "rootDir": "./src",
+    "outDir": "./dist-types",
+    "tsBuildInfoFile": "./dist-types/.tsbuildinfo"
+  },
+  "include": [
+    "src/dinosaur-entity.ts",
+    "src/type-portability-proof.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
