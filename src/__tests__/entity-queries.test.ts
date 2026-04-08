@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { PutBuilder } from "../builders/put-builder";
+import { UpdateBuilder } from "../builders/update-builder";
 import { eq } from "../conditions";
 import { createIndex, createQueries, defineEntity } from "../entity/entity";
 import { EntityValidationError } from "../errors";
@@ -75,6 +77,42 @@ const mockTable = {
 
 const queryBuilder = createQueries<TestEntity>();
 
+function createMockPutBuilder<T extends DynamoItem>(
+  mode: "create" | "upsert",
+  executeResult?: T,
+): PutBuilder<T> {
+  const builder = new PutBuilder<T>(
+    vi.fn().mockImplementation(async (params) => {
+      if (params.returnValues === "INPUT") {
+        return params.item as T;
+      }
+
+      return executeResult as T;
+    }),
+    {} as T,
+    "TestTable",
+  );
+
+  if (mode === "create") {
+    builder.returnValues("INPUT");
+  }
+
+  return builder;
+}
+
+function createMockUpdateBuilder<T extends DynamoItem>(
+  result?: { item?: Partial<T> } | Promise<{ item?: Partial<T> }>,
+): UpdateBuilder<T> {
+  const executor = vi.fn().mockImplementation(async () => (await result) as { item?: T });
+  const builder = new UpdateBuilder<T>(executor, "TestTable", { pk: "mock-pk" });
+
+  vi.spyOn(builder, "condition");
+  vi.spyOn(builder, "set");
+  vi.spyOn(builder, "execute");
+
+  return builder;
+}
+
 describe("Entity Repository", () => {
   const entityRepository = defineEntity({
     name: "TestEntity",
@@ -116,9 +154,7 @@ describe("Entity Repository", () => {
         createdAt: "2024-01-01",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -126,7 +162,12 @@ describe("Entity Repository", () => {
 
       // With deferred validation, create() is called with empty object initially
       expect(mockTable.create).toHaveBeenCalledWith({});
-      expect(result).toEqual(testData);
+      expect(result).toMatchObject({
+        ...testData,
+        entityType: "TestEntity",
+        pk: "TEST#123",
+        sk: "METADATA#",
+      });
     });
 
     it("should add timestamps when configured", async () => {
@@ -161,9 +202,7 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -187,9 +226,7 @@ describe("Entity Repository", () => {
         issues: [{ message: "Validation failed" }],
       }));
 
-      const mockBuilder = {
-        execute: vi.fn(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create");
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -212,9 +249,7 @@ describe("Entity Repository", () => {
         createdAt: "2024-01-01",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -235,7 +270,12 @@ describe("Entity Repository", () => {
 
       // NOW validation should have been called
       expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
-      expect(result).toEqual(testData);
+      expect(result).toMatchObject({
+        ...testData,
+        entityType: "TestEntity",
+        pk: "TEST#123",
+        sk: "METADATA#",
+      });
     });
 
     it("should throw validation error during execute, not during create", async () => {
@@ -247,9 +287,7 @@ describe("Entity Repository", () => {
         createdAt: "2024-01-01",
       };
 
-      const mockBuilder = {
-        execute: vi.fn(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create");
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -300,9 +338,7 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -327,9 +363,7 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
 
       mockTable.put.mockReturnValue(mockBuilder);
 
@@ -383,9 +417,7 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
 
       mockTable.put.mockReturnValue(mockBuilder);
 
@@ -434,11 +466,7 @@ describe("Entity Repository", () => {
         name: "Updated Name",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -485,11 +513,7 @@ describe("Entity Repository", () => {
         name: "Updated Name",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -627,11 +651,7 @@ describe("Entity Repository", () => {
         name: "Updated Name",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -651,9 +671,7 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
 
       mockTable.put.mockReturnValue(mockBuilder);
 
@@ -697,9 +715,7 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
 
       mockTable.put.mockReturnValue(mockBuilder);
 
@@ -741,9 +757,7 @@ describe("Entity Repository - Deferred Validation", () => {
       status: "active",
     };
 
-    const mockBuilder = {
-      execute: vi.fn().mockResolvedValue(testData),
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
     mockTable.create.mockReturnValue(mockBuilder);
 
@@ -751,7 +765,12 @@ describe("Entity Repository - Deferred Validation", () => {
 
     // With deferred validation, create() is called with empty object initially
     expect(mockTable.create).toHaveBeenCalledWith({});
-    expect(result).toEqual(testData);
+      expect(result).toMatchObject({
+        ...testData,
+        entityType: "TestEntity",
+        pk: "TEST#123",
+        sk: "METADATA#",
+      });
   });
 
   it("should validate and generate keys when withTransaction() is called", async () => {
@@ -762,14 +781,12 @@ describe("Entity Repository - Deferred Validation", () => {
       status: "active",
     };
 
-    const mockBuilder = {
-      withTransaction: vi.fn().mockReturnThis(),
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>("create");
 
     mockTable.create.mockReturnValue(mockBuilder);
 
     // biome-ignore lint/suspicious/noExplicitAny: Test mock object
-    await repository.create(testData).withTransaction({} as any);
+    await repository.create(testData).withTransaction({ putWithCommand: vi.fn() } as any);
 
     // With deferred validation, create() is called with empty object initially
     expect(mockTable.create).toHaveBeenCalledWith({});
@@ -787,9 +804,7 @@ describe("Entity Repository - Deferred Validation", () => {
       issues: [{ message: "Validation failed" }],
     }));
 
-    const mockBuilder = {
-      execute: vi.fn(),
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>("create");
 
     mockTable.create.mockReturnValue(mockBuilder);
 
@@ -804,9 +819,7 @@ describe("Entity Repository - Deferred Validation", () => {
       status: "active",
     };
 
-    const mockBuilder = {
-      withTransaction: vi.fn().mockReturnThis(),
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>("create");
 
     mockTable.create.mockReturnValue(mockBuilder);
 

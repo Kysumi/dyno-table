@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { PutBuilder } from "../builders/put-builder";
 import { createIndex, defineEntity } from "../entity/entity";
 import { EntityValidationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -56,6 +57,29 @@ const mockTransaction = {
   execute: vi.fn(),
 };
 
+function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", executeResult?: T): PutBuilder<T> {
+  const builder = new PutBuilder<T>(
+    vi.fn().mockImplementation(async (params) => {
+      if (params.returnValues === "INPUT") {
+        return params.item as T;
+      }
+
+      return executeResult as T;
+    }),
+    {} as T,
+    "TestTable",
+  );
+
+  if (mode === "create") {
+    builder.returnValues("INPUT");
+  }
+
+  vi.spyOn(builder, "withTransaction");
+  vi.spyOn(builder, "execute");
+
+  return builder;
+}
+
 describe("Entity Transaction Support", () => {
   const entityRepository = defineEntity({
     name: "TestEntity",
@@ -86,10 +110,7 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -143,10 +164,7 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -178,19 +196,7 @@ describe("Entity Transaction Support", () => {
         status: "pending",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-        toDynamoCommand: vi.fn().mockReturnValue({
-          tableName: "test-table",
-          item: {
-            ...testData,
-            entityType: "TestEntity",
-            pk: "TEST#456",
-            sk: "METADATA#",
-          },
-        }),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -199,7 +205,7 @@ describe("Entity Transaction Support", () => {
 
       // Keys should not be generated yet
       // @ts-expect-error
-      expect(builder.item).toBeUndefined();
+      expect(builder.item).not.toHaveProperty("pk");
 
       // Simulate what happens when withTransaction is called
       // This should trigger key generation
@@ -240,10 +246,7 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -285,10 +288,7 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -353,10 +353,7 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTableWithGSI.create.mockReturnValue(mockBuilder);
 
@@ -388,10 +385,7 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn(),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create");
 
       mockTable.create.mockReturnValue(mockBuilder);
 
@@ -422,21 +416,16 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-        condition: vi.fn().mockReturnThis(),
-        returnValues: vi.fn().mockReturnThis(),
-      };
+      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
 
       mockTable.create.mockReturnValue(mockBuilder);
 
-      // Test method chaining with transaction
+      const entityBuilder = repository.create(testData);
       // @ts-expect-error
-      const builder = repository.create(testData).withTransaction(mockTransaction);
+      const builder = entityBuilder.withTransaction(mockTransaction);
 
       // Should be able to continue chaining after withTransaction
-      expect(builder).toBe(mockBuilder);
+      expect(builder).toBe(entityBuilder);
       expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
   });
@@ -450,15 +439,8 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockCreateBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
-
-      const mockUpsertBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-      };
+      const mockCreateBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const mockUpsertBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
 
       mockTable.create.mockReturnValue(mockCreateBuilder);
       mockTable.put.mockReturnValue(mockUpsertBuilder);
@@ -502,33 +484,8 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockCreateBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-        toDynamoCommand: vi.fn().mockReturnValue({
-          tableName: "test-table",
-          item: {
-            ...testData,
-            entityType: "TestEntity",
-            pk: "TEST#fix-demo",
-            sk: "METADATA#",
-          },
-        }),
-      };
-
-      const mockUpsertBuilder = {
-        execute: vi.fn().mockResolvedValue(testData),
-        withTransaction: vi.fn().mockReturnThis(),
-        toDynamoCommand: vi.fn().mockReturnValue({
-          tableName: "test-table",
-          item: {
-            ...testData,
-            entityType: "TestEntity",
-            pk: "TEST#fix-demo",
-            sk: "METADATA#",
-          },
-        }),
-      };
+      const mockCreateBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const mockUpsertBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
 
       mockTable.create.mockReturnValue(mockCreateBuilder);
       mockTable.put.mockReturnValue(mockUpsertBuilder);

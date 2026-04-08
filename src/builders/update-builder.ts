@@ -34,6 +34,11 @@ export interface UpdateOptions {
   returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
 }
 
+interface UpdatePreparationHook {
+  prepare?: () => void;
+  resetForExecute?: () => void;
+}
+
 /**
  * Function type for executing DynamoDB update operations.
  * @typeParam T - The type of the item being updated
@@ -113,11 +118,25 @@ export class UpdateBuilder<T extends DynamoItem> {
   protected readonly executor: UpdateExecutor<T>;
   protected readonly tableName: string;
   protected readonly key: PrimaryKeyWithoutExpression;
+  private preparationHook?: UpdatePreparationHook;
 
   constructor(executor: UpdateExecutor<T>, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;
     this.tableName = tableName;
     this.key = key;
+  }
+
+  prepare(hook: UpdatePreparationHook): this {
+    this.preparationHook = hook;
+    return this;
+  }
+
+  private applyPreparation(): void {
+    this.preparationHook?.prepare?.();
+  }
+
+  private resetForExecute(): void {
+    this.preparationHook?.resetForExecute?.();
   }
 
   /**
@@ -392,11 +411,8 @@ export class UpdateBuilder<T extends DynamoItem> {
     return this;
   }
 
-  /**
-   * Generate the DynamoDB command parameters
-   */
-  toDynamoCommand(): UpdateCommandParams {
-    if (this.updates.length === 0) {
+  private buildDynamoCommand(updates: UpdateAction[]): UpdateCommandParams {
+    if (updates.length === 0) {
       throw ValidationErrors.noUpdateActions(this.tableName, this.key);
     }
 
@@ -419,7 +435,7 @@ export class UpdateBuilder<T extends DynamoItem> {
     const addUpdates: UpdateAction[] = [];
     const deleteUpdates: UpdateAction[] = [];
 
-    for (const update of this.updates) {
+    for (const update of updates) {
       switch (update.type) {
         case "SET":
           setUpdates.push(update);
@@ -513,6 +529,17 @@ export class UpdateBuilder<T extends DynamoItem> {
         Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined,
       returnValues: this.options.returnValues,
     };
+  }
+
+  /**
+   * Generate the DynamoDB command parameters
+   */
+  toDynamoCommand(): UpdateCommandParams {
+    const originalUpdates = [...this.updates];
+    this.applyPreparation();
+    const preparedUpdates = [...this.updates];
+    this.updates = originalUpdates;
+    return this.buildDynamoCommand(preparedUpdates);
   }
 
   /**
@@ -613,6 +640,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    * @throws {Error} If the update operation fails for other reasons
    */
   async execute(): Promise<{ item?: T }> {
+    this.resetForExecute();
     const params = this.toDynamoCommand();
     return this.executor(params);
   }

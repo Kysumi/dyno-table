@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PutBuilder } from "../builders/put-builder";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
@@ -53,6 +54,20 @@ const testEntity = defineEntity({
   queries: {},
 });
 
+function createMockPutBuilder<T extends DynamoItem>(executeResult?: T): PutBuilder<T> {
+  return new PutBuilder<T>(
+    vi.fn().mockImplementation(async (params) => {
+      if (params.returnValues === "INPUT") {
+        return params.item as T;
+      }
+
+      return executeResult as T;
+    }),
+    {} as T,
+    "TestTable",
+  );
+}
+
 describe("entity upsert", () => {
   let repository: ReturnType<typeof testEntity.createRepository>;
 
@@ -62,9 +77,7 @@ describe("entity upsert", () => {
   });
 
   it("should return the validated item, not the underlying executor result", async () => {
-    const mockBuilder = {
-      execute: vi.fn().mockResolvedValue(undefined), // Simulates returnValues: "NONE"
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>();
 
     mockTable.put.mockReturnValue(mockBuilder);
 
@@ -89,9 +102,7 @@ describe("entity upsert", () => {
   });
 
   it("should include the entity type attribute in the returned item", async () => {
-    const mockBuilder = {
-      execute: vi.fn().mockResolvedValue(undefined),
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>();
 
     mockTable.put.mockReturnValue(mockBuilder);
 
@@ -108,11 +119,8 @@ describe("entity upsert", () => {
   });
 
   it("should call the underlying put executor exactly once", async () => {
-    // Capture the spy before upsert() wraps builder.execute
-    const originalExecuteSpy = vi.fn().mockResolvedValue(undefined);
-    const mockBuilder = {
-      execute: originalExecuteSpy,
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>();
+    const originalExecuteSpy = vi.spyOn(mockBuilder, "execute");
 
     mockTable.put.mockReturnValue(mockBuilder);
 
@@ -122,7 +130,6 @@ describe("entity upsert", () => {
       status: "active",
     };
 
-    // upsert() replaces builder.execute with a wrapper that calls originalExecuteSpy internally
     await repository.upsert(testData).execute();
 
     expect(originalExecuteSpy).toHaveBeenCalledTimes(1);
@@ -149,9 +156,7 @@ describe("entity upsert", () => {
       queries: {},
     });
 
-    const mockBuilder = {
-      execute: vi.fn().mockResolvedValue(undefined),
-    };
+    const mockBuilder = createMockPutBuilder<TestEntity>();
     mockTable.put.mockReturnValue(mockBuilder);
 
     const failingRepo = failingEntity.createRepository(mockTable as unknown as Table);

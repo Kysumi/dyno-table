@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UpdateBuilder } from "../builders/update-builder";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -48,6 +49,20 @@ const mockTable = {
   gsis: {},
 };
 
+function createMockUpdateBuilder<T extends DynamoItem>(
+  result?: { item?: Partial<T> } | Promise<{ item?: Partial<T> }>,
+): UpdateBuilder<T> {
+  const executor = vi.fn().mockImplementation(async () => (await result) as { item?: T });
+  const builder = new UpdateBuilder<T>(executor, "TestTable", { pk: "mock-pk" });
+
+  vi.spyOn(builder, "condition");
+  vi.spyOn(builder, "set");
+  vi.spyOn(builder, "remove");
+  vi.spyOn(builder, "execute");
+
+  return builder;
+}
+
 describe("Entity Update Operations", () => {
   describe("with specific primary key configuration (pk: thisIsMyPK, sk: wowSearching)", () => {
     // Define an entity repository with the specific primary key configuration
@@ -81,11 +96,7 @@ describe("Entity Update Operations", () => {
         status: "active",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -115,12 +126,7 @@ describe("Entity Update Operations", () => {
         type: "advanced",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        remove: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -179,11 +185,7 @@ describe("Entity Update Operations", () => {
         name: "Timestamped Update",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
 
       mockTable.update.mockReturnValue(mockBuilder);
 

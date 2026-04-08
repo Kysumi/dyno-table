@@ -116,6 +116,76 @@ describe("PutBuilder", () => {
         }),
       );
     });
+
+    it("should resolve a prepared item before execute", async () => {
+      const builder = new PutBuilder<TestItem>(mockExecutor, item, tableName).prepareItem({
+        prepareForExecute: async () => ({
+          ...item,
+          status: "prepared",
+        }),
+      });
+
+      await builder.execute();
+
+      expect(mockExecutor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            status: "prepared",
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("composition hooks", () => {
+    it("should resolve a prepared item before withTransaction", () => {
+      const transaction = {
+        putWithCommand: vi.fn(),
+      };
+
+      const builder = new PutBuilder<TestItem>(mockExecutor, item, tableName).prepareItem({
+        prepareForCompose: () => ({
+          ...item,
+          status: "composed",
+        }),
+      });
+
+      // @ts-expect-error test double
+      builder.withTransaction(transaction);
+
+      expect(transaction.putWithCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            status: "composed",
+          }),
+        }),
+      );
+    });
+
+    it("should resolve a prepared item before withBatch", () => {
+      const batch = {
+        putWithCommand: vi.fn(),
+      };
+
+      const builder = new PutBuilder<TestItem>(mockExecutor, item, tableName).prepareItem({
+        prepareForCompose: () => ({
+          ...item,
+          status: "batched",
+        }),
+      });
+
+      // @ts-expect-error test double
+      builder.withBatch(batch);
+
+      expect(batch.putWithCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            status: "batched",
+          }),
+        }),
+        undefined,
+      );
+    });
   });
 
   describe("debug", () => {

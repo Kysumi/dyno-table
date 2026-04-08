@@ -40,6 +40,11 @@ export interface PutOptions {
   returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT";
 }
 
+interface PutPreparationHook<T extends DynamoItem> {
+  prepareForExecute?: () => Promise<T>;
+  prepareForCompose?: () => T;
+}
+
 type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T>;
 
 /**
@@ -74,10 +79,11 @@ type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T
  * @typeParam T - The type of item being put into the table
  */
 export class PutBuilder<T extends DynamoItem> {
-  private readonly item: T;
+  private item: T;
   private options: PutOptions;
   private readonly executor: PutExecutor<T>;
   private readonly tableName: string;
+  private preparationHook?: PutPreparationHook<T>;
 
   constructor(executor: PutExecutor<T>, item: T, tableName: string) {
     this.executor = executor;
@@ -86,6 +92,11 @@ export class PutBuilder<T extends DynamoItem> {
     this.options = {
       returnValues: "NONE",
     };
+  }
+
+  public prepareItem(hook: PutPreparationHook<T>): this {
+    this.preparationHook = hook;
+    return this;
   }
 
   /**
@@ -254,17 +265,37 @@ export class PutBuilder<T extends DynamoItem> {
   /**
    * Generate the DynamoDB command parameters
    */
-  private toDynamoCommand(): PutCommandParams {
+  private toDynamoCommand(item: T = this.item): PutCommandParams {
     const { expression, names, values } = prepareExpressionParams(this.options.condition);
 
     return {
       tableName: this.tableName,
-      item: this.item,
+      item,
       conditionExpression: expression,
       expressionAttributeNames: names,
       expressionAttributeValues: values,
       returnValues: this.options.returnValues,
     };
+  }
+
+  private async resolveItemForExecute(): Promise<T> {
+    if (!this.preparationHook?.prepareForExecute) {
+      return this.item;
+    }
+
+    const preparedItem = await this.preparationHook.prepareForExecute();
+    this.item = preparedItem;
+    return preparedItem;
+  }
+
+  private resolveItemForCompose(): T {
+    if (!this.preparationHook?.prepareForCompose) {
+      return this.item;
+    }
+
+    const preparedItem = this.preparationHook.prepareForCompose();
+    this.item = preparedItem;
+    return preparedItem;
   }
 
   /**
@@ -297,7 +328,7 @@ export class PutBuilder<T extends DynamoItem> {
    * @returns The builder instance for method chaining
    */
   public withTransaction(transaction: TransactionBuilder): this {
-    const command = this.toDynamoCommand();
+    const command = this.toDynamoCommand(this.resolveItemForCompose());
     transaction.putWithCommand(command);
 
     return this;
@@ -342,7 +373,7 @@ export class PutBuilder<T extends DynamoItem> {
     TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
     K extends keyof TEntities = keyof TEntities,
   >(batch: BatchBuilder<TEntities>, entityType?: K) {
-    const command = this.toDynamoCommand();
+    const command = this.toDynamoCommand(this.resolveItemForCompose());
     batch.putWithCommand(command, entityType);
   }
 
@@ -369,7 +400,7 @@ export class PutBuilder<T extends DynamoItem> {
    * @throws Will throw an error if the condition check fails or other DynamoDB errors occur
    */
   public async execute(): Promise<T | undefined> {
-    const params = this.toDynamoCommand();
+    const params = this.toDynamoCommand(await this.resolveItemForExecute());
     return this.executor(params);
   }
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UpdateBuilder } from "../builders/update-builder";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
 import { IndexGenerationError } from "../errors";
@@ -61,6 +62,19 @@ const mockTable = {
   },
 };
 
+function createMockUpdateBuilder<T extends DynamoItem>(
+  executorImpl?: () => Promise<{ item?: Partial<T> }>,
+): UpdateBuilder<T> {
+  const executor = vi.fn().mockImplementation(async () => (await executorImpl?.()) as { item?: T });
+  const builder = new UpdateBuilder<T>(executor, "TestTable", { pk: "mock-pk" });
+
+  vi.spyOn(builder, "condition");
+  vi.spyOn(builder, "set");
+  vi.spyOn(builder, "execute");
+
+  return builder;
+}
+
 describe("Dinosaur Index Update Operations", () => {
   describe("index regeneration on fossil updates", () => {
     const dinosaurRepository = defineEntity({
@@ -106,11 +120,7 @@ describe("Dinosaur Index Update Operations", () => {
         // Not updating species to avoid triggering species-diet-index without diet
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -152,11 +162,7 @@ describe("Dinosaur Index Update Operations", () => {
         excavationSiteId: "badlands-site-001", // This would normally trigger excavation-site-index, but should be ignored
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -188,17 +194,11 @@ describe("Dinosaur Index Update Operations", () => {
         paleontologistId: "dr-sattler-789", // This should work fine
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi
-          .fn()
-          .mockRejectedValue(
-            new Error(
-              'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
-            ),
-          ),
-      };
+      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => {
+        throw new Error(
+          'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
+        );
+      });
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -215,11 +215,7 @@ describe("Dinosaur Index Update Operations", () => {
         paleontologistId: "dr-malcolm-111",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -273,11 +269,7 @@ describe("Dinosaur Index Update Operations", () => {
         name: "Allosaurus fragilis - Updated specimen",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -301,11 +293,7 @@ describe("Dinosaur Index Update Operations", () => {
         name: "Brachiosaurus altithorax - Just updating specimen name", // This doesn't affect any index
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -341,11 +329,7 @@ describe("Dinosaur Index Update Operations", () => {
         excavationSiteId: "morrison-formation-001",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        set: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-      };
+      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
       mockTable.update.mockReturnValue(mockBuilder);
 
@@ -392,11 +376,7 @@ describe("Dinosaur Index Update Operations", () => {
           excavationSiteId: "badlands-site-002", // This should trigger excavation-site-index when forced
         };
 
-        const mockBuilder = {
-          condition: vi.fn().mockReturnThis(),
-          set: vi.fn().mockReturnThis(),
-          execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-        };
+        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
         mockTable.update.mockReturnValue(mockBuilder);
 
@@ -425,11 +405,7 @@ describe("Dinosaur Index Update Operations", () => {
           diet: "carnivore",
         };
 
-        const mockBuilder = {
-          condition: vi.fn().mockReturnThis(),
-          set: vi.fn().mockReturnThis(),
-          execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-        };
+        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
 
         mockTable.update.mockReturnValue(mockBuilder);
 
@@ -462,12 +438,8 @@ describe("Dinosaur Index Update Operations", () => {
         const fossilKey = { id: "stegosaurus-321" };
         const updateData = { excavationSiteId: "morrison-site-001" };
 
-        const mockBuilder = {
-          condition: vi.fn().mockReturnThis(),
-          set: vi.fn().mockReturnThis(),
-          returnValues: vi.fn().mockReturnThis(),
-          execute: vi.fn().mockResolvedValue({ item: { ...fossilKey, ...updateData } }),
-        };
+        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
+        vi.spyOn(mockBuilder, "returnValues");
 
         mockTable.update.mockReturnValue(mockBuilder);
 
@@ -487,17 +459,11 @@ describe("Dinosaur Index Update Operations", () => {
         const fossilKey = { id: "triceratops-789" };
         const updateData = { name: "Updated name" };
 
-        const mockBuilder = {
-          condition: vi.fn().mockReturnThis(),
-          set: vi.fn().mockReturnThis(),
-          execute: vi
-            .fn()
-            .mockRejectedValue(
-              new Error(
-                "Cannot force rebuild unknown indexes: non-existent-index. Available indexes: paleontologist-index, species-diet-index, excavation-site-index",
-              ),
-            ),
-        };
+        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => {
+          throw new Error(
+            "Cannot force rebuild unknown indexes: non-existent-index. Available indexes: paleontologist-index, species-diet-index, excavation-site-index",
+          );
+        });
 
         mockTable.update.mockReturnValue(mockBuilder);
 
@@ -515,17 +481,11 @@ describe("Dinosaur Index Update Operations", () => {
           paleontologistId: "dr-sattler-789", // This should work fine for paleontologist-index
         };
 
-        const mockBuilder = {
-          condition: vi.fn().mockReturnThis(),
-          set: vi.fn().mockReturnThis(),
-          execute: vi
-            .fn()
-            .mockRejectedValue(
-              new Error(
-                'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
-              ),
-            ),
-        };
+        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => {
+          throw new Error(
+            'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
+          );
+        });
 
         mockTable.update.mockReturnValue(mockBuilder);
 
