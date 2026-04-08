@@ -186,6 +186,166 @@ describe("PutBuilder", () => {
         undefined,
       );
     });
+
+    it("should not mutate builder item after withTransaction", async () => {
+      const transaction = {
+        putWithCommand: vi.fn(),
+      };
+
+      const builder = new PutBuilder<TestItem>(mockExecutor, item, tableName).prepareItem({
+        prepareForCompose: () => ({
+          ...item,
+          status: "composed",
+        }),
+      });
+
+      // @ts-expect-error test double
+      builder.withTransaction(transaction);
+
+      await builder.execute();
+
+      expect(mockExecutor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item,
+        }),
+      );
+    });
+
+    it("should not leak in-place compose mutations into builder state", async () => {
+      const transaction = {
+        putWithCommand: vi.fn(),
+      };
+
+      const sourceItem = { ...item };
+      const builder = new PutBuilder<TestItem>(mockExecutor, sourceItem, tableName).prepareItem({
+        prepareForCompose: () => {
+          sourceItem.status = "mutated-in-place";
+          return sourceItem;
+        },
+      });
+
+      // @ts-expect-error test double
+      builder.withTransaction(transaction);
+
+      expect(transaction.putWithCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            status: "mutated-in-place",
+          }),
+        }),
+      );
+
+      await builder.execute();
+
+      expect(mockExecutor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            status: "active",
+          }),
+        }),
+      );
+    });
+
+    it("should not mutate builder item after execute", async () => {
+      const transaction = {
+        putWithCommand: vi.fn(),
+      };
+
+      const builder = new PutBuilder<TestItem>(mockExecutor, item, tableName).prepareItem({
+        prepareForExecute: async () => ({
+          ...item,
+          status: "executed",
+        }),
+      });
+
+      await builder.execute();
+
+      // @ts-expect-error test double
+      builder.withTransaction(transaction);
+
+      expect(transaction.putWithCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item,
+        }),
+      );
+    });
+
+    it("should not leak in-place execute mutations into builder state", async () => {
+      const transaction = {
+        putWithCommand: vi.fn(),
+      };
+
+      const sourceItem = { ...item };
+      const builder = new PutBuilder<TestItem>(mockExecutor, sourceItem, tableName).prepareItem({
+        prepareForExecute: async () => {
+          sourceItem.status = "executed-in-place";
+          return sourceItem;
+        },
+      });
+
+      await builder.execute();
+
+      expect(mockExecutor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            status: "executed-in-place",
+          }),
+        }),
+      );
+
+      // @ts-expect-error test double
+      builder.withTransaction(transaction);
+
+      expect(transaction.putWithCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            status: "active",
+          }),
+        }),
+      );
+    });
+
+    it("should clone items without relying on global structuredClone", async () => {
+      const originalStructuredClone = globalThis.structuredClone;
+      const transaction = {
+        putWithCommand: vi.fn(),
+      };
+
+      const sourceItem = { ...item };
+      const builder = new PutBuilder<TestItem>(mockExecutor, sourceItem, tableName).prepareItem({
+        prepareForExecute: async () => {
+          sourceItem.status = "executed-without-structured-clone";
+          return sourceItem;
+        },
+      });
+
+      globalThis.structuredClone = undefined as unknown as typeof globalThis.structuredClone;
+
+      try {
+        await builder.execute();
+
+        expect(mockExecutor).toHaveBeenCalledWith(
+          expect.objectContaining({
+            item: expect.objectContaining({
+              status: "executed-without-structured-clone",
+            }),
+          }),
+        );
+
+        // @ts-expect-error test double
+        builder.withTransaction(transaction);
+
+        expect(transaction.putWithCommand).toHaveBeenCalledWith(
+          expect.objectContaining({
+            item: expect.objectContaining({
+              status: "active",
+            }),
+          }),
+        );
+      } finally {
+        globalThis.structuredClone = originalStructuredClone;
+      }
+    });
   });
 
   describe("debug", () => {

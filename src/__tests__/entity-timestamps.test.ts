@@ -62,23 +62,30 @@ const mockTable = {
 };
 
 function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", executeResult?: T): PutBuilder<T> {
-  const builder = new PutBuilder<T>(
-    vi.fn().mockImplementation(async (params) => {
-      if (params.returnValues === "INPUT") {
-        return params.item as T;
-      }
+  const executorMock = vi.fn().mockImplementation(async (params) => {
+    if (params.returnValues === "INPUT") {
+      return params.item as T;
+    }
 
-      return executeResult as T;
-    }),
-    {} as T,
-    "TestTable",
-  );
+    return executeResult as T;
+  });
+
+  const builder = new PutBuilder<T>(executorMock, {} as T, "TestTable") as PutBuilder<T> & {
+    executorMock: typeof executorMock;
+  };
+
+  builder.executorMock = executorMock;
 
   if (mode === "create") {
     builder.returnValues("INPUT");
   }
 
   return builder;
+}
+
+function getLastExecutedPutItem<T extends DynamoItem>(builder: PutBuilder<T>): T {
+  return (builder as PutBuilder<T> & { executorMock: { mock: { calls: Array<[{ item: T }]> } } }).executorMock.mock
+    .calls.at(-1)?.[0].item as T;
 }
 
 function createMockUpdateBuilder<T extends DynamoItem>(
@@ -155,11 +162,12 @@ describe("Entity Timestamp Operations", () => {
       const builder = repository.create(testData);
       await builder.execute();
 
-      // Verify that both timestamps were added
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
+      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
+        expect.objectContaining({
+          createdAt: mockDate.toISOString(),
+          updatedAt: Math.floor(mockDate.getTime() / 1000),
+        }),
+      );
     });
 
     it("should only update the updatedAt timestamp when updating an entity", async () => {
@@ -211,11 +219,12 @@ describe("Entity Timestamp Operations", () => {
       const builder = repository.upsert(testData);
       await builder.execute();
 
-      // Verify that both timestamps were added
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
+      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
+        expect.objectContaining({
+          createdAt: mockDate.toISOString(),
+          updatedAt: Math.floor(mockDate.getTime() / 1000),
+        }),
+      );
     });
   });
 
@@ -265,11 +274,12 @@ describe("Entity Timestamp Operations", () => {
       const builder = repository.create(testData);
       await builder.execute();
 
-      // Verify that only createdAt was added
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
-      // @ts-expect-error
-      expect(builder.item).not.toHaveProperty("updatedAt");
+      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
+        expect.objectContaining({
+          createdAt: mockDate.toISOString(),
+        }),
+      );
+      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("updatedAt");
     });
 
     it("should not add any timestamps when updating an entity", async () => {
@@ -343,11 +353,12 @@ describe("Entity Timestamp Operations", () => {
       const builder = repository.create(testData);
       await builder.execute();
 
-      // Verify that only updatedAt was added
-      // @ts-expect-error
-      expect(builder.item).not.toHaveProperty("createdAt");
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
+      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("createdAt");
+      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
+        expect.objectContaining({
+          updatedAt: Math.floor(mockDate.getTime() / 1000),
+        }),
+      );
     });
 
     it("should add updatedAt timestamp when updating an entity", async () => {
@@ -430,15 +441,14 @@ describe("Entity Timestamp Operations", () => {
       const builder = repository.create(testData);
       await builder.execute();
 
-      // Verify that custom attribute names were used
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("dateCreated", mockDate.toISOString());
-      // @ts-expect-error
-      expect(builder.item).toHaveProperty("dateModified", Math.floor(mockDate.getTime() / 1000));
-      // @ts-expect-error
-      expect(builder.item).not.toHaveProperty("createdAt");
-      // @ts-expect-error
-      expect(builder.item).not.toHaveProperty("updatedAt");
+      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
+        expect.objectContaining({
+          dateCreated: mockDate.toISOString(),
+          dateModified: Math.floor(mockDate.getTime() / 1000),
+        }),
+      );
+      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("createdAt");
+      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("updatedAt");
     });
   });
 
@@ -477,11 +487,8 @@ describe("Entity Timestamp Operations", () => {
       const builder = repository.create(testData);
       await builder.execute();
 
-      // Verify that no timestamps were added
-      // @ts-expect-error
-      expect(builder.item).not.toHaveProperty("createdAt");
-      // @ts-expect-error
-      expect(builder.item).not.toHaveProperty("updatedAt");
+      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("createdAt");
+      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("updatedAt");
     });
 
     it("should not add any timestamps when updating an entity", async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { UpdateBuilder } from "../builders/update-builder";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
@@ -369,6 +369,21 @@ describe("Dinosaur Index Update Operations", () => {
     });
 
     describe("forceIndexRebuild functionality", () => {
+      it("should preserve entity update fluent types after set chaining", () => {
+        const fossilKey = { id: "type-check" };
+        const updateData = {
+          name: "Typed Fossil",
+        };
+
+        const updateBuilder = repository
+          .update(fossilKey, updateData)
+          .set({ species: "T-Rex" })
+          .forceIndexRebuild("excavation-site-index");
+
+        expectTypeOf(updateBuilder.forceIndexRebuild).toBeFunction();
+        expectTypeOf(updateBuilder.getForceRebuildIndexes).toBeFunction();
+      });
+
       it("should force rebuild a single readOnly index when explicitly requested", async () => {
         const fossilKey = { id: "triceratops-789" };
         const updateData = {

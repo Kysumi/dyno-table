@@ -82,25 +82,7 @@ export type EntityDeleteBuilder = DeleteBuilder & {
   readonly entityName: string;
 };
 
-export type EntityUpdateBuilder<T extends DynamoItem> = {
-  readonly entityName: string;
-  set(values: Partial<T>): EntityUpdateBuilder<T>;
-  set<K extends Path<T>>(path: K, value: PathType<T, K>): EntityUpdateBuilder<T>;
-  remove<K extends Path<T>>(path: K): EntityUpdateBuilder<T>;
-  add<K extends Path<T>>(path: K, value: PathType<T, K>): EntityUpdateBuilder<T>;
-  deleteElementsFromSet<K extends Path<T>>(
-    path: K,
-    value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
-  ): EntityUpdateBuilder<T>;
-  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): EntityUpdateBuilder<T>;
-  returnValues(returnValues: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE"): EntityUpdateBuilder<T>;
-  toDynamoCommand(): UpdateCommandParams;
-  withTransaction(transaction: TransactionBuilder): void;
-  debug(): ReturnType<UpdateBuilder<T>["debug"]>;
-  execute(): Promise<{ item?: T }>;
-  forceIndexRebuild(indexes: string | string[]): EntityUpdateBuilder<T>;
-  getForceRebuildIndexes(): string[];
-};
+export type EntityUpdateBuilder<T extends DynamoItem> = EntityAwareUpdateBuilder<T>;
 
 interface Settings {
   /**

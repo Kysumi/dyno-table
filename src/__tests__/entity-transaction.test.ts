@@ -80,6 +80,10 @@ function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", e
   return builder;
 }
 
+function getLastTransactionPutItem<T extends DynamoItem>(): T {
+  return mockTransaction.putWithCommand.mock.calls.at(-1)?.[0].item as T;
+}
+
 describe("Entity Transaction Support", () => {
   const entityRepository = defineEntity({
     name: "TestEntity",
@@ -119,9 +123,7 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
-      // Verify that the builder has the correct data including keys after withTransaction is called
-      // @ts-expect-error
-      expect(builder.item).toEqual({
+      expect(getLastTransactionPutItem<TestEntity>()).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#123",
@@ -173,9 +175,7 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
-      // Verify that the builder has the correct data including keys and timestamps after withTransaction is called
-      // @ts-expect-error
-      expect(builder.item).toEqual({
+      expect(getLastTransactionPutItem<TestEntity>()).toEqual({
         ...testData,
         entityType: "TestEntityWithTimestamps",
         pk: "TEST#123",
@@ -212,9 +212,7 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
-      // Verify that keys are generated when withTransaction is called
-      // @ts-expect-error
-      expect(builder.item).toEqual({
+      expect(getLastTransactionPutItem<TestEntity>()).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#456",
@@ -255,9 +253,7 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
-      // Verify that complex keys are generated correctly after withTransaction is called
-      // @ts-expect-error
-      expect(builder.item).toEqual({
+      expect(getLastTransactionPutItem<TestEntity>()).toEqual({
         ...testData,
         entityType: "ComplexEntity",
         pk: "USER#789",
@@ -297,9 +293,7 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
-      // Verify that only partition key is generated (no sort key) after withTransaction is called
-      // @ts-expect-error
-      expect(builder.item).toEqual({
+      expect(getLastTransactionPutItem<TestEntity>()).toEqual({
         ...testData,
         entityType: "SimpleEntity",
         pk: "SIMPLE#999",
@@ -362,9 +356,7 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
-      // Verify that primary and secondary index keys are generated after withTransaction is called
-      // @ts-expect-error
-      expect(builder.item).toEqual({
+      expect(getLastTransactionPutItem<TestEntity>()).toEqual({
         ...testData,
         entityType: "EntityWithGSI",
         pk: "MAIN#gsi-test",
@@ -455,16 +447,13 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       upsertBuilder.withTransaction(mockTransaction);
 
-      // Both should have complete data including keys after withTransaction is called
-      // @ts-expect-error
-      expect(createBuilder.item).toEqual({
+      expect(mockTransaction.putWithCommand.mock.calls[0]![0].item).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#consistency-test",
         sk: "METADATA#",
       });
-      // @ts-expect-error
-      expect(upsertBuilder.item).toEqual({
+      expect(mockTransaction.putWithCommand.mock.calls[1]![0].item).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#consistency-test",
@@ -500,17 +489,14 @@ describe("Entity Transaction Support", () => {
       // @ts-expect-error
       expect(() => upsertBuilder.withTransaction(mockTransaction)).not.toThrow();
 
-      // Both should have complete data including keys after withTransaction is called
-      // @ts-expect-error
-      expect(createBuilder.item).toEqual(
+      expect(mockTransaction.putWithCommand.mock.calls[0]![0].item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",
           sk: "METADATA#",
           entityType: "TestEntity",
         }),
       );
-      // @ts-expect-error
-      expect(upsertBuilder.item).toEqual(
+      expect(mockTransaction.putWithCommand.mock.calls[1]![0].item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",
           sk: "METADATA#",

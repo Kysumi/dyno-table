@@ -278,14 +278,50 @@ export class PutBuilder<T extends DynamoItem> {
     };
   }
 
+  private cloneItem(item: T): T {
+    return this.deepCloneValue(item) as T;
+  }
+
+  private deepCloneValue<TValue>(value: TValue): TValue {
+    if (typeof globalThis.structuredClone === "function") {
+      return globalThis.structuredClone(value);
+    }
+
+    if (value instanceof Date) {
+      return new Date(value.getTime()) as TValue;
+    }
+
+    if (value instanceof Set) {
+      return new Set(Array.from(value, (entry) => this.deepCloneValue(entry))) as TValue;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.deepCloneValue(entry)) as TValue;
+    }
+
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [key, this.deepCloneValue(entry)]),
+      ) as TValue;
+    }
+
+    return value;
+  }
+
   private async resolveItemForExecute(): Promise<T> {
     if (!this.preparationHook?.prepareForExecute) {
       return this.item;
     }
 
-    const preparedItem = await this.preparationHook.prepareForExecute();
-    this.item = preparedItem;
-    return preparedItem;
+    const originalItem = this.cloneItem(this.item);
+    this.item = this.cloneItem(this.item);
+
+    try {
+      const preparedItem = await this.preparationHook.prepareForExecute();
+      return preparedItem;
+    } finally {
+      this.item = originalItem;
+    }
   }
 
   private resolveItemForCompose(): T {
@@ -293,9 +329,15 @@ export class PutBuilder<T extends DynamoItem> {
       return this.item;
     }
 
-    const preparedItem = this.preparationHook.prepareForCompose();
-    this.item = preparedItem;
-    return preparedItem;
+    const originalItem = this.cloneItem(this.item);
+    this.item = this.cloneItem(this.item);
+
+    try {
+      const preparedItem = this.preparationHook.prepareForCompose();
+      return preparedItem;
+    } finally {
+      this.item = originalItem;
+    }
   }
 
   /**

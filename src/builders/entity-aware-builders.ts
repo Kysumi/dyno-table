@@ -4,6 +4,10 @@ import type { DeleteBuilder } from "./delete-builder";
 import type { GetBuilder } from "./get-builder";
 import type { PutBuilder } from "./put-builder";
 import type { UpdateBuilder } from "./update-builder";
+import type { Path, PathType } from "./types";
+
+type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
+type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
 /**
  * Creates an entity-aware wrapper that automatically provides entity names to batch operations
@@ -94,9 +98,21 @@ export function createEntityAwareDeleteBuilder(builder: DeleteBuilder, entityNam
   return createEntityAwareBuilder(builder, entityName);
 }
 
-export type EntityAwareUpdateBuilder<T extends DynamoItem> = UpdateBuilder<T> & {
+export type EntityAwareUpdateBuilder<T extends DynamoItem> = Omit<
+  UpdateBuilder<T>,
+  "set" | "remove" | "add" | "deleteElementsFromSet"
+> & {
   readonly entityName: string;
+  set(values: Partial<T>): EntityAwareUpdateBuilder<T>;
+  set<K extends Path<T>>(path: K, value: PathType<T, K>): EntityAwareUpdateBuilder<T>;
+  remove<K extends Path<T>>(path: K): EntityAwareUpdateBuilder<T>;
+  add<K extends Path<T>>(path: K, value: PathType<T, K>): EntityAwareUpdateBuilder<T>;
+  deleteElementsFromSet<K extends Path<T>>(
+    path: K,
+    value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
+  ): EntityAwareUpdateBuilder<T>;
   forceIndexRebuild(indexes: string | string[]): EntityAwareUpdateBuilder<T>;
+  getForceRebuildIndexes(): string[];
 };
 
 export function createEntityAwareUpdateBuilder<T extends DynamoItem>(
@@ -121,7 +137,11 @@ export function createEntityAwareUpdateBuilder<T extends DynamoItem>(
         };
       }
 
+      if (prop === "getForceRebuildIndexes") {
+        return () => [...forceRebuildIndexes];
+      }
+
       return Reflect.get(target, prop, receiver);
     },
-  }) as EntityAwareUpdateBuilder<T>;
+  }) as unknown as EntityAwareUpdateBuilder<T>;
 }
