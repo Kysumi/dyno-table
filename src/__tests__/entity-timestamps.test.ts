@@ -50,10 +50,10 @@ const mockUpdateExecutor = vi.fn();
 
 // Create a mock table
 const mockTable = {
-  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
-  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
-  getGetExecutor: vi.fn(),
-  getDeleteExecutor: vi.fn(),
+  _getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  _getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  _getGetExecutor: vi.fn(),
+  _getDeleteExecutor: vi.fn(),
   getIndexAttributeNames: vi.fn().mockReturnValue([]),
   tableName: "TestTable",
   partitionKey: "pk",
@@ -72,8 +72,8 @@ describe("Entity Timestamp Operations", () => {
       return undefined;
     });
     mockUpdateExecutor.mockResolvedValue({ item: undefined });
-    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
-    mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
+    mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable._getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
   });
 
   afterEach(() => {

@@ -43,6 +43,7 @@ export type {
   EntityPutBuilder,
   EntityRepository,
   EntityUpdateBuilder,
+  EntityUpdateOptions,
   IndexDefinition,
   QueryEntity,
   QueryRecord,

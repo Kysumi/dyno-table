@@ -33,10 +33,10 @@ const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
 const mockPutExecutor = vi.fn();
 
 const mockTable = {
-  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
-  getGetExecutor: vi.fn(),
-  getUpdateExecutor: vi.fn(),
-  getDeleteExecutor: vi.fn(),
+  _getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  _getGetExecutor: vi.fn(),
+  _getUpdateExecutor: vi.fn(),
+  _getDeleteExecutor: vi.fn(),
   getIndexAttributeNames: vi.fn().mockReturnValue([]),
   tableName: "TestTable",
   partitionKey: "pk",
@@ -67,7 +67,7 @@ describe("entity upsert", () => {
       }
       return undefined;
     });
-    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = testEntity.createRepository(mockTable as unknown as Table);
   });
 

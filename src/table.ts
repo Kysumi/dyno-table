@@ -10,8 +10,8 @@ import { ConditionCheckBuilder } from "./builders/condition-check-builder";
 import { DeleteBuilder, type DeleteExecutor } from "./builders/delete-builder";
 import { GetBuilder, type GetCommandParams, type GetExecutor } from "./builders/get-builder";
 import { PutBuilder, type PutExecutor } from "./builders/put-builder";
-import { QueryBuilder, type QueryOptions, type QueryExecutor } from "./builders/query-builder";
-import type { ScanOptions, ScanExecutor } from "./builders/scan-builder";
+import { QueryBuilder, type QueryExecutor, type QueryOptions } from "./builders/query-builder";
+import type { ScanExecutor, ScanOptions } from "./builders/scan-builder";
 import { ScanBuilder } from "./builders/scan-builder";
 import { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
 import type { Path } from "./builders/types";
@@ -136,21 +136,16 @@ export class Table<TConfig extends TableConfig = TableConfig> {
   }
 
   get<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
-    return new GetBuilder<T>(
-      this.getGetExecutor<T>(keyCondition),
-      keyCondition,
-      this.tableName,
-      this.getIndexAttributeNames(),
-    );
+    return new GetBuilder<T>(this._getGetExecutor<T>(), keyCondition, this.tableName, this.getIndexAttributeNames());
   }
 
   /** @internal */
-  getGetExecutor<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): GetExecutor<T> {
+  _getGetExecutor<T extends DynamoItem>(): GetExecutor<T> {
     return async (params: GetCommandParams): Promise<{ item: T | undefined }> => {
       try {
         const result = await this.dynamoClient.get({
           TableName: params.tableName,
-          Key: this.createKeyForPrimaryIndex(keyCondition),
+          Key: this.createKeyForPrimaryIndex(params.key as PrimaryKeyWithoutExpression),
           ProjectionExpression: params.projectionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ConsistentRead: params.consistentRead,
@@ -160,7 +155,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           item: result.Item ? (result.Item as T) : undefined,
         };
       } catch (error) {
-        throw OperationErrors.getFailed(params.tableName, keyCondition, error instanceof Error ? error : undefined);
+        throw OperationErrors.getFailed(
+          params.tableName,
+          params.key as Record<string, unknown>,
+          error instanceof Error ? error : undefined,
+        );
       }
     };
   }
@@ -172,11 +171,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
   put<T extends DynamoItem>(item: T): PutBuilder<T> {
-    return new PutBuilder<T>(this.getPutExecutor<T>(), item, this.tableName);
+    return new PutBuilder<T>(this._getPutExecutor<T>(), item, this.tableName);
   }
 
   /** @internal */
-  getPutExecutor<T extends DynamoItem>(): PutExecutor<T> {
+  _getPutExecutor<T extends DynamoItem>(): PutExecutor<T> {
     return async (params: PutCommandParams): Promise<T> => {
       try {
         const result = await this.dynamoClient.put({
@@ -254,11 +253,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       keyConditionExpression = and(eq(pkAttributeName, keyCondition.pk), skCondition);
     }
 
-    return new QueryBuilder<T, TConfig>(this.getQueryExecutor<T>(), keyConditionExpression, indexAttributeNames);
+    return new QueryBuilder<T, TConfig>(this._getQueryExecutor<T>(), keyConditionExpression, indexAttributeNames);
   }
 
   /** @internal */
-  getQueryExecutor<T extends DynamoItem>(): QueryExecutor<T> {
+  _getQueryExecutor<T extends DynamoItem>(): QueryExecutor<T> {
     const pkAttributeName = this.partitionKey;
     const skAttributeName = this.sortKey;
 
@@ -403,11 +402,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @returns A ScanBuilder instance for chaining operations
    */
   scan<T extends DynamoItem>(): ScanBuilder<T, TConfig> {
-    return new ScanBuilder<T, TConfig>(this.getScanExecutor<T>());
+    return new ScanBuilder<T, TConfig>(this._getScanExecutor<T>());
   }
 
   /** @internal */
-  getScanExecutor<T extends DynamoItem>(): ScanExecutor<T> {
+  _getScanExecutor<T extends DynamoItem>(): ScanExecutor<T> {
     return async (options: ScanOptions) => {
       // Implementation of the scan execution logic
       const expressionParams: ExpressionParams = {
@@ -459,16 +458,16 @@ export class Table<TConfig extends TableConfig = TableConfig> {
   }
 
   delete(keyCondition: PrimaryKeyWithoutExpression): DeleteBuilder {
-    return new DeleteBuilder(this.getDeleteExecutor(keyCondition), this.tableName, keyCondition);
+    return new DeleteBuilder(this._getDeleteExecutor(), this.tableName, keyCondition);
   }
 
   /** @internal */
-  getDeleteExecutor(keyCondition: PrimaryKeyWithoutExpression): DeleteExecutor {
+  _getDeleteExecutor(): DeleteExecutor {
     return async (params: DeleteCommandParams) => {
       try {
         const result = await this.dynamoClient.delete({
           TableName: params.tableName,
-          Key: this.createKeyForPrimaryIndex(keyCondition),
+          Key: this.createKeyForPrimaryIndex(params.key as PrimaryKeyWithoutExpression),
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
@@ -478,7 +477,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           item: result.Attributes as DynamoItem,
         };
       } catch (error) {
-        throw OperationErrors.deleteFailed(params.tableName, keyCondition, error instanceof Error ? error : undefined);
+        throw OperationErrors.deleteFailed(
+          params.tableName,
+          params.key as Record<string, unknown>,
+          error instanceof Error ? error : undefined,
+        );
       }
     };
   }
@@ -490,16 +493,16 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @returns An UpdateBuilder instance for chaining update operations and conditions
    */
   update<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
-    return new UpdateBuilder<T>(this.getUpdateExecutor<T>(keyCondition), this.tableName, keyCondition);
+    return new UpdateBuilder<T>(this._getUpdateExecutor<T>(), this.tableName, keyCondition);
   }
 
   /** @internal */
-  getUpdateExecutor<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): UpdateExecutor<T> {
+  _getUpdateExecutor<T extends DynamoItem>(): UpdateExecutor<T> {
     return async (params: UpdateCommandParams) => {
       try {
         const result = await this.dynamoClient.update({
           TableName: params.tableName,
-          Key: this.createKeyForPrimaryIndex(keyCondition),
+          Key: this.createKeyForPrimaryIndex(params.key as PrimaryKeyWithoutExpression),
           UpdateExpression: params.updateExpression,
           ConditionExpression: params.conditionExpression,
           ExpressionAttributeNames: params.expressionAttributeNames,
@@ -510,7 +513,11 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           item: result.Attributes as T,
         };
       } catch (error) {
-        throw OperationErrors.updateFailed(params.tableName, keyCondition, error instanceof Error ? error : undefined);
+        throw OperationErrors.updateFailed(
+          params.tableName,
+          params.key as Record<string, unknown>,
+          error instanceof Error ? error : undefined,
+        );
       }
     };
   }

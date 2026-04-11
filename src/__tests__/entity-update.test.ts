@@ -37,10 +37,10 @@ const mockUpdateExecutor = vi.fn();
 
 // Create a mock table with the specific primary key configuration mentioned in the issue
 const mockTable = {
-  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
-  getPutExecutor: vi.fn(),
-  getGetExecutor: vi.fn(),
-  getDeleteExecutor: vi.fn(),
+  _getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  _getPutExecutor: vi.fn(),
+  _getGetExecutor: vi.fn(),
+  _getDeleteExecutor: vi.fn(),
   getIndexAttributeNames: vi.fn().mockReturnValue([]),
   tableName: "TestTable",
   partitionKey: "thisIsMyPK",
@@ -68,7 +68,7 @@ describe("Entity Update Operations", () => {
     beforeEach(() => {
       vi.clearAllMocks();
       mockUpdateExecutor.mockResolvedValue({ item: undefined });
-      mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
+      mockTable._getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
       repository = entityRepository.createRepository(mockTable as unknown as Table);
     });
 
@@ -78,11 +78,15 @@ describe("Entity Update Operations", () => {
 
       const builder = repository.update(key, updateData);
 
-      // Verify that getUpdateExecutor was called with the correct primary key
-      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
+      // Verify the update key structure
+      const command = builder.toDynamoCommand();
+      expect(command.key).toEqual({
         pk: "thisIsMyPK#123",
         sk: "wowSearching#METADATA",
       });
+
+      // Verify that _getUpdateExecutor was called
+      expect(mockTable._getUpdateExecutor).toHaveBeenCalled();
 
       // Verify the entity type condition is set
       const { readable } = builder.debug();
@@ -100,7 +104,8 @@ describe("Entity Update Operations", () => {
       const builder = repository.update(key, updateData);
 
       // Verify the update key
-      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
+      const command = builder.toDynamoCommand();
+      expect(command.key).toEqual({
         pk: "thisIsMyPK#456",
         sk: "wowSearching#METADATA",
       });
@@ -142,8 +147,9 @@ describe("Entity Update Operations", () => {
 
       const builder = repoWithTimestamps.update(key, updateData);
 
-      // Verify that the update was called with the correct primary key
-      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
+      // Verify the primary key structure
+      const command = builder.toDynamoCommand();
+      expect(command.key).toEqual({
         pk: "thisIsMyPK#789",
         sk: "wowSearching#METADATA",
       });

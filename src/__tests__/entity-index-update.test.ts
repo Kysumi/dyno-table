@@ -37,10 +37,10 @@ const fossilKeySchema: StandardSchemaV1<{ id: string }> = {
 const mockUpdateExecutor = vi.fn();
 
 const mockTable = {
-  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
-  getPutExecutor: vi.fn(),
-  getGetExecutor: vi.fn(),
-  getDeleteExecutor: vi.fn(),
+  _getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  _getPutExecutor: vi.fn(),
+  _getGetExecutor: vi.fn(),
+  _getDeleteExecutor: vi.fn(),
   getIndexAttributeNames: vi.fn().mockReturnValue([]),
   tableName: "TestTable",
   partitionKey: "pk",
@@ -95,7 +95,7 @@ describe("Dinosaur Index Update Operations", () => {
     beforeEach(() => {
       vi.clearAllMocks();
       mockUpdateExecutor.mockResolvedValue({ item: undefined });
-      mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
+      mockTable._getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
       repository = dinosaurRepository.createRepository(mockTable as unknown as Table);
     });
 
@@ -109,8 +109,9 @@ describe("Dinosaur Index Update Operations", () => {
 
       const builder = repository.update(fossilKey, updateData);
 
-      // Verify that the update was called with the correct primary key
-      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
+      // Verify the key generation on the builder
+      const command = builder.toDynamoCommand();
+      expect(command.key).toEqual({
         pk: "DINOSAUR#t-rex-123",
         sk: "FOSSIL",
       });
@@ -260,8 +261,9 @@ describe("Dinosaur Index Update Operations", () => {
 
       const builder = repository.update(fossilKey, updateData);
 
-      // Verify that getUpdateExecutor was called with the correct primary key
-      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
+      // Verify the key generation on the builder
+      const command = builder.toDynamoCommand();
+      expect(command.key).toEqual({
         pk: "DINOSAUR#diplodocus-555",
         sk: "FOSSIL",
       });
@@ -332,9 +334,9 @@ describe("Dinosaur Index Update Operations", () => {
         const updateData = { name: "Updated name" };
 
         // Error thrown at update() call time since index build is eager
-        expect(() =>
-          repository.update(fossilKey, updateData, { forceRebuildIndexes: ["non-existent-index"] }),
-        ).toThrow(IndexGenerationError);
+        expect(() => repository.update(fossilKey, updateData, { forceRebuildIndexes: ["non-existent-index"] })).toThrow(
+          IndexGenerationError,
+        );
       });
 
       it("should throw error when forcing rebuild of index with missing template variables", () => {

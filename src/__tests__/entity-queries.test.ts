@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { ScanBuilder } from "../builders/scan-builder";
-import { QueryBuilder } from "../builders/query-builder";
 import {
   EntityAwareDeleteBuilder,
   EntityAwareGetBuilder,
   EntityAwarePutBuilder,
 } from "../builders/entity-aware-builders";
+import { QueryBuilder } from "../builders/query-builder";
+import { ScanBuilder } from "../builders/scan-builder";
 import { eq } from "../conditions";
 import { createIndex, createQueries, defineEntity } from "../entity/entity";
 import { EntityValidationError } from "../errors";
@@ -74,10 +74,10 @@ const mockDeleteExecutor = vi.fn();
 
 // Create a mock table — scan/query still called directly, CRUD uses executor getters
 const mockTable = {
-  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
-  getGetExecutor: vi.fn().mockReturnValue(mockGetExecutor),
-  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
-  getDeleteExecutor: vi.fn().mockReturnValue(mockDeleteExecutor),
+  _getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  _getGetExecutor: vi.fn().mockReturnValue(mockGetExecutor),
+  _getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  _getDeleteExecutor: vi.fn().mockReturnValue(mockDeleteExecutor),
   getIndexAttributeNames: vi.fn().mockReturnValue([]),
   scan: vi.fn(),
   query: vi.fn(),
@@ -137,10 +137,10 @@ describe("Entity Repository", () => {
     mockGetExecutor.mockResolvedValue({ item: undefined });
     mockUpdateExecutor.mockResolvedValue({ item: undefined });
     mockDeleteExecutor.mockResolvedValue({});
-    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
-    mockTable.getGetExecutor.mockReturnValue(mockGetExecutor);
-    mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
-    mockTable.getDeleteExecutor.mockReturnValue(mockDeleteExecutor);
+    mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable._getGetExecutor.mockReturnValue(mockGetExecutor);
+    mockTable._getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
+    mockTable._getDeleteExecutor.mockReturnValue(mockDeleteExecutor);
 
     repository = entityRepository.createRepository(mockTable as unknown as Table);
   });
@@ -158,7 +158,7 @@ describe("Entity Repository", () => {
       const result = await repository.create(testData).execute();
 
       // With eager validation, create() immediately prepares the item
-      expect(mockTable.getPutExecutor).toHaveBeenCalled();
+      expect(mockTable._getPutExecutor).toHaveBeenCalled();
       expect(result).toMatchObject({
         ...testData,
         entityType: "TestEntity",
@@ -238,7 +238,7 @@ describe("Entity Repository", () => {
         if (params.returnValues === "INPUT") return params.item;
         return undefined;
       });
-      mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+      mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
 
       // create() triggers validation immediately
       const builder = repository.create(testData);
@@ -316,7 +316,7 @@ describe("Entity Repository", () => {
         if (params.returnValues === "INPUT") return params.item;
         return undefined;
       });
-      mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+      mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
 
       // upsert() triggers validation immediately
       repository.upsert(testData);
@@ -389,13 +389,14 @@ describe("Entity Repository", () => {
 
       mockGetExecutor.mockResolvedValue({ item: { id: "123", type: "test" } });
 
-      await repository.get(key).execute();
+      const builder = repository.get(key);
 
-      // Verify executor was called with the transformed key
-      expect(mockTable.getGetExecutor).toHaveBeenCalledWith({
+      // Verify the key generation on the builder
+      expect(builder.toDynamoCommand().key).toEqual({
         pk: "TEST#123",
         sk: "METADATA#",
       });
+      expect(mockTable._getGetExecutor).toHaveBeenCalled();
     });
   });
 
@@ -412,10 +413,11 @@ describe("Entity Repository", () => {
 
       const builder = repository.update(key, updateData);
 
-      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
+      expect(builder.toDynamoCommand().key).toEqual({
         pk: "TEST#123",
         sk: "METADATA#",
       });
+      expect(mockTable._getUpdateExecutor).toHaveBeenCalled();
 
       const { readable } = builder.debug();
       expect(readable.conditionExpression).toBe('entityType = "TestEntity"');
@@ -468,12 +470,13 @@ describe("Entity Repository", () => {
 
       mockDeleteExecutor.mockResolvedValue({});
 
-      await repository.delete(key).execute();
+      const builder = repository.delete(key);
 
-      expect(mockTable.getDeleteExecutor).toHaveBeenCalledWith({
+      expect(builder.toDynamoCommand().key).toEqual({
         pk: "TEST#123",
         sk: "METADATA#",
       });
+      expect(mockTable._getDeleteExecutor).toHaveBeenCalled();
     });
   });
 
@@ -639,7 +642,7 @@ describe("Entity Repository - Eager Validation", () => {
       if (params.returnValues === "INPUT") return params.item;
       return undefined;
     });
-    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = entityRepository.createRepository(mockTable as unknown as Table);
   });
 
@@ -767,7 +770,7 @@ describe("createQuery with chained filters", () => {
       if (params.returnValues === "INPUT") return params.item;
       return undefined;
     });
-    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = entityWithChainedFilters.createRepository(mockTable as unknown as Table);
   });
 

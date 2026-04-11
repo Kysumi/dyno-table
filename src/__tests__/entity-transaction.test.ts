@@ -37,10 +37,10 @@ const mockPutExecutor = vi.fn();
 
 // Create a mock table
 const mockTable = {
-  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
-  getGetExecutor: vi.fn(),
-  getUpdateExecutor: vi.fn(),
-  getDeleteExecutor: vi.fn(),
+  _getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  _getGetExecutor: vi.fn(),
+  _getUpdateExecutor: vi.fn(),
+  _getDeleteExecutor: vi.fn(),
   getIndexAttributeNames: vi.fn().mockReturnValue([]),
   tableName: "TestTable",
   partitionKey: "pk",
@@ -81,7 +81,7 @@ describe("Entity Transaction Support", () => {
       if (params.returnValues === "INPUT") return params.item;
       return undefined;
     });
-    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable._getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = entityRepository.createRepository(mockTable as unknown as Table);
   });
 

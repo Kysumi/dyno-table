@@ -93,9 +93,7 @@ export class DeleteBuilder {
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
-  public condition<T extends DynamoItem>(
-    condition: Condition | ((op: ConditionOperator<T>) => Condition),
-  ): this {
+  public condition<T extends DynamoItem>(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -150,8 +148,9 @@ export class DeleteBuilder {
 
   /**
    * Generate the DynamoDB command parameters
+   * @internal
    */
-  private toDynamoCommand(): DeleteCommandParams {
+  public toDynamoCommand(): DeleteCommandParams {
     const { expression, names, values } = prepareExpressionParams(this.options.condition);
 
     return {

@@ -1,12 +1,4 @@
-import type {
-  DeleteBuilder,
-  GetBuilder,
-  Path,
-  PathType,
-  PutBuilder,
-  QueryBuilder,
-  ScanBuilder,
-} from "../builders";
+import type { DeleteBuilder, GetBuilder, Path, PathType, PutBuilder, QueryBuilder, ScanBuilder } from "../builders";
 import { UpdateBuilder } from "../builders";
 import {
   EntityAwareDeleteBuilder,
@@ -134,7 +126,7 @@ export interface EntityConfig<
   settings?: Settings;
 }
 
-export interface UpdateOptions {
+export interface EntityUpdateOptions {
   /** Index names whose keys should be forcibly regenerated even if the source attributes haven't changed */
   forceRebuildIndexes?: string[];
 }
@@ -160,7 +152,7 @@ export interface EntityRepository<
   create: (data: TInput) => EntityPutBuilder<T>;
   upsert: (data: TInput & I) => EntityPutBuilder<T>;
   get: (key: I) => EntityGetBuilder<T>;
-  update: (key: I, data: Partial<T>, options?: UpdateOptions) => UpdateBuilder<T>;
+  update: (key: I, data: Partial<T>, options?: EntityUpdateOptions) => EntityUpdateBuilder<T>;
   delete: (key: I) => EntityDeleteBuilder;
   query: MappedQueries<T, Q>;
   scan: () => ScanBuilder<T>;
@@ -300,12 +292,7 @@ export function defineEntity<
       const repository = {
         create: (data: TInput): EntityAwarePutBuilder<T> => {
           const { item } = prepareEntityWrite("create", table, data);
-          const builder = new EntityAwarePutBuilder<T>(
-            table.getPutExecutor<T>(),
-            item,
-            table.tableName,
-            config.name,
-          );
+          const builder = new EntityAwarePutBuilder<T>(table._getPutExecutor<T>(), item, table.tableName, config.name);
           builder.condition((op: ConditionOperator<T>) => op.attributeNotExists(table.partitionKey as Path<T>));
           builder.returnValues("INPUT");
           return builder;
@@ -313,12 +300,7 @@ export function defineEntity<
 
         upsert: (data: TInput & I): EntityAwarePutBuilder<T> => {
           const { item } = prepareEntityWrite("upsert", table, data);
-          const builder = new EntityAwarePutBuilder<T>(
-            table.getPutExecutor<T>(),
-            item,
-            table.tableName,
-            config.name,
-          );
+          const builder = new EntityAwarePutBuilder<T>(table._getPutExecutor<T>(), item, table.tableName, config.name);
           builder.returnValues("INPUT");
           return builder;
         },
@@ -326,7 +308,7 @@ export function defineEntity<
         get: <K extends I>(key: K): EntityAwareGetBuilder<T> => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
           return new EntityAwareGetBuilder<T>(
-            table.getGetExecutor<T>(primaryKeyObj),
+            table._getGetExecutor<T>(),
             primaryKeyObj,
             table.tableName,
             table.getIndexAttributeNames(),
@@ -334,7 +316,7 @@ export function defineEntity<
           );
         },
 
-        update: <K extends I>(key: K, data: Partial<T>, options?: UpdateOptions): UpdateBuilder<T> => {
+        update: <K extends I>(key: K, data: Partial<T>, options?: EntityUpdateOptions): EntityUpdateBuilder<T> => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
           const timestamps = generateTimestamps(["updatedAt"], data);
           const updatedItem = { ...(key as unknown as T), ...data, ...timestamps } as T;
@@ -346,11 +328,7 @@ export function defineEntity<
             options?.forceRebuildIndexes ?? [],
           );
 
-          const builder = new UpdateBuilder<T>(
-            table.getUpdateExecutor<T>(primaryKeyObj),
-            table.tableName,
-            primaryKeyObj,
-          );
+          const builder = new UpdateBuilder<T>(table._getUpdateExecutor<T>(), table.tableName, primaryKeyObj);
           builder.condition(eq(entityTypeAttributeName, config.name));
           builder.set({ ...data, ...timestamps, ...indexUpdates } as Partial<T>);
           return builder;
@@ -359,7 +337,7 @@ export function defineEntity<
         delete: <K extends I>(key: K): EntityAwareDeleteBuilder => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
           const builder = new EntityAwareDeleteBuilder(
-            table.getDeleteExecutor(primaryKeyObj),
+            table._getDeleteExecutor(),
             table.tableName,
             primaryKeyObj,
             config.name,
@@ -389,7 +367,7 @@ export function defineEntity<
                 scan: repository.scan,
                 get: (key: PrimaryKeyWithoutExpression): EntityAwareGetBuilder<T> => {
                   return new EntityAwareGetBuilder<T>(
-                    table.getGetExecutor<T>(key),
+                    table._getGetExecutor<T>(),
                     key,
                     table.tableName,
                     table.getIndexAttributeNames(),

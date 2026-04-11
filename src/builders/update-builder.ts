@@ -108,7 +108,7 @@ export type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T
 export class UpdateBuilder<T extends DynamoItem> {
   protected updates: UpdateAction[] = [];
   protected options: UpdateOptions = {
-    returnValues: "NONE",
+    returnValues: "ALL_NEW",
   };
   protected readonly executor: UpdateExecutor<T>;
   protected readonly tableName: string;
@@ -514,8 +514,9 @@ export class UpdateBuilder<T extends DynamoItem> {
 
   /**
    * Generate the DynamoDB command parameters
+   * @internal
    */
-  toDynamoCommand(): UpdateCommandParams {
+  public toDynamoCommand(): UpdateCommandParams {
     return this.buildDynamoCommand(this.updates);
   }
 

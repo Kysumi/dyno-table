@@ -205,8 +205,9 @@ export class GetBuilder<T extends DynamoItem> {
 
   /**
    * Converts the builder configuration to a DynamoDB command
+   * @internal
    */
-  private toDynamoCommand(): GetCommandParams {
+  public toDynamoCommand(): GetCommandParams {
     const expressionParams: ExpressionParams = {
       expressionAttributeNames: {},
       expressionAttributeValues: {},

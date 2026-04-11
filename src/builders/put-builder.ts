@@ -152,8 +152,9 @@ export class PutBuilder<T extends DynamoItem> {
 
   /**
    * Generate the DynamoDB command parameters
+   * @internal
    */
-  private toDynamoCommand(): PutCommandParams {
+  public toDynamoCommand(): PutCommandParams {
     const { expression, names, values } = prepareExpressionParams(this.options.condition);
 
     return {
