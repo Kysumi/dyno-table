@@ -1,10 +1,10 @@
+import type { Condition, PrimaryKeyWithoutExpression } from "../conditions";
 import type { DynamoItem } from "../types";
+import type { BatchBuilder } from "./batch-builder";
 import type { DeleteExecutor } from "./delete-builder";
 import { DeleteBuilder } from "./delete-builder";
 import { GetBuilder, type GetExecutor } from "./get-builder";
 import { PutBuilder, type PutExecutor } from "./put-builder";
-import type { BatchBuilder } from "./batch-builder";
-import type { Condition, PrimaryKeyWithoutExpression } from "../conditions";
 
 /**
  * Entity-aware PutBuilder — carries entityName for withBatch auto-inference.
