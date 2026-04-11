@@ -35,6 +35,7 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
    */
   async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
     let hasMorePages = true;
+    await this.queryBuilder.applyPreparation();
 
     while (hasMorePages) {
       const result = await this.directExecutor();

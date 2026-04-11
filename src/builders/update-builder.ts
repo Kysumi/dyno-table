@@ -34,16 +34,11 @@ export interface UpdateOptions {
   returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
 }
 
-interface UpdatePreparationHook {
-  prepare?: () => void;
-  resetForExecute?: () => void;
-}
-
 /**
  * Function type for executing DynamoDB update operations.
  * @typeParam T - The type of the item being updated
  */
-type UpdateExecutor<T extends DynamoItem> = (params: UpdateCommandParams) => Promise<{ item?: T }>;
+export type UpdateExecutor<T extends DynamoItem> = (params: UpdateCommandParams) => Promise<{ item?: T }>;
 
 /**
  * Represents a single update action within an update operation.
@@ -75,7 +70,7 @@ type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ?
  * @typeParam T - The type of the item
  * @typeParam K - The path within the item
  */
-type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
+export type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
 /**
  * Builder for creating DynamoDB update operations.
@@ -113,30 +108,16 @@ type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 export class UpdateBuilder<T extends DynamoItem> {
   protected updates: UpdateAction[] = [];
   protected options: UpdateOptions = {
-    returnValues: "ALL_NEW",
+    returnValues: "NONE",
   };
   protected readonly executor: UpdateExecutor<T>;
   protected readonly tableName: string;
   protected readonly key: PrimaryKeyWithoutExpression;
-  private preparationHook?: UpdatePreparationHook;
 
   constructor(executor: UpdateExecutor<T>, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;
     this.tableName = tableName;
     this.key = key;
-  }
-
-  prepare(hook: UpdatePreparationHook): this {
-    this.preparationHook = hook;
-    return this;
-  }
-
-  private applyPreparation(): void {
-    this.preparationHook?.prepare?.();
-  }
-
-  private resetForExecute(): void {
-    this.preparationHook?.resetForExecute?.();
   }
 
   /**
@@ -153,7 +134,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    * });
    * ```
    */
-  set(values: Partial<T>): UpdateBuilder<T>;
+  set(values: Partial<T>): this;
 
   /**
    * Sets a single attribute to a specific value.
@@ -171,7 +152,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    *   .set('stats.health', 100);
    * ```
    */
-  set<K extends Path<T>>(path: K, value: PathType<T, K>): UpdateBuilder<T>;
+  set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
   set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
     if (typeof valuesOrPath === "object") {
       for (const [key, value] of Object.entries(valuesOrPath)) {
@@ -535,11 +516,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    * Generate the DynamoDB command parameters
    */
   toDynamoCommand(): UpdateCommandParams {
-    const originalUpdates = [...this.updates];
-    this.applyPreparation();
-    const preparedUpdates = [...this.updates];
-    this.updates = originalUpdates;
-    return this.buildDynamoCommand(preparedUpdates);
+    return this.buildDynamoCommand(this.updates);
   }
 
   /**
@@ -640,8 +617,6 @@ export class UpdateBuilder<T extends DynamoItem> {
    * @throws {Error} If the update operation fails for other reasons
    */
   async execute(): Promise<{ item?: T }> {
-    this.resetForExecute();
-    const params = this.toDynamoCommand();
-    return this.executor(params);
+    return this.executor(this.toDynamoCommand());
   }
 }

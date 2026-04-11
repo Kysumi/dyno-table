@@ -20,7 +20,7 @@ export interface QueryOptions extends FilterOptions {
  * Function type for executing DynamoDB query operations.
  * @typeParam T - The type of items being queried
  */
-type QueryExecutor<T extends DynamoItem> = (
+export type QueryExecutor<T extends DynamoItem> = (
   keyCondition: Condition,
   options: QueryOptions,
 ) => Promise<{ items: T[]; lastEvaluatedKey?: Record<string, unknown> }>;

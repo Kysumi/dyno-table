@@ -42,6 +42,10 @@ export interface FilterOptions {
   lastEvaluatedKey?: DynamoItem;
 }
 
+export interface FilterPreparationHook {
+  prepare?: () => Promise<void> | void;
+}
+
 /**
  * Abstract base builder for creating DynamoDB filter operations.
  * This class provides common functionality for both Query and Scan operations.
@@ -61,6 +65,23 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 {
   protected options: FilterOptions = {};
   protected selectedFields: Set<string> = new Set();
+  protected preparationHook?: FilterPreparationHook;
+
+  /**
+   * Sets the preparation hook for this builder.
+   * Internal use only.
+   */
+  prepare(hook: FilterPreparationHook): this {
+    this.preparationHook = hook;
+    return this;
+  }
+
+  /**
+   * Applies the preparation hook.
+   */
+  public async applyPreparation(): Promise<void> {
+    await this.preparationHook?.prepare?.();
+  }
 
   /**
    * Sets the maximum number of items to return.

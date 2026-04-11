@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PutBuilder } from "../builders/put-builder";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
@@ -31,17 +30,20 @@ const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
   },
 };
 
+const mockPutExecutor = vi.fn();
+
 const mockTable = {
-  create: vi.fn(),
-  put: vi.fn(),
-  get: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  scan: vi.fn(),
-  query: vi.fn(),
+  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  getGetExecutor: vi.fn(),
+  getUpdateExecutor: vi.fn(),
+  getDeleteExecutor: vi.fn(),
+  getIndexAttributeNames: vi.fn().mockReturnValue([]),
+  tableName: "TestTable",
   partitionKey: "pk",
   sortKey: "sk",
   gsis: {},
+  scan: vi.fn(),
+  query: vi.fn(),
 };
 
 const testEntity = defineEntity({
@@ -54,41 +56,29 @@ const testEntity = defineEntity({
   queries: {},
 });
 
-function createMockPutBuilder<T extends DynamoItem>(executeResult?: T): PutBuilder<T> {
-  return new PutBuilder<T>(
-    vi.fn().mockImplementation(async (params) => {
-      if (params.returnValues === "INPUT") {
-        return params.item as T;
-      }
-
-      return executeResult as T;
-    }),
-    {} as T,
-    "TestTable",
-  );
-}
-
 describe("entity upsert", () => {
   let repository: ReturnType<typeof testEntity.createRepository>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPutExecutor.mockImplementation(async (params: any) => {
+      if (params.returnValues === "INPUT") {
+        return params.item;
+      }
+      return undefined;
+    });
+    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = testEntity.createRepository(mockTable as unknown as Table);
   });
 
   it("should return the validated item, not the underlying executor result", async () => {
-    const mockBuilder = createMockPutBuilder<TestEntity>();
-
-    mockTable.put.mockReturnValue(mockBuilder);
-
     const testData: TestEntity & { id: string } = {
       id: "456",
       name: "Another Item",
       status: "inactive",
     };
 
-    const builder = repository.upsert(testData);
-    const result = await builder.execute();
+    const result = await repository.upsert(testData).execute();
 
     // The result should be the validated + key-enriched item, not undefined
     expect(result).toBeDefined();
@@ -102,10 +92,6 @@ describe("entity upsert", () => {
   });
 
   it("should include the entity type attribute in the returned item", async () => {
-    const mockBuilder = createMockPutBuilder<TestEntity>();
-
-    mockTable.put.mockReturnValue(mockBuilder);
-
     const testData: TestEntity & { id: string } = {
       id: "789",
       name: "Entity Type Test",
@@ -119,11 +105,6 @@ describe("entity upsert", () => {
   });
 
   it("should call the underlying put executor exactly once", async () => {
-    const mockBuilder = createMockPutBuilder<TestEntity>();
-    const originalExecuteSpy = vi.spyOn(mockBuilder, "execute");
-
-    mockTable.put.mockReturnValue(mockBuilder);
-
     const testData: TestEntity & { id: string } = {
       id: "101",
       name: "Execution Count Test",
@@ -132,10 +113,10 @@ describe("entity upsert", () => {
 
     await repository.upsert(testData).execute();
 
-    expect(originalExecuteSpy).toHaveBeenCalledTimes(1);
+    expect(mockPutExecutor).toHaveBeenCalledTimes(1);
   });
 
-  it("should throw a validation error when schema validation fails", async () => {
+  it("should throw a validation error when schema validation fails during upsert", () => {
     const failingSchema: StandardSchemaV1<TestEntity> = {
       "~standard": {
         version: 1,
@@ -156,11 +137,31 @@ describe("entity upsert", () => {
       queries: {},
     });
 
-    const mockBuilder = createMockPutBuilder<TestEntity>();
-    mockTable.put.mockReturnValue(mockBuilder);
-
     const failingRepo = failingEntity.createRepository(mockTable as unknown as Table);
 
-    await expect(failingRepo.upsert({ id: "", name: "Bad Item", status: "active" }).execute()).rejects.toThrow();
+    // Validation is now eager — throws at upsert() call time
+    expect(() => failingRepo.upsert({ id: "", name: "Bad Item", status: "active" })).toThrow();
+  });
+
+  it("should send the item with returnValues INPUT to the executor", async () => {
+    const testData: TestEntity & { id: string } = {
+      id: "123",
+      name: "Test",
+      status: "active",
+    };
+
+    await repository.upsert(testData).execute();
+
+    expect(mockPutExecutor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        returnValues: "INPUT",
+        item: expect.objectContaining({
+          id: "123",
+          entityType: "TestEntity",
+          pk: "TEST#123",
+          sk: "METADATA",
+        }),
+      }),
+    );
   });
 });

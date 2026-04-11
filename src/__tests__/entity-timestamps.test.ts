@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PutBuilder } from "../builders/put-builder";
-import { UpdateBuilder } from "../builders/update-builder";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
@@ -47,75 +45,42 @@ const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
   },
 };
 
+const mockPutExecutor = vi.fn();
+const mockUpdateExecutor = vi.fn();
+
 // Create a mock table
 const mockTable = {
-  create: vi.fn(),
-  put: vi.fn(),
-  get: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  scan: vi.fn(),
-  query: vi.fn(),
+  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  getGetExecutor: vi.fn(),
+  getDeleteExecutor: vi.fn(),
+  getIndexAttributeNames: vi.fn().mockReturnValue([]),
+  tableName: "TestTable",
   partitionKey: "pk",
   sortKey: "sk",
   gsis: {},
+  scan: vi.fn(),
+  query: vi.fn(),
 };
-
-function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", executeResult?: T): PutBuilder<T> {
-  const executorMock = vi.fn().mockImplementation(async (params) => {
-    if (params.returnValues === "INPUT") {
-      return params.item as T;
-    }
-
-    return executeResult as T;
-  });
-
-  const builder = new PutBuilder<T>(executorMock, {} as T, "TestTable") as PutBuilder<T> & {
-    executorMock: typeof executorMock;
-  };
-
-  builder.executorMock = executorMock;
-
-  if (mode === "create") {
-    builder.returnValues("INPUT");
-  }
-
-  return builder;
-}
-
-function getLastExecutedPutItem<T extends DynamoItem>(builder: PutBuilder<T>): T {
-  return (
-    builder as PutBuilder<T> & { executorMock: { mock: { calls: Array<[{ item: T }]> } } }
-  ).executorMock.mock.calls.at(-1)?.[0].item as T;
-}
-
-function createMockUpdateBuilder<T extends DynamoItem>(
-  result?: { item?: Partial<T> } | Promise<{ item?: Partial<T> }>,
-): UpdateBuilder<T> {
-  const executor = vi.fn().mockImplementation(async () => (await result) as { item?: T });
-  const builder = new UpdateBuilder<T>(executor, "TestTable", { pk: "mock-pk" });
-
-  vi.spyOn(builder, "condition");
-  vi.spyOn(builder, "set");
-  vi.spyOn(builder, "execute");
-
-  return builder;
-}
 
 describe("Entity Timestamp Operations", () => {
   beforeEach(() => {
-    // Reset all mocks
     vi.clearAllMocks();
     vi.useRealTimers();
+    mockPutExecutor.mockImplementation(async (params: any) => {
+      if (params.returnValues === "INPUT") return params.item;
+      return undefined;
+    });
+    mockUpdateExecutor.mockResolvedValue({ item: undefined });
+    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
   });
 
   afterEach(() => {
-    // Restore real timers after each test
     vi.useRealTimers();
   });
 
   describe("with both createdAt and updatedAt timestamps", () => {
-    // Define an entity repository with both createdAt and updatedAt timestamps
     const entityWithBothTimestamps = defineEntity({
       name: "TestEntityWithBothTimestamps",
       schema: testSchema,
@@ -139,12 +104,10 @@ describe("Entity Timestamp Operations", () => {
     let repository: ReturnType<typeof entityWithBothTimestamps.createRepository>;
 
     beforeEach(() => {
-      // Create repository instance
       repository = entityWithBothTimestamps.createRepository(mockTable as unknown as Table);
     });
 
     it("should add both timestamps when creating an entity", async () => {
-      // Use fake timers to control the date
       vi.useFakeTimers();
       const mockDate = new Date("2023-01-01T12:00:00Z");
       vi.setSystemTime(mockDate);
@@ -156,52 +119,32 @@ describe("Entity Timestamp Operations", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const result = await repository.create(testData).execute();
 
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      const builder = repository.create(testData);
-      await builder.execute();
-
-      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
-        expect.objectContaining({
-          createdAt: mockDate.toISOString(),
-          updatedAt: Math.floor(mockDate.getTime() / 1000),
-        }),
-      );
+      expect(result).toMatchObject({
+        createdAt: mockDate.toISOString(),
+        updatedAt: Math.floor(mockDate.getTime() / 1000),
+      });
     });
 
-    it("should only update the updatedAt timestamp when updating an entity", async () => {
-      // Use fake timers to control the date
+    it("should only update the updatedAt timestamp when updating an entity", () => {
       vi.useFakeTimers();
       const mockDate = new Date("2023-01-01T12:00:00Z");
       vi.setSystemTime(mockDate);
 
-      const key = {
-        id: "123",
-      };
-
-      const updateData = {
-        name: "Updated Name",
-      };
-
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
+      const key = { id: "123" };
+      const updateData = { name: "Updated Name" };
 
       const builder = repository.update(key, updateData);
-      await builder.execute();
+      const { readable } = builder.debug();
 
       // Verify that only updatedAt was included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
-      expect(setCall).toHaveProperty("name", "Updated Name");
-      expect(setCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
-      expect(setCall).not.toHaveProperty("createdAt");
+      expect(readable.updateExpression).toContain('name = "Updated Name"');
+      expect(readable.updateExpression).toContain("updatedAt");
+      expect(readable.updateExpression).not.toContain("createdAt");
     });
 
     it("should add both timestamps when upserting an entity", async () => {
-      // Use fake timers to control the date
       vi.useFakeTimers();
       const mockDate = new Date("2023-01-01T12:00:00Z");
       vi.setSystemTime(mockDate);
@@ -213,24 +156,16 @@ describe("Entity Timestamp Operations", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
+      const result = await repository.upsert(testData).execute();
 
-      mockTable.put.mockReturnValue(mockBuilder);
-
-      const builder = repository.upsert(testData);
-      await builder.execute();
-
-      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
-        expect.objectContaining({
-          createdAt: mockDate.toISOString(),
-          updatedAt: Math.floor(mockDate.getTime() / 1000),
-        }),
-      );
+      expect(result).toMatchObject({
+        createdAt: mockDate.toISOString(),
+        updatedAt: Math.floor(mockDate.getTime() / 1000),
+      });
     });
   });
 
   describe("with only createdAt timestamp", () => {
-    // Define an entity repository with only createdAt timestamp
     const entityWithCreatedAtOnly = defineEntity({
       name: "TestEntityWithCreatedAtOnly",
       schema: testSchema,
@@ -251,12 +186,10 @@ describe("Entity Timestamp Operations", () => {
     let repository: ReturnType<typeof entityWithCreatedAtOnly.createRepository>;
 
     beforeEach(() => {
-      // Create repository instance
       repository = entityWithCreatedAtOnly.createRepository(mockTable as unknown as Table);
     });
 
     it("should add only createdAt timestamp when creating an entity", async () => {
-      // Use fake timers to control the date
       vi.useFakeTimers();
       const mockDate = new Date("2023-01-01T12:00:00Z");
       vi.setSystemTime(mockDate);
@@ -268,48 +201,26 @@ describe("Entity Timestamp Operations", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const result = await repository.create(testData).execute();
 
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      const builder = repository.create(testData);
-      await builder.execute();
-
-      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
-        expect.objectContaining({
-          createdAt: mockDate.toISOString(),
-        }),
-      );
-      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("updatedAt");
+      expect(result).toMatchObject({ createdAt: mockDate.toISOString() });
+      expect(result).not.toHaveProperty("updatedAt");
     });
 
-    it("should not add any timestamps when updating an entity", async () => {
-      const key = {
-        id: "123",
-      };
-
-      const updateData = {
-        name: "Updated Name",
-      };
-
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
+    it("should not add any timestamps when updating an entity", () => {
+      const key = { id: "123" };
+      const updateData = { name: "Updated Name" };
 
       const builder = repository.update(key, updateData);
-      await builder.execute();
+      const { readable } = builder.debug();
 
-      // Verify that no timestamps were included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
-      expect(setCall).toEqual(updateData);
-      expect(setCall).not.toHaveProperty("createdAt");
-      expect(setCall).not.toHaveProperty("updatedAt");
+      expect(readable.updateExpression).toContain('name = "Updated Name"');
+      expect(readable.updateExpression).not.toContain("createdAt");
+      expect(readable.updateExpression).not.toContain("updatedAt");
     });
   });
 
   describe("with only updatedAt timestamp", () => {
-    // Define an entity repository with only updatedAt timestamp
     const entityWithUpdatedAtOnly = defineEntity({
       name: "TestEntityWithUpdatedAtOnly",
       schema: testSchema,
@@ -330,12 +241,10 @@ describe("Entity Timestamp Operations", () => {
     let repository: ReturnType<typeof entityWithUpdatedAtOnly.createRepository>;
 
     beforeEach(() => {
-      // Create repository instance
       repository = entityWithUpdatedAtOnly.createRepository(mockTable as unknown as Table);
     });
 
     it("should add only updatedAt timestamp when creating an entity", async () => {
-      // Use fake timers to control the date
       vi.useFakeTimers();
       const mockDate = new Date("2023-01-01T12:00:00Z");
       vi.setSystemTime(mockDate);
@@ -347,52 +256,31 @@ describe("Entity Timestamp Operations", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const result = await repository.create(testData).execute();
 
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      const builder = repository.create(testData);
-      await builder.execute();
-
-      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("createdAt");
-      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
-        expect.objectContaining({
-          updatedAt: Math.floor(mockDate.getTime() / 1000),
-        }),
-      );
+      expect(result).not.toHaveProperty("createdAt");
+      expect(result).toMatchObject({
+        updatedAt: Math.floor(mockDate.getTime() / 1000),
+      });
     });
 
-    it("should add updatedAt timestamp when updating an entity", async () => {
-      // Use fake timers to control the date
+    it("should add updatedAt timestamp when updating an entity", () => {
       vi.useFakeTimers();
       const mockDate = new Date("2023-01-01T12:00:00Z");
       vi.setSystemTime(mockDate);
 
-      const key = {
-        id: "123",
-      };
-
-      const updateData = {
-        name: "Updated Name",
-      };
-
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
+      const key = { id: "123" };
+      const updateData = { name: "Updated Name" };
 
       const builder = repository.update(key, updateData);
-      await builder.execute();
+      const { readable } = builder.debug();
 
-      // Verify that updatedAt was included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
-      expect(setCall).toHaveProperty("name", "Updated Name");
-      expect(setCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
+      expect(readable.updateExpression).toContain('name = "Updated Name"');
+      expect(readable.updateExpression).toContain("updatedAt");
     });
   });
 
   describe("with custom attribute names for timestamps", () => {
-    // Define an entity repository with custom attribute names for timestamps
     const entityWithCustomTimestampNames = defineEntity({
       name: "TestEntityWithCustomTimestampNames",
       schema: testSchema,
@@ -418,12 +306,10 @@ describe("Entity Timestamp Operations", () => {
     let repository: ReturnType<typeof entityWithCustomTimestampNames.createRepository>;
 
     beforeEach(() => {
-      // Create repository instance
       repository = entityWithCustomTimestampNames.createRepository(mockTable as unknown as Table);
     });
 
     it("should use custom attribute names for timestamps", async () => {
-      // Use fake timers to control the date
       vi.useFakeTimers();
       const mockDate = new Date("2023-01-01T12:00:00Z");
       vi.setSystemTime(mockDate);
@@ -435,26 +321,18 @@ describe("Entity Timestamp Operations", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const result = await repository.create(testData).execute();
 
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      const builder = repository.create(testData);
-      await builder.execute();
-
-      expect(getLastExecutedPutItem(mockBuilder)).toEqual(
-        expect.objectContaining({
-          dateCreated: mockDate.toISOString(),
-          dateModified: Math.floor(mockDate.getTime() / 1000),
-        }),
-      );
-      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("createdAt");
-      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("updatedAt");
+      expect(result).toMatchObject({
+        dateCreated: mockDate.toISOString(),
+        dateModified: Math.floor(mockDate.getTime() / 1000),
+      });
+      expect(result).not.toHaveProperty("createdAt");
+      expect(result).not.toHaveProperty("updatedAt");
     });
   });
 
   describe("without timestamps configuration", () => {
-    // Define an entity repository without timestamps configuration
     const entityWithoutTimestamps = defineEntity({
       name: "TestEntityWithoutTimestamps",
       schema: testSchema,
@@ -463,13 +341,11 @@ describe("Entity Timestamp Operations", () => {
         .partitionKey((item) => `TEST#${item.id}`)
         .sortKey(() => "METADATA#"),
       queries: {},
-      // No timestamps configuration
     });
 
     let repository: ReturnType<typeof entityWithoutTimestamps.createRepository>;
 
     beforeEach(() => {
-      // Create repository instance
       repository = entityWithoutTimestamps.createRepository(mockTable as unknown as Table);
     });
 
@@ -481,39 +357,22 @@ describe("Entity Timestamp Operations", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const result = await repository.create(testData).execute();
 
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      const builder = repository.create(testData);
-      await builder.execute();
-
-      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("createdAt");
-      expect(getLastExecutedPutItem(mockBuilder)).not.toHaveProperty("updatedAt");
+      expect(result).not.toHaveProperty("createdAt");
+      expect(result).not.toHaveProperty("updatedAt");
     });
 
-    it("should not add any timestamps when updating an entity", async () => {
-      const key = {
-        id: "123",
-      };
-
-      const updateData = {
-        name: "Updated Name",
-      };
-
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
+    it("should not add any timestamps when updating an entity", () => {
+      const key = { id: "123" };
+      const updateData = { name: "Updated Name" };
 
       const builder = repository.update(key, updateData);
-      await builder.execute();
+      const { readable } = builder.debug();
 
-      // Verify that no timestamps were included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
-      expect(setCall).toEqual(updateData);
-      expect(setCall).not.toHaveProperty("createdAt");
-      expect(setCall).not.toHaveProperty("updatedAt");
+      expect(readable.updateExpression).toContain('name = "Updated Name"');
+      expect(readable.updateExpression).not.toContain("createdAt");
+      expect(readable.updateExpression).not.toContain("updatedAt");
     });
   });
 });

@@ -40,12 +40,7 @@ export interface PutOptions {
   returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT";
 }
 
-interface PutPreparationHook<T extends DynamoItem> {
-  prepareForExecute?: () => Promise<T>;
-  prepareForCompose?: () => T;
-}
-
-type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T>;
+export type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T>;
 
 /**
  * Builder for creating DynamoDB put operations.
@@ -79,11 +74,10 @@ type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T
  * @typeParam T - The type of item being put into the table
  */
 export class PutBuilder<T extends DynamoItem> {
-  private item: T;
-  private options: PutOptions;
-  private readonly executor: PutExecutor<T>;
-  private readonly tableName: string;
-  private preparationHook?: PutPreparationHook<T>;
+  protected item: T;
+  protected options: PutOptions;
+  protected readonly executor: PutExecutor<T>;
+  protected readonly tableName: string;
 
   constructor(executor: PutExecutor<T>, item: T, tableName: string) {
     this.executor = executor;
@@ -94,42 +88,13 @@ export class PutBuilder<T extends DynamoItem> {
     };
   }
 
-  public prepareItem(hook: PutPreparationHook<T>): this {
-    this.preparationHook = hook;
-    return this;
-  }
-
   /**
    * Sets multiple attributes of an item using an DynamoItem.
-   *
-   * @example
-   * ```typescript
-   * // Update multiple attributes
-   * builder.set({
-   *   species: 'Tyrannosaurus Rex',
-   *   height: 20,
-   *   diet: 'CARNIVORE',
-   *   'stats.threatLevel': 10
-   * });
-   * ```
    */
   set(values: Partial<T>): this;
 
   /**
    * Sets a single attribute to a specific value.
-   *
-   * @example
-   * ```typescript
-   * // Set simple attributes
-   * builder
-   *   .set('status', 'SLEEPING')
-   *   .set('lastFeeding', new Date().toISOString());
-   *
-   * // Set nested attributes
-   * builder
-   *   .set('location.zone', 'RESTRICTED')
-   *   .set('stats.health', 100);
-   * ```
    */
   set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
   set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
@@ -144,56 +109,6 @@ export class PutBuilder<T extends DynamoItem> {
 
   /**
    * Adds a condition that must be satisfied for the put operation to succeed.
-   *
-   * @example
-   * ```ts
-   * // Ensure item doesn't exist (insert only)
-   * builder.condition(op => op.attributeNotExists('id'))
-   *
-   * // Complex condition with version check
-   * builder.condition(op =>
-   *   op.and([
-   *     op.attributeExists('id'),
-   *     op.eq('version', currentVersion),
-   *     op.eq('status', 'ACTIVE')
-   *   ])
-   * )
-   * ```
-   *
-   * @param condition - Either a Condition object or a callback function that builds the condition
-   * @returns The builder instance for method chaining
-   */
-  /**
-   * Adds a condition that must be satisfied for the put operation to succeed.
-   *
-   * @example
-   * ```typescript
-   * // Ensure unique dinosaur ID
-   * builder.condition(op =>
-   *   op.attributeNotExists('id')
-   * );
-   *
-   * // Verify habitat requirements
-   * builder.condition(op =>
-   *   op.and([
-   *     op.eq('securityStatus', 'READY'),
-   *     op.attributeExists('lastInspection'),
-   *     op.gt('securityLevel', 5)
-   *   ])
-   * );
-   *
-   * // Check breeding facility conditions
-   * builder.condition(op =>
-   *   op.and([
-   *     op.between('temperature', 25, 30),
-   *     op.between('humidity', 60, 80),
-   *     op.eq('quarantineStatus', 'CLEAR')
-   *   ])
-   * );
-   * ```
-   *
-   * @param condition - Either a Condition object or a callback function that builds the condition
-   * @returns The builder instance for method chaining
    */
   public condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
     if (typeof condition === "function") {
@@ -225,37 +140,10 @@ export class PutBuilder<T extends DynamoItem> {
    * Sets whether to return the item's previous values (if it existed).
    *
    * @options
-   *  - NONE: No return value
-   *  - ALL_OLD: Returns the item's previous state if it existed, no read capacity units are consumed
+   *  - NONE: No return value (default)
+   *  - ALL_OLD: Returns the item's previous state if it existed
    *  - CONSISTENT: Performs a GET operation after the put to retrieve the item's new state
    *  - INPUT: Returns the input values that were passed to the operation
-   *
-   * @example
-   * ```ts
-   * // Get previous dinosaur state
-   * const result = await builder
-   *   .returnValues('ALL_OLD')
-   *   .execute();
-   *
-   * if (result) {
-   *   console.log('Previous profile:', {
-   *     species: result.species,
-   *     status: result.status,
-   *     stats: {
-   *       health: result.stats.health,
-   *       threatLevel: result.stats.threatLevel
-   *     }
-   *   });
-   * }
-   *
-   * // Return input values for create operations
-   * const createResult = await builder
-   *   .returnValues('INPUT')
-   *   .execute();
-   * ```
-   *
-   * @param returnValues - Use 'ALL_OLD' to return previous values, 'INPUT' to return input values, 'CONSISTENT' for fresh data, or 'NONE' (default).
-   * @returns The builder instance for method chaining
    */
   public returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT"): this {
     this.options.returnValues = returnValues;
@@ -265,12 +153,12 @@ export class PutBuilder<T extends DynamoItem> {
   /**
    * Generate the DynamoDB command parameters
    */
-  private toDynamoCommand(item: T = this.item): PutCommandParams {
+  private toDynamoCommand(): PutCommandParams {
     const { expression, names, values } = prepareExpressionParams(this.options.condition);
 
     return {
       tableName: this.tableName,
-      item,
+      item: this.item,
       conditionExpression: expression,
       expressionAttributeNames: names,
       expressionAttributeValues: values,
@@ -278,206 +166,35 @@ export class PutBuilder<T extends DynamoItem> {
     };
   }
 
-  private cloneItem(item: T): T {
-    return this.deepCloneValue(item) as T;
-  }
-
-  private deepCloneValue<TValue>(value: TValue): TValue {
-    if (typeof globalThis.structuredClone === "function") {
-      return globalThis.structuredClone(value);
-    }
-
-    if (value instanceof Date) {
-      return new Date(value.getTime()) as TValue;
-    }
-
-    if (value instanceof Set) {
-      return new Set(Array.from(value, (entry) => this.deepCloneValue(entry))) as TValue;
-    }
-
-    if (Array.isArray(value)) {
-      return value.map((entry) => this.deepCloneValue(entry)) as TValue;
-    }
-
-    if (value && typeof value === "object") {
-      return Object.fromEntries(
-        Object.entries(value).map(([key, entry]) => [key, this.deepCloneValue(entry)]),
-      ) as TValue;
-    }
-
-    return value;
-  }
-
-  private async resolveItemForExecute(): Promise<T> {
-    if (!this.preparationHook?.prepareForExecute) {
-      return this.item;
-    }
-
-    const originalItem = this.cloneItem(this.item);
-    this.item = this.cloneItem(this.item);
-
-    try {
-      const preparedItem = await this.preparationHook.prepareForExecute();
-      return preparedItem;
-    } finally {
-      this.item = originalItem;
-    }
-  }
-
-  private resolveItemForCompose(): T {
-    if (!this.preparationHook?.prepareForCompose) {
-      return this.item;
-    }
-
-    const originalItem = this.cloneItem(this.item);
-    this.item = this.cloneItem(this.item);
-
-    try {
-      const preparedItem = this.preparationHook.prepareForCompose();
-      return preparedItem;
-    } finally {
-      this.item = originalItem;
-    }
-  }
-
   /**
    * Adds this put operation to a transaction.
-   *
-   * @example
-   * ```ts
-   * const transaction = new TransactionBuilder();
-   *
-   * // Add dinosaur to new habitat
-   * new PutBuilder(executor, {
-   *   id: 'TREX-002',
-   *   location: 'PADDOCK-B',
-   *   status: 'ACTIVE',
-   *   transferDate: new Date().toISOString()
-   * }, 'dinosaurs')
-   *   .withTransaction(transaction);
-   *
-   * // Update habitat records
-   * new UpdateBuilder(executor, 'habitats', { id: 'PADDOCK-B' })
-   *   .add('occupants', 1)
-   *   .set('lastTransfer', new Date().toISOString())
-   *   .withTransaction(transaction);
-   *
-   * // Execute transfer atomically
-   * await transaction.execute();
-   * ```
-   *
-   * @param transaction - The transaction builder to add this operation to
-   * @returns The builder instance for method chaining
    */
   public withTransaction(transaction: TransactionBuilder): this {
-    const command = this.toDynamoCommand(this.resolveItemForCompose());
-    transaction.putWithCommand(command);
-
+    transaction.putWithCommand(this.toDynamoCommand());
     return this;
   }
 
   /**
    * Adds this put operation to a batch with optional entity type information.
-   *
-   * @example Basic Usage
-   * ```ts
-   * const batch = table.batchBuilder();
-   *
-   * // Add multiple dinosaurs to batch
-   * dinosaurRepo.create(newDino1).withBatch(batch);
-   * dinosaurRepo.create(newDino2).withBatch(batch);
-   * dinosaurRepo.create(newDino3).withBatch(batch);
-   *
-   * // Execute all operations efficiently
-   * await batch.execute();
-   * ```
-   *
-   * @example Typed Usage
-   * ```ts
-   * const batch = table.batchBuilder<{
-   *   User: UserEntity;
-   *   Order: OrderEntity;
-   * }>();
-   *
-   * // Add operations with type information
-   * userRepo.create(newUser).withBatch(batch, 'User');
-   * orderRepo.create(newOrder).withBatch(batch, 'Order');
-   *
-   * // Execute and get typed results
-   * const result = await batch.execute();
-   * const users: UserEntity[] = result.reads.itemsByType.User;
-   * ```
-   *
-   * @param batch - The batch builder to add this operation to
-   * @param entityType - Optional entity type key for type tracking
    */
   public withBatch<
     TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
     K extends keyof TEntities = keyof TEntities,
   >(batch: BatchBuilder<TEntities>, entityType?: K) {
-    const command = this.toDynamoCommand(this.resolveItemForCompose());
-    batch.putWithCommand(command, entityType);
+    batch.putWithCommand(this.toDynamoCommand(), entityType);
   }
 
   /**
    * Executes the put operation against DynamoDB.
-   *
-   * @example
-   * ```ts
-   * try {
-   *   // Put with condition and return old values
-   *   const result = await new PutBuilder(executor, newItem, 'myTable')
-   *     .condition(op => op.eq('version', 1))
-   *     .returnValues('ALL_OLD')
-   *     .execute();
-   *
-   *   console.log('Put successful, old item:', result);
-   * } catch (error) {
-   *   // Handle condition check failure or other errors
-   *   console.error('Put failed:', error);
-   * }
-   * ```
-   *
-   * @returns A promise that resolves to the operation result (type depends on returnValues setting)
-   * @throws Will throw an error if the condition check fails or other DynamoDB errors occur
    */
   public async execute(): Promise<T | undefined> {
-    const params = this.toDynamoCommand(await this.resolveItemForExecute());
-    return this.executor(params);
+    return this.executor(this.toDynamoCommand());
   }
 
   /**
-   * Gets a human-readable representation of the put command
-   * with all expression placeholders replaced by their actual values.
-   *
-   * @example
-   * ```ts
-   * const debugInfo = new PutBuilder(executor, {
-   *   id: 'RAPTOR-003',
-   *   species: 'Velociraptor',
-   *   status: 'QUARANTINE',
-   *   stats: {
-   *     health: 100,
-   *     aggressionLevel: 7,
-   *     age: 2
-   *   }
-   * }, 'dinosaurs')
-   *   .condition(op =>
-   *     op.and([
-   *       op.attributeNotExists('id'),
-   *       op.eq('quarantineStatus', 'READY'),
-   *       op.gt('securityLevel', 8)
-   *     ])
-   *   )
-   *   .debug();
-   *
-   * console.log('Dinosaur transfer command:', debugInfo);
-   * ```
-   *
-   * @returns A readable representation of the put command with resolved expressions
+   * Gets a human-readable representation of the put command.
    */
   public debug() {
-    const command = this.toDynamoCommand();
-    return debugCommand(command);
+    return debugCommand(this.toDynamoCommand());
   }
 }

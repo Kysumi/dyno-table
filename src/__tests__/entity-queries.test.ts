@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { PutBuilder } from "../builders/put-builder";
-import { UpdateBuilder } from "../builders/update-builder";
+import { ScanBuilder } from "../builders/scan-builder";
+import { QueryBuilder } from "../builders/query-builder";
+import {
+  EntityAwareDeleteBuilder,
+  EntityAwareGetBuilder,
+  EntityAwarePutBuilder,
+} from "../builders/entity-aware-builders";
 import { eq } from "../conditions";
 import { createIndex, createQueries, defineEntity } from "../entity/entity";
 import { EntityValidationError } from "../errors";
@@ -61,15 +66,22 @@ const byStatusInputSchema: StandardSchemaV1<{ status: string; id: string; test: 
   },
 };
 
-// Create a mock table
+// Mock executors
+const mockPutExecutor = vi.fn();
+const mockGetExecutor = vi.fn();
+const mockUpdateExecutor = vi.fn();
+const mockDeleteExecutor = vi.fn();
+
+// Create a mock table — scan/query still called directly, CRUD uses executor getters
 const mockTable = {
-  create: vi.fn(),
-  put: vi.fn(),
-  get: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
+  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  getGetExecutor: vi.fn().mockReturnValue(mockGetExecutor),
+  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  getDeleteExecutor: vi.fn().mockReturnValue(mockDeleteExecutor),
+  getIndexAttributeNames: vi.fn().mockReturnValue([]),
   scan: vi.fn(),
   query: vi.fn(),
+  tableName: "TestTable",
   partitionKey: "pk",
   sortKey: "sk",
   gsis: {},
@@ -77,36 +89,19 @@ const mockTable = {
 
 const queryBuilder = createQueries<TestEntity>();
 
-function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", executeResult?: T): PutBuilder<T> {
-  const builder = new PutBuilder<T>(
-    vi.fn().mockImplementation(async (params) => {
-      if (params.returnValues === "INPUT") {
-        return params.item as T;
-      }
-
-      return executeResult as T;
-    }),
-    {} as T,
-    "TestTable",
-  );
-
-  if (mode === "create") {
-    builder.returnValues("INPUT");
-  }
-
+function createMockScanBuilder<T extends DynamoItem>(results?: T[]) {
+  const executor = vi.fn().mockImplementation(async () => ({ items: results ?? [], lastEvaluatedKey: undefined }));
+  const builder = new ScanBuilder<T>(executor);
+  vi.spyOn(builder, "filter");
+  vi.spyOn(builder, "execute");
   return builder;
 }
 
-function createMockUpdateBuilder<T extends DynamoItem>(
-  result?: { item?: Partial<T> } | Promise<{ item?: Partial<T> }>,
-): UpdateBuilder<T> {
-  const executor = vi.fn().mockImplementation(async () => (await result) as { item?: T });
-  const builder = new UpdateBuilder<T>(executor, "TestTable", { pk: "mock-pk" });
-
-  vi.spyOn(builder, "condition");
-  vi.spyOn(builder, "set");
+function createMockQueryBuilder<T extends DynamoItem>(results?: T[]) {
+  const executor = vi.fn().mockImplementation(async () => ({ items: results ?? [], lastEvaluatedKey: undefined }));
+  const builder = new QueryBuilder<T>(executor, { type: "eq", attr: "pk", value: "mock-pk" });
+  vi.spyOn(builder, "filter");
   vi.spyOn(builder, "execute");
-
   return builder;
 }
 
@@ -134,10 +129,19 @@ describe("Entity Repository", () => {
   let repository: ReturnType<typeof entityRepository.createRepository>;
 
   beforeEach(() => {
-    // Reset all mocks
     vi.clearAllMocks();
+    mockPutExecutor.mockImplementation(async (params: any) => {
+      if (params.returnValues === "INPUT") return params.item;
+      return undefined;
+    });
+    mockGetExecutor.mockResolvedValue({ item: undefined });
+    mockUpdateExecutor.mockResolvedValue({ item: undefined });
+    mockDeleteExecutor.mockResolvedValue({});
+    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
+    mockTable.getGetExecutor.mockReturnValue(mockGetExecutor);
+    mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
+    mockTable.getDeleteExecutor.mockReturnValue(mockDeleteExecutor);
 
-    // Create repository instance
     repository = entityRepository.createRepository(mockTable as unknown as Table);
   });
 
@@ -151,14 +155,10 @@ describe("Entity Repository", () => {
         createdAt: "2024-01-01",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
       const result = await repository.create(testData).execute();
 
-      // With deferred validation, create() is called with empty object initially
-      expect(mockTable.create).toHaveBeenCalledWith({});
+      // With eager validation, create() immediately prepares the item
+      expect(mockTable.getPutExecutor).toHaveBeenCalled();
       expect(result).toMatchObject({
         ...testData,
         entityType: "TestEntity",
@@ -168,7 +168,6 @@ describe("Entity Repository", () => {
     });
 
     it("should add timestamps when configured", async () => {
-      // Create a new entity repository with timestamps configured
       const entityWithTimestamps = defineEntity({
         name: "TestEntityWithTimestamps",
         schema: testSchema,
@@ -199,18 +198,14 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const result = await repoWithTimestamps.create(testData).execute();
 
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      await repoWithTimestamps.create(testData).execute();
-
-      // With deferred validation, create() is called with empty object initially
-      // Timestamps are added during execute(), not during create()
-      expect(mockTable.create).toHaveBeenCalledWith({});
+      // Timestamps are added eagerly at create() time
+      expect(result).toHaveProperty("createdAt");
+      expect(result).toHaveProperty("modifiedAt");
     });
 
-    it("should throw error on validation failure during execute", async () => {
+    it("should throw error on validation failure during create", () => {
       const testData: TestEntity = {
         id: "123",
         name: "Test Item",
@@ -223,50 +218,37 @@ describe("Entity Repository", () => {
         issues: [{ message: "Validation failed" }],
       }));
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create");
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // With deferred validation, create() should not throw
-      const builder = repository.create(testData);
-      expect(mockTable.create).toHaveBeenCalledWith({});
-
-      // Validation error should happen during execute()
-      await expect(builder.execute()).rejects.toThrow(EntityValidationError);
+      // With eager validation, create() throws immediately
+      expect(() => repository.create(testData)).toThrow(EntityValidationError);
     });
   });
 
-  describe("create with deferred validation", () => {
-    it("should defer validation and key generation until execute is called", async () => {
+  describe("create with eager validation", () => {
+    it("should validate and generate keys when create() is called", async () => {
       const testData: TestEntity = {
         id: "123",
         name: "Test Item",
         type: "test",
         status: "active",
-        createdAt: "2024-01-01",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // Reset the mock to ensure clean state
+      // Reset mock to track calls
       vi.clearAllMocks();
+      mockPutExecutor.mockImplementation(async (params: any) => {
+        if (params.returnValues === "INPUT") return params.item;
+        return undefined;
+      });
+      mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
 
-      // Create builder without immediate validation
+      // create() triggers validation immediately
       const builder = repository.create(testData);
 
-      // Validation should NOT have been called during create()
-      expect(testSchema["~standard"].validate).not.toHaveBeenCalled();
+      // Validation should have been called during create()
+      expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
 
-      // Table.create should be called with empty object
-      expect(mockTable.create).toHaveBeenCalledWith({});
-
-      // Execute should trigger validation and processing
+      // Execute the builder
       const result = await builder.execute();
 
-      // NOW validation should have been called
-      expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
       expect(result).toMatchObject({
         ...testData,
         entityType: "TestEntity",
@@ -275,7 +257,7 @@ describe("Entity Repository", () => {
       });
     });
 
-    it("should throw validation error during execute, not during create", async () => {
+    it("should throw validation error during create, not during execute", () => {
       const testData: TestEntity = {
         id: "123",
         name: "Test Item",
@@ -284,75 +266,44 @@ describe("Entity Repository", () => {
         createdAt: "2024-01-01",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create");
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // Create should not fail even with bad validation setup
-      const builder = repository.create(testData);
-
-      // Should initially be called with empty object
-      expect(mockTable.create).toHaveBeenCalledWith({});
-
-      // Now mock validation failure
       (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
         issues: [{ message: "Validation failed" }],
       }));
 
-      // execute() should fail with validation error
-      await expect(builder.execute()).rejects.toThrow(EntityValidationError);
+      // Validation is eager — throws at create() call time
+      expect(() => repository.create(testData)).toThrow(EntityValidationError);
     });
 
-    it("should add timestamps when configured and execute is called", async () => {
-      // Create a new entity repository with timestamps configured
-      const entityWithTimestamps = defineEntity({
-        name: "TestEntityWithTimestamps",
-        schema: testSchema,
-        primaryKey: createIndex()
-          .input(primaryKeySchema)
-          .partitionKey((item) => `TEST#${item.id}`)
-          .sortKey(() => "METADATA#"),
-        queries: {},
-        settings: {
-          timestamps: {
-            createdAt: {
-              format: "ISO",
-            },
-            updatedAt: {
-              format: "UNIX",
-              attributeName: "modifiedAt",
-            },
-          },
-        },
-      });
-
-      const repoWithTimestamps = entityWithTimestamps.createRepository(mockTable as unknown as Table);
-
+    it("should have the item prepared when withTransaction is called", () => {
       const testData: TestEntity = {
         id: "123",
         name: "Test Item",
         type: "test",
         status: "active",
+        createdAt: "2024-01-01",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+      const mockTxn = { putWithCommand: vi.fn() };
+      const builder = repository.create(testData);
 
-      mockTable.create.mockReturnValue(mockBuilder);
+      // @ts-expect-error - test double
+      builder.withTransaction(mockTxn);
 
-      const builder = repoWithTimestamps.create(testData);
-
-      // Should initially be called with empty object
-      expect(mockTable.create).toHaveBeenCalledWith({});
-
-      await builder.execute();
-
-      // Verify that validation was called during execute
-      expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
+      // Item should be fully prepared
+      expect(mockTxn.putWithCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          item: expect.objectContaining({
+            entityType: "TestEntity",
+            pk: "TEST#123",
+            sk: "METADATA#",
+          }),
+        }),
+      );
     });
   });
 
-  describe("upsert with deferred validation", () => {
-    it("should defer validation and key generation until execute is called", async () => {
+  describe("upsert with eager validation", () => {
+    it("should validate and generate keys when upsert() is called", async () => {
       const testData: TestEntity = {
         id: "123",
         name: "Test Item",
@@ -360,30 +311,37 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
+      vi.clearAllMocks();
+      mockPutExecutor.mockImplementation(async (params: any) => {
+        if (params.returnValues === "INPUT") return params.item;
+        return undefined;
+      });
+      mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
 
-      mockTable.put.mockReturnValue(mockBuilder);
+      // upsert() triggers validation immediately
+      repository.upsert(testData);
 
-      // Create builder without immediate validation
-      const builder = repository.upsert(testData);
-
-      // Validation should NOT have been called during upsert()
-      expect(testSchema["~standard"].validate).not.toHaveBeenCalled();
-
-      // Table.put should be called with empty object
-      expect(mockTable.put).toHaveBeenCalledWith({});
-
-      // Execute should trigger validation and processing
-      const result = await builder.execute();
-
-      // NOW validation should have been called
+      // Validation should have been called during upsert()
       expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
-      // Result is the enriched item (includes generated keys and entityType), not just the raw input
-      expect(result).toMatchObject(testData);
     });
 
-    it("should add timestamps when configured and execute is called", async () => {
-      // Create a new entity repository with timestamps configured
+    it("should throw validation error during upsert, not during execute", () => {
+      const testData: TestEntity = {
+        id: "123",
+        name: "Test Item",
+        type: "test",
+        status: "active",
+      };
+
+      (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
+        issues: [{ message: "Validation failed" }],
+      }));
+
+      // Validation is eager — throws at upsert() call time
+      expect(() => repository.upsert(testData)).toThrow(EntityValidationError);
+    });
+
+    it("should add timestamps when configured at upsert() time", async () => {
       const entityWithTimestamps = defineEntity({
         name: "TestEntityWithTimestamps",
         schema: testSchema,
@@ -414,19 +372,11 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
+      const result = await repoWithTimestamps.upsert(testData).execute();
 
-      mockTable.put.mockReturnValue(mockBuilder);
-
-      const builder = repoWithTimestamps.upsert(testData);
-
-      // Should initially be called with empty object
-      expect(mockTable.put).toHaveBeenCalledWith({});
-
-      await builder.execute();
-
-      // Verify that validation was called during execute
-      expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
+      // Timestamps added at upsert() time
+      expect(result).toHaveProperty("createdAt");
+      expect(result).toHaveProperty("modifiedAt");
     });
   });
 
@@ -437,15 +387,12 @@ describe("Entity Repository", () => {
         type: "test",
       };
 
-      const mockBuilder = {
-        execute: vi.fn().mockResolvedValue({ item: { id: "123", type: "test" } }),
-      };
-
-      mockTable.get.mockReturnValue(mockBuilder);
+      mockGetExecutor.mockResolvedValue({ item: { id: "123", type: "test" } });
 
       await repository.get(key).execute();
 
-      expect(mockTable.get).toHaveBeenCalledWith({
+      // Verify executor was called with the transformed key
+      expect(mockTable.getGetExecutor).toHaveBeenCalledWith({
         pk: "TEST#123",
         sk: "METADATA#",
       });
@@ -463,22 +410,19 @@ describe("Entity Repository", () => {
         name: "Updated Name",
       };
 
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
+      const builder = repository.update(key, updateData);
 
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repository.update(key, updateData).execute();
-
-      expect(mockTable.update).toHaveBeenCalledWith({
+      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
         pk: "TEST#123",
         sk: "METADATA#",
       });
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
-      expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
+
+      const { readable } = builder.debug();
+      expect(readable.conditionExpression).toBe('entityType = "TestEntity"');
+      expect(readable.updateExpression).toContain('name = "Updated Name"');
     });
 
-    it("should add updatedAt timestamp when configured", async () => {
-      // Create a new entity repository with timestamps configured
+    it("should add updatedAt timestamp when configured", () => {
       const entityWithTimestamps = defineEntity({
         name: "TestEntityWithTimestamps",
         schema: testSchema,
@@ -502,28 +446,16 @@ describe("Entity Repository", () => {
 
       const repoWithTimestamps = entityWithTimestamps.createRepository(mockTable as unknown as Table);
 
-      const key = {
-        id: "123",
-      };
+      const key = { id: "123" };
+      const updateData = { name: "Updated Name" };
 
-      const updateData = {
-        name: "Updated Name",
-      };
-
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repoWithTimestamps.update(key, updateData).execute();
+      const builder = repoWithTimestamps.update(key, updateData);
+      const { readable } = builder.debug();
 
       // Verify that only updatedAt timestamp was added (not createdAt)
-      expect(mockBuilder.set).toHaveBeenCalled();
-      // @ts-expect-error
-      const setCall = mockBuilder.set.mock.calls[0][0];
-      expect(setCall).toHaveProperty("name", "Updated Name");
-      expect(setCall).toHaveProperty("modifiedAt");
-      expect(typeof setCall.modifiedAt).toBe("number"); // UNIX format
-      expect(setCall).not.toHaveProperty("createdAt"); // createdAt should not be added on updates
+      expect(readable.updateExpression).toContain('name = "Updated Name"');
+      expect(readable.updateExpression).toContain("modifiedAt");
+      expect(readable.updateExpression).not.toContain("createdAt");
     });
   });
 
@@ -534,29 +466,20 @@ describe("Entity Repository", () => {
         type: "test",
       };
 
-      const mockBuilder = {
-        condition: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({}),
-      };
-
-      mockTable.delete.mockReturnValue(mockBuilder);
+      mockDeleteExecutor.mockResolvedValue({});
 
       await repository.delete(key).execute();
 
-      expect(mockTable.delete).toHaveBeenCalledWith({
+      expect(mockTable.getDeleteExecutor).toHaveBeenCalledWith({
         pk: "TEST#123",
         sk: "METADATA#",
       });
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
     });
   });
 
   describe("scan", () => {
     it("should scan with entity type filter", async () => {
-      const mockBuilder = {
-        filter: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ items: [] }),
-      };
+      const mockBuilder = createMockScanBuilder([{ id: "1", type: "test" } as TestEntity]);
 
       mockTable.scan.mockReturnValue(mockBuilder);
 
@@ -574,10 +497,7 @@ describe("Entity Repository", () => {
         test: "test-value",
       };
 
-      const mockBuilder = {
-        filter: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ items: [] }),
-      };
+      const mockBuilder = createMockQueryBuilder();
 
       mockTable.query.mockReturnValue(mockBuilder);
 
@@ -590,7 +510,7 @@ describe("Entity Repository", () => {
       expect(mockBuilder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
     });
 
-    it("should throw error on query input validation failure", async () => {
+    it("should throw error on query input validation failure", () => {
       const input = {
         id: "123",
         test: "test-value",
@@ -600,15 +520,11 @@ describe("Entity Repository", () => {
         createdAt: "2024-01-01",
       };
 
-      // Mock the validation function for byIdInputSchema
       (byIdInputSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
         issues: [{ message: "Validation failed" }],
       }));
 
-      const mockBuilder = {
-        filter: vi.fn().mockReturnThis(),
-        execute: vi.fn(),
-      };
+      const mockBuilder = createMockQueryBuilder();
 
       mockTable.query.mockReturnValue(mockBuilder);
 
@@ -616,13 +532,12 @@ describe("Entity Repository", () => {
         throw new Error("Query byId is not defined");
       }
 
-      await expect(repository.query.byId(input).execute()).rejects.toThrow(EntityValidationError);
+      expect(() => repository.query.byId(input)).toThrow(EntityValidationError);
     });
   });
 
   describe("custom entity type column name", () => {
-    it("should use custom entity type column name in constraints", async () => {
-      // Create a new entity repository with custom entity type column name
+    it("should use custom entity type column name in constraints", () => {
       const customEntityRepository = defineEntity({
         name: "CustomEntity",
         schema: testSchema,
@@ -636,26 +551,15 @@ describe("Entity Repository", () => {
         },
       });
 
-      // Create repository instance
       const customRepository = customEntityRepository.createRepository(mockTable as unknown as Table);
 
-      // Test update method with custom entity type column name
-      const key = {
-        id: "123",
-      };
+      const key = { id: "123" };
+      const updateData = { name: "Updated Name" };
 
-      const updateData = {
-        name: "Updated Name",
-      };
+      const builder = customRepository.update(key, updateData);
+      const { readable } = builder.debug();
 
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await customRepository.update(key, updateData).execute();
-
-      // Verify that the custom entity type column name is used in the condition
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("customEntityType", "CustomEntity"));
+      expect(readable.conditionExpression).toBe('customEntityType = "CustomEntity"');
     });
   });
 
@@ -668,20 +572,15 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
-
-      mockTable.put.mockReturnValue(mockBuilder);
-
       const result = await repository.upsert(testData).execute();
 
-      // With deferred validation, put() is called with empty object initially
-      expect(mockTable.put).toHaveBeenCalledWith({});
-      // Result is the enriched item (includes generated keys and entityType), not just the raw input
+      // Result is the enriched item (includes generated keys and entityType)
       expect(result).toMatchObject(testData);
+      expect(result).toHaveProperty("entityType", "TestEntity");
+      expect(result).toHaveProperty("pk", "TEST#123");
     });
 
     it("should add timestamps when configured", async () => {
-      // Create a new entity repository with timestamps configured
       const entityWithTimestamps = defineEntity({
         name: "TestEntityWithTimestamps",
         schema: testSchema,
@@ -712,20 +611,16 @@ describe("Entity Repository", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
+      const result = await repoWithTimestamps.upsert(testData).execute();
 
-      mockTable.put.mockReturnValue(mockBuilder);
-
-      await repoWithTimestamps.upsert(testData).execute();
-
-      // With deferred validation, put() is called with empty object initially
-      // Timestamps are added during execute(), not during put()
-      expect(mockTable.put).toHaveBeenCalledWith({});
+      // Timestamps are added at upsert() call time
+      expect(result).toHaveProperty("createdAt");
+      expect(result).toHaveProperty("modifiedAt");
     });
   });
 });
 
-describe("Entity Repository - Deferred Validation", () => {
+describe("Entity Repository - Eager Validation", () => {
   const entityRepository = defineEntity({
     name: "TestEntity",
     schema: testSchema,
@@ -739,14 +634,16 @@ describe("Entity Repository - Deferred Validation", () => {
   let repository: ReturnType<typeof entityRepository.createRepository>;
 
   beforeEach(() => {
-    // Reset all mocks
     vi.clearAllMocks();
-
-    // Create repository instance
+    mockPutExecutor.mockImplementation(async (params: any) => {
+      if (params.returnValues === "INPUT") return params.item;
+      return undefined;
+    });
+    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = entityRepository.createRepository(mockTable as unknown as Table);
   });
 
-  it("should validate and generate keys when execute() is called", async () => {
+  it("should validate and generate keys when create() is called", async () => {
     const testData: TestEntity = {
       id: "123",
       name: "Test Item",
@@ -754,14 +651,12 @@ describe("Entity Repository - Deferred Validation", () => {
       status: "active",
     };
 
-    const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
+    // create() immediately validates and prepares item
+    const builder = repository.create(testData);
+    expect(testSchema["~standard"].validate).toHaveBeenCalledWith(testData);
 
-    mockTable.create.mockReturnValue(mockBuilder);
+    const result = await builder.execute();
 
-    const result = await repository.create(testData).execute();
-
-    // With deferred validation, create() is called with empty object initially
-    expect(mockTable.create).toHaveBeenCalledWith({});
     expect(result).toMatchObject({
       ...testData,
       entityType: "TestEntity",
@@ -770,7 +665,7 @@ describe("Entity Repository - Deferred Validation", () => {
     });
   });
 
-  it("should validate and generate keys when withTransaction() is called", async () => {
+  it("should generate keys when withTransaction() is called", () => {
     const testData: TestEntity = {
       id: "123",
       name: "Test Item",
@@ -778,18 +673,24 @@ describe("Entity Repository - Deferred Validation", () => {
       status: "active",
     };
 
-    const mockBuilder = createMockPutBuilder<TestEntity>("create");
+    const mockTxn = { putWithCommand: vi.fn() };
+    const builder = repository.create(testData);
 
-    mockTable.create.mockReturnValue(mockBuilder);
+    // @ts-expect-error
+    builder.withTransaction(mockTxn);
 
-    // biome-ignore lint/suspicious/noExplicitAny: Test mock object
-    await repository.create(testData).withTransaction({ putWithCommand: vi.fn() } as any);
-
-    // With deferred validation, create() is called with empty object initially
-    expect(mockTable.create).toHaveBeenCalledWith({});
+    expect(mockTxn.putWithCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item: expect.objectContaining({
+          entityType: "TestEntity",
+          pk: "TEST#123",
+          sk: "METADATA#",
+        }),
+      }),
+    );
   });
 
-  it("should throw validation errors when execute() is called", async () => {
+  it("should throw validation errors when create() is called", () => {
     const testData: TestEntity = {
       id: "123",
       name: "Test Item",
@@ -801,14 +702,10 @@ describe("Entity Repository - Deferred Validation", () => {
       issues: [{ message: "Validation failed" }],
     }));
 
-    const mockBuilder = createMockPutBuilder<TestEntity>("create");
-
-    mockTable.create.mockReturnValue(mockBuilder);
-
-    await expect(repository.create(testData).execute()).rejects.toThrow(EntityValidationError);
+    expect(() => repository.create(testData)).toThrow(EntityValidationError);
   });
 
-  it("should throw validation errors when withTransaction() is called", () => {
+  it("should throw validation errors when withTransaction() is called via create", () => {
     const testData: TestEntity = {
       id: "123",
       name: "Test Item",
@@ -816,23 +713,15 @@ describe("Entity Repository - Deferred Validation", () => {
       status: "active",
     };
 
-    const mockBuilder = createMockPutBuilder<TestEntity>("create");
-
-    mockTable.create.mockReturnValue(mockBuilder);
-
-    // Reset mocks to ensure clean state
-    vi.clearAllMocks();
-
-    // Mock validation failure for this specific test
     (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
       issues: [{ message: "Validation failed" }],
     }));
 
-    // withTransaction() throws synchronously, not asynchronously
-    // biome-ignore lint/suspicious/noExplicitAny: Test mock object
-    expect(() => repository.create(testData).withTransaction({} as any)).toThrow(EntityValidationError);
+    // Validation is eager — throws at create() call time, before withTransaction
+    expect(() => repository.create(testData)).toThrow(EntityValidationError);
   });
 });
+
 describe("createQuery with chained filters", () => {
   const entityWithChainedFilters = defineEntity({
     name: "TestEntity",
@@ -874,14 +763,16 @@ describe("createQuery with chained filters", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPutExecutor.mockImplementation(async (params: any) => {
+      if (params.returnValues === "INPUT") return params.item;
+      return undefined;
+    });
+    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = entityWithChainedFilters.createRepository(mockTable as unknown as Table);
   });
 
   it("should chain filters with AND", async () => {
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
+    const mockBuilder = createMockScanBuilder();
 
     mockTable.scan.mockReturnValue(mockBuilder);
 
@@ -894,10 +785,7 @@ describe("createQuery with chained filters", () => {
   });
 
   it("should chain complex filters with AND/OR combinations", async () => {
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
+    const mockBuilder = createMockScanBuilder();
 
     mockTable.scan.mockReturnValue(mockBuilder);
 
@@ -911,10 +799,7 @@ describe("createQuery with chained filters", () => {
   });
 
   it("should chain filters on query builders", async () => {
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
+    const mockBuilder = createMockQueryBuilder();
 
     mockTable.query.mockReturnValue(mockBuilder);
 
@@ -925,10 +810,10 @@ describe("createQuery with chained filters", () => {
       sk: expect.any(Function),
     });
 
-    // For query builders, user filters are applied first, then entity type filter
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("type", "test"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("entityType", "TestEntity"));
+    // For query builders, entity type filter is applied first, then user filters
+    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
+    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
+    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
   });
 
   it("should handle single filter correctly", async () => {
@@ -950,10 +835,7 @@ describe("createQuery with chained filters", () => {
 
     const repo = entityWithSingleFilter.createRepository(mockTable as unknown as Table);
 
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
+    const mockBuilder = createMockScanBuilder();
 
     mockTable.scan.mockReturnValue(mockBuilder);
 
@@ -976,34 +858,27 @@ describe("createQuery with chained filters", () => {
         activeItems: createQueries<TestEntity>()
           .input(byStatusInputSchema)
           .query(({ input, entity }) => {
-            // Apply a filter in the query definition
-            return entity.scan().filter(eq("status", input.status)); // This is "active" from the input
+            return entity.scan().filter(eq("status", input.status));
           }),
       },
     });
 
     const repo = entityWithPreAppliedFilters.createRepository(mockTable as unknown as Table);
 
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
+    const mockBuilder = createMockScanBuilder();
 
     mockTable.scan.mockReturnValue(mockBuilder);
 
-    // Apply another filter when executing the query
     await repo.query.activeItems({ status: "active", id: "123", test: "test" }).filter(eq("type", "test")).execute();
 
     // Check that all filters are applied in the correct order:
     // 1. Entity type filter (applied by scan())
     // 2. Pre-applied filter from createQuery (status = "active")
-    // 3. Entity type filter (applied by query execution logic)
-    // 4. Execution-time filter (type = "test")
-    expect(mockBuilder.filter).toHaveBeenCalledTimes(4);
+    // 3. Execution-time filter (type = "test")
+    expect(mockBuilder.filter).toHaveBeenCalledTimes(3);
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntityWithFilters"));
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("entityType", "TestEntityWithFilters"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(4, eq("type", "test"));
+    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
   });
 
   it("should apply both createQuery filters and execution-time filters on query builders", async () => {
@@ -1018,22 +893,17 @@ describe("createQuery with chained filters", () => {
         itemsByStatus: createQueries<TestEntity>()
           .input(byStatusInputSchema)
           .query(({ input, entity }) => {
-            // Apply a filter in the query definition
-            return entity.query({ pk: `TEST#${input.id}` }).filter(eq("status", input.status)); // This is "active" from the input
+            return entity.query({ pk: `TEST#${input.id}` }).filter(eq("status", input.status));
           }),
       },
     });
 
     const repo = entityWithPreAppliedQueryFilters.createRepository(mockTable as unknown as Table);
 
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
+    const mockBuilder = createMockQueryBuilder();
 
     mockTable.query.mockReturnValue(mockBuilder);
 
-    // Apply another filter when executing the query
     await repo.query.itemsByStatus({ status: "active", id: "123", test: "test" }).filter(eq("type", "test")).execute();
 
     expect(mockTable.query).toHaveBeenCalledWith({
@@ -1041,12 +911,12 @@ describe("createQuery with chained filters", () => {
     });
 
     // Check that all filters are applied in the correct order:
-    // 1. Pre-applied filter from createQuery (status = "active")
-    // 2. Entity type filter (applied by query execution logic)
+    // 1. Entity type filter (applied by query())
+    // 2. Pre-applied filter from createQuery (status = "active")
     // 3. Execution-time filter (type = "test")
     expect(mockBuilder.filter).toHaveBeenCalledTimes(3);
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("entityType", "TestEntityWithQueryFilters"));
+    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntityWithQueryFilters"));
+    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
     expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
   });
 });

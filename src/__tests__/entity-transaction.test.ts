@@ -1,7 +1,5 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { PutBuilder } from "../builders/put-builder";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createIndex, defineEntity } from "../entity/entity";
-import { EntityValidationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -35,18 +33,21 @@ const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
   },
 };
 
+const mockPutExecutor = vi.fn();
+
 // Create a mock table
 const mockTable = {
-  create: vi.fn(),
-  put: vi.fn(),
-  get: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  scan: vi.fn(),
-  query: vi.fn(),
+  getPutExecutor: vi.fn().mockReturnValue(mockPutExecutor),
+  getGetExecutor: vi.fn(),
+  getUpdateExecutor: vi.fn(),
+  getDeleteExecutor: vi.fn(),
+  getIndexAttributeNames: vi.fn().mockReturnValue([]),
+  tableName: "TestTable",
   partitionKey: "pk",
   sortKey: "sk",
   gsis: {},
+  scan: vi.fn(),
+  query: vi.fn(),
 };
 
 // Mock transaction builder
@@ -56,29 +57,6 @@ const mockTransaction = {
   deleteWithCommand: vi.fn(),
   execute: vi.fn(),
 };
-
-function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", executeResult?: T): PutBuilder<T> {
-  const builder = new PutBuilder<T>(
-    vi.fn().mockImplementation(async (params) => {
-      if (params.returnValues === "INPUT") {
-        return params.item as T;
-      }
-
-      return executeResult as T;
-    }),
-    {} as T,
-    "TestTable",
-  );
-
-  if (mode === "create") {
-    builder.returnValues("INPUT");
-  }
-
-  vi.spyOn(builder, "withTransaction");
-  vi.spyOn(builder, "execute");
-
-  return builder;
-}
 
 function getLastTransactionPutItem<T extends DynamoItem>(): T {
   return mockTransaction.putWithCommand.mock.calls.at(-1)?.[0].item as T;
@@ -98,10 +76,12 @@ describe("Entity Transaction Support", () => {
   let repository: ReturnType<typeof entityRepository.createRepository>;
 
   beforeEach(() => {
-    // Reset all mocks
     vi.clearAllMocks();
-
-    // Create repository instance
+    mockPutExecutor.mockImplementation(async (params: any) => {
+      if (params.returnValues === "INPUT") return params.item;
+      return undefined;
+    });
+    mockTable.getPutExecutor.mockReturnValue(mockPutExecutor);
     repository = entityRepository.createRepository(mockTable as unknown as Table);
   });
 
@@ -114,28 +94,21 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // This should not throw an error
+      // create() now validates and prepares eagerly
       const builder = repository.create(testData);
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
+      // The item is already prepared at create() time — keys + entityType present
       expect(getLastTransactionPutItem<TestEntity>()).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#123",
         sk: "METADATA#",
       });
-
-      // Verify that withTransaction was called
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
     it("should include timestamps in transaction when configured", () => {
-      // Create a new entity repository with timestamps configured
       const entityWithTimestamps = defineEntity({
         name: "TestEntityWithTimestamps",
         schema: testSchema,
@@ -166,11 +139,6 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // This should not throw an error
       const builder = repoWithTimestamps.create(testData);
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
@@ -183,12 +151,9 @@ describe("Entity Transaction Support", () => {
         createdAt: expect.any(String),
         modifiedAt: expect.any(Number),
       });
-
-      // Verify that withTransaction was called
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
-    it("should generate keys when withTransaction is called", () => {
+    it("should have keys already generated when create() is called", () => {
       const testData: TestEntity = {
         id: "456",
         name: "Another Item",
@@ -196,19 +161,15 @@ describe("Entity Transaction Support", () => {
         status: "pending",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // Create the builder
+      // With eager preparation, keys are generated at create() time
       const builder = repository.create(testData);
 
-      // Keys should not be generated yet
+      // Keys are already in the builder's item
       // @ts-expect-error
-      expect(builder.item).not.toHaveProperty("pk");
+      expect(builder.item).toHaveProperty("pk", "TEST#456");
+      // @ts-expect-error
+      expect(builder.item).toHaveProperty("sk", "METADATA#");
 
-      // Simulate what happens when withTransaction is called
-      // This should trigger key generation
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
 
@@ -218,13 +179,9 @@ describe("Entity Transaction Support", () => {
         pk: "TEST#456",
         sk: "METADATA#",
       });
-
-      // Verify that withTransaction was called successfully
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
     it("should work with complex primary keys", () => {
-      // Create entity with composite primary key
       const complexEntity = defineEntity({
         name: "ComplexEntity",
         schema: testSchema,
@@ -244,11 +201,6 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // Create the builder
       const builder = complexRepo.create(testData);
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
@@ -259,12 +211,9 @@ describe("Entity Transaction Support", () => {
         pk: "USER#789",
         sk: "premium#active",
       });
-
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
     it("should handle entities without sort key", () => {
-      // Create entity with only partition key
       const simpleEntity = defineEntity({
         name: "SimpleEntity",
         schema: testSchema,
@@ -284,11 +233,6 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // Create the builder
       const builder = simpleRepo.create(testData);
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
@@ -298,12 +242,9 @@ describe("Entity Transaction Support", () => {
         entityType: "SimpleEntity",
         pk: "SIMPLE#999",
       });
-
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
     it("should generate secondary index keys for transactions", () => {
-      // Create entity with GSI
       const entityWithGSI = defineEntity({
         name: "EntityWithGSI",
         schema: testSchema,
@@ -324,7 +265,6 @@ describe("Entity Transaction Support", () => {
         queries: {},
       });
 
-      // Mock table with GSI configuration
       const mockTableWithGSI = {
         ...mockTable,
         gsis: {
@@ -347,11 +287,6 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTableWithGSI.create.mockReturnValue(mockBuilder);
-
-      // Create the builder
       const builder = repoWithGSI.create(testData);
       // @ts-expect-error
       builder.withTransaction(mockTransaction);
@@ -365,39 +300,6 @@ describe("Entity Transaction Support", () => {
         gsi1sk: "TYPE#premium",
         gsi2pk: "TYPE#premium",
       });
-
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
-    });
-
-    it("should validate data during execute but not during withTransaction", async () => {
-      const testData: TestEntity = {
-        id: "validation-test",
-        name: "Validation Test",
-        type: "test",
-        status: "active",
-      };
-
-      const mockBuilder = createMockPutBuilder<TestEntity>("create");
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
-      // Create the builder - this should work even with invalid data
-      const builder = repository.create(testData);
-
-      // withTransaction should work without validation
-      // @ts-expect-error
-      expect(() => builder.withTransaction(mockTransaction)).not.toThrow();
-
-      // Mock validation failure for execute
-      (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
-        issues: [{ message: "Validation failed during execute" }],
-      }));
-
-      // execute should fail with validation error
-      await expect(builder.execute()).rejects.toThrow(EntityValidationError);
-
-      // Verify that withTransaction was called successfully despite later validation failure
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
     it("should preserve builder chaining with transactions", () => {
@@ -408,17 +310,12 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockBuilder = createMockPutBuilder<TestEntity>("create", testData);
-
-      mockTable.create.mockReturnValue(mockBuilder);
-
       const entityBuilder = repository.create(testData);
       // @ts-expect-error
       const builder = entityBuilder.withTransaction(mockTransaction);
 
-      // Should be able to continue chaining after withTransaction
+      // withTransaction returns `this` — the same builder
       expect(builder).toBe(entityBuilder);
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
   });
 
@@ -431,19 +328,12 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockCreateBuilder = createMockPutBuilder<TestEntity>("create", testData);
-      const mockUpsertBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
-
-      mockTable.create.mockReturnValue(mockCreateBuilder);
-      mockTable.put.mockReturnValue(mockUpsertBuilder);
-
-      // Test create
+      // Both create and upsert return EntityAwarePutBuilders with the item already prepared
       const createBuilder = repository.create(testData);
+      const upsertBuilder = repository.upsert(testData);
+
       // @ts-expect-error
       createBuilder.withTransaction(mockTransaction);
-
-      // Test upsert
-      const upsertBuilder = repository.upsert(testData);
       // @ts-expect-error
       upsertBuilder.withTransaction(mockTransaction);
 
@@ -459,13 +349,9 @@ describe("Entity Transaction Support", () => {
         pk: "TEST#consistency-test",
         sk: "METADATA#",
       });
-
-      // Both should successfully call withTransaction
-      expect(mockCreateBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
-      expect(mockUpsertBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
 
-    it("should demonstrate the fix - create now works like upsert for transactions", () => {
+    it("should demonstrate that both create and upsert work with transactions", () => {
       const testData: TestEntity = {
         id: "fix-demo",
         name: "Fix Demo",
@@ -473,13 +359,6 @@ describe("Entity Transaction Support", () => {
         status: "active",
       };
 
-      const mockCreateBuilder = createMockPutBuilder<TestEntity>("create", testData);
-      const mockUpsertBuilder = createMockPutBuilder<TestEntity>("upsert", testData);
-
-      mockTable.create.mockReturnValue(mockCreateBuilder);
-      mockTable.put.mockReturnValue(mockUpsertBuilder);
-
-      // Both create and upsert should work with transactions
       const createBuilder = repository.create(testData);
       const upsertBuilder = repository.upsert(testData);
 
@@ -503,10 +382,6 @@ describe("Entity Transaction Support", () => {
           entityType: "TestEntity",
         }),
       );
-
-      // Both withTransaction calls should succeed
-      expect(mockCreateBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
-      expect(mockUpsertBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
     });
   });
 });

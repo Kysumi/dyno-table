@@ -34,7 +34,7 @@ export interface GetCommandParams {
  * Function type for executing DynamoDB get operations.
  * @typeParam T - The type of item being retrieved
  */
-type GetExecutor<T extends DynamoItem> = (params: GetCommandParams) => Promise<{ item: T | undefined }>;
+export type GetExecutor<T extends DynamoItem> = (params: GetCommandParams) => Promise<{ item: T | undefined }>;
 
 /**
  * Builder for creating DynamoDB get operations.
@@ -59,11 +59,11 @@ type GetExecutor<T extends DynamoItem> = (params: GetCommandParams) => Promise<{
  * @typeParam T - The type of item being retrieved
  */
 export class GetBuilder<T extends DynamoItem> {
-  private readonly params: GetCommandParams;
-  private options: GetOptions = {};
-  private selectedFields: Set<string> = new Set();
-  private includeIndexAttributes = false;
-  private readonly indexAttributeNames: string[];
+  protected readonly params: GetCommandParams;
+  protected options: GetOptions = {};
+  protected selectedFields: Set<string> = new Set();
+  protected includeIndexAttributes = false;
+  protected readonly indexAttributeNames: string[];
 
   /**
    * Creates a new GetBuilder instance.
@@ -73,7 +73,7 @@ export class GetBuilder<T extends DynamoItem> {
    * @param tableName - Name of the DynamoDB table
    */
   constructor(
-    private readonly executor: GetExecutor<T>,
+    protected readonly executor: GetExecutor<T>,
     key: PrimaryKeyWithoutExpression,
     tableName: string,
     indexAttributeNames: string[] = [],
@@ -105,7 +105,7 @@ export class GetBuilder<T extends DynamoItem> {
    * @param fields - A single field name or an array of field names to return
    * @returns The builder instance for method chaining
    */
-  select<K extends Path<T>>(fields: K | K[]): GetBuilder<T> {
+  select<K extends Path<T>>(fields: K | K[]): this {
     if (typeof fields === "string") {
       this.selectedFields.add(fields);
     } else if (Array.isArray(fields)) {
@@ -126,7 +126,7 @@ export class GetBuilder<T extends DynamoItem> {
    * Ensures index attributes are included in the result.
    * By default, index attributes are removed from get responses.
    */
-  includeIndexes(): GetBuilder<T> {
+  includeIndexes(): this {
     this.includeIndexAttributes = true;
     if (this.selectedFields.size > 0) {
       this.addIndexAttributesToSelection();
@@ -154,7 +154,7 @@ export class GetBuilder<T extends DynamoItem> {
    * @param consistentRead - Whether to use consistent reads (defaults to true)
    * @returns The builder instance for method chaining
    */
-  consistentRead(consistentRead = true): GetBuilder<T> {
+  consistentRead(consistentRead = true): this {
     this.params.consistentRead = consistentRead;
     return this;
   }

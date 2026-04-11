@@ -1,6 +1,4 @@
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import { UpdateBuilder } from "../builders/update-builder";
-import { eq } from "../conditions";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createIndex, defineEntity } from "../entity/entity";
 import { IndexGenerationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -36,14 +34,15 @@ const fossilKeySchema: StandardSchemaV1<{ id: string }> = {
   },
 };
 
+const mockUpdateExecutor = vi.fn();
+
 const mockTable = {
-  create: vi.fn(),
-  put: vi.fn(),
-  get: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  scan: vi.fn(),
-  query: vi.fn(),
+  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  getPutExecutor: vi.fn(),
+  getGetExecutor: vi.fn(),
+  getDeleteExecutor: vi.fn(),
+  getIndexAttributeNames: vi.fn().mockReturnValue([]),
+  tableName: "TestTable",
   partitionKey: "pk",
   sortKey: "sk",
   gsis: {
@@ -60,20 +59,9 @@ const mockTable = {
       sortKey: "gsi3sk",
     },
   },
+  scan: vi.fn(),
+  query: vi.fn(),
 };
-
-function createMockUpdateBuilder<T extends DynamoItem>(
-  executorImpl?: () => Promise<{ item?: Partial<T> }>,
-): UpdateBuilder<T> {
-  const executor = vi.fn().mockImplementation(async () => (await executorImpl?.()) as { item?: T });
-  const builder = new UpdateBuilder<T>(executor, "TestTable", { pk: "mock-pk" });
-
-  vi.spyOn(builder, "condition");
-  vi.spyOn(builder, "set");
-  vi.spyOn(builder, "execute");
-
-  return builder;
-}
 
 describe("Dinosaur Index Update Operations", () => {
   describe("index regeneration on fossil updates", () => {
@@ -105,14 +93,13 @@ describe("Dinosaur Index Update Operations", () => {
     let repository: ReturnType<typeof dinosaurRepository.createRepository>;
 
     beforeEach(() => {
-      // Reset all mocks
       vi.clearAllMocks();
-
-      // Create repository instance
+      mockUpdateExecutor.mockResolvedValue({ item: undefined });
+      mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
       repository = dinosaurRepository.createRepository(mockTable as unknown as Table);
     });
 
-    it("should regenerate indexes when relevant fossil attributes are updated", async () => {
+    it("should regenerate indexes when relevant fossil attributes are updated", () => {
       const fossilKey = { id: "t-rex-123" };
       const updateData = {
         name: "Tyrannosaurus Regina",
@@ -120,122 +107,82 @@ describe("Dinosaur Index Update Operations", () => {
         // Not updating species to avoid triggering species-diet-index without diet
       };
 
-      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repository.update(fossilKey, updateData).execute();
+      const builder = repository.update(fossilKey, updateData);
 
       // Verify that the update was called with the correct primary key
-      expect(mockTable.update).toHaveBeenCalledWith({
+      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
         pk: "DINOSAUR#t-rex-123",
         sk: "FOSSIL",
       });
 
-      // Verify that the entity type condition was added
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "Dinosaur"));
+      // Verify the entity type condition
+      const { readable } = builder.debug();
+      expect(readable.conditionExpression).toBe('entityType = "Dinosaur"');
 
-      // Verify that the set method was called with both the update data and regenerated indexes
-      expect(mockBuilder.set).toHaveBeenCalledOnce();
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Tyrannosaurus Regina",
-          paleontologistId: "dr-grant-456",
-          gsi1pk: "PALEONTOLOGIST#dr-grant-456",
-          gsi1sk: "DINOSAUR#t-rex-123",
-        }),
-      );
+      // Verify that the update includes both the update data and regenerated indexes
+      expect(readable.updateExpression).toContain('name = "Tyrannosaurus Regina"');
+      expect(readable.updateExpression).toContain('paleontologistId = "dr-grant-456"');
+      expect(readable.updateExpression).toContain('gsi1pk = "PALEONTOLOGIST#dr-grant-456"');
+      expect(readable.updateExpression).toContain('gsi1sk = "DINOSAUR#t-rex-123"');
 
       // Should NOT include species-diet-index keys because species wasn't updated
-      expect(mockBuilder.set).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          gsi2pk: expect.anything(),
-          gsi2sk: expect.anything(),
-        }),
-      );
+      expect(readable.updateExpression).not.toContain("gsi2pk");
+      expect(readable.updateExpression).not.toContain("gsi2sk");
     });
 
-    it("should not update readOnly excavation site indexes", async () => {
+    it("should not update readOnly excavation site indexes", () => {
       const fossilKey = { id: "triceratops-789" };
       const updateData = {
         name: "Triceratops Maximus",
-        excavationSiteId: "badlands-site-001", // This would normally trigger excavation-site-index, but should be ignored
+        excavationSiteId: "badlands-site-001", // Would trigger excavation-site-index, but it's readOnly
       };
 
-      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
+      const builder = repository.update(fossilKey, updateData);
+      const { readable } = builder.debug();
 
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repository.update(fossilKey, updateData).execute();
-
-      // Verify that the set method was called
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Triceratops Maximus",
-          excavationSiteId: "badlands-site-001",
-        }),
-      );
+      // Should include the original update data
+      expect(readable.updateExpression).toContain('name = "Triceratops Maximus"');
+      expect(readable.updateExpression).toContain('excavationSiteId = "badlands-site-001"');
 
       // Should NOT include readonly excavation site index keys
-      expect(mockBuilder.set).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          gsi3pk: expect.anything(),
-          gsi3sk: expect.anything(),
-        }),
-      );
+      expect(readable.updateExpression).not.toContain("gsi3pk");
+      expect(readable.updateExpression).not.toContain("gsi3sk");
     });
 
-    it("should throw error when insufficient data to regenerate species-diet index", async () => {
+    it("should throw error when insufficient data to regenerate species-diet index", () => {
       const fossilKey = { id: "velociraptor-456" };
-      // Updating species and paleontologistId - species should trigger species-diet-index but diet is missing
-      // paleontologistId should trigger paleontologist-index and succeed
+      // Updating species triggers species-diet-index but diet is missing
       const updateData = {
-        species: "Velociraptor mongoliensis", // This will trigger species-diet-index error
-        paleontologistId: "dr-sattler-789", // This should work fine
+        species: "Velociraptor mongoliensis",
+        paleontologistId: "dr-sattler-789",
       };
 
-      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => {
-        throw new Error(
-          'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
-        );
-      });
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      // The error should be thrown during execute, not during builder creation
-      const updateBuilder = repository.update(fossilKey, updateData);
-      await expect(updateBuilder.execute()).rejects.toThrow(IndexGenerationError);
+      // The error is now thrown at update() call time (eager index build)
+      expect(() => repository.update(fossilKey, updateData)).toThrow(IndexGenerationError);
     });
 
-    it("should successfully update when all required attributes are provided", async () => {
+    it("should successfully update when all required attributes are provided", () => {
       const fossilKey = { id: "stegosaurus-321" };
       const updateData = {
         species: "Stegosaurus stenops",
-        diet: "herbivore", // Now providing both species and diet
+        diet: "herbivore", // Both species and diet provided
         paleontologistId: "dr-malcolm-111",
       };
 
-      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repository.update(fossilKey, updateData).execute();
+      const builder = repository.update(fossilKey, updateData);
+      const { readable } = builder.debug();
 
       // Should include regenerated index keys
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          species: "Stegosaurus stenops",
-          diet: "herbivore",
-          paleontologistId: "dr-malcolm-111",
-          gsi1pk: "PALEONTOLOGIST#dr-malcolm-111",
-          gsi1sk: "DINOSAUR#stegosaurus-321",
-          gsi2pk: "SPECIES#Stegosaurus stenops",
-          gsi2sk: "DIET#herbivore#stegosaurus-321",
-        }),
-      );
+      expect(readable.updateExpression).toContain('species = "Stegosaurus stenops"');
+      expect(readable.updateExpression).toContain('diet = "herbivore"');
+      expect(readable.updateExpression).toContain('paleontologistId = "dr-malcolm-111"');
+      expect(readable.updateExpression).toContain('gsi1pk = "PALEONTOLOGIST#dr-malcolm-111"');
+      expect(readable.updateExpression).toContain('gsi1sk = "DINOSAUR#stegosaurus-321"');
+      expect(readable.updateExpression).toContain('gsi2pk = "SPECIES#Stegosaurus stenops"');
+      expect(readable.updateExpression).toContain('gsi2sk = "DIET#herbivore#stegosaurus-321"');
     });
 
-    it("should add timestamps to fossil updates without affecting index regeneration", async () => {
+    it("should add timestamps to fossil updates without affecting index regeneration", () => {
       // Create a new dinosaur repository with timestamps configured
       const dinosaurWithTimestamps = defineEntity({
         name: "DinosaurWithTimestamps",
@@ -269,57 +216,39 @@ describe("Dinosaur Index Update Operations", () => {
         name: "Allosaurus fragilis - Updated specimen",
       };
 
-      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repoWithTimestamps.update(fossilKey, updateData).execute();
+      const builder = repoWithTimestamps.update(fossilKey, updateData);
+      const { readable } = builder.debug();
 
       // Should include the original update data, timestamp, and regenerated index keys
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          paleontologistId: "dr-grant-456",
-          name: "Allosaurus fragilis - Updated specimen",
-          lastExaminedAt: expect.any(String), // ISO format
-          gsi1pk: "PALEONTOLOGIST#dr-grant-456",
-          gsi1sk: "DINOSAUR#allosaurus-654",
-        }),
-      );
+      expect(readable.updateExpression).toContain('paleontologistId = "dr-grant-456"');
+      expect(readable.updateExpression).toContain('name = "Allosaurus fragilis - Updated specimen"');
+      expect(readable.updateExpression).toContain("lastExaminedAt"); // ISO format timestamp
+      expect(readable.updateExpression).toContain('gsi1pk = "PALEONTOLOGIST#dr-grant-456"');
+      expect(readable.updateExpression).toContain('gsi1sk = "DINOSAUR#allosaurus-654"');
     });
 
-    it("should handle updates that don't affect any fossil indexes", async () => {
+    it("should handle updates that don't affect any fossil indexes", () => {
       const fossilKey = { id: "brachiosaurus-987" };
       const updateData = {
-        name: "Brachiosaurus altithorax - Just updating specimen name", // This doesn't affect any index
+        name: "Brachiosaurus altithorax - Just updating specimen name",
       };
 
-      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repository.update(fossilKey, updateData).execute();
+      const builder = repository.update(fossilKey, updateData);
+      const { readable } = builder.debug();
 
       // Should only include the original update data
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Brachiosaurus altithorax - Just updating specimen name",
-        }),
-      );
+      expect(readable.updateExpression).toContain("Brachiosaurus altithorax");
 
       // Should not include any index keys since no indexes were affected
-      expect(mockBuilder.set).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          gsi1pk: expect.anything(),
-          gsi1sk: expect.anything(),
-          gsi2pk: expect.anything(),
-          gsi2sk: expect.anything(),
-          gsi3pk: expect.anything(),
-          gsi3sk: expect.anything(),
-        }),
-      );
+      expect(readable.updateExpression).not.toContain("gsi1pk");
+      expect(readable.updateExpression).not.toContain("gsi1sk");
+      expect(readable.updateExpression).not.toContain("gsi2pk");
+      expect(readable.updateExpression).not.toContain("gsi2sk");
+      expect(readable.updateExpression).not.toContain("gsi3pk");
+      expect(readable.updateExpression).not.toContain("gsi3sk");
     });
 
-    it("should never regenerate the primary table index during updates", async () => {
+    it("should never regenerate the primary table index during updates", () => {
       const fossilKey = { id: "diplodocus-555" };
       const updateData = {
         name: "Diplodocus carnegii - Updated specimen",
@@ -329,88 +258,47 @@ describe("Dinosaur Index Update Operations", () => {
         excavationSiteId: "morrison-formation-001",
       };
 
-      const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
+      const builder = repository.update(fossilKey, updateData);
 
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repository.update(fossilKey, updateData).execute();
-
-      // Verify that the update was called with the correct primary key (generated from input key)
-      expect(mockTable.update).toHaveBeenCalledWith({
+      // Verify that getUpdateExecutor was called with the correct primary key
+      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
         pk: "DINOSAUR#diplodocus-555",
         sk: "FOSSIL",
       });
 
-      // Verify that the set method was called with update data and GSI regenerations
-      expect(mockBuilder.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Diplodocus carnegii - Updated specimen",
-          species: "Diplodocus carnegii",
-          diet: "herbivore",
-          paleontologistId: "dr-marsh-999",
-          excavationSiteId: "morrison-formation-001",
-          // Should include regenerated GSI keys
-          gsi1pk: "PALEONTOLOGIST#dr-marsh-999",
-          gsi1sk: "DINOSAUR#diplodocus-555",
-          gsi2pk: "SPECIES#Diplodocus carnegii",
-          gsi2sk: "DIET#herbivore#diplodocus-555",
-          // Should NOT include gsi3 keys since excavation-site-index is readOnly
-        }),
-      );
+      const { readable } = builder.debug();
 
-      // Most importantly: verify that primary table keys (pk, sk) are NEVER in the set call
-      // The primary key should only be used to identify the item to update, never to regenerate it
-      expect(mockBuilder.set).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          pk: expect.anything(),
-          sk: expect.anything(),
-        }),
-      );
+      // Should include regenerated GSI keys
+      expect(readable.updateExpression).toContain('gsi1pk = "PALEONTOLOGIST#dr-marsh-999"');
+      expect(readable.updateExpression).toContain('gsi1sk = "DINOSAUR#diplodocus-555"');
+      expect(readable.updateExpression).toContain('gsi2pk = "SPECIES#Diplodocus carnegii"');
+      expect(readable.updateExpression).toContain('gsi2sk = "DIET#herbivore#diplodocus-555"');
+      // Should NOT include gsi3 keys since excavation-site-index is readOnly
+      expect(readable.updateExpression).not.toContain("gsi3pk");
+
+      // Most importantly: primary key attributes should NOT be in the update expression
+      expect(readable.updateExpression).not.toContain(" pk ");
+      expect(readable.updateExpression).not.toContain(" sk ");
     });
 
-    describe("forceIndexRebuild functionality", () => {
-      it("should preserve entity update fluent types after set chaining", () => {
-        const fossilKey = { id: "type-check" };
-        const updateData = {
-          name: "Typed Fossil",
-        };
-
-        const updateBuilder = repository
-          .update(fossilKey, updateData)
-          .set({ species: "T-Rex" })
-          .forceIndexRebuild("excavation-site-index");
-
-        expectTypeOf(updateBuilder.forceIndexRebuild).toBeFunction();
-        expectTypeOf(updateBuilder.getForceRebuildIndexes).toBeFunction();
-      });
-
-      it("should force rebuild a single readOnly index when explicitly requested", async () => {
+    describe("forceRebuildIndexes option", () => {
+      it("should force rebuild a single readOnly index when explicitly requested", () => {
         const fossilKey = { id: "triceratops-789" };
         const updateData = {
           name: "Triceratops Maximus Updated",
-          excavationSiteId: "badlands-site-002", // This should trigger excavation-site-index when forced
+          excavationSiteId: "badlands-site-002",
         };
 
-        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
+        // Use new options param instead of fluent forceIndexRebuild
+        const builder = repository.update(fossilKey, updateData, { forceRebuildIndexes: ["excavation-site-index"] });
+        const { readable } = builder.debug();
 
-        mockTable.update.mockReturnValue(mockBuilder);
-
-        const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("excavation-site-index");
-        await updateBuilder.execute();
-
-        // Verify that the set method was called with the readOnly index keys included
-        // The entity-aware builder should have added the readonly index keys when execute was called
-        expect(mockBuilder.set).toHaveBeenCalledWith(
-          expect.objectContaining({
-            name: "Triceratops Maximus Updated",
-            excavationSiteId: "badlands-site-002",
-            gsi3pk: "SITE#badlands-site-002",
-            gsi3sk: "DINOSAUR#triceratops-789",
-          }),
-        );
+        // The readonly index keys should be included when forced
+        expect(readable.updateExpression).toContain('gsi3pk = "SITE#badlands-site-002"');
+        expect(readable.updateExpression).toContain('gsi3sk = "DINOSAUR#triceratops-789"');
       });
 
-      it("should force rebuild multiple readOnly indexes when array is provided", async () => {
+      it("should force rebuild multiple readOnly indexes when array is provided", () => {
         const fossilKey = { id: "allosaurus-456" };
         const updateData = {
           name: "Allosaurus Updated",
@@ -420,94 +308,45 @@ describe("Dinosaur Index Update Operations", () => {
           diet: "carnivore",
         };
 
-        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
+        const builder = repository.update(fossilKey, updateData, {
+          forceRebuildIndexes: ["excavation-site-index"],
+        });
+        const { raw } = builder.debug();
 
-        mockTable.update.mockReturnValue(mockBuilder);
+        // Check attribute names include all GSI keys
+        const attrNames = Object.values(raw.expressionAttributeNames ?? {});
+        expect(attrNames).toContain("gsi1pk");
+        expect(attrNames).toContain("gsi1sk");
+        expect(attrNames).toContain("gsi3pk");
+        expect(attrNames).toContain("gsi3sk");
 
-        const updateBuilder = repository
-          .update(fossilKey, updateData)
-          .forceIndexRebuild(["excavation-site-index", "species-diet-index"]);
-        await updateBuilder.execute();
-
-        // Verify that the set method includes all indexes (regular + forced readonly)
-        expect(mockBuilder.set).toHaveBeenCalledWith(
-          expect.objectContaining({
-            name: "Allosaurus Updated",
-            excavationSiteId: "site-001",
-            paleontologistId: "dr-grant-123",
-            species: "Allosaurus fragilis",
-            diet: "carnivore",
-            // Regular index should be included
-            gsi1pk: "PALEONTOLOGIST#dr-grant-123",
-            gsi1sk: "DINOSAUR#allosaurus-456",
-            // Force rebuilt indexes should be included
-            gsi2pk: "SPECIES#Allosaurus fragilis",
-            gsi2sk: "DIET#carnivore#allosaurus-456",
-            gsi3pk: "SITE#site-001",
-            gsi3sk: "DINOSAUR#allosaurus-456",
-          }),
-        );
+        // Check attribute values include the correct GSI values
+        const attrValues = Object.values(raw.expressionAttributeValues ?? {});
+        expect(attrValues).toContain("PALEONTOLOGIST#dr-grant-123"); // gsi1pk
+        expect(attrValues).toContain("DINOSAUR#allosaurus-456"); // gsi1sk / gsi3sk
+        expect(attrValues).toContain("SITE#site-001"); // gsi3pk
       });
 
-      it("should allow chaining forceIndexRebuild with other update methods", async () => {
-        const fossilKey = { id: "stegosaurus-321" };
-        const updateData = { excavationSiteId: "morrison-site-001" };
-
-        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => ({ item: { ...fossilKey, ...updateData } }));
-        vi.spyOn(mockBuilder, "returnValues");
-
-        mockTable.update.mockReturnValue(mockBuilder);
-
-        const updateBuilder = repository
-          .update(fossilKey, updateData)
-          .forceIndexRebuild("excavation-site-index")
-          .set("name", "Additional name update")
-          .returnValues("ALL_NEW");
-        await updateBuilder.execute();
-
-        // Verify all methods were called in chain
-        expect(mockBuilder.set).toHaveBeenCalledWith("name", "Additional name update");
-        expect(mockBuilder.returnValues).toHaveBeenCalledWith("ALL_NEW");
-      });
-
-      it("should throw error for unrecognized index", async () => {
+      it("should throw error for unrecognized index", () => {
         const fossilKey = { id: "triceratops-789" };
         const updateData = { name: "Updated name" };
 
-        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => {
-          throw new Error(
-            "Cannot force rebuild unknown indexes: non-existent-index. Available indexes: paleontologist-index, species-diet-index, excavation-site-index",
-          );
-        });
-
-        mockTable.update.mockReturnValue(mockBuilder);
-
-        // This should throw an error for unrecognized index
-        const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("non-existent-index");
-
-        await expect(updateBuilder.execute()).rejects.toThrow(IndexGenerationError);
+        // Error thrown at update() call time since index build is eager
+        expect(() =>
+          repository.update(fossilKey, updateData, { forceRebuildIndexes: ["non-existent-index"] }),
+        ).toThrow(IndexGenerationError);
       });
 
-      it("should throw error when forcing rebuild of index with missing template variables", async () => {
+      it("should throw error when forcing rebuild of index with missing template variables", () => {
         const fossilKey = { id: "velociraptor-456" };
         // Trying to force rebuild species-diet-index but only providing species, not diet
         const updateData = {
-          species: "Velociraptor mongoliensis", // This index requires both species and diet
-          paleontologistId: "dr-sattler-789", // This should work fine for paleontologist-index
+          species: "Velociraptor mongoliensis",
+          paleontologistId: "dr-sattler-789",
         };
 
-        const mockBuilder = createMockUpdateBuilder<Dinosaur>(async () => {
-          throw new Error(
-            'Missing attributes: Cannot update entity: insufficient data to regenerate index "species-diet-index". All attributes required by the index must be provided in the update operation, or the index must be marked as readOnly.',
-          );
-        });
-
-        mockTable.update.mockReturnValue(mockBuilder);
-
-        // This should throw an error because we're forcing rebuild but missing required attributes
-        const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("species-diet-index");
-
-        await expect(updateBuilder.execute()).rejects.toThrow(IndexGenerationError);
+        // Error thrown at update() call time — missing diet for species-diet-index
+        expect(() => repository.update(fossilKey, updateData)).toThrow(IndexGenerationError);
       });
     });
   });

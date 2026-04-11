@@ -28,7 +28,7 @@ export interface DeleteOptions {
   returnValues?: "ALL_OLD";
 }
 
-type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: DynamoItem }>;
+export type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: DynamoItem }>;
 
 /**
  * Builder for creating DynamoDB delete operations.
@@ -53,12 +53,12 @@ type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: DynamoIt
  * ```
  */
 export class DeleteBuilder {
-  private options: DeleteOptions = {
+  protected options: DeleteOptions = {
     returnValues: "ALL_OLD",
   };
-  private readonly executor: DeleteExecutor;
-  private readonly tableName: string;
-  private readonly key: PrimaryKeyWithoutExpression;
+  protected readonly executor: DeleteExecutor;
+  protected readonly tableName: string;
+  protected readonly key: PrimaryKeyWithoutExpression;
 
   constructor(executor: DeleteExecutor, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;
@@ -95,7 +95,7 @@ export class DeleteBuilder {
    */
   public condition<T extends DynamoItem>(
     condition: Condition | ((op: ConditionOperator<T>) => Condition),
-  ): DeleteBuilder {
+  ): this {
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -143,7 +143,7 @@ export class DeleteBuilder {
    * @param returnValues - Use 'ALL_OLD' to return all attributes of the deleted item
    * @returns The builder instance for method chaining
    */
-  public returnValues(returnValues: "ALL_OLD"): DeleteBuilder {
+  public returnValues(returnValues: "ALL_OLD"): this {
     this.options.returnValues = returnValues;
     return this;
   }

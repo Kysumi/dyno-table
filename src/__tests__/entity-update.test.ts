@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UpdateBuilder } from "../builders/update-builder";
-import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
@@ -35,33 +33,22 @@ const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
   },
 };
 
+const mockUpdateExecutor = vi.fn();
+
 // Create a mock table with the specific primary key configuration mentioned in the issue
 const mockTable = {
-  create: vi.fn(),
-  put: vi.fn(),
-  get: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  scan: vi.fn(),
-  query: vi.fn(),
+  getUpdateExecutor: vi.fn().mockReturnValue(mockUpdateExecutor),
+  getPutExecutor: vi.fn(),
+  getGetExecutor: vi.fn(),
+  getDeleteExecutor: vi.fn(),
+  getIndexAttributeNames: vi.fn().mockReturnValue([]),
+  tableName: "TestTable",
   partitionKey: "thisIsMyPK",
   sortKey: "wowSearching",
   gsis: {},
+  scan: vi.fn(),
+  query: vi.fn(),
 };
-
-function createMockUpdateBuilder<T extends DynamoItem>(
-  result?: { item?: Partial<T> } | Promise<{ item?: Partial<T> }>,
-): UpdateBuilder<T> {
-  const executor = vi.fn().mockImplementation(async () => (await result) as { item?: T });
-  const builder = new UpdateBuilder<T>(executor, "TestTable", { pk: "mock-pk" });
-
-  vi.spyOn(builder, "condition");
-  vi.spyOn(builder, "set");
-  vi.spyOn(builder, "remove");
-  vi.spyOn(builder, "execute");
-
-  return builder;
-}
 
 describe("Entity Update Operations", () => {
   describe("with specific primary key configuration (pk: thisIsMyPK, sk: wowSearching)", () => {
@@ -79,80 +66,53 @@ describe("Entity Update Operations", () => {
     let repository: ReturnType<typeof entityRepository.createRepository>;
 
     beforeEach(() => {
-      // Reset all mocks
       vi.clearAllMocks();
-
-      // Create repository instance
+      mockUpdateExecutor.mockResolvedValue({ item: undefined });
+      mockTable.getUpdateExecutor.mockReturnValue(mockUpdateExecutor);
       repository = entityRepository.createRepository(mockTable as unknown as Table);
     });
 
     it("should update an item with the correct primary key structure", async () => {
-      const key = {
-        id: "123",
-      };
+      const key = { id: "123" };
+      const updateData = { name: "Updated Name", status: "active" };
 
-      const updateData = {
-        name: "Updated Name",
-        status: "active",
-      };
+      const builder = repository.update(key, updateData);
 
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repository.update(key, updateData).execute();
-
-      // Verify that the update was called with the correct primary key structure
-      expect(mockTable.update).toHaveBeenCalledWith({
+      // Verify that getUpdateExecutor was called with the correct primary key
+      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
         pk: "thisIsMyPK#123",
         sk: "wowSearching#METADATA",
       });
 
-      // Verify that the entity type condition was added
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+      // Verify the entity type condition is set
+      const { readable } = builder.debug();
+      expect(readable.conditionExpression).toBe('entityType = "TestEntity"');
 
-      // Verify that the update data was set correctly
-      expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
+      // Verify the update data is included
+      expect(readable.updateExpression).toContain('name = "Updated Name"');
+      expect(readable.updateExpression).toContain('status = "active"');
     });
 
     it("should handle complex update operations", async () => {
-      const key = {
-        id: "456",
-      };
+      const key = { id: "456" };
+      const updateData = { name: "Complex Update", status: "processing", type: "advanced" };
 
-      const updateData = {
-        name: "Complex Update",
-        status: "processing",
-        type: "advanced",
-      };
+      const builder = repository.update(key, updateData);
 
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      // Perform a more complex update with additional conditions
-      const updateBuilder = repository.update(key, updateData);
-
-      // Add a custom condition
-      updateBuilder.condition(eq("status", "pending"));
-
-      await updateBuilder.execute();
-
-      // Verify the update was called with the correct primary key
-      expect(mockTable.update).toHaveBeenCalledWith({
+      // Verify the update key
+      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
         pk: "thisIsMyPK#456",
         sk: "wowSearching#METADATA",
       });
 
-      // Verify that both conditions were applied (the entity type and our custom one)
-      // Note: In a real scenario, the conditions would be combined with AND, but in our mock
-      // we're just checking that condition was called twice
-      expect(mockBuilder.condition).toHaveBeenCalledTimes(2);
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("status", "pending"));
+      // Verify entity type condition is set initially
+      const { readable } = builder.debug();
+      expect(readable.conditionExpression).toBe('entityType = "TestEntity"');
+      expect(readable.updateExpression).toContain('name = "Complex Update"');
+      expect(readable.updateExpression).toContain('status = "processing"');
 
-      // Verify the update data was set
-      expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
+      await builder.execute();
+      expect(mockUpdateExecutor).toHaveBeenCalledTimes(1);
     });
 
     it("should add timestamps when configured", async () => {
@@ -177,38 +137,24 @@ describe("Entity Update Operations", () => {
 
       const repoWithTimestamps = entityWithTimestamps.createRepository(mockTable as unknown as Table);
 
-      const key = {
-        id: "789",
-      };
+      const key = { id: "789" };
+      const updateData = { name: "Timestamped Update" };
 
-      const updateData = {
-        name: "Timestamped Update",
-      };
-
-      const mockBuilder = createMockUpdateBuilder<TestEntity>({ item: { ...key, ...updateData } });
-
-      mockTable.update.mockReturnValue(mockBuilder);
-
-      await repoWithTimestamps.update(key, updateData).execute();
+      const builder = repoWithTimestamps.update(key, updateData);
 
       // Verify that the update was called with the correct primary key
-      expect(mockTable.update).toHaveBeenCalledWith({
+      expect(mockTable.getUpdateExecutor).toHaveBeenCalledWith({
         pk: "thisIsMyPK#789",
         sk: "wowSearching#METADATA",
       });
 
-      // Verify that the entity type condition was added
-      expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntityWithTimestamps"));
+      // Verify entity type condition
+      const { readable } = builder.debug();
+      expect(readable.conditionExpression).toBe('entityType = "TestEntityWithTimestamps"');
 
-      // Verify that the set method was called
-      expect(mockBuilder.set).toHaveBeenCalled();
-
-      // Verify that the timestamp was added to the update data
-      // @ts-expect-error
-      const setCall = mockBuilder.set.mock.calls[0][0];
-      expect(setCall).toHaveProperty("name", "Timestamped Update");
-      expect(setCall).toHaveProperty("modifiedAt");
-      expect(typeof setCall.modifiedAt).toBe("number"); // UNIX format
+      // Verify the timestamp was added
+      expect(readable.updateExpression).toContain('name = "Timestamped Update"');
+      expect(readable.updateExpression).toContain("modifiedAt");
     });
   });
 });

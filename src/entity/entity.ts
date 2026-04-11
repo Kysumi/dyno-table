@@ -6,21 +6,12 @@ import type {
   PutBuilder,
   QueryBuilder,
   ScanBuilder,
-  TransactionBuilder,
-  UpdateBuilder,
-  UpdateCommandParams,
 } from "../builders";
-import type {
+import { UpdateBuilder } from "../builders";
+import {
   EntityAwareDeleteBuilder,
   EntityAwareGetBuilder,
   EntityAwarePutBuilder,
-  EntityAwareUpdateBuilder,
-} from "../builders/entity-aware-builders";
-import {
-  createEntityAwareDeleteBuilder,
-  createEntityAwareGetBuilder,
-  createEntityAwarePutBuilder,
-  createEntityAwareUpdateBuilder,
 } from "../builders/entity-aware-builders";
 import {
   type Condition,
@@ -57,7 +48,7 @@ export type MappedQueries<T extends DynamoItem, Q extends QueryRecord<T>> = {
 // Define a type for entity with only scan, get and query methods
 export type QueryEntity<T extends DynamoItem> = {
   scan: () => ScanBuilder<T>;
-  get: (key: PrimaryKeyWithoutExpression) => EntityGetBuilder<T>;
+  get: (key: PrimaryKeyWithoutExpression) => EntityAwareGetBuilder<T>;
   query: (keyCondition: PrimaryKey) => QueryBuilder<T, TableConfig>;
 };
 
@@ -70,19 +61,15 @@ interface PreparedEntityWrite<TItem> {
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
-export type EntityPutBuilder<T extends DynamoItem> = PutBuilder<T> & {
-  readonly entityName: string;
-};
-
-export type EntityGetBuilder<T extends DynamoItem> = GetBuilder<T> & {
-  readonly entityName: string;
-};
-
-export type EntityDeleteBuilder = DeleteBuilder & {
-  readonly entityName: string;
-};
-
-export type EntityUpdateBuilder<T extends DynamoItem> = EntityAwareUpdateBuilder<T>;
+export type EntityPutBuilder<T extends DynamoItem> = EntityAwarePutBuilder<T>;
+export type EntityGetBuilder<T extends DynamoItem> = EntityAwareGetBuilder<T>;
+export type EntityDeleteBuilder = EntityAwareDeleteBuilder;
+export type EntityUpdateBuilder<T extends DynamoItem> = UpdateBuilder<T>;
+export type EntityScanBuilder<T extends DynamoItem> = ScanBuilder<T>;
+export type EntityQueryBuilder<T extends DynamoItem, TConfig extends TableConfig = TableConfig> = QueryBuilder<
+  T,
+  TConfig
+>;
 
 interface Settings {
   /**
@@ -147,6 +134,11 @@ export interface EntityConfig<
   settings?: Settings;
 }
 
+export interface UpdateOptions {
+  /** Index names whose keys should be forcibly regenerated even if the source attributes haven't changed */
+  forceRebuildIndexes?: string[];
+}
+
 export interface EntityRepository<
   /**
    * The Entity Type (output type)
@@ -168,7 +160,7 @@ export interface EntityRepository<
   create: (data: TInput) => EntityPutBuilder<T>;
   upsert: (data: TInput & I) => EntityPutBuilder<T>;
   get: (key: I) => EntityGetBuilder<T>;
-  update: (key: I, data: Partial<T>) => EntityUpdateBuilder<T>;
+  update: (key: I, data: Partial<T>, options?: UpdateOptions) => UpdateBuilder<T>;
   delete: (key: I) => EntityDeleteBuilder;
   query: MappedQueries<T, Q>;
   scan: () => ScanBuilder<T>;
@@ -211,10 +203,6 @@ export function defineEntity<
 
   /**
    * Builds secondary indexes for an item based on the configured indexes
-   *
-   * @param dataForKeyGeneration The validated data to generate keys from
-   * @param table The DynamoDB table instance containing GSI configurations
-   * @returns Record of GSI attribute names to their values
    */
   const buildIndexes = <TData extends T>(
     dataForKeyGeneration: TData,
@@ -225,12 +213,7 @@ export function defineEntity<
   };
 
   /**
-   * Generates an object containing timestamp attributes based on the given configuration settings.
-   * The function determines the presence and format of "createdAt" and "updatedAt" timestamps dynamically.
-   *
-   * @param {Array<"createdAt" | "updatedAt">} timestampsToGenerate - Array of timestamp types to generate.
-   * @param {Partial<T>} data - Data object to check for existing timestamps.
-   * @returns {Record<string, string | number>} An object containing one or both of the "createdAt" and "updatedAt" timestamp attributes, depending on the configuration and requested types. Each timestamp can be formatted as either an ISO string or a UNIX timestamp.
+   * Generates timestamp attributes based on configuration.
    */
   const generateTimestamps = (
     timestampsToGenerate: Array<"createdAt" | "updatedAt">,
@@ -244,17 +227,11 @@ export function defineEntity<
 
     const { createdAt, updatedAt } = config.settings.timestamps;
 
-    /**
-     * If the data object already has a createdAt value, skip generating it.
-     */
     if (createdAt && timestampsToGenerate.includes("createdAt") && !data.createdAt) {
       const name = createdAt.attributeName ?? "createdAt";
       timestamps[name] = createdAt.format === "UNIX" ? unixTime : now.toISOString();
     }
 
-    /**
-     * If the data object already has an updatedAt value, skip generating it.
-     */
     if (updatedAt && timestampsToGenerate.includes("updatedAt") && !data.updatedAt) {
       const name = updatedAt.attributeName ?? "updatedAt";
       timestamps[name] = updatedAt.format === "UNIX" ? unixTime : now.toISOString();
@@ -303,7 +280,7 @@ export function defineEntity<
     };
   };
 
-  const prepareEntityWriteSync = (mode: EntityWriteMode, table: Table, data: TInput): PreparedEntityWrite<T> => {
+  const prepareEntityWrite = (mode: EntityWriteMode, table: Table, data: TInput): PreparedEntityWrite<T> => {
     const validationResult = config.schema["~standard"].validate(data);
 
     if (validationResult instanceof Promise) {
@@ -317,151 +294,145 @@ export function defineEntity<
     return prepareValidatedEntityItem(mode, table, validationResult.value);
   };
 
-  const prepareEntityWriteAsync = async (
-    mode: EntityWriteMode,
-    table: Table,
-    data: TInput,
-  ): Promise<PreparedEntityWrite<T>> => {
-    const validationResult = await config.schema["~standard"].validate(data);
-
-    if ("issues" in validationResult && validationResult.issues) {
-      throw EntityErrors.validationFailed(config.name, mode, validationResult.issues, data);
-    }
-
-    return prepareValidatedEntityItem(mode, table, validationResult.value);
-  };
-
-  const createEntityPutBuilder = (mode: EntityWriteMode, table: Table, data: TInput): EntityAwarePutBuilder<T> => {
-    const builder = mode === "create" ? table.create<T>({} as T) : table.put<T>({} as T).returnValues("INPUT");
-
-    builder.prepareItem({
-      prepareForExecute: async () => (await prepareEntityWriteAsync(mode, table, data)).item,
-      prepareForCompose: () => prepareEntityWriteSync(mode, table, data).item,
-    });
-
-    return createEntityAwarePutBuilder(builder as PutBuilder<T>, config.name);
-  };
-
   return {
     name: config.name,
     createRepository: (table: Table): EntityRepository<T, TInput, I, Q> => {
-      // Create a repository
       const repository = {
-        create: (data: TInput) => createEntityPutBuilder("create", table, data),
-
-        upsert: (data: TInput & I) => createEntityPutBuilder("upsert", table, data),
-
-        get: <K extends I>(key: K) => {
-          const builder = table.get<T>(config.primaryKey.generateKey(key));
-          return createEntityAwareGetBuilder(builder, config.name);
+        create: (data: TInput): EntityAwarePutBuilder<T> => {
+          const { item } = prepareEntityWrite("create", table, data);
+          const builder = new EntityAwarePutBuilder<T>(
+            table.getPutExecutor<T>(),
+            item,
+            table.tableName,
+            config.name,
+          );
+          builder.condition((op: ConditionOperator<T>) => op.attributeNotExists(table.partitionKey as Path<T>));
+          builder.returnValues("INPUT");
+          return builder;
         },
 
-        update: <K extends I>(key: K, data: Partial<T>) => {
+        upsert: (data: TInput & I): EntityAwarePutBuilder<T> => {
+          const { item } = prepareEntityWrite("upsert", table, data);
+          const builder = new EntityAwarePutBuilder<T>(
+            table.getPutExecutor<T>(),
+            item,
+            table.tableName,
+            config.name,
+          );
+          builder.returnValues("INPUT");
+          return builder;
+        },
+
+        get: <K extends I>(key: K): EntityAwareGetBuilder<T> => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
-          const builder = table.update<T>(primaryKeyObj);
-          const forceRebuildIndexes: string[] = [];
-          let updateDataApplied = false;
-
-          builder.condition(eq(entityTypeAttributeName, config.name));
-
-          const prepareUpdateData = () => {
-            if (updateDataApplied) {
-              return;
-            }
-
-            const timestamps = generateTimestamps(["updatedAt"], data);
-            const updatedItem = { ...(key as unknown as T), ...data, ...timestamps } as T;
-            const indexUpdates = buildIndexUpdates(
-              key as unknown as T,
-              updatedItem,
-              table,
-              config.indexes,
-              forceRebuildIndexes,
-            );
-
-            builder.set({ ...data, ...timestamps, ...indexUpdates });
-            updateDataApplied = true;
-          };
-
-          builder.prepare({
-            prepare: prepareUpdateData,
-            resetForExecute: () => {
-              updateDataApplied = false;
-            },
-          });
-
-          return createEntityAwareUpdateBuilder(builder, config.name, forceRebuildIndexes);
+          return new EntityAwareGetBuilder<T>(
+            table.getGetExecutor<T>(primaryKeyObj),
+            primaryKeyObj,
+            table.tableName,
+            table.getIndexAttributeNames(),
+            config.name,
+          );
         },
 
-        delete: <K extends I>(key: K) => {
-          const builder = table.delete(config.primaryKey.generateKey(key));
+        update: <K extends I>(key: K, data: Partial<T>, options?: UpdateOptions): UpdateBuilder<T> => {
+          const primaryKeyObj = config.primaryKey.generateKey(key);
+          const timestamps = generateTimestamps(["updatedAt"], data);
+          const updatedItem = { ...(key as unknown as T), ...data, ...timestamps } as T;
+          const indexUpdates = buildIndexUpdates(
+            key as unknown as T,
+            updatedItem,
+            table,
+            config.indexes,
+            options?.forceRebuildIndexes ?? [],
+          );
+
+          const builder = new UpdateBuilder<T>(
+            table.getUpdateExecutor<T>(primaryKeyObj),
+            table.tableName,
+            primaryKeyObj,
+          );
           builder.condition(eq(entityTypeAttributeName, config.name));
-          return createEntityAwareDeleteBuilder(builder, config.name);
+          builder.set({ ...data, ...timestamps, ...indexUpdates } as Partial<T>);
+          return builder;
+        },
+
+        delete: <K extends I>(key: K): EntityAwareDeleteBuilder => {
+          const primaryKeyObj = config.primaryKey.generateKey(key);
+          const builder = new EntityAwareDeleteBuilder(
+            table.getDeleteExecutor(primaryKeyObj),
+            table.tableName,
+            primaryKeyObj,
+            config.name,
+          );
+          builder.condition(eq(entityTypeAttributeName, config.name));
+          return builder;
         },
 
         query: Object.entries(config.queries || {}).reduce(
-          (acc, [key, inputCallback]) => {
-            (acc as any)[key] = (input: unknown) => {
+          (acc, [queryKey, inputCallback]) => {
+            (acc as any)[queryKey] = (input: unknown) => {
+              const queryFn = (config.queries as unknown as Record<string, QueryFunctionWithSchema<T, I, unknown>>)[
+                queryKey
+              ];
+              const schema = queryFn?.schema;
+
+              // Validate input early if synchronous
+              if (schema?.["~standard"]?.validate) {
+                const validationResult = schema["~standard"].validate(input);
+                if (!(validationResult instanceof Promise) && "issues" in validationResult && validationResult.issues) {
+                  throw EntityErrors.queryInputValidationFailed(config.name, queryKey, validationResult.issues, input);
+                }
+              }
+
               // Create a QueryEntity object with only the necessary methods
               const queryEntity: QueryEntity<T> = {
                 scan: repository.scan,
-                get: (key: PrimaryKeyWithoutExpression) => createEntityAwareGetBuilder(table.get<T>(key), config.name),
-                query: (keyCondition: PrimaryKey) => {
-                  return table.query<T>(keyCondition);
+                get: (key: PrimaryKeyWithoutExpression): EntityAwareGetBuilder<T> => {
+                  return new EntityAwareGetBuilder<T>(
+                    table.getGetExecutor<T>(key),
+                    key,
+                    table.tableName,
+                    table.getIndexAttributeNames(),
+                    config.name,
+                  );
+                },
+                query: (keyCondition: PrimaryKey): QueryBuilder<T, TableConfig> => {
+                  const builder = table.query<T>(keyCondition);
+                  builder.filter(eq(entityTypeAttributeName, config.name));
+                  return builder;
                 },
               };
 
               // Execute the query function to get the builder
               const queryBuilderCallback = inputCallback(input);
 
-              // Run the inner handler which allows the user to apply their desired contraints
-              // to the query builder of their choice
+              // Run the inner handler which allows the user to apply their desired constraints
               const builder = queryBuilderCallback(queryEntity);
 
-              // Add entity type filter if the builder has filter method
+              // If validation is async, attach a prepare hook to the returned builder
               if (
+                schema?.["~standard"]?.validate &&
                 builder &&
                 typeof builder === "object" &&
-                "filter" in builder &&
-                typeof builder.filter === "function"
+                "prepare" in builder &&
+                typeof (builder as any).prepare === "function"
               ) {
-                builder.filter(eq(entityTypeAttributeName, config.name));
-              }
-
-              if (
-                builder &&
-                typeof builder === "object" &&
-                "execute" in builder &&
-                typeof builder.execute === "function"
-              ) {
-                return new Proxy(builder, {
-                  get(target, prop, receiver) {
-                    if (prop === "execute") {
-                      return async () => {
-                        const queryFn = (
-                          config.queries as unknown as Record<string, QueryFunctionWithSchema<T, I, unknown>>
-                        )[key];
-                        const schema = queryFn?.schema;
-
-                        if (schema?.["~standard"]?.validate && typeof schema["~standard"].validate === "function") {
-                          const validationResult = schema["~standard"].validate(input);
-                          if ("issues" in validationResult && validationResult.issues) {
-                            throw EntityErrors.queryInputValidationFailed(
-                              config.name,
-                              key,
-                              validationResult.issues,
-                              input,
-                            );
-                          }
-                        }
-
-                        return target.execute.call(target);
-                      };
-                    }
-
-                    return Reflect.get(target, prop, receiver);
-                  },
-                });
+                const validationPromiseOrResult = schema["~standard"].validate(input);
+                if (validationPromiseOrResult instanceof Promise) {
+                  (builder as any).prepare({
+                    prepare: async () => {
+                      const validationResult = await validationPromiseOrResult;
+                      if ("issues" in validationResult && validationResult.issues) {
+                        throw EntityErrors.queryInputValidationFailed(
+                          config.name,
+                          queryKey,
+                          validationResult.issues,
+                          input,
+                        );
+                      }
+                    },
+                  });
+                }
               }
 
               return builder;
@@ -471,7 +442,7 @@ export function defineEntity<
           {} as MappedQueries<T, Q>,
         ),
 
-        scan: () => {
+        scan: (): ScanBuilder<T> => {
           const builder = table.scan<T>();
           builder.filter(eq(entityTypeAttributeName, config.name));
           return builder;
