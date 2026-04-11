@@ -516,11 +516,12 @@ try {
       console.log('Suggestion:', error.context.suggestion);
 
       // Option 1: Provide all required fields
-      // Option 2: Use forceIndexRebuild
+      // Option 2: Use forceRebuildIndexes in options
       await userRepo.update(
         { userId: "123" },
-        { /* ... full data ... */ }
-      ).forceIndexRebuild(error.context.indexName).execute();
+        { /* ... partial data ... */ },
+        { forceRebuildIndexes: [error.context.indexName] }
+      ).execute();
     } else {
       // Regular index, provide missing attributes
       console.log('Missing attributes for index:',
