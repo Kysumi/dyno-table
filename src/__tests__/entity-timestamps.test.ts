@@ -84,8 +84,9 @@ function createMockPutBuilder<T extends DynamoItem>(mode: "create" | "upsert", e
 }
 
 function getLastExecutedPutItem<T extends DynamoItem>(builder: PutBuilder<T>): T {
-  return (builder as PutBuilder<T> & { executorMock: { mock: { calls: Array<[{ item: T }]> } } }).executorMock.mock
-    .calls.at(-1)?.[0].item as T;
+  return (
+    builder as PutBuilder<T> & { executorMock: { mock: { calls: Array<[{ item: T }]> } } }
+  ).executorMock.mock.calls.at(-1)?.[0].item as T;
 }
 
 function createMockUpdateBuilder<T extends DynamoItem>(

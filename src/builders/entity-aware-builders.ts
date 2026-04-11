@@ -3,8 +3,8 @@ import type { BatchBuilder } from "./batch-builder";
 import type { DeleteBuilder } from "./delete-builder";
 import type { GetBuilder } from "./get-builder";
 import type { PutBuilder } from "./put-builder";
-import type { UpdateBuilder } from "./update-builder";
 import type { Path, PathType } from "./types";
+import type { UpdateBuilder } from "./update-builder";
 
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;

@@ -1,0 +1,35 @@
+# Agent OS Standards Index
+
+testing:
+  unit-vs-integration:
+    description: .test.ts mocks DynamoDB; .itest.ts hits real local DynamoDB — different confidence levels
+  mock-table:
+    description: Mock table must include partitionKey, sortKey, gsis strings plus vi.fn() methods
+
+querying:
+  result-iterator:
+    description: execute() returns Promise<ResultIterator> — await then for-await; auto-paginates
+  to-array-risk:
+    description: toArray() loads all pages into memory; only safe for small bounded result sets
+  paginator-vs-iterator:
+    description: ResultIterator for processing/streaming; Paginator for UI page-by-page control
+
+builders:
+  create-vs-put:
+    description: table.create() adds attributeNotExists + defaults to INPUT; table.put() is raw with NONE default
+  put-return-values:
+    description: PutBuilder returnValues options — NONE default, INPUT preferred over CONSISTENT, ALL_OLD is nullable
+  transaction-batch-composition:
+    description: withTransaction/withBatch enqueue only — call execute() on the container; entity builders auto-supply entityName
+  update-return-values:
+    description: UpdateBuilder returns { item? } not T; default NONE, use ALL_NEW for post-update item
+
+entity:
+  definition-flow:
+    description: Entity 4-step setup chain (defineEntity, createIndex, createQueries, createRepository)
+  create-vs-upsert:
+    description: create fails on duplicate, upsert silently overwrites; upsert requires full record
+  create-queries-pattern:
+    description: createQueries curried pattern — handler must return builder not execute
+  auto-injected-guards:
+    description: scan/query/update/delete auto-scoped to entityType
