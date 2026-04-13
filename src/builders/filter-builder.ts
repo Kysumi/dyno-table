@@ -13,6 +13,7 @@ import {
   inArray,
   lt,
   lte,
+  mergeConditions,
   ne,
   not,
   or,
@@ -204,37 +205,7 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
    */
   filter(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
     const newCondition = typeof condition === "function" ? condition(this.getConditionOperator()) : condition;
-
-    if (this.options.filter) {
-      // If the existing filter is already an 'and' condition, flatten the new condition into it
-      if (this.options.filter.type === "and" && this.options.filter.conditions) {
-        // If the new condition is also an 'and' condition, flatten its conditions
-        if (newCondition.type === "and" && newCondition.conditions) {
-          this.options.filter = {
-            type: "and",
-            conditions: [...this.options.filter.conditions, ...newCondition.conditions],
-          };
-        } else {
-          this.options.filter = {
-            type: "and",
-            conditions: [...this.options.filter.conditions, newCondition],
-          };
-        }
-      } else {
-        // If the new condition is an 'and' condition, flatten it
-        if (newCondition.type === "and" && newCondition.conditions) {
-          this.options.filter = {
-            type: "and",
-            conditions: [this.options.filter, ...newCondition.conditions],
-          };
-        } else {
-          this.options.filter = and(this.options.filter, newCondition);
-        }
-      }
-    } else {
-      this.options.filter = newCondition;
-    }
-
+    this.options.filter = mergeConditions(this.options.filter, newCondition);
     return this;
   }
 

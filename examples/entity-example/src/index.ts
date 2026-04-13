@@ -183,7 +183,6 @@ async function main() {
     await createDinosaurs(dinosaurRepo);
 
     console.log("Querying dinosaurs by diet...");
-    const carnivores = await dinosaurRepo.query.byDiet({ diet: "herbivore" }).execute();
     const herbivores = await dinosaurRepo.query.byDiet({ diet: "herbivore" }).execute();
     const herbivoreItems = await herbivores.toArray();
     console.log(`Found ${herbivoreItems.length} herbivore dinosaurs:`);
@@ -191,10 +190,10 @@ async function main() {
 
     console.log("\n🦖 Scanning dinosaurs by species...");
     const trexes = await dinosaurRepo.query.bySpecies({ species: "Tyrannosaurus Rex" }).execute();
-    const trexItems = await trexes.toArray();
 
-    console.log(`Found ${trexItems.length} T-Rex dinosaurs:`);
-    for (const dino of trexItems) {
+    console.log("Found T-Rex dinosaurs (using async iterator):");
+    // Preferred way for large datasets to avoid memory issues
+    for await (const dino of trexes) {
       console.log(`- ${dino.name} (ID: ${dino.id}, Status: ${dino.status})`);
     }
 

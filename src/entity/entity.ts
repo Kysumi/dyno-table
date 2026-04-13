@@ -293,7 +293,7 @@ export function defineEntity<
         create: (data: TInput): EntityAwarePutBuilder<T> => {
           const { item } = prepareEntityWrite("create", table, data);
           const builder = new EntityAwarePutBuilder<T>(table._getPutExecutor<T>(), item, table.tableName, config.name);
-          builder.condition((op: ConditionOperator<T>) => op.attributeNotExists(table.partitionKey as Path<T>));
+          builder._addInternalCondition((op: ConditionOperator<T>) => op.attributeNotExists(table.partitionKey as Path<T>));
           builder.returnValues("INPUT");
           return builder;
         },
@@ -329,8 +329,9 @@ export function defineEntity<
           );
 
           const builder = new UpdateBuilder<T>(table._getUpdateExecutor<T>(), table.tableName, primaryKeyObj);
-          builder.condition(eq(entityTypeAttributeName, config.name));
+          builder._addInternalCondition(eq(entityTypeAttributeName, config.name));
           builder.set({ ...data, ...timestamps, ...indexUpdates } as Partial<T>);
+          builder.returnValues("ALL_NEW");
           return builder;
         },
 
@@ -342,7 +343,7 @@ export function defineEntity<
             primaryKeyObj,
             config.name,
           );
-          builder.condition(eq(entityTypeAttributeName, config.name));
+          builder._addInternalCondition(eq(entityTypeAttributeName, config.name));
           return builder;
         },
 

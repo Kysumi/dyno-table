@@ -216,32 +216,36 @@ export const attributeNotExists = (attr: string): Condition => ({
 // --- Logical Operators ---
 
 /**
- * Combines multiple conditions with AND operator
+ * Combines multiple conditions with AND operator.
+ * Supports either a list of conditions or a single array of conditions.
  * @example
- * and(
- *   eq("status", "ACTIVE"),
- *   gt("age", 18)
- * ) // status = "ACTIVE" AND age > 18
+ * and(eq("status", "ACTIVE"), gt("age", 18))
+ * and([eq("status", "ACTIVE"), gt("age", 18)])
  * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Logical AWS DynamoDB - AND}
  */
-export const and = (...conditions: Condition[]): Condition => ({
-  type: "and",
-  conditions,
-});
+export const and = (...args: (Condition | Condition[])[]): Condition => {
+  const conditions = args.flatMap((arg) => (Array.isArray(arg) ? arg : [arg]));
+  return {
+    type: "and",
+    conditions,
+  };
+};
 
 /**
- * Combines multiple conditions with OR operator
+ * Combines multiple conditions with OR operator.
+ * Supports either a list of conditions or a single array of conditions.
  * @example
- * or(
- *   eq("status", "PENDING"),
- *   eq("status", "PROCESSING")
- * ) // status = "PENDING" OR status = "PROCESSING"
+ * or(eq("status", "PENDING"), eq("status", "PROCESSING"))
+ * or([eq("status", "PENDING"), eq("status", "PROCESSING")])
  * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Logical AWS DynamoDB - OR}
  */
-export const or = (...conditions: Condition[]): Condition => ({
-  type: "or",
-  conditions,
-});
+export const or = (...args: (Condition | Condition[])[]): Condition => {
+  const conditions = args.flatMap((arg) => (Array.isArray(arg) ? arg : [arg]));
+  return {
+    type: "or",
+    conditions,
+  };
+};
 
 /**
  * Negates a condition
@@ -253,6 +257,41 @@ export const not = (condition: Condition): Condition => ({
   type: "not",
   condition,
 });
+
+/**
+ * Merges two conditions using an AND operator, flattening them if they are already AND conditions.
+ * @internal
+ */
+export function mergeConditions(existing: Condition | undefined, newCondition: Condition): Condition {
+  if (!existing) {
+    return newCondition;
+  }
+
+  // If the existing condition is already an 'and' condition, flatten the new condition into it
+  if (existing.type === "and" && existing.conditions) {
+    // If the new condition is also an 'and' condition, flatten its conditions
+    if (newCondition.type === "and" && newCondition.conditions) {
+      return {
+        type: "and",
+        conditions: [...existing.conditions, ...newCondition.conditions],
+      };
+    }
+    return {
+      type: "and",
+      conditions: [...existing.conditions, newCondition],
+    };
+  }
+
+  // If the new condition is an 'and' condition, flatten it
+  if (newCondition.type === "and" && newCondition.conditions) {
+    return {
+      type: "and",
+      conditions: [existing, ...newCondition.conditions],
+    };
+  }
+
+  return and(existing, newCondition);
+}
 
 /**
  * Type-safe operators for building key conditions in DynamoDB queries.
@@ -281,8 +320,8 @@ export type KeyConditionOperator = {
   between: (lower: unknown, upper: unknown) => Condition;
   /** Begins with comparison for key attributes */
   beginsWith: (value: unknown) => Condition;
-  /** Combines multiple key conditions with AND */
-  and: (...conditions: Condition[]) => Condition;
+  /** Combines multiple key conditions with AND. Supports either a list of conditions or a single array of conditions. */
+  and: (...conditions: (Condition | Condition[])[]) => Condition;
 };
 
 // Helper types that allow string paths and unknown values when strict typing can't be resolved
@@ -650,38 +689,37 @@ export type ConditionOperator<T extends DynamoItem> = {
    * All provided conditions must evaluate to true for the AND condition to be true.
    * Supports any number of conditions as arguments.
    *
-   * @param conditions - Variable number of conditions to combine with AND
+   * @param conditions - Variable number of conditions to combine with AND (can be a list or a single array)
    * @returns A condition that evaluates to true when all input conditions are true
    *
    * @example
    * ```typescript
    * interface User { status: string; age: number; role: string; verified: boolean; }
    *
-   * // Multiple criteria
+   * // Multiple criteria as arguments
    * op.and(
    *   op.eq("status", "ACTIVE"),
    *   op.gt("age", 18),
    *   op.eq("verified", true)
-   * ) // status = "ACTIVE" AND age > 18 AND verified = true
-   *
-   * // Complex business logic
-   * op.and(
-   *   op.inArray("role", ["admin", "moderator"]),
-   *   op.attributeExists("permissions"),
-   *   op.ne("status", "SUSPENDED")
    * )
+   *
+   * // Multiple criteria as an array
+   * op.and([
+   *   op.eq("status", "ACTIVE"),
+   *   op.gt("age", 18)
+   * ])
    * ```
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Logical AWS DynamoDB - AND}
    */
-  and: (...conditions: Condition[]) => Condition;
+  and: (...conditions: (Condition | Condition[])[]) => Condition;
 
   /**
    * Combines multiple conditions with logical OR operator.
    * At least one of the provided conditions must evaluate to true for the OR condition to be true.
    * Supports any number of conditions as arguments.
    *
-   * @param conditions - Variable number of conditions to combine with OR
+   * @param conditions - Variable number of conditions to combine with OR (can be a list or a single array)
    * @returns A condition that evaluates to true when any input condition is true
    *
    * @example
@@ -691,20 +729,19 @@ export type ConditionOperator<T extends DynamoItem> = {
    * // Alternative statuses
    * op.or(
    *   op.eq("status", "PENDING"),
-   *   op.eq("status", "PROCESSING"),
-   *   op.eq("status", "SHIPPED")
-   * ) // status = "PENDING" OR status = "PROCESSING" OR status = "SHIPPED"
-   *
-   * // High priority items
-   * op.or(
-   *   op.eq("priority", "HIGH"),
-   *   op.eq("urgent", true)
+   *   op.eq("status", "PROCESSING")
    * )
+   *
+   * // Using an array
+   * op.or([
+   *   op.eq("status", "SHIPPED"),
+   *   op.eq("status", "DELIVERED")
+   * ])
    * ```
    *
    * @see {@link https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html#Expressions.OperatorsAndFunctions.Logical AWS DynamoDB - OR}
    */
-  or: (...conditions: Condition[]) => Condition;
+  or: (...conditions: (Condition | Condition[])[]) => Condition;
 
   /**
    * Negates a condition with logical NOT operator.

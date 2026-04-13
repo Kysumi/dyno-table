@@ -12,6 +12,7 @@ import {
   inArray,
   lt,
   lte,
+  mergeConditions,
   ne,
   not,
   or,
@@ -59,6 +60,7 @@ export class DeleteBuilder {
   protected readonly executor: DeleteExecutor;
   protected readonly tableName: string;
   protected readonly key: PrimaryKeyWithoutExpression;
+  protected internalCondition?: Condition;
 
   constructor(executor: DeleteExecutor, tableName: string, key: PrimaryKeyWithoutExpression) {
     this.executor = executor;
@@ -68,54 +70,66 @@ export class DeleteBuilder {
 
   /**
    * Adds a condition that must be satisfied for the delete operation to succeed.
+   * Multiple calls to .condition() will be ANDed together.
    *
    * @example
    * ```typescript
-   * // Ensure dinosaur can be safely removed
-   * builder.condition(op =>
-   *   op.and([
-   *     op.eq('status', 'SEDATED'),
-   *     op.eq('location', 'MEDICAL_BAY'),
-   *     op.attributeExists('lastCheckup')
-   *   ])
-   * );
-   *
-   * // Verify habitat is empty
-   * builder.condition(op =>
-   *   op.and([
-   *     op.eq('occupants', 0),
-   *     op.eq('maintenanceStatus', 'COMPLETE'),
-   *     op.not(op.attributeExists('activeAlerts'))
-   *   ])
-   * );
+   * builder
+   *   .condition(op => op.eq('status', 'DECOMMISSIONED'))
+   *   .condition(op => op.eq('occupants', 0));
    * ```
-   *
-   * @param condition - Either a Condition object or a callback function that builds the condition
-   * @returns The builder instance for method chaining
    */
   public condition<T extends DynamoItem>(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
-    if (typeof condition === "function") {
-      const conditionOperator: ConditionOperator<T> = {
-        eq,
-        ne,
-        lt,
-        lte,
-        gt,
-        gte,
-        between,
-        inArray,
-        beginsWith,
-        contains,
-        attributeExists,
-        attributeNotExists,
-        and,
-        or,
-        not,
-      };
-      this.options.condition = condition(conditionOperator);
-    } else {
-      this.options.condition = condition;
-    }
+    const conditionOperator: ConditionOperator<T> = {
+      eq,
+      ne,
+      lt,
+      lte,
+      gt,
+      gte,
+      between,
+      inArray,
+      beginsWith,
+      contains,
+      attributeExists,
+      attributeNotExists,
+      and,
+      or,
+      not,
+    };
+
+    const newCondition = typeof condition === "function" ? condition(conditionOperator) : condition;
+    this.options.condition = mergeConditions(this.options.condition, newCondition);
+    return this;
+  }
+
+  /**
+   * Sets an internal condition (e.g., entity guards).
+   * @internal
+   */
+  public _addInternalCondition<T extends DynamoItem>(
+    condition: Condition | ((op: ConditionOperator<T>) => Condition),
+  ): this {
+    const conditionOperator: ConditionOperator<T> = {
+      eq,
+      ne,
+      lt,
+      lte,
+      gt,
+      gte,
+      between,
+      inArray,
+      beginsWith,
+      contains,
+      attributeExists,
+      attributeNotExists,
+      and,
+      or,
+      not,
+    };
+
+    const newCondition = typeof condition === "function" ? condition(conditionOperator) : condition;
+    this.internalCondition = mergeConditions(this.internalCondition, newCondition);
     return this;
   }
 
@@ -151,7 +165,12 @@ export class DeleteBuilder {
    * @internal
    */
   public toDynamoCommand(): DeleteCommandParams {
-    const { expression, names, values } = prepareExpressionParams(this.options.condition);
+    const finalCondition = this.internalCondition
+      ? this.options.condition
+        ? and(this.internalCondition, this.options.condition)
+        : this.internalCondition
+      : this.options.condition;
+    const { expression, names, values } = prepareExpressionParams(finalCondition);
 
     return {
       tableName: this.tableName,

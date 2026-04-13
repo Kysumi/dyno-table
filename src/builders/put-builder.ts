@@ -12,6 +12,7 @@ import {
   inArray,
   lt,
   lte,
+  mergeConditions,
   ne,
   not,
   or,
@@ -76,6 +77,7 @@ export type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Pr
 export class PutBuilder<T extends DynamoItem> {
   protected item: T;
   protected options: PutOptions;
+  protected internalCondition?: Condition;
   protected readonly executor: PutExecutor<T>;
   protected readonly tableName: string;
 
@@ -109,30 +111,64 @@ export class PutBuilder<T extends DynamoItem> {
 
   /**
    * Adds a condition that must be satisfied for the put operation to succeed.
+   * Multiple calls to .condition() will be ANDed together.
+   *
+   * @example
+   * ```typescript
+   * builder
+   *   .condition(op => op.attributeNotExists('id'))
+   *   .condition(op => op.gt('version', 1));
+   * ```
    */
   public condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
-    if (typeof condition === "function") {
-      const conditionOperator: ConditionOperator<T> = {
-        eq,
-        ne,
-        lt,
-        lte,
-        gt,
-        gte,
-        between,
-        inArray,
-        beginsWith,
-        contains,
-        attributeExists,
-        attributeNotExists,
-        and,
-        or,
-        not,
-      };
-      this.options.condition = condition(conditionOperator);
-    } else {
-      this.options.condition = condition;
-    }
+    const conditionOperator: ConditionOperator<T> = {
+      eq,
+      ne,
+      lt,
+      lte,
+      gt,
+      gte,
+      between,
+      inArray,
+      beginsWith,
+      contains,
+      attributeExists,
+      attributeNotExists,
+      and,
+      or,
+      not,
+    };
+
+    const newCondition = typeof condition === "function" ? condition(conditionOperator) : condition;
+    this.options.condition = mergeConditions(this.options.condition, newCondition);
+    return this;
+  }
+
+  /**
+   * Sets an internal condition (e.g., entity guards).
+   * @internal
+   */
+  public _addInternalCondition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
+    const conditionOperator: ConditionOperator<T> = {
+      eq,
+      ne,
+      lt,
+      lte,
+      gt,
+      gte,
+      between,
+      inArray,
+      beginsWith,
+      contains,
+      attributeExists,
+      attributeNotExists,
+      and,
+      or,
+      not,
+    };
+
+    const newCondition = typeof condition === "function" ? condition(conditionOperator) : condition;
+    this.internalCondition = mergeConditions(this.internalCondition, newCondition);
     return this;
   }
 
@@ -155,7 +191,12 @@ export class PutBuilder<T extends DynamoItem> {
    * @internal
    */
   public toDynamoCommand(): PutCommandParams {
-    const { expression, names, values } = prepareExpressionParams(this.options.condition);
+    const finalCondition = this.internalCondition
+      ? this.options.condition
+        ? and(this.internalCondition, this.options.condition)
+        : this.internalCondition
+      : this.options.condition;
+    const { expression, names, values } = prepareExpressionParams(finalCondition);
 
     return {
       tableName: this.tableName,

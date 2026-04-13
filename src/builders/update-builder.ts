@@ -12,6 +12,7 @@ import {
   inArray,
   lt,
   lte,
+  mergeConditions,
   ne,
   not,
   or,
@@ -110,6 +111,7 @@ export class UpdateBuilder<T extends DynamoItem> {
   protected options: UpdateOptions = {
     returnValues: "ALL_NEW",
   };
+  protected internalCondition?: Condition;
   protected readonly executor: UpdateExecutor<T>;
   protected readonly tableName: string;
   protected readonly key: PrimaryKeyWithoutExpression;
@@ -292,63 +294,64 @@ export class UpdateBuilder<T extends DynamoItem> {
 
   /**
    * Adds a condition that must be satisfied for the update to succeed.
+   * Multiple calls to .condition() will be ANDed together.
    *
    * @example
    * ```typescript
-   * // Simple condition
-   * builder.condition(op =>
-   *   op.eq('status', 'ACTIVE')
-   * );
-   *
-   * // Health check condition
-   * builder.condition(op =>
-   *   op.and([
-   *     op.gt('health', 50),
-   *     op.eq('status', 'HUNTING')
-   *   ])
-   * );
-   *
-   * // Complex security condition
-   * builder.condition(op =>
-   *   op.and([
-   *     op.attributeExists('securitySystem'),
-   *     op.eq('containmentStatus', 'SECURE'),
-   *     op.lt('aggressionLevel', 8)
-   *   ])
-   * );
-   *
-   * // Version check (optimistic locking)
-   * builder.condition(op =>
-   *   op.eq('version', currentVersion)
-   * );
+   * builder
+   *   .condition(op => op.attributeExists('id'))
+   *   .condition(op => op.eq('status', 'ACTIVE'));
    * ```
-   *
-   * @param condition - Either a Condition DynamoItem or a callback function that builds the condition
-   * @returns The builder instance for method chaining
    */
   condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
-    if (typeof condition === "function") {
-      const conditionOperator: ConditionOperator<T> = {
-        eq,
-        ne,
-        lt,
-        lte,
-        gt,
-        gte,
-        between,
-        inArray,
-        beginsWith,
-        contains,
-        attributeExists,
-        attributeNotExists,
-        and,
-        or,
-        not,
-      };
-      this.options.condition = condition(conditionOperator);
-    } else {
-      this.options.condition = condition;
-    }
+    const conditionOperator: ConditionOperator<T> = {
+      eq,
+      ne,
+      lt,
+      lte,
+      gt,
+      gte,
+      between,
+      inArray,
+      beginsWith,
+      contains,
+      attributeExists,
+      attributeNotExists,
+      and,
+      or,
+      not,
+    };
+
+    const newCondition = typeof condition === "function" ? condition(conditionOperator) : condition;
+    this.options.condition = mergeConditions(this.options.condition, newCondition);
+    return this;
+  }
+
+  /**
+   * Sets an internal condition (e.g., entity guards).
+   * @internal
+   */
+  public _addInternalCondition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
+    const conditionOperator: ConditionOperator<T> = {
+      eq,
+      ne,
+      lt,
+      lte,
+      gt,
+      gte,
+      between,
+      inArray,
+      beginsWith,
+      contains,
+      attributeExists,
+      attributeNotExists,
+      and,
+      or,
+      not,
+    };
+
+    const newCondition = typeof condition === "function" ? condition(conditionOperator) : condition;
+    this.internalCondition = mergeConditions(this.internalCondition, newCondition);
     return this;
   }
 
@@ -494,8 +497,14 @@ export class UpdateBuilder<T extends DynamoItem> {
 
     // Build condition expression if provided
     let conditionExpression: string | undefined;
-    if (this.options.condition) {
-      conditionExpression = buildExpression(this.options.condition, expressionParams);
+    const finalCondition = this.internalCondition
+      ? this.options.condition
+        ? and(this.internalCondition, this.options.condition)
+        : this.internalCondition
+      : this.options.condition;
+
+    if (finalCondition) {
+      conditionExpression = buildExpression(finalCondition, expressionParams);
     }
 
     const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
