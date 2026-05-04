@@ -1,6 +1,6 @@
 {
   "name": "dyno-table",
-  "version": "2.6.0",
+  "version": "2.6.2",
   "description": "A TypeScript library to simplify working with DynamoDB",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -8,84 +8,69 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./table": {
-      "import": {
-        "types": "./dist/table.d.ts",
-        "default": "./dist/table.js"
-      },
-      "require": {
-        "types": "./dist/table.d.ts",
-        "default": "./dist/table.cjs"
-      }
+      "types": "./dist/table.d.ts",
+      "import": "./dist/table.js",
+      "require": "./dist/table.cjs"
     },
     "./entity": {
-      "import": {
-        "types": "./dist/entity.d.ts",
-        "default": "./dist/entity.js"
-      },
-      "require": {
-        "types": "./dist/entity.d.ts",
-        "default": "./dist/entity.cjs"
-      }
+      "types": "./dist/entity.d.ts",
+      "import": "./dist/entity.js",
+      "require": "./dist/entity.cjs"
     },
     "./conditions": {
-      "import": {
-        "types": "./dist/conditions.d.ts",
-        "default": "./dist/conditions.js"
-      },
-      "require": {
-        "types": "./dist/conditions.d.ts",
-        "default": "./dist/conditions.cjs"
-      }
+      "types": "./dist/conditions.d.ts",
+      "import": "./dist/conditions.js",
+      "require": "./dist/conditions.cjs"
     },
     "./types": {
-      "import": {
-        "types": "./dist/types.d.ts",
-        "default": "./dist/types.js"
-      },
-      "require": {
-        "types": "./dist/types.d.ts",
-        "default": "./dist/types.cjs"
-      }
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "require": "./dist/types.cjs"
     },
     "./standard-schema": {
-      "import": {
-        "types": "./dist/standard-schema.d.ts",
-        "default": "./dist/standard-schema.js"
-      },
-      "require": {
-        "types": "./dist/standard-schema.d.ts",
-        "default": "./dist/standard-schema.cjs"
-      }
+      "types": "./dist/standard-schema.d.ts",
+      "import": "./dist/standard-schema.js",
+      "require": "./dist/standard-schema.cjs"
     },
     "./utils": {
-      "import": {
-        "types": "./dist/utils.d.ts",
-        "default": "./dist/utils.js"
-      },
-      "require": {
-        "types": "./dist/utils.d.ts",
-        "default": "./dist/utils.cjs"
-      }
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.js",
+      "require": "./dist/utils.cjs"
     },
     "./builders": {
-      "import": {
-        "types": "./dist/builders.d.ts",
-        "default": "./dist/builders.js"
-      },
-      "require": {
-        "types": "./dist/builders.d.ts",
-        "default": "./dist/builders.cjs"
-      }
+      "types": "./dist/builders.d.ts",
+      "import": "./dist/builders.js",
+      "require": "./dist/builders.cjs"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "table": [
+        "dist/table.d.ts"
+      ],
+      "entity": [
+        "dist/entity.d.ts"
+      ],
+      "conditions": [
+        "dist/conditions.d.ts"
+      ],
+      "types": [
+        "dist/types.d.ts"
+      ],
+      "standard-schema": [
+        "dist/standard-schema.d.ts"
+      ],
+      "utils": [
+        "dist/utils.d.ts"
+      ],
+      "builders": [
+        "dist/builders.d.ts"
+      ]
     }
   },
   "scripts": {
