@@ -1,7 +1,7 @@
-import type { Table } from "../table";
-import type { DynamoItem } from "../types";
-import { IndexBuilder } from "./ddb-indexing";
-import type { IndexDefinition } from "./entity";
+import type { Table } from "../table.js";
+import type { DynamoItem } from "../types.js";
+import { IndexBuilder } from "./ddb-indexing.js";
+import type { IndexDefinition } from "./entity.js";
 
 /**
  * Builds secondary indexes for an item based on the configured indexes

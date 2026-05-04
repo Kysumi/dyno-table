@@ -1,3 +1,9 @@
+import {
+  createEntityAwareDeleteBuilder,
+  createEntityAwareGetBuilder,
+  createEntityAwarePutBuilder,
+  createEntityAwareUpdateBuilder,
+} from "../builders/entity-aware-builders.js";
 import type {
   DeleteBuilder,
   GetBuilder,
@@ -9,27 +15,21 @@ import type {
   TransactionBuilder,
   UpdateBuilder,
   UpdateCommandParams,
-} from "../builders";
-import {
-  createEntityAwareDeleteBuilder,
-  createEntityAwareGetBuilder,
-  createEntityAwarePutBuilder,
-  createEntityAwareUpdateBuilder,
-} from "../builders/entity-aware-builders";
+} from "../builders.js";
 import {
   type Condition,
   type ConditionOperator,
   eq,
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
-} from "../conditions";
-import { DynoTableError } from "../errors";
-import type { StandardSchemaV1, StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema";
-import type { Table } from "../table";
-import type { DynamoItem, Index, TableConfig } from "../types";
-import { EntityErrors, OperationErrors, ValidationErrors } from "../utils/error-factory";
-import { extractRequiredAttributes } from "../utils/error-utils";
-import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils";
+} from "../conditions.js";
+import { DynoTableError } from "../errors.js";
+import type { StandardSchemaV1, StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema.js";
+import type { Table } from "../table.js";
+import type { DynamoItem, Index, TableConfig } from "../types.js";
+import { EntityErrors, OperationErrors, ValidationErrors } from "../utils/error-factory.js";
+import { extractRequiredAttributes } from "../utils/error-utils.js";
+import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils.js";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<_T extends DynamoItem, I, R> = (input: I) => R;

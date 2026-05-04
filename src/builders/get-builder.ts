@@ -1,8 +1,8 @@
-import type { ExpressionParams, PrimaryKeyWithoutExpression } from "../conditions";
-import { generateAttributeName } from "../expression";
-import type { DynamoItem } from "../types";
-import type { BatchBuilder } from "./batch-builder";
-import type { Path } from "./types";
+import type { ExpressionParams, PrimaryKeyWithoutExpression } from "../conditions.js";
+import { generateAttributeName } from "../expression.js";
+import type { DynamoItem } from "../types.js";
+import type { BatchBuilder } from "./batch-builder.js";
+import type { Path } from "./types.js";
 
 /**
  * Configuration options for DynamoDB get operations.

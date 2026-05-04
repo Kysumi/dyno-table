@@ -1,4 +1,4 @@
-import type { DynamoItem } from "./types";
+import type { DynamoItem } from "./types.js";
 
 export interface IndexDefinition<
   T extends DynamoItem,

@@ -1,5 +1,5 @@
-import type { DynamoItem, TableConfig } from "../types";
-import type { QueryBuilderInterface } from "./builder-types";
+import type { DynamoItem, TableConfig } from "../types.js";
+import type { QueryBuilderInterface } from "./builder-types.js";
 
 /**
  * Function type for executing DynamoDB operations and returning raw results.

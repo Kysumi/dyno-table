@@ -4,5 +4,5 @@
  * @module
  */
 
-export { partitionKey } from "./partition-key-template";
-export { sortKey } from "./sort-key-template";
+export { partitionKey } from "./partition-key-template.js";
+export { sortKey } from "./sort-key-template.js";

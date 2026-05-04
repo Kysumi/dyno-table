@@ -1,12 +1,12 @@
 // Main exports - re-export the most commonly used functionality
 
-export { BatchBuilder, type BatchResult } from "./builders/batch-builder";
-export { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder";
-export { PutBuilder, type PutOptions } from "./builders/put-builder";
+export { BatchBuilder, type BatchResult } from "./builders/batch-builder.js";
+export { DeleteBuilder, type DeleteOptions } from "./builders/delete-builder.js";
+export { PutBuilder, type PutOptions } from "./builders/put-builder.js";
 // Builder types
-export { QueryBuilder, type QueryOptions } from "./builders/query-builder";
-export { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder";
-export { UpdateBuilder, type UpdateOptions } from "./builders/update-builder";
+export { QueryBuilder, type QueryOptions } from "./builders/query-builder.js";
+export { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder.js";
+export { UpdateBuilder, type UpdateOptions } from "./builders/update-builder.js";
 export type {
   ComparisonOperator,
   Condition,
@@ -16,7 +16,7 @@ export type {
   LogicalOperator,
   PrimaryKey,
   PrimaryKeyWithoutExpression,
-} from "./conditions";
+} from "./conditions.js";
 // Condition builders and types
 export {
   and,
@@ -34,7 +34,7 @@ export {
   ne,
   not,
   or,
-} from "./conditions";
+} from "./conditions.js";
 export type {
   BuiltIndexDefinition,
   CreateIndexBuilder,
@@ -50,9 +50,9 @@ export type {
   PartitionKeyIndexBuilder,
   QueryEntity,
   QueryRecord,
-} from "./entity/entity";
-export { createIndex, createQueries, defineEntity } from "./entity/entity";
-export type { ErrorCode } from "./errors";
+} from "./entity/entity.js";
+export { createIndex, createQueries, defineEntity } from "./entity/entity.js";
+export type { ErrorCode } from "./errors.js";
 // Error classes and utilities
 export {
   BatchError,
@@ -67,8 +67,8 @@ export {
   OperationError,
   TransactionError,
   ValidationError,
-} from "./errors";
-export { Table } from "./table";
+} from "./errors.js";
+export { Table } from "./table.js";
 export {
   BatchErrors,
   ConfigurationErrors,
@@ -78,7 +78,7 @@ export {
   OperationErrors,
   TransactionErrors,
   ValidationErrors,
-} from "./utils/error-factory";
+} from "./utils/error-factory.js";
 export {
   extractRequiredAttributes,
   formatErrorContext,
@@ -100,8 +100,8 @@ export {
   isTransactionError,
   isValidationError,
   isValidationException,
-} from "./utils/error-utils";
+} from "./utils/error-utils.js";
 
 // Utility functions for key templates
-export { partitionKey } from "./utils/partition-key-template";
-export { sortKey } from "./utils/sort-key-template";
+export { partitionKey } from "./utils/partition-key-template.js";
+export { sortKey } from "./utils/sort-key-template.js";

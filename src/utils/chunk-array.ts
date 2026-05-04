@@ -1,4 +1,4 @@
-import { ConfigurationErrors } from "./error-factory";
+import { ConfigurationErrors } from "./error-factory.js";
 
 /**
  * Generator function to create chunks of an array on-demand

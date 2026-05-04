@@ -1,5 +1,5 @@
-import type { ComparisonOperator, Condition, ExpressionParams, LogicalOperator } from "./conditions";
-import { ExpressionErrors } from "./utils/error-factory";
+import type { ComparisonOperator, Condition, ExpressionParams, LogicalOperator } from "./conditions.js";
+import { ExpressionErrors } from "./utils/error-factory.js";
 
 export const generateAttributeName = (params: ExpressionParams, attr: string): string => {
   // Handle nested paths by splitting on dots

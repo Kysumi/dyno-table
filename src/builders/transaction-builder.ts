@@ -1,16 +1,16 @@
 import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
-import type { Condition, PrimaryKeyWithoutExpression } from "../conditions";
-import { prepareExpressionParams } from "../expression";
-import type { DynamoItem } from "../types";
-import { debugTransaction } from "../utils/debug-transaction";
-import { ConfigurationErrors, TransactionErrors } from "../utils/error-factory";
+import type { Condition, PrimaryKeyWithoutExpression } from "../conditions.js";
+import { prepareExpressionParams } from "../expression.js";
+import type { DynamoItem } from "../types.js";
+import { debugTransaction } from "../utils/debug-transaction.js";
+import { ConfigurationErrors, TransactionErrors } from "../utils/error-factory.js";
 import type {
   ConditionCheckCommandParams,
   DeleteCommandParams,
   PutCommandParams,
   TransactionItem,
   UpdateCommandParams,
-} from "./builder-types";
+} from "./builder-types.js";
 
 /**
  * Configuration options for DynamoDB transactions.

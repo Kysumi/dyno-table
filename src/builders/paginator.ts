@@ -1,5 +1,5 @@
-import type { DynamoItem, TableConfig } from "../types";
-import type { PaginationResult, QueryBuilderInterface } from "./builder-types";
+import type { DynamoItem, TableConfig } from "../types.js";
+import type { PaginationResult, QueryBuilderInterface } from "./builder-types.js";
 
 /**
  * A utility class for handling DynamoDB pagination.

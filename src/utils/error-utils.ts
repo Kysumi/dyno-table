@@ -17,7 +17,7 @@ import type {
   OperationError,
   TransactionError,
   ValidationError,
-} from "../errors";
+} from "../errors.js";
 
 /**
  * Checks if an error is a DynamoDB conditional check failure

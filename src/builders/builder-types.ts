@@ -1,6 +1,6 @@
-import type { DynamoItem, TableConfig } from "../types";
-import type { DynamoCommandWithExpressions } from "../utils/debug-expression";
-import type { ResultIterator } from "./result-iterator";
+import type { DynamoItem, TableConfig } from "../types.js";
+import type { DynamoCommandWithExpressions } from "../utils/debug-expression.js";
+import type { ResultIterator } from "./result-iterator.js";
 
 export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   tableName: string;

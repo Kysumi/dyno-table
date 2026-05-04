@@ -1,4 +1,4 @@
-import type { Condition, ConditionOperator, PrimaryKeyWithoutExpression } from "../conditions";
+import type { Condition, ConditionOperator, PrimaryKeyWithoutExpression } from "../conditions.js";
 import {
   and,
   attributeExists,
@@ -15,13 +15,13 @@ import {
   ne,
   not,
   or,
-} from "../conditions";
-import { prepareExpressionParams } from "../expression";
-import type { DynamoItem } from "../types";
-import { debugCommand } from "../utils/debug-expression";
-import { ConfigurationErrors, ValidationErrors } from "../utils/error-factory";
-import type { ConditionCheckCommandParams } from "./builder-types";
-import type { TransactionBuilder } from "./transaction-builder";
+} from "../conditions.js";
+import { prepareExpressionParams } from "../expression.js";
+import type { DynamoItem } from "../types.js";
+import { debugCommand } from "../utils/debug-expression.js";
+import { ConfigurationErrors, ValidationErrors } from "../utils/error-factory.js";
+import type { ConditionCheckCommandParams } from "./builder-types.js";
+import type { TransactionBuilder } from "./transaction-builder.js";
 
 /**
  * Builder for creating DynamoDB condition check operations.

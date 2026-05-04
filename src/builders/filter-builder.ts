@@ -16,12 +16,12 @@ import {
   ne,
   not,
   or,
-} from "../conditions";
-import type { DynamoItem, GSINames, TableConfig } from "../types";
-import type { FilterBuilderInterface } from "./builder-types";
-import { Paginator } from "./paginator";
-import type { ResultIterator } from "./result-iterator";
-import type { Path } from "./types";
+} from "../conditions.js";
+import type { DynamoItem, GSINames, TableConfig } from "../types.js";
+import type { FilterBuilderInterface } from "./builder-types.js";
+import { Paginator } from "./paginator.js";
+import type { ResultIterator } from "./result-iterator.js";
+import type { Path } from "./types.js";
 
 /**
  * Configuration options for DynamoDB filter operations.
