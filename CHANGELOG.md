@@ -1,3 +1,10 @@
+## [2.6.1](https://github.com/Kysumi/dyno-table/compare/v2.6.0...v2.6.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* Resolving typing issues ([#71](https://github.com/Kysumi/dyno-table/issues/71)) ([f3b7e10](https://github.com/Kysumi/dyno-table/commit/f3b7e1041113a340d4508ecdf4915ce10083db4e))
+
 # [2.6.0](https://github.com/Kysumi/dyno-table/compare/v2.5.2...v2.6.0) (2026-03-03)
 
 
