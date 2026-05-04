@@ -52,6 +52,7 @@ export type {
   QueryRecord,
 } from "./entity/entity";
 export { createIndex, createQueries, defineEntity } from "./entity/entity";
+export type { ErrorCode } from "./errors";
 // Error classes and utilities
 export {
   BatchError,
@@ -67,7 +68,6 @@ export {
   TransactionError,
   ValidationError,
 } from "./errors";
-export type { ErrorCode } from "./errors";
 export { Table } from "./table";
 export {
   BatchErrors,
