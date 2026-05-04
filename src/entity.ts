@@ -1,4 +1,6 @@
 export type {
+  BuiltIndexDefinition,
+  CreateIndexBuilder,
   EntityConfig,
   EntityDefinition,
   EntityDeleteBuilder,
@@ -6,8 +8,10 @@ export type {
   EntityPutBuilder,
   EntityRepository,
   EntityUpdateBuilder,
+  IndexBuilder,
   IndexDefinition,
   MappedQueries,
+  PartitionKeyIndexBuilder,
   QueryEntity,
   QueryFunction,
   QueryFunctionWithSchema,

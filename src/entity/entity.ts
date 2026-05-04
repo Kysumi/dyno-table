@@ -712,11 +712,29 @@ export interface IndexDefinition<T extends DynamoItem> extends Index<T> {
 
 type Result<T> = StandardSchemaV1Namespace.Result<T>;
 
-export function createIndex() {
+export interface BuiltIndexDefinition<T extends DynamoItem> extends IndexDefinition<T> {
+  readOnly: (value?: boolean) => IndexDefinition<T>;
+}
+
+export interface PartitionKeyIndexBuilder<T extends DynamoItem> {
+  sortKey: <S extends (item: T) => string>(skFn: S) => BuiltIndexDefinition<T>;
+  withoutSortKey: () => BuiltIndexDefinition<T>;
+}
+
+export interface IndexBuilder<T extends DynamoItem> {
+  partitionKey: <P extends (item: T) => string>(pkFn: P) => PartitionKeyIndexBuilder<T>;
+  readOnly: (value?: boolean) => IndexBuilder<T>;
+}
+
+export interface CreateIndexBuilder {
+  input: <T extends DynamoItem>(schema: StandardSchemaV1<T>) => IndexBuilder<T>;
+}
+
+export function createIndex(): CreateIndexBuilder {
   return {
     input: <T extends DynamoItem>(schema: StandardSchemaV1<T>) => {
-      const createIndexBuilder = (isReadOnly = false) => ({
-        partitionKey: <P extends (item: T) => string>(pkFn: P) => ({
+      const createIndexBuilder = (isReadOnly = false): IndexBuilder<T> => ({
+        partitionKey: <P extends (item: T) => string>(pkFn: P): PartitionKeyIndexBuilder<T> => ({
           sortKey: <S extends (item: T) => string>(skFn: S) => {
             const index = {
               name: "custom",
@@ -739,7 +757,7 @@ export function createIndex() {
                   ...index,
                   isReadOnly: value,
                 }) as IndexDefinition<T>,
-            });
+            }) as BuiltIndexDefinition<T>;
           },
 
           withoutSortKey: () => {
@@ -763,7 +781,7 @@ export function createIndex() {
                   ...index,
                   isReadOnly: value,
                 }) as IndexDefinition<T>,
-            });
+            }) as BuiltIndexDefinition<T>;
           },
         }),
 

@@ -36,6 +36,8 @@ export {
   or,
 } from "./conditions";
 export type {
+  BuiltIndexDefinition,
+  CreateIndexBuilder,
   EntityConfig,
   EntityDefinition,
   EntityDeleteBuilder,
@@ -43,13 +45,29 @@ export type {
   EntityPutBuilder,
   EntityRepository,
   EntityUpdateBuilder,
+  IndexBuilder,
   IndexDefinition,
+  PartitionKeyIndexBuilder,
   QueryEntity,
   QueryRecord,
 } from "./entity/entity";
 export { createIndex, createQueries, defineEntity } from "./entity/entity";
+export type { ErrorCode } from "./errors";
 // Error classes and utilities
-export * from "./errors";
+export {
+  BatchError,
+  ConfigurationError,
+  DynoTableError,
+  EntityError,
+  EntityValidationError,
+  ErrorCodes,
+  ExpressionError,
+  IndexGenerationError,
+  KeyGenerationError,
+  OperationError,
+  TransactionError,
+  ValidationError,
+} from "./errors";
 export { Table } from "./table";
 export {
   BatchErrors,
@@ -61,7 +79,28 @@ export {
   TransactionErrors,
   ValidationErrors,
 } from "./utils/error-factory";
-export * from "./utils/error-utils";
+export {
+  extractRequiredAttributes,
+  formatErrorContext,
+  getAwsErrorCode,
+  getAwsErrorMessage,
+  getErrorSummary,
+  isBatchError,
+  isConditionalCheckFailed,
+  isConfigurationError,
+  isDynoTableError,
+  isEntityError,
+  isEntityValidationError,
+  isExpressionError,
+  isIndexGenerationError,
+  isOperationError,
+  isProvisionedThroughputExceeded,
+  isRetryableError,
+  isTransactionCanceled,
+  isTransactionError,
+  isValidationError,
+  isValidationException,
+} from "./utils/error-utils";
 
 // Utility functions for key templates
 export { partitionKey } from "./utils/partition-key-template";
