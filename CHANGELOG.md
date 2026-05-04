@@ -1,3 +1,10 @@
+## [2.6.4](https://github.com/Kysumi/dyno-table/compare/v2.6.3...v2.6.4) (2026-05-04)
+
+
+### Bug Fixes
+
+* NodeNext typing ([62e3404](https://github.com/Kysumi/dyno-table/commit/62e3404845d73818886e35e6c9573f417b2b2ed9))
+
 ## [2.6.3](https://github.com/Kysumi/dyno-table/compare/v2.6.2...v2.6.3) (2026-05-04)
 
 
