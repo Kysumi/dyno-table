@@ -53,6 +53,7 @@ export type {
 } from "./entity/entity.js";
 export { createIndex, createQueries, defineEntity } from "./entity/entity.js";
 export type { ErrorCode } from "./errors.js";
+export type { ErrorCode } from "./errors";
 // Error classes and utilities
 export {
   BatchError,
