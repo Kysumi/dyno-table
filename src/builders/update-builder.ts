@@ -1,4 +1,4 @@
-import type { Condition, ConditionOperator, PrimaryKeyWithoutExpression } from "../conditions";
+import type { Condition, ConditionOperator, PrimaryKeyWithoutExpression } from "../conditions.js";
 import {
   and,
   attributeExists,
@@ -15,14 +15,14 @@ import {
   ne,
   not,
   or,
-} from "../conditions";
-import { buildExpression, generateAttributeName, generateValueName } from "../expression";
-import type { DynamoItem } from "../types";
-import { debugCommand } from "../utils/debug-expression";
-import { ValidationErrors } from "../utils/error-factory";
-import type { UpdateCommandParams } from "./builder-types";
-import type { TransactionBuilder } from "./transaction-builder";
-import type { Path, PathType } from "./types";
+} from "../conditions.js";
+import { buildExpression, generateAttributeName, generateValueName } from "../expression.js";
+import type { DynamoItem } from "../types.js";
+import { debugCommand } from "../utils/debug-expression.js";
+import { ValidationErrors } from "../utils/error-factory.js";
+import type { UpdateCommandParams } from "./builder-types.js";
+import type { TransactionBuilder } from "./transaction-builder.js";
+import type { Path, PathType } from "./types.js";
 
 /**
  * Configuration options for DynamoDB update operations.

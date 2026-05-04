@@ -1,10 +1,10 @@
-import type { PrimaryKeyWithoutExpression } from "../conditions";
-import { BatchError, ErrorCodes } from "../errors";
-import type { BatchWriteOperation } from "../operation-types";
-import type { DynamoItem } from "../types";
-import { BatchErrors } from "../utils/error-factory";
-import type { DeleteCommandParams, PutCommandParams } from "./builder-types";
-import type { GetCommandParams } from "./get-builder";
+import type { PrimaryKeyWithoutExpression } from "../conditions.js";
+import { BatchError, ErrorCodes } from "../errors.js";
+import type { BatchWriteOperation } from "../operation-types.js";
+import type { DynamoItem } from "../types.js";
+import { BatchErrors } from "../utils/error-factory.js";
+import type { DeleteCommandParams, PutCommandParams } from "./builder-types.js";
+import type { GetCommandParams } from "./get-builder.js";
 
 // Constants for DynamoDB batch limits
 const _DDB_BATCH_WRITE_LIMIT = 25;

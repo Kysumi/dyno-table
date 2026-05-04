@@ -1,5 +1,5 @@
-import type { Path, PathType } from "./builders/types";
-import type { DynamoItem } from "./types";
+import type { Path, PathType } from "./builders/types.js";
+import type { DynamoItem } from "./types.js";
 
 /**
  * Supported comparison operators for DynamoDB conditions.

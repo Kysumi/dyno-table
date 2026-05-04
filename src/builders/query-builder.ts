@@ -1,9 +1,9 @@
-import type { Condition } from "../conditions";
-import type { DynamoItem, TableConfig } from "../types";
-import type { QueryBuilderInterface } from "./builder-types";
-import { FilterBuilder, type FilterOptions } from "./filter-builder";
-import { ResultIterator } from "./result-iterator";
-import type { Path } from "./types";
+import type { Condition } from "../conditions.js";
+import type { DynamoItem, TableConfig } from "../types.js";
+import type { QueryBuilderInterface } from "./builder-types.js";
+import { FilterBuilder, type FilterOptions } from "./filter-builder.js";
+import { ResultIterator } from "./result-iterator.js";
+import type { Path } from "./types.js";
 
 /**
  * Configuration options for DynamoDB query operations.

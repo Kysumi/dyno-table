@@ -1,8 +1,8 @@
-import { DynoTableError } from "../errors";
-import type { Table } from "../table";
-import type { DynamoItem } from "../types";
-import { ConfigurationErrors, IndexErrors } from "../utils/error-factory";
-import type { IndexDefinition } from "./entity";
+import { DynoTableError } from "../errors.js";
+import type { Table } from "../table.js";
+import type { DynamoItem } from "../types.js";
+import { ConfigurationErrors, IndexErrors } from "../utils/error-factory.js";
+import type { IndexDefinition } from "./entity.js";
 
 /**
  * Represents a generated key for a DynamoDB index

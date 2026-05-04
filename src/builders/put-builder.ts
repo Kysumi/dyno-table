@@ -1,4 +1,4 @@
-import type { Condition, ConditionOperator } from "../conditions";
+import type { Condition, ConditionOperator } from "../conditions.js";
 import {
   and,
   attributeExists,
@@ -15,14 +15,14 @@ import {
   ne,
   not,
   or,
-} from "../conditions";
-import { prepareExpressionParams } from "../expression";
-import type { DynamoItem } from "../types";
-import { debugCommand } from "../utils/debug-expression";
-import type { BatchBuilder } from "./batch-builder";
-import type { PutCommandParams } from "./builder-types";
-import type { TransactionBuilder } from "./transaction-builder";
-import type { Path, PathType } from "./types";
+} from "../conditions.js";
+import { prepareExpressionParams } from "../expression.js";
+import type { DynamoItem } from "../types.js";
+import { debugCommand } from "../utils/debug-expression.js";
+import type { BatchBuilder } from "./batch-builder.js";
+import type { PutCommandParams } from "./builder-types.js";
+import type { TransactionBuilder } from "./transaction-builder.js";
+import type { Path, PathType } from "./types.js";
 
 /**
  * Configuration options for DynamoDB put operations.

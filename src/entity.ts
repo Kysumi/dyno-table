@@ -16,5 +16,5 @@ export type {
   QueryFunction,
   QueryFunctionWithSchema,
   QueryRecord,
-} from "./entity/entity";
-export { createIndex, createQueries, defineEntity } from "./entity/entity";
+} from "./entity/entity.js";
+export { createIndex, createQueries, defineEntity } from "./entity/entity.js";

@@ -9,7 +9,7 @@ import {
   OperationError,
   TransactionError,
   ValidationError,
-} from "../errors";
+} from "../errors.js";
 
 /**
  * Factory functions for Expression errors

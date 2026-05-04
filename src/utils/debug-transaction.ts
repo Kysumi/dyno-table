@@ -1,5 +1,5 @@
-import type { TransactionItem } from "../builders/builder-types";
-import { debugCommand } from "./debug-expression";
+import type { TransactionItem } from "../builders/builder-types.js";
+import { debugCommand } from "./debug-expression.js";
 
 /**
  * Utility function to create a human-readable representation of a transaction item

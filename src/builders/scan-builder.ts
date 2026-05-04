@@ -1,8 +1,8 @@
-import type { Condition } from "../conditions";
-import type { DynamoItem, TableConfig } from "../types";
-import type { ScanBuilderInterface } from "./builder-types";
-import { FilterBuilder, type FilterOptions } from "./filter-builder";
-import { ResultIterator } from "./result-iterator";
+import type { Condition } from "../conditions.js";
+import type { DynamoItem, TableConfig } from "../types.js";
+import type { ScanBuilderInterface } from "./builder-types.js";
+import { FilterBuilder, type FilterOptions } from "./filter-builder.js";
+import { ResultIterator } from "./result-iterator.js";
 
 /**
  * Configuration options for DynamoDB scan operations.

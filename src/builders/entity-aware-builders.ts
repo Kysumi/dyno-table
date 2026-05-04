@@ -1,15 +1,15 @@
-import type { Condition, ConditionOperator } from "../conditions";
-import type { IndexDefinition } from "../entity/entity";
-import type { Table } from "../table";
-import type { DynamoItem } from "../types";
-import type { BatchBuilder } from "./batch-builder";
-import type { UpdateCommandParams } from "./builder-types";
-import type { DeleteBuilder } from "./delete-builder";
-import type { GetBuilder } from "./get-builder";
-import type { PutBuilder } from "./put-builder";
-import type { TransactionBuilder } from "./transaction-builder";
-import type { Path, PathType } from "./types";
-import type { UpdateBuilder } from "./update-builder";
+import type { Condition, ConditionOperator } from "../conditions.js";
+import type { IndexDefinition } from "../entity/entity.js";
+import type { Table } from "../table.js";
+import type { DynamoItem } from "../types.js";
+import type { BatchBuilder } from "./batch-builder.js";
+import type { UpdateCommandParams } from "./builder-types.js";
+import type { DeleteBuilder } from "./delete-builder.js";
+import type { GetBuilder } from "./get-builder.js";
+import type { PutBuilder } from "./put-builder.js";
+import type { TransactionBuilder } from "./transaction-builder.js";
+import type { Path, PathType } from "./types.js";
+import type { UpdateBuilder } from "./update-builder.js";
 
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
