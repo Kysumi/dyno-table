@@ -1,3 +1,9 @@
+import {
+  createEntityAwareDeleteBuilder,
+  createEntityAwareGetBuilder,
+  createEntityAwarePutBuilder,
+  createEntityAwareUpdateBuilder,
+} from "../builders/entity-aware-builders.js";
 import type {
   DeleteBuilder,
   GetBuilder,
@@ -10,12 +16,6 @@ import type {
   UpdateBuilder,
   UpdateCommandParams,
 } from "../builders.js";
-import {
-  createEntityAwareDeleteBuilder,
-  createEntityAwareGetBuilder,
-  createEntityAwarePutBuilder,
-  createEntityAwareUpdateBuilder,
-} from "../builders/entity-aware-builders.js";
 import {
   type Condition,
   type ConditionOperator,
