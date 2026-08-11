@@ -1,3 +1,10 @@
+## [2.7.2](https://github.com/Kysumi/dyno-table/compare/v2.7.1...v2.7.2) (2026-08-11)
+
+
+### Bug Fixes
+
+* include entity update data in debug output ([#80](https://github.com/Kysumi/dyno-table/issues/80)) ([2e5d03d](https://github.com/Kysumi/dyno-table/commit/2e5d03de7ede9868ebf159ec3a960819c4a14e39)), closes [#78](https://github.com/Kysumi/dyno-table/issues/78)
+
 ## [2.7.1](https://github.com/Kysumi/dyno-table/compare/v2.7.0...v2.7.1) (2026-08-11)
 
 # [2.7.0](https://github.com/Kysumi/dyno-table/compare/v2.6.4...v2.7.0) (2026-08-11)
