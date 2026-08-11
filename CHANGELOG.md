@@ -1,3 +1,15 @@
+# [2.7.0](https://github.com/Kysumi/dyno-table/compare/v2.6.4...v2.7.0) (2026-08-11)
+
+
+### Bug Fixes
+
+* allow empty sort key prefixes ([#75](https://github.com/Kysumi/dyno-table/issues/75)) ([5a6275c](https://github.com/Kysumi/dyno-table/commit/5a6275cf4bbd051e3425e41ed671dec7ed8065d7))
+
+
+### Features
+
+* Significant deps updates ([#76](https://github.com/Kysumi/dyno-table/issues/76)) ([cb93461](https://github.com/Kysumi/dyno-table/commit/cb9346135d2a8730a131231c1fe5437d72f5ecaa))
+
 ## [2.6.4](https://github.com/Kysumi/dyno-table/compare/v2.6.3...v2.6.4) (2026-05-04)
 
 
