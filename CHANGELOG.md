@@ -1,3 +1,5 @@
+## [2.7.1](https://github.com/Kysumi/dyno-table/compare/v2.7.0...v2.7.1) (2026-08-11)
+
 # [2.7.0](https://github.com/Kysumi/dyno-table/compare/v2.6.4...v2.7.0) (2026-08-11)
 
 
