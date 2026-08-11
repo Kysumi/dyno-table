@@ -22,6 +22,10 @@ export type GenerateType<T extends readonly string[], U extends string = never> 
  * const templatedString = sk({ country: "NZ", enclosure: "A1" });
  * // Result: "country#NZ#enclosure#A1#diet#"
  *
+ * // Generate the static prefix before the first placeholder
+ * const prefix = sk();
+ * // Result: "country#"
+ *
  * // Generate a complete sort key
  * const fullKey = sk({ country: "NZ", enclosure: "A1", diet: "carnivore" });
  * // Result: "country#NZ#enclosure#A1#diet#carnivore"
@@ -38,7 +42,7 @@ export type GenerateType<T extends readonly string[], U extends string = never> 
 export function sortKey<T extends readonly string[]>(
   strings: TemplateStringsArray,
   ...keys: T
-): (params: GenerateType<T>) => string {
+): (params?: GenerateType<T>) => string {
   return (params) => {
     let result = strings[0] ?? "";
 
