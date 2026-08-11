@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 
 # Build
 dist/
@@ -10,6 +11,7 @@ coverage/
 # IDE
 .idea/
 .vscode/
+.air/
 
 # Logs
 *.log
