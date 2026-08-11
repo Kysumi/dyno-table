@@ -1,4 +1,4 @@
-import { defineConfig } from "tsup";
+import { defineConfig } from "tsdown";
 
 export default defineConfig({
   entry: {
@@ -12,9 +12,12 @@ export default defineConfig({
     builders: "src/builders.ts",
   },
   format: ["esm", "cjs"],
-  dts: false,
+  dts: { tsconfig: "tsconfig.types.json" },
   clean: true,
   sourcemap: false,
-  splitting: false,
   treeshake: true,
+  outExtensions: ({ format }) => ({
+    js: format === "es" ? ".js" : ".cjs",
+    dts: ".d.ts",
+  }),
 });

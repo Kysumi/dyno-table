@@ -74,9 +74,7 @@
     }
   },
   "scripts": {
-    "build": "pnpm run clean && pnpm run build:js && pnpm run build:types",
-    "build:js": "tsup --config tsup.config.ts",
-    "build:types": "tsc -p tsconfig.types.json",
+    "build": "tsdown",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:w": "vitest watch",
@@ -105,17 +103,15 @@
     "url": "git+https://github.com/Kysumi/dyno-table.git"
   },
   "devDependencies": {
-    "@babel/preset-typescript": "^7.28.5",
-    "@biomejs/biome": "2.2.2",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
-    "@types/node": "^20.19.31",
+    "@biomejs/biome": "2.5.7",
+    "@semantic-release/changelog": "^7.0.0",
+    "@semantic-release/git": "^11.0.1",
+    "@types/node": "^26.2.0",
     "husky": "^9.1.7",
-    "rimraf": "^5.0.10",
-    "semantic-release": "24.2.3",
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
-    "vitest": "3.0.5"
+    "semantic-release": "25.0.9",
+    "tsdown": "^0.22.14",
+    "typescript": "^7.0.2",
+    "vitest": "4.1.10"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
