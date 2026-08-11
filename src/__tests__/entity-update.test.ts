@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UpdateBuilder } from "../builders/update-builder";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -102,6 +103,19 @@ describe("Entity Update Operations", () => {
 
       // Verify that the update data was set correctly
       expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
+    });
+
+    it("should include repository update data in debug output", () => {
+      mockTable.update.mockReturnValue(
+        new UpdateBuilder<TestEntity>(vi.fn(), "TestTable", {
+          pk: "thisIsMyPK#123",
+          sk: "wowSearching#METADATA",
+        }),
+      );
+
+      const debug = repository.update({ id: "123" }, { status: "active" }).debug();
+
+      expect(debug.readable.updateExpression).toBe('SET status = "active"');
     });
 
     it("should handle complex update operations", async () => {
