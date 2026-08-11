@@ -1,21 +1,14 @@
-import {
-  createEntityAwareDeleteBuilder,
-  createEntityAwareGetBuilder,
-  createEntityAwarePutBuilder,
-  createEntityAwareUpdateBuilder,
-} from "../builders/entity-aware-builders.js";
 import type {
-  DeleteBuilder,
   GetBuilder,
   Path,
   PathType,
-  PutBuilder,
   QueryBuilder,
   ScanBuilder,
   TransactionBuilder,
   UpdateBuilder,
   UpdateCommandParams,
 } from "../builders.js";
+import type {BeforeExecute, BuilderContext} from "../builders/builder-types.js";
 import {
   type Condition,
   type ConditionOperator,
@@ -23,13 +16,30 @@ import {
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
 } from "../conditions.js";
-import { DynoTableError } from "../errors.js";
-import type { StandardSchemaV1, StandardSchemaV1 as StandardSchemaV1Namespace } from "../standard-schema.js";
-import type { Table } from "../table.js";
-import type { DynamoItem, Index, TableConfig } from "../types.js";
-import { EntityErrors, OperationErrors, ValidationErrors } from "../utils/error-factory.js";
-import { extractRequiredAttributes } from "../utils/error-utils.js";
-import { buildIndexes as buildEntityIndexes, buildIndexUpdates } from "./index-utils.js";
+import type {StandardSchemaV1} from "../standard-schema.js";
+import type {Table} from "../table.js";
+import type {DynamoItem, TableConfig} from "../types.js";
+import {EntityErrors} from "../utils/error-factory.js";
+import type {IndexDefinition} from "./create-index.js";
+import {
+  createEntityAwareUpdateBuilder,
+  EntityAwareDeleteBuilder,
+  EntityAwareGetBuilder,
+  EntityAwarePutBuilder,
+  type EntityDeleteBuilder,
+  type EntityGetBuilder,
+  type EntityPutBuilder,
+} from "./entity-aware-builders.js";
+import {type ItemPreparationConfig, prepareItemAsync, prepareItemSync} from "./item-preparation.js";
+
+export {
+  type BuiltIndexDefinition,
+  type CreateIndexBuilder,
+  createIndex,
+  type IndexBuilder,
+  type IndexDefinition,
+  type PartitionKeyIndexBuilder,
+} from "./create-index.js";
 
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<_T extends DynamoItem, I, R> = (input: I) => R;
@@ -58,17 +68,7 @@ export type QueryEntity<T extends DynamoItem> = {
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
-export type EntityPutBuilder<T extends DynamoItem> = PutBuilder<T> & {
-  readonly entityName: string;
-};
-
-export type EntityGetBuilder<T extends DynamoItem> = GetBuilder<T> & {
-  readonly entityName: string;
-};
-
-export type EntityDeleteBuilder = DeleteBuilder & {
-  readonly entityName: string;
-};
+export type { EntityDeleteBuilder, EntityGetBuilder, EntityPutBuilder } from "./entity-aware-builders.js";
 
 export type EntityUpdateBuilder<T extends DynamoItem> = {
   readonly entityName: string;
@@ -190,6 +190,41 @@ export interface EntityDefinition<
   createRepository: (table: Table) => EntityRepository<T, TInput, I, Q>;
 }
 
+function createScopedQueryEntity<T extends DynamoItem>(
+  table: Table,
+  entityTypeAttributeName: string,
+  entityName: string,
+  context: BuilderContext,
+  scopedBuilders: WeakSet<object>,
+): QueryEntity<T> {
+  const track = <R extends object>(builder: R): R => {
+    scopedBuilders.add(builder);
+    return builder;
+  };
+
+  return {
+    scan: () => track(table.scan<T>(context).filter(eq(entityTypeAttributeName, entityName))),
+    get: (key) => track(new EntityAwareGetBuilder(table.get<T>(key, context), entityName)),
+    query: (keyCondition) =>
+      track(table.query<T>(keyCondition, context).filter(eq(entityTypeAttributeName, entityName))),
+  };
+}
+
+function createQueryInputValidator(
+  schema: StandardSchemaV1<unknown> | undefined,
+  entityName: string,
+  queryName: string,
+  input: unknown,
+): BeforeExecute {
+  return async () => {
+    if (!schema) return;
+    const validationResult = await schema["~standard"].validate(input);
+    if (validationResult.issues) {
+      throw EntityErrors.queryInputValidationFailed(entityName, queryName, validationResult.issues, input);
+    }
+  };
+}
+
 /**
  * Creates an entity definition with type-safe operations
  *
@@ -214,56 +249,6 @@ export function defineEntity<
   Q extends QueryRecord<T> = QueryRecord<T>,
 >(config: EntityConfig<T, TInput, I, Q>): EntityDefinition<T, TInput, I, Q> {
   const entityTypeAttributeName = config.settings?.entityTypeAttributeName ?? "entityType";
-
-  /**
-   * Builds secondary indexes for an item based on the configured indexes
-   *
-   * @param dataForKeyGeneration The validated data to generate keys from
-   * @param table The DynamoDB table instance containing GSI configurations
-   * @returns Record of GSI attribute names to their values
-   */
-  const buildIndexes = <TData extends T>(
-    dataForKeyGeneration: TData,
-    table: Table,
-    excludeReadOnly = false,
-  ): Record<string, string> => {
-    return buildEntityIndexes(dataForKeyGeneration, table, config.indexes, excludeReadOnly);
-  };
-
-  /**
-   * Utility function to wrap a method with preparation logic while preserving all properties
-   * for mock compatibility. This reduces boilerplate for withTransaction and withBatch wrappers.
-   */
-  // biome-ignore lint/suspicious/noExplicitAny: Required for flexible method wrapping
-  const wrapMethodWithPreparation = <TMethod extends (...args: any[]) => any>(
-    originalMethod: TMethod,
-    prepareFn: () => void,
-    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible context binding
-    context: any,
-  ): TMethod => {
-    // biome-ignore lint/suspicious/noExplicitAny: Required for flexible argument handling
-    const wrappedMethod = (...args: any[]) => {
-      prepareFn();
-      return originalMethod.call(context, ...args);
-    };
-
-    // Copy all properties from the original function to preserve mock functionality
-    Object.setPrototypeOf(wrappedMethod, originalMethod);
-    const propertyNames = Object.getOwnPropertyNames(originalMethod);
-    for (let i = 0; i < propertyNames.length; i++) {
-      const prop = propertyNames[i] as string;
-      if (prop !== "length" && prop !== "name" && prop !== "prototype") {
-        // Check if the property is writable before attempting to assign it
-        const descriptor = Object.getOwnPropertyDescriptor(originalMethod, prop);
-        if (descriptor && descriptor.writable !== false && !descriptor.get) {
-          // biome-ignore lint/suspicious/noExplicitAny: meh
-          (wrappedMethod as any)[prop] = (originalMethod as any)[prop];
-        }
-      }
-    }
-
-    return wrappedMethod as TMethod;
-  };
 
   /**
    * Generates an object containing timestamp attributes based on the given configuration settings.
@@ -304,280 +289,42 @@ export function defineEntity<
     return timestamps;
   };
 
+  const itemPreparationConfig: ItemPreparationConfig<T, TInput, I> = {
+    name: config.name,
+    schema: config.schema,
+    primaryKey: config.primaryKey,
+    indexes: config.indexes,
+    entityTypeAttributeName,
+    generateTimestamps: (data: Partial<T>) => generateTimestamps(["createdAt", "updatedAt"], data),
+  };
+
   return {
     name: config.name,
     createRepository: (table: Table): EntityRepository<T, TInput, I, Q> => {
-      // Create a repository
-      const repository = {
+      return {
         create: (data: TInput) => {
-          // Create a minimal builder without validation or key generation
-          // We'll defer all processing until execute() or withTransaction() is called
           const builder = table.create<T>({} as T);
-
-          // Core function that handles validation, key generation, and item preparation (async version)
-          const prepareValidatedItemAsync = async () => {
-            // Validate data to ensure defaults are applied before key generation
-            const validatedData = await config.schema["~standard"].validate(data);
-
-            if ("issues" in validatedData && validatedData.issues) {
-              throw EntityErrors.validationFailed(config.name, "create", validatedData.issues, data);
-            }
-
-            const dataForKeyGeneration = {
-              ...validatedData.value,
-              ...generateTimestamps(["createdAt", "updatedAt"], validatedData.value),
-            };
-
-            // Generate the primary key using validated data (with defaults applied)
-            let primaryKey: { pk: string; sk?: string };
-            try {
-              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
-
-              // Validate generated key
-              if (primaryKey.pk === undefined || primaryKey.pk === null) {
-                throw EntityErrors.keyInvalidFormat(config.name, "create", dataForKeyGeneration, primaryKey);
-              }
-            } catch (error) {
-              if (error instanceof DynoTableError) throw error;
-
-              throw EntityErrors.keyGenerationFailed(
-                config.name,
-                "create",
-                dataForKeyGeneration,
-                extractRequiredAttributes(error),
-                error instanceof Error ? error : undefined,
-              );
-            }
-
-            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
-
-            const validatedItem = {
-              ...(dataForKeyGeneration as unknown as T),
-              [entityTypeAttributeName]: config.name,
-              [table.partitionKey]: primaryKey.pk,
-              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-              ...indexes,
-            };
-
-            Object.assign(builder, { item: validatedItem });
-            return validatedItem;
-          };
-
-          // Core function that handles validation, key generation, and item preparation (sync version)
-          const prepareValidatedItemSync = () => {
-            const validationResult = config.schema["~standard"].validate(data);
-
-            // Handle Promise case - this shouldn't happen for most schemas, but we need to handle it
-            if (validationResult instanceof Promise) {
-              throw EntityErrors.asyncValidationNotSupported(config.name, "create");
-            }
-
-            if ("issues" in validationResult && validationResult.issues) {
-              throw EntityErrors.validationFailed(config.name, "create", validationResult.issues, data);
-            }
-
-            const dataForKeyGeneration = {
-              ...validationResult.value,
-              ...generateTimestamps(["createdAt", "updatedAt"], validationResult.value),
-            };
-
-            // Generate the primary key using validated data (with defaults applied)
-            let primaryKey: { pk: string; sk?: string };
-            try {
-              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
-
-              // Validate generated key
-              if (primaryKey.pk === undefined || primaryKey.pk === null) {
-                throw EntityErrors.keyInvalidFormat(config.name, "create", dataForKeyGeneration, primaryKey);
-              }
-            } catch (error) {
-              if (error instanceof DynoTableError) throw error;
-
-              throw EntityErrors.keyGenerationFailed(
-                config.name,
-                "create",
-                dataForKeyGeneration,
-                extractRequiredAttributes(error),
-                error instanceof Error ? error : undefined,
-              );
-            }
-
-            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
-
-            const validatedItem = {
-              ...(dataForKeyGeneration as unknown as T),
-              [entityTypeAttributeName]: config.name,
-              [table.partitionKey]: primaryKey.pk,
-              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-              ...indexes,
-            };
-
-            Object.assign(builder, { item: validatedItem });
-            return validatedItem;
-          };
-
-          // Wrap the builder's execute method
-          const originalExecute = builder.execute;
-          builder.execute = async () => {
-            await prepareValidatedItemAsync();
-            return await originalExecute.call(builder);
-          };
-
-          // Wrap the builder's withTransaction method
-          const originalWithTransaction = builder.withTransaction;
-          if (originalWithTransaction) {
-            builder.withTransaction = wrapMethodWithPreparation(
-              originalWithTransaction,
-              prepareValidatedItemSync,
+          return new EntityAwarePutBuilder(
               builder,
-            );
-          }
-
-          // Wrap the builder's withBatch method
-          const originalWithBatch = builder.withBatch;
-          if (originalWithBatch) {
-            builder.withBatch = wrapMethodWithPreparation(originalWithBatch, prepareValidatedItemSync, builder);
-          }
-
-          return createEntityAwarePutBuilder(builder, config.name);
+              config.name,
+              () => prepareItemSync(itemPreparationConfig, table, "create", data),
+              () => prepareItemAsync(itemPreparationConfig, table, "create", data),
+          );
         },
 
         upsert: (data: TInput & I) => {
-          // Create a minimal builder without validation or key generation
-          // We'll defer all processing until execute() or withTransaction() is called
           const builder = table.put<T>({} as T);
-
-          // Core function that handles validation, key generation, and item preparation (async version)
-          const prepareValidatedItemAsync = async () => {
-            const validatedData = await config.schema["~standard"].validate(data);
-
-            if ("issues" in validatedData && validatedData.issues) {
-              throw EntityErrors.validationFailed(config.name, "upsert", validatedData.issues, data);
-            }
-
-            const dataForKeyGeneration = {
-              ...validatedData.value,
-              ...generateTimestamps(["createdAt", "updatedAt"], validatedData.value),
-            };
-
-            // Generate the primary key using validated data (with defaults applied)
-            let primaryKey: { pk: string; sk?: string };
-            try {
-              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
-
-              // Validate generated key
-              if (primaryKey.pk === undefined || primaryKey.pk === null) {
-                throw EntityErrors.keyInvalidFormat(config.name, "upsert", dataForKeyGeneration, primaryKey);
-              }
-            } catch (error) {
-              if (error instanceof DynoTableError) throw error;
-
-              throw EntityErrors.keyGenerationFailed(
-                config.name,
-                "upsert",
-                dataForKeyGeneration,
-                extractRequiredAttributes(error),
-                error instanceof Error ? error : undefined,
-              );
-            }
-
-            const indexes = buildIndexes(dataForKeyGeneration, table, false);
-
-            const validatedItem = {
-              [table.partitionKey]: primaryKey.pk,
-              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-              ...dataForKeyGeneration,
-              [entityTypeAttributeName]: config.name,
-              ...indexes,
-            };
-
-            Object.assign(builder, { item: validatedItem });
-            return validatedItem;
-          };
-
-          // Core function that handles validation, key generation, and item preparation (sync version)
-          const prepareValidatedItemSync = () => {
-            const validationResult = config.schema["~standard"].validate(data);
-
-            // Handle Promise case - this shouldn't happen in withTransaction but we need to handle it for type safety
-            if (validationResult instanceof Promise) {
-              throw EntityErrors.asyncValidationNotSupported(config.name, "upsert");
-            }
-
-            if ("issues" in validationResult && validationResult.issues) {
-              throw EntityErrors.validationFailed(config.name, "upsert", validationResult.issues, data);
-            }
-
-            const dataForKeyGeneration = {
-              ...validationResult.value,
-              ...generateTimestamps(["createdAt", "updatedAt"], validationResult.value),
-            };
-
-            // Generate the primary key using validated data (with defaults applied)
-            let primaryKey: { pk: string; sk?: string };
-            try {
-              primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as TInput & I);
-
-              // Validate generated key
-              if (primaryKey.pk === undefined || primaryKey.pk === null) {
-                throw EntityErrors.keyInvalidFormat(config.name, "upsert", dataForKeyGeneration, primaryKey);
-              }
-            } catch (error) {
-              if (error instanceof DynoTableError) throw error;
-
-              throw EntityErrors.keyGenerationFailed(
-                config.name,
-                "upsert",
-                dataForKeyGeneration,
-                extractRequiredAttributes(error),
-                error instanceof Error ? error : undefined,
-              );
-            }
-
-            const indexes = buildEntityIndexes(dataForKeyGeneration, table, config.indexes, false);
-
-            const validatedItem = {
-              [table.partitionKey]: primaryKey.pk,
-              ...(table.sortKey ? { [table.sortKey]: primaryKey.sk } : {}),
-              ...dataForKeyGeneration,
-              [entityTypeAttributeName]: config.name,
-              ...indexes,
-            };
-
-            Object.assign(builder, { item: validatedItem });
-            return validatedItem;
-          };
-
-          // Wrap the builder's execute method
-          const originalExecute = builder.execute;
-          builder.execute = async () => {
-            const validatedItem = await prepareValidatedItemAsync();
-            await originalExecute.call(builder);
-            return validatedItem as T;
-          };
-
-          // Wrap the builder's withTransaction method
-          const originalWithTransaction = builder.withTransaction;
-          if (originalWithTransaction) {
-            builder.withTransaction = wrapMethodWithPreparation(
-              originalWithTransaction,
-              prepareValidatedItemSync,
+          return new EntityAwarePutBuilder(
               builder,
-            );
-          }
-
-          // Wrap the builder's withBatch method
-          const originalWithBatch = builder.withBatch;
-          if (originalWithBatch) {
-            builder.withBatch = wrapMethodWithPreparation(originalWithBatch, prepareValidatedItemSync, builder);
-          }
-
-          return createEntityAwarePutBuilder(builder, config.name);
+              config.name,
+              () => prepareItemSync(itemPreparationConfig, table, "upsert", data),
+              () => prepareItemAsync(itemPreparationConfig, table, "upsert", data),
+              (item) => item,
+          );
         },
 
         get: <K extends I>(key: K) => {
-          const builder = table.get<T>(config.primaryKey.generateKey(key));
-          return createEntityAwareGetBuilder(builder, config.name);
+          return new EntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name);
         },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
@@ -586,92 +333,47 @@ export function defineEntity<
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
-          // Create entity-aware builder with entity-specific functionality
-          const entityAwareBuilder = createEntityAwareUpdateBuilder(builder, config.name);
-
-          // Configure the entity-aware builder with entity-specific logic
-          entityAwareBuilder.configureEntityLogic({
+          return createEntityAwareUpdateBuilder(builder, config.name, {
             data,
             key: key as unknown as T,
             table,
             indexes: config.indexes,
             generateTimestamps: () => generateTimestamps(["updatedAt"], data),
-            buildIndexUpdates,
           });
-
-          return entityAwareBuilder;
         },
 
         delete: <K extends I>(key: K) => {
-          const builder = table.delete(config.primaryKey.generateKey(key));
+          const builder = new EntityAwareDeleteBuilder(
+              table.delete(config.primaryKey.generateKey(key)),
+              config.name,
+          );
           builder.condition(eq(entityTypeAttributeName, config.name));
-          return createEntityAwareDeleteBuilder(builder, config.name);
+          return builder;
         },
 
-        query: Object.entries(config.queries || {}).reduce(
-          (acc, [key, inputCallback]) => {
-            (acc as any)[key] = (input: unknown) => {
-              // Create a QueryEntity object with only the necessary methods
-              const queryEntity: QueryEntity<T> = {
-                scan: repository.scan,
-                get: (key: PrimaryKeyWithoutExpression) => createEntityAwareGetBuilder(table.get<T>(key), config.name),
-                query: (keyCondition: PrimaryKey) => {
-                  return table.query<T>(keyCondition);
-                },
-              };
-
-              // Execute the query function to get the builder
-              const queryBuilderCallback = inputCallback(input);
-
-              // Run the inner handler which allows the user to apply their desired contraints
-              // to the query builder of their choice
-              const builder = queryBuilderCallback(queryEntity);
-
-              // Add entity type filter if the builder has filter method
-              if (
-                builder &&
-                typeof builder === "object" &&
-                "filter" in builder &&
-                typeof builder.filter === "function"
-              ) {
-                builder.filter(eq(entityTypeAttributeName, config.name));
-              }
-
-              // Wrap the builder's execute method if it exists
-              if (builder && typeof builder === "object" && "execute" in builder) {
-                const originalExecute = builder.execute;
-                builder.execute = async () => {
-                  // Validate the input before executing the query
-                  const queryFn = (
-                    config.queries as unknown as Record<string, QueryFunctionWithSchema<T, I, typeof builder>>
-                  )[key];
-
-                  if (queryFn && typeof queryFn === "function") {
-                    // Get the schema from the query function
-                    const schema = queryFn.schema;
-                    if (schema?.["~standard"]?.validate && typeof schema["~standard"].validate === "function") {
-                      const validationResult = schema["~standard"].validate(input);
-                      if ("issues" in validationResult && validationResult.issues) {
-                        throw EntityErrors.queryInputValidationFailed(config.name, key, validationResult.issues, input);
-                      }
-                    }
-                  }
-
-                  // Execute the original builder
-                  const result = await originalExecute.call(builder);
-                  if (!result) {
-                    throw OperationErrors.queryFailed(config.name, { queryName: key }, undefined);
-                  }
-                  return result;
-                };
-              }
-
-              return builder;
-            };
-            return acc;
-          },
-          {} as MappedQueries<T, Q>,
-        ),
+        query: Object.fromEntries(
+            Object.entries(config.queries || {}).map(([key, inputCallback]) => [
+              key,
+              (input: unknown) => {
+                const beforeExecute = createQueryInputValidator(inputCallback.schema, config.name, key, input);
+                // Only builders created through the scoped entity carry its filter and input-validation guard.
+                const scopedBuilders = new WeakSet<object>();
+                const builder = inputCallback(input)(
+                    createScopedQueryEntity(
+                        table,
+                        entityTypeAttributeName,
+                        config.name,
+                        {beforeExecute},
+                        scopedBuilders,
+                    ),
+                );
+                if (!scopedBuilders.has(builder)) {
+                  throw new TypeError("Entity query handlers must return a builder created from the scoped entity");
+                }
+                return builder;
+              },
+            ]),
+        ) as MappedQueries<T, Q>,
 
         scan: () => {
           const builder = table.scan<T>();
@@ -679,8 +381,6 @@ export function defineEntity<
           return builder;
         },
       };
-
-      return repository;
     },
   };
 }
@@ -696,99 +396,5 @@ export function createQueries<T extends DynamoItem>() {
         return queryFn as unknown as QueryFunctionWithSchema<T, I, R>;
       },
     }),
-  };
-}
-/**
- * Defines a DynamoDB index configuration
- */
-export interface IndexDefinition<T extends DynamoItem> extends Index<T> {
-  /** The name of the index */
-  name: string;
-  /** Whether the index is read-only */
-  isReadOnly: boolean;
-  /** Function to generate the index key from an item */
-  generateKey: (item: T) => { pk: string; sk?: string };
-}
-
-type Result<T> = StandardSchemaV1Namespace.Result<T>;
-
-export interface BuiltIndexDefinition<T extends DynamoItem> extends IndexDefinition<T> {
-  readOnly: (value?: boolean) => IndexDefinition<T>;
-}
-
-export interface PartitionKeyIndexBuilder<T extends DynamoItem> {
-  sortKey: <S extends (item: T) => string>(skFn: S) => BuiltIndexDefinition<T>;
-  withoutSortKey: () => BuiltIndexDefinition<T>;
-}
-
-export interface IndexBuilder<T extends DynamoItem> {
-  partitionKey: <P extends (item: T) => string>(pkFn: P) => PartitionKeyIndexBuilder<T>;
-  readOnly: (value?: boolean) => IndexBuilder<T>;
-}
-
-export interface CreateIndexBuilder {
-  input: <T extends DynamoItem>(schema: StandardSchemaV1<T>) => IndexBuilder<T>;
-}
-
-export function createIndex(): CreateIndexBuilder {
-  return {
-    input: <T extends DynamoItem>(schema: StandardSchemaV1<T>) => {
-      const createIndexBuilder = (isReadOnly = false): IndexBuilder<T> => ({
-        partitionKey: <P extends (item: T) => string>(pkFn: P): PartitionKeyIndexBuilder<T> => ({
-          sortKey: <S extends (item: T) => string>(skFn: S) => {
-            const index = {
-              name: "custom",
-              partitionKey: "pk",
-              sortKey: "sk",
-              isReadOnly: isReadOnly,
-              generateKey: (item: T) => {
-                const data = schema["~standard"].validate(item) as Result<T>;
-                if ("issues" in data && data.issues) {
-                  throw ValidationErrors.indexSchemaValidationFailed(data.issues, "both");
-                }
-                const validData = "value" in data ? data.value : item;
-                return { pk: pkFn(validData), sk: skFn(validData) };
-              },
-            } as IndexDefinition<T>;
-
-            return Object.assign(index, {
-              readOnly: (value = false) =>
-                ({
-                  ...index,
-                  isReadOnly: value,
-                }) as IndexDefinition<T>,
-            }) as BuiltIndexDefinition<T>;
-          },
-
-          withoutSortKey: () => {
-            const index = {
-              name: "custom",
-              partitionKey: "pk",
-              isReadOnly: isReadOnly,
-              generateKey: (item: T) => {
-                const data = schema["~standard"].validate(item) as Result<T>;
-                if ("issues" in data && data.issues) {
-                  throw ValidationErrors.indexSchemaValidationFailed(data.issues, "partition");
-                }
-                const validData = "value" in data ? data.value : item;
-                return { pk: pkFn(validData) };
-              },
-            } as IndexDefinition<T>;
-
-            return Object.assign(index, {
-              readOnly: (value = true) =>
-                ({
-                  ...index,
-                  isReadOnly: value,
-                }) as IndexDefinition<T>,
-            }) as BuiltIndexDefinition<T>;
-          },
-        }),
-
-        readOnly: (value = true) => createIndexBuilder(value),
-      });
-
-      return createIndexBuilder(false);
-    },
   };
 }

@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { IndexGenerationError } from "../../errors";
 import type { Table } from "../../table";
 import type { DynamoItem } from "../../types";
-import { IndexBuilder } from "../ddb-indexing";
+import { GsiKeyBuilder } from "../ddb-indexing";
 import type { IndexDefinition } from "../entity";
 
-describe("IndexBuilder", () => {
+describe("GsiKeyBuilder", () => {
   let mockTable: Table;
-  let indexBuilder: IndexBuilder<DynamoItem>;
+  let indexBuilder: GsiKeyBuilder<DynamoItem>;
 
   beforeEach(() => {
     mockTable = {
@@ -38,7 +38,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -82,7 +82,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       // Start with data that has all required fields
       const currentData = {
@@ -128,7 +128,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       // Test case 1: Updates preserve all required data
       const currentData1 = {
@@ -192,7 +192,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -240,7 +240,7 @@ describe("IndexBuilder", () => {
         sortKey: "gsi3sk",
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -297,7 +297,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -340,7 +340,7 @@ describe("IndexBuilder", () => {
         partitionKey: "gsi4pk",
         sortKey: "gsi4sk",
       };
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       // Scenario 1: Update that changes index but missing multiple attributes
       const currentData = {
@@ -393,7 +393,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -413,6 +413,19 @@ describe("IndexBuilder", () => {
   });
 
   describe("buildForCreate", () => {
+    it("allows legitimate values containing undefined", () => {
+      indexBuilder = new GsiKeyBuilder(mockTable, {
+        byStatus: {
+          name: "byStatus",
+          partitionKey: "gsi1pk",
+          isReadOnly: false,
+          generateKey: () => ({ pk: "region#undefinedRegion" }),
+        },
+      });
+
+      expect(indexBuilder.buildForCreate({})).toEqual({ gsi1pk: "region#undefinedRegion" });
+    });
+
     it("should build index attributes for item creation", () => {
       const indexes: Record<string, IndexDefinition<DynamoItem>> = {
         byStatus: {
@@ -427,7 +440,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const item = {
         id: "123",
@@ -474,7 +487,7 @@ describe("IndexBuilder", () => {
         sortKey: undefined,
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const item = {
         id: "123",

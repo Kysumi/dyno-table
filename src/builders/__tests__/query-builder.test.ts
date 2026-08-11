@@ -16,6 +16,15 @@ describe("QueryBuilder", () => {
     expect(builder).toBeInstanceOf(QueryBuilder);
   });
 
+  it("should preserve its execution guard when cloned", async () => {
+    const beforeExecute = vi.fn();
+    const builder = new QueryBuilder(mockExecutor, mockKeyCondition, [], { beforeExecute });
+
+    await builder.clone().execute();
+
+    expect(beforeExecute).toHaveBeenCalledOnce();
+  });
+
   it("should set limit", () => {
     const builder = new QueryBuilder(mockExecutor, mockKeyCondition);
     builder.limit(10);

@@ -2,6 +2,12 @@ import type { DynamoItem, TableConfig } from "../types.js";
 import type { DynamoCommandWithExpressions } from "../utils/debug-expression.js";
 import type { ResultIterator } from "./result-iterator.js";
 
+export type BeforeExecute = () => void | Promise<void>;
+
+export interface BuilderContext {
+  readonly beforeExecute?: BeforeExecute;
+}
+
 export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   key: Record<string, unknown>;

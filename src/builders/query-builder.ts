@@ -1,6 +1,6 @@
 import type { Condition } from "../conditions.js";
 import type { DynamoItem, TableConfig } from "../types.js";
-import type { QueryBuilderInterface } from "./builder-types.js";
+import type { BuilderContext, QueryBuilderInterface } from "./builder-types.js";
 import { FilterBuilder, type FilterOptions } from "./filter-builder.js";
 import { ResultIterator } from "./result-iterator.js";
 import type { Path } from "./types.js";
@@ -73,8 +73,13 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
   private includeIndexAttributes = false;
   private readonly indexAttributeNames: string[];
 
-  constructor(executor: QueryExecutor<T>, keyCondition: Condition, indexAttributeNames: string[] = []) {
-    super();
+  constructor(
+    executor: QueryExecutor<T>,
+    keyCondition: Condition,
+    indexAttributeNames: string[] = [],
+    context: BuilderContext = {},
+  ) {
+    super(context);
     this.executor = executor;
     this.keyCondition = keyCondition;
     this.indexAttributeNames = indexAttributeNames;
@@ -207,7 +212,12 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    * @returns A new QueryBuilder instance with the same configuration
    */
   clone(): QueryBuilder<T, TConfig> {
-    const clone = new QueryBuilder<T, TConfig>(this.executor, this.keyCondition, this.indexAttributeNames);
+    const clone = new QueryBuilder<T, TConfig>(
+      this.executor,
+      this.keyCondition,
+      this.indexAttributeNames,
+      this.context,
+    );
     clone.options = {
       ...this.options,
       filter: this.deepCloneFilter(this.options.filter),
@@ -269,6 +279,7 @@ export class QueryBuilder<T extends DynamoItem, TConfig extends TableConfig = Ta
    * @returns A promise that resolves to a ResultGenerator that behaves like an array
    */
   async execute(): Promise<ResultIterator<T, TConfig>> {
+    await this.runBeforeExecute();
     const directExecutor = async () => {
       const result = await this.executor(this.keyCondition, this.options);
       if (this.includeIndexAttributes || this.indexAttributeNames.length === 0) {

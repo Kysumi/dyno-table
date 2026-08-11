@@ -5,7 +5,12 @@ import type {
   TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
 import { BatchBuilder } from "./builders/batch-builder.js";
-import type { DeleteCommandParams, PutCommandParams, UpdateCommandParams } from "./builders/builder-types.js";
+import type {
+  BuilderContext,
+  DeleteCommandParams,
+  PutCommandParams,
+  UpdateCommandParams,
+} from "./builders/builder-types.js";
 import { ConditionCheckBuilder } from "./builders/condition-check-builder.js";
 import { DeleteBuilder } from "./builders/delete-builder.js";
 import { GetBuilder, type GetCommandParams } from "./builders/get-builder.js";
@@ -134,7 +139,10 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       .returnValues("INPUT");
   }
 
-  get<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): GetBuilder<T> {
+  get<T extends DynamoItem>(
+    keyCondition: PrimaryKeyWithoutExpression,
+    context: BuilderContext = {},
+  ): GetBuilder<T> {
     const indexAttributeNames = this.getIndexAttributeNames();
     const executor = async (params: GetCommandParams): Promise<{ item: T | undefined }> => {
       try {
@@ -154,7 +162,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       }
     };
 
-    return new GetBuilder<T>(executor, keyCondition, this.tableName, indexAttributeNames);
+    return new GetBuilder<T>(executor, keyCondition, this.tableName, indexAttributeNames, context);
   }
 
   /**
@@ -213,7 +221,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * Creates a query builder for complex queries
    * If useIndex is called on the returned QueryBuilder, it will use the GSI configuration
    */
-  query<T extends DynamoItem>(keyCondition: PrimaryKey): QueryBuilder<T, TConfig> {
+  query<T extends DynamoItem>(keyCondition: PrimaryKey, context: BuilderContext = {}): QueryBuilder<T, TConfig> {
     const indexAttributeNames = this.getIndexAttributeNames();
     // Default to main table's partition and sort keys
     const pkAttributeName = this.partitionKey;
@@ -374,7 +382,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       }
     };
 
-    return new QueryBuilder<T, TConfig>(executor, keyConditionExpression, indexAttributeNames);
+    return new QueryBuilder<T, TConfig>(executor, keyConditionExpression, indexAttributeNames, context);
   }
 
   /**
@@ -386,7 +394,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    *
    * @returns A ScanBuilder instance for chaining operations
    */
-  scan<T extends DynamoItem>(): ScanBuilder<T, TConfig> {
+  scan<T extends DynamoItem>(context: BuilderContext = {}): ScanBuilder<T, TConfig> {
     const executor = async (options: ScanOptions) => {
       // Implementation of the scan execution logic
       const expressionParams: ExpressionParams = {
@@ -436,7 +444,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       }
     };
 
-    return new ScanBuilder<T, TConfig>(executor);
+    return new ScanBuilder<T, TConfig>(executor, context);
   }
 
   delete(keyCondition: PrimaryKeyWithoutExpression): DeleteBuilder {

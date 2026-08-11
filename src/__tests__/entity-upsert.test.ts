@@ -63,6 +63,7 @@ describe("entity upsert", () => {
 
   it("should return the validated item, not the underlying executor result", async () => {
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       execute: vi.fn().mockResolvedValue(undefined), // Simulates returnValues: "NONE"
     };
 
@@ -90,6 +91,7 @@ describe("entity upsert", () => {
 
   it("should include the entity type attribute in the returned item", async () => {
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       execute: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -107,10 +109,21 @@ describe("entity upsert", () => {
     expect(result).toHaveProperty("entityType", "TestEntity");
   });
 
+  it("should not let input overwrite generated keys", async () => {
+    mockTable.put.mockReturnValue({ set: vi.fn().mockReturnThis(), execute: vi.fn().mockResolvedValue(undefined) });
+
+    const result = await repository
+      .upsert({ id: "789", name: "Key Test", status: "active", pk: "wrong", sk: "wrong" })
+      .execute();
+
+    expect(result).toMatchObject({ pk: "TEST#789", sk: "METADATA" });
+  });
+
   it("should call the underlying put executor exactly once", async () => {
     // Capture the spy before upsert() wraps builder.execute
     const originalExecuteSpy = vi.fn().mockResolvedValue(undefined);
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       execute: originalExecuteSpy,
     };
 
@@ -150,6 +163,7 @@ describe("entity upsert", () => {
     });
 
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       execute: vi.fn().mockResolvedValue(undefined),
     };
     mockTable.put.mockReturnValue(mockBuilder);

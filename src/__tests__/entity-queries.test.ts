@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { QueryBuilder, ScanBuilder } from "../builders";
+import type { BuilderContext } from "../builders/builder-types";
 import { eq } from "../conditions";
 import { createIndex, createQueries, defineEntity } from "../entity/entity";
 import { EntityValidationError } from "../errors";
@@ -75,6 +77,19 @@ const mockTable = {
 
 const queryBuilder = createQueries<TestEntity>();
 
+function useRealQueryBuilders(): void {
+  mockTable.scan.mockImplementation((context: BuilderContext = {}) => {
+    const builder = new ScanBuilder<TestEntity>(async () => ({ items: [] }), context);
+    vi.spyOn(builder, "filter");
+    return builder;
+  });
+  mockTable.query.mockImplementation((_key, context: BuilderContext = {}) => {
+    const builder = new QueryBuilder<TestEntity>(async () => ({ items: [] }), eq("pk", "TEST"), [], context);
+    vi.spyOn(builder, "filter");
+    return builder;
+  });
+}
+
 describe("Entity Repository", () => {
   const entityRepository = defineEntity({
     name: "TestEntity",
@@ -101,6 +116,7 @@ describe("Entity Repository", () => {
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
+    useRealQueryBuilders();
 
     // Create repository instance
     repository = entityRepository.createRepository(mockTable as unknown as Table);
@@ -117,6 +133,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -162,6 +179,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -188,6 +206,7 @@ describe("Entity Repository", () => {
       }));
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn(),
       };
 
@@ -213,6 +232,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -248,6 +268,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn(),
       };
 
@@ -301,6 +322,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -328,6 +350,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -384,6 +407,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -553,20 +577,18 @@ describe("Entity Repository", () => {
         test: "test-value",
       };
 
-      const mockBuilder = {
-        filter: vi.fn().mockReturnThis(),
-        execute: vi.fn().mockResolvedValue({ items: [] }),
-      };
+      const builder = repository.query.byId(input);
+      await builder.execute();
 
-      mockTable.query.mockReturnValue(mockBuilder);
-
-      await repository.query.byId(input).execute();
-
-      expect(mockTable.query).toHaveBeenCalledWith({
-        pk: "TEST#123",
-        sk: expect.any(Function),
-      });
-      expect(mockBuilder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+      expect(mockTable.query).toHaveBeenCalledWith(
+        {
+          pk: "TEST#123",
+          sk: expect.any(Function),
+        },
+        expect.objectContaining({ beforeExecute: expect.any(Function) }),
+      );
+      expect(builder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+      expect(byIdInputSchema["~standard"].validate).toHaveBeenCalledWith(input);
     });
 
     it("should throw error on query input validation failure", async () => {
@@ -584,18 +606,41 @@ describe("Entity Repository", () => {
         issues: [{ message: "Validation failed" }],
       }));
 
-      const mockBuilder = {
-        filter: vi.fn().mockReturnThis(),
-        execute: vi.fn(),
-      };
-
-      mockTable.query.mockReturnValue(mockBuilder);
-
       if (!repository.query.byId) {
         throw new Error("Query byId is not defined");
       }
 
       await expect(repository.query.byId(input).execute()).rejects.toThrow(EntityValidationError);
+    });
+
+    it("rejects a handler that returns an external builder", () => {
+      const inputSchema: StandardSchemaV1<{ status: string }> = {
+        "~standard": {
+          version: 1,
+          vendor: "test",
+          validate: () => ({ issues: [{ message: "Invalid status" }] }),
+        },
+      };
+      const externalExecutor = vi.fn(async () => ({ items: [] }));
+      const externalBuilder = new ScanBuilder<TestEntity>(externalExecutor);
+      const externalRepository = defineEntity({
+        name: "ExternalBuilderEntity",
+        schema: testSchema,
+        primaryKey: createIndex()
+          .input(primaryKeySchema)
+          .partitionKey((item) => `TEST#${item.id}`)
+          .sortKey(() => "METADATA#"),
+        queries: {
+          byStatus: createQueries<TestEntity>()
+            .input(inputSchema)
+            .query(() => externalBuilder),
+        },
+      }).createRepository(mockTable as unknown as Table);
+
+      expect(() => externalRepository.query.byStatus({ status: "bad" })).toThrow(
+        "Entity query handlers must return a builder created from the scoped entity",
+      );
+      expect(externalExecutor).not.toHaveBeenCalled();
     });
   });
 
@@ -652,6 +697,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -698,6 +744,7 @@ describe("Entity Repository", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -742,6 +789,7 @@ describe("Entity Repository - Deferred Validation", () => {
     };
 
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       execute: vi.fn().mockResolvedValue(testData),
     };
 
@@ -763,6 +811,7 @@ describe("Entity Repository - Deferred Validation", () => {
     };
 
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       withTransaction: vi.fn().mockReturnThis(),
     };
 
@@ -788,6 +837,7 @@ describe("Entity Repository - Deferred Validation", () => {
     }));
 
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       execute: vi.fn(),
     };
 
@@ -805,6 +855,7 @@ describe("Entity Repository - Deferred Validation", () => {
     };
 
     const mockBuilder = {
+      set: vi.fn().mockReturnThis(),
       withTransaction: vi.fn().mockReturnThis(),
     };
 
@@ -864,61 +915,46 @@ describe("createQuery with chained filters", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useRealQueryBuilders();
     repository = entityWithChainedFilters.createRepository(mockTable as unknown as Table);
   });
 
   it("should chain filters with AND", async () => {
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
-
-    mockTable.scan.mockReturnValue(mockBuilder);
-
-    await repository.query.byStatusAndType({ status: "active", id: "123", test: "test" }).execute();
+    const builder = repository.query.byStatusAndType({ status: "active", id: "123", test: "test" });
+    await builder.execute();
 
     // Check that filters are applied in the correct order
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
+    expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
+    expect(builder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
+    expect(builder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
   });
 
   it("should chain complex filters with AND/OR combinations", async () => {
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
-
-    mockTable.scan.mockReturnValue(mockBuilder);
-
-    await repository.query.byComplexFilters({ status: "active", id: "123", test: "test" }).execute();
+    const builder = repository.query.byComplexFilters({ status: "active", id: "123", test: "test" });
+    await builder.execute();
 
     // Check that filters are applied in the correct order
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, expect.any(Function)); // OR condition
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(4, expect.any(Function)); // GT condition
+    expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
+    expect(builder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
+    expect(builder.filter).toHaveBeenNthCalledWith(3, expect.any(Function)); // OR condition
+    expect(builder.filter).toHaveBeenNthCalledWith(4, expect.any(Function)); // GT condition
   });
 
   it("should chain filters on query builders", async () => {
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
+    const builder = repository.query.byQueryWithMultipleFilters({ status: "active", id: "123", test: "test" });
+    await builder.execute();
 
-    mockTable.query.mockReturnValue(mockBuilder);
+    expect(mockTable.query).toHaveBeenCalledWith(
+      {
+        pk: "TEST#123",
+        sk: expect.any(Function),
+      },
+      expect.objectContaining({ beforeExecute: expect.any(Function) }),
+    );
 
-    await repository.query.byQueryWithMultipleFilters({ status: "active", id: "123", test: "test" }).execute();
-
-    expect(mockTable.query).toHaveBeenCalledWith({
-      pk: "TEST#123",
-      sk: expect.any(Function),
-    });
-
-    // For query builders, user filters are applied first, then entity type filter
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("type", "test"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("entityType", "TestEntity"));
+    expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
+    expect(builder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
+    expect(builder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
   });
 
   it("should handle single filter correctly", async () => {
@@ -940,18 +976,12 @@ describe("createQuery with chained filters", () => {
 
     const repo = entityWithSingleFilter.createRepository(mockTable as unknown as Table);
 
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
-
-    mockTable.scan.mockReturnValue(mockBuilder);
-
-    await repo.query.byStatus({ status: "active", id: "123", test: "test" }).execute();
+    const builder = repo.query.byStatus({ status: "active", id: "123", test: "test" });
+    await builder.execute();
 
     // Check that filters are applied in the correct order
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntitySingle"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
+    expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntitySingle"));
+    expect(builder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
   });
 
   it("should apply both createQuery filters and execution-time filters", async () => {
@@ -974,26 +1004,14 @@ describe("createQuery with chained filters", () => {
 
     const repo = entityWithPreAppliedFilters.createRepository(mockTable as unknown as Table);
 
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
-
-    mockTable.scan.mockReturnValue(mockBuilder);
-
     // Apply another filter when executing the query
-    await repo.query.activeItems({ status: "active", id: "123", test: "test" }).filter(eq("type", "test")).execute();
+    const builder = repo.query.activeItems({ status: "active", id: "123", test: "test" }).filter(eq("type", "test"));
+    await builder.execute();
 
-    // Check that all filters are applied in the correct order:
-    // 1. Entity type filter (applied by scan())
-    // 2. Pre-applied filter from createQuery (status = "active")
-    // 3. Entity type filter (applied by query execution logic)
-    // 4. Execution-time filter (type = "test")
-    expect(mockBuilder.filter).toHaveBeenCalledTimes(4);
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntityWithFilters"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("entityType", "TestEntityWithFilters"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(4, eq("type", "test"));
+    expect(builder.filter).toHaveBeenCalledTimes(3);
+    expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntityWithFilters"));
+    expect(builder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
+    expect(builder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
   });
 
   it("should apply both createQuery filters and execution-time filters on query builders", async () => {
@@ -1016,27 +1034,22 @@ describe("createQuery with chained filters", () => {
 
     const repo = entityWithPreAppliedQueryFilters.createRepository(mockTable as unknown as Table);
 
-    const mockBuilder = {
-      filter: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue({ items: [] }),
-    };
-
-    mockTable.query.mockReturnValue(mockBuilder);
-
     // Apply another filter when executing the query
-    await repo.query.itemsByStatus({ status: "active", id: "123", test: "test" }).filter(eq("type", "test")).execute();
+    const builder = repo.query
+      .itemsByStatus({ status: "active", id: "123", test: "test" })
+      .filter(eq("type", "test"));
+    await builder.execute();
 
-    expect(mockTable.query).toHaveBeenCalledWith({
-      pk: "TEST#123",
-    });
+    expect(mockTable.query).toHaveBeenCalledWith(
+      {
+        pk: "TEST#123",
+      },
+      expect.objectContaining({ beforeExecute: expect.any(Function) }),
+    );
 
-    // Check that all filters are applied in the correct order:
-    // 1. Pre-applied filter from createQuery (status = "active")
-    // 2. Entity type filter (applied by query execution logic)
-    // 3. Execution-time filter (type = "test")
-    expect(mockBuilder.filter).toHaveBeenCalledTimes(3);
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(1, eq("status", "active"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(2, eq("entityType", "TestEntityWithQueryFilters"));
-    expect(mockBuilder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
+    expect(builder.filter).toHaveBeenCalledTimes(3);
+    expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntityWithQueryFilters"));
+    expect(builder.filter).toHaveBeenNthCalledWith(2, eq("status", "active"));
+    expect(builder.filter).toHaveBeenNthCalledWith(3, eq("type", "test"));
   });
 });

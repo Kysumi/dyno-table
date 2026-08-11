@@ -4,9 +4,11 @@ This directory contains the Entity pattern implementation, which provides a high
 
 ## Files
 
-- **`entity.ts`** - Main Entity class implementation with repository pattern and schema integration
-- **`ddb-indexing.ts`** - DynamoDB index management utilities for entity operations
-- **`index-utils.ts`** - Helper utilities for working with DynamoDB indexes in entity context
+- **`entity.ts`** - Entity definition, repository, and query wiring
+- **`create-index.ts`** - Fluent index-definition builder
+- **`item-preparation.ts`** - Shared create/upsert validation and key generation
+- **`ddb-indexing.ts`** - DynamoDB GSI key generation for entity operations
+- **`entity-aware-builders.ts`** - Entity-owned adapters around generic table builders
 
 ## Entity Pattern Overview
 
@@ -44,7 +46,7 @@ const UserEntity = defineEntity({
 
 **Type Safety**: Full TypeScript integration ensures compile-time validation of entity operations and return types.
 
-**Index Management**: Automatic handling of Global Secondary Indexes (GSI) and Local Secondary Indexes (LSI) with proper key construction.
+**Index Management**: Automatic handling of Global Secondary Indexes (GSI) with proper key construction.
 
 ## Design Philosophy
 

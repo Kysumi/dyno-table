@@ -2,7 +2,7 @@ import { DynoTableError } from "../errors.js";
 import type { Table } from "../table.js";
 import type { DynamoItem } from "../types.js";
 import { ConfigurationErrors, IndexErrors } from "../utils/error-factory.js";
-import type { IndexDefinition } from "./entity.js";
+import type { IndexDefinition } from "./create-index.js";
 
 /**
  * Represents a generated key for a DynamoDB index
@@ -17,9 +17,9 @@ interface IndexKey {
 /**
  * Helper class for building indexes for DynamoDB operations
  */
-export class IndexBuilder<T extends DynamoItem> {
+export class GsiKeyBuilder<T extends DynamoItem> {
   /**
-   * Creates a new IndexBuilder instance
+   * Creates a new GsiKeyBuilder instance
    *
    * @param table - The DynamoDB table instance
    * @param indexes - The index definitions
@@ -66,17 +66,7 @@ export class IndexBuilder<T extends DynamoItem> {
         );
       }
 
-      const gsiConfig = this.table.gsis[indexName];
-      if (!gsiConfig) {
-        throw ConfigurationErrors.gsiNotFound(indexName, this.table.tableName, Object.keys(this.table.gsis));
-      }
-
-      if (key.pk) {
-        attributes[gsiConfig.partitionKey] = key.pk;
-      }
-      if (key.sk && gsiConfig.sortKey) {
-        attributes[gsiConfig.sortKey] = key.sk;
-      }
+      this.applyIndexKey(indexName, key, attributes);
     }
 
     return attributes;
@@ -107,63 +97,15 @@ export class IndexBuilder<T extends DynamoItem> {
     }
 
     for (const [indexName, indexDef] of Object.entries(this.indexes)) {
-      const isForced = options.forceRebuildIndexes?.includes(indexName);
-
-      // Skip read-only indexes if they are not being force-rebuilt
-      if (indexDef.isReadOnly && !isForced) {
-        continue;
-      }
-
-      // If the index is not being forcibly rebuilt, check if it needs to be updated
-      if (!isForced) {
-        let shouldUpdateIndex = false;
-        try {
-          const currentKey = indexDef.generateKey(currentData);
-          const updatedKey = indexDef.generateKey(updatedItem);
-          if (currentKey.pk !== updatedKey.pk || currentKey.sk !== updatedKey.sk) {
-            shouldUpdateIndex = true;
-          }
-        } catch {
-          shouldUpdateIndex = true;
-        }
-
-        if (!shouldUpdateIndex) {
-          continue;
-        }
-      }
-
-      // Now generate the full key and validate it
-      let key: IndexKey;
-      try {
-        key = indexDef.generateKey(updatedItem);
-      } catch (error) {
-        if (error instanceof DynoTableError) throw error;
-
-        throw IndexErrors.missingAttributes(
-          indexName,
-          "update",
-          [], // We don't know which specific attributes are missing from the error
-          updates,
-          indexDef.isReadOnly,
-        );
-      }
+      const key = this.getUpdatedKey(indexName, indexDef, currentData, updatedItem, updates, options);
+      if (!key) continue;
 
       // Validate the generated keys
       if (this.hasUndefinedValues(key)) {
         throw IndexErrors.undefinedValues(indexName, "update", key, updates);
       }
 
-      const gsiConfig = this.table.gsis[indexName];
-      if (!gsiConfig) {
-        throw ConfigurationErrors.gsiNotFound(indexName, this.table.tableName, Object.keys(this.table.gsis));
-      }
-
-      if (key.pk) {
-        attributes[gsiConfig.partitionKey] = key.pk;
-      }
-      if (key.sk && gsiConfig.sortKey) {
-        attributes[gsiConfig.sortKey] = key.sk;
-      }
+      this.applyIndexKey(indexName, key, attributes);
     }
 
     return attributes;
@@ -176,6 +118,46 @@ export class IndexBuilder<T extends DynamoItem> {
    * @returns True if the key contains undefined values, false otherwise
    */
   private hasUndefinedValues(key: { pk: string; sk?: string }): boolean {
-    return (key.pk?.includes("undefined") ?? false) || (key.sk?.includes("undefined") ?? false);
+    const undefinedSegment = /(^|[^a-zA-Z0-9])undefined($|[^a-zA-Z0-9])/;
+    return undefinedSegment.test(key.pk ?? "") || undefinedSegment.test(key.sk ?? "");
+  }
+
+  private getUpdatedKey(
+    indexName: string,
+    indexDef: IndexDefinition<T>,
+    currentData: T,
+    updatedItem: T,
+    updates: Partial<T>,
+    options: { forceRebuildIndexes?: string[] },
+  ): IndexKey | undefined {
+    const isForced = options.forceRebuildIndexes?.includes(indexName) ?? false;
+    if (indexDef.isReadOnly && !isForced) return undefined;
+
+    if (!isForced) {
+      try {
+        const currentKey = indexDef.generateKey(currentData);
+        const updatedKey = indexDef.generateKey(updatedItem);
+        return currentKey.pk !== updatedKey.pk || currentKey.sk !== updatedKey.sk ? updatedKey : undefined;
+      } catch {
+        // Generate once more below so failures use the update-specific error.
+      }
+    }
+
+    try {
+      return indexDef.generateKey(updatedItem);
+    } catch (error) {
+      if (error instanceof DynoTableError) throw error;
+      throw IndexErrors.missingAttributes(indexName, "update", [], updates, indexDef.isReadOnly);
+    }
+  }
+
+  private applyIndexKey(indexName: string, key: IndexKey, attributes: Record<string, string>): void {
+    const gsiConfig = this.table.gsis[indexName];
+    if (!gsiConfig) {
+      throw ConfigurationErrors.gsiNotFound(indexName, this.table.tableName, Object.keys(this.table.gsis));
+    }
+
+    if (key.pk) attributes[gsiConfig.partitionKey] = key.pk;
+    if (key.sk && gsiConfig.sortKey) attributes[gsiConfig.sortKey] = key.sk;
   }
 }

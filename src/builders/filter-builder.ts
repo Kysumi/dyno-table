@@ -18,7 +18,7 @@ import {
   or,
 } from "../conditions.js";
 import type { DynamoItem, GSINames, TableConfig } from "../types.js";
-import type { FilterBuilderInterface } from "./builder-types.js";
+import type { BuilderContext, FilterBuilderInterface } from "./builder-types.js";
 import { Paginator } from "./paginator.js";
 import type { ResultIterator } from "./result-iterator.js";
 import type { Path } from "./types.js";
@@ -61,6 +61,12 @@ export abstract class FilterBuilder<T extends DynamoItem, TConfig extends TableC
 {
   protected options: FilterOptions = {};
   protected selectedFields: Set<string> = new Set();
+
+  protected constructor(protected readonly context: BuilderContext = {}) {}
+
+  protected async runBeforeExecute(): Promise<void> {
+    await this.context.beforeExecute?.();
+  }
 
   /**
    * Sets the maximum number of items to return.
