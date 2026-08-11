@@ -139,10 +139,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       .returnValues("INPUT");
   }
 
-  get<T extends DynamoItem>(
-    keyCondition: PrimaryKeyWithoutExpression,
-    context: BuilderContext = {},
-  ): GetBuilder<T> {
+  get<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression, context: BuilderContext = {}): GetBuilder<T> {
     const indexAttributeNames = this.getIndexAttributeNames();
     const executor = async (params: GetCommandParams): Promise<{ item: T | undefined }> => {
       try {

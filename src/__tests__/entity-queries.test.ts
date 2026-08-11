@@ -1035,9 +1035,7 @@ describe("createQuery with chained filters", () => {
     const repo = entityWithPreAppliedQueryFilters.createRepository(mockTable as unknown as Table);
 
     // Apply another filter when executing the query
-    const builder = repo.query
-      .itemsByStatus({ status: "active", id: "123", test: "test" })
-      .filter(eq("type", "test"));
+    const builder = repo.query.itemsByStatus({ status: "active", id: "123", test: "test" }).filter(eq("type", "test"));
     await builder.execute();
 
     expect(mockTable.query).toHaveBeenCalledWith(

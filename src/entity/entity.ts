@@ -1,3 +1,4 @@
+import type { BeforeExecute, BuilderContext } from "../builders/builder-types.js";
 import type {
   GetBuilder,
   Path,
@@ -8,7 +9,6 @@ import type {
   UpdateBuilder,
   UpdateCommandParams,
 } from "../builders.js";
-import type {BeforeExecute, BuilderContext} from "../builders/builder-types.js";
 import {
   type Condition,
   type ConditionOperator,
@@ -16,11 +16,11 @@ import {
   type PrimaryKey,
   type PrimaryKeyWithoutExpression,
 } from "../conditions.js";
-import type {StandardSchemaV1} from "../standard-schema.js";
-import type {Table} from "../table.js";
-import type {DynamoItem, TableConfig} from "../types.js";
-import {EntityErrors} from "../utils/error-factory.js";
-import type {IndexDefinition} from "./create-index.js";
+import type { StandardSchemaV1 } from "../standard-schema.js";
+import type { Table } from "../table.js";
+import type { DynamoItem, TableConfig } from "../types.js";
+import { EntityErrors } from "../utils/error-factory.js";
+import type { IndexDefinition } from "./create-index.js";
 import {
   createEntityAwareUpdateBuilder,
   EntityAwareDeleteBuilder,
@@ -30,7 +30,7 @@ import {
   type EntityGetBuilder,
   type EntityPutBuilder,
 } from "./entity-aware-builders.js";
-import {type ItemPreparationConfig, prepareItemAsync, prepareItemSync} from "./item-preparation.js";
+import { type ItemPreparationConfig, prepareItemAsync, prepareItemSync } from "./item-preparation.js";
 
 export {
   type BuiltIndexDefinition,
@@ -305,21 +305,21 @@ export function defineEntity<
         create: (data: TInput) => {
           const builder = table.create<T>({} as T);
           return new EntityAwarePutBuilder(
-              builder,
-              config.name,
-              () => prepareItemSync(itemPreparationConfig, table, "create", data),
-              () => prepareItemAsync(itemPreparationConfig, table, "create", data),
+            builder,
+            config.name,
+            () => prepareItemSync(itemPreparationConfig, table, "create", data),
+            () => prepareItemAsync(itemPreparationConfig, table, "create", data),
           );
         },
 
         upsert: (data: TInput & I) => {
           const builder = table.put<T>({} as T);
           return new EntityAwarePutBuilder(
-              builder,
-              config.name,
-              () => prepareItemSync(itemPreparationConfig, table, "upsert", data),
-              () => prepareItemAsync(itemPreparationConfig, table, "upsert", data),
-              (item) => item,
+            builder,
+            config.name,
+            () => prepareItemSync(itemPreparationConfig, table, "upsert", data),
+            () => prepareItemAsync(itemPreparationConfig, table, "upsert", data),
+            (item) => item,
           );
         },
 
@@ -343,36 +343,27 @@ export function defineEntity<
         },
 
         delete: <K extends I>(key: K) => {
-          const builder = new EntityAwareDeleteBuilder(
-              table.delete(config.primaryKey.generateKey(key)),
-              config.name,
-          );
+          const builder = new EntityAwareDeleteBuilder(table.delete(config.primaryKey.generateKey(key)), config.name);
           builder.condition(eq(entityTypeAttributeName, config.name));
           return builder;
         },
 
         query: Object.fromEntries(
-            Object.entries(config.queries || {}).map(([key, inputCallback]) => [
-              key,
-              (input: unknown) => {
-                const beforeExecute = createQueryInputValidator(inputCallback.schema, config.name, key, input);
-                // Only builders created through the scoped entity carry its filter and input-validation guard.
-                const scopedBuilders = new WeakSet<object>();
-                const builder = inputCallback(input)(
-                    createScopedQueryEntity(
-                        table,
-                        entityTypeAttributeName,
-                        config.name,
-                        {beforeExecute},
-                        scopedBuilders,
-                    ),
-                );
-                if (!scopedBuilders.has(builder)) {
-                  throw new TypeError("Entity query handlers must return a builder created from the scoped entity");
-                }
-                return builder;
-              },
-            ]),
+          Object.entries(config.queries || {}).map(([key, inputCallback]) => [
+            key,
+            (input: unknown) => {
+              const beforeExecute = createQueryInputValidator(inputCallback.schema, config.name, key, input);
+              // Only builders created through the scoped entity carry its filter and input-validation guard.
+              const scopedBuilders = new WeakSet<object>();
+              const builder = inputCallback(input)(
+                createScopedQueryEntity(table, entityTypeAttributeName, config.name, { beforeExecute }, scopedBuilders),
+              );
+              if (!scopedBuilders.has(builder)) {
+                throw new TypeError("Entity query handlers must return a builder created from the scoped entity");
+              }
+              return builder;
+            },
+          ]),
         ) as MappedQueries<T, Q>,
 
         scan: () => {
