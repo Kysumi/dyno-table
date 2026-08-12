@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { QueryBuilder, ScanBuilder } from "../builders";
+import { BatchBuilder, GetBuilder, QueryBuilder, ScanBuilder } from "../builders";
 import type { BuilderContext } from "../builders/builder-types";
 import { eq } from "../conditions";
 import { createIndex, createQueries, defineEntity } from "../entity/entity";
-import { EntityValidationError } from "../errors";
+import { EntityError, EntityValidationError, ErrorCodes } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -107,6 +107,15 @@ describe("Entity Repository", () => {
       }),
       byStatus: queryBuilder.input(byStatusInputSchema).query(({ input, entity }) => {
         return entity.scan().filter(eq("status", input.status));
+      }),
+      getById: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
+        return entity.get({ pk: `TEST#${input.id}`, sk: "METADATA#" });
+      }),
+      byIdClone: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
+        return entity.query({ pk: `TEST#${input.id}` }).clone();
+      }),
+      byStatusClone: queryBuilder.input(byStatusInputSchema).query(({ entity }) => {
+        return entity.scan().clone();
       }),
     },
   });
@@ -613,6 +622,33 @@ describe("Entity Repository", () => {
       await expect(repository.query.byId(input).execute()).rejects.toThrow(EntityValidationError);
     });
 
+    it("validates scoped gets when their batch executes", async () => {
+      const getExecutor = vi.fn().mockResolvedValue({ item: undefined });
+      const batchGetExecutor = vi.fn().mockResolvedValue({ items: [], unprocessedKeys: [] });
+      mockTable.get.mockImplementation(
+        (key, context: BuilderContext = {}) => new GetBuilder(getExecutor, key, "TestTable", [], context),
+      );
+      (byIdInputSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
+        issues: [{ message: "Invalid id" }],
+      }));
+      const batch = new BatchBuilder(vi.fn().mockResolvedValue({ unprocessedItems: [] }), batchGetExecutor, {
+        partitionKey: "pk",
+        sortKey: "sk",
+      });
+
+      repository.query.getById({ id: "bad", test: "test" }).withBatch(batch);
+
+      await expect(batch.execute()).rejects.toThrow(EntityValidationError);
+      expect(batchGetExecutor).not.toHaveBeenCalled();
+    });
+
+    it("accepts query and scan clones created from the scoped entity", async () => {
+      await expect(repository.query.byIdClone({ id: "123", test: "test" }).execute()).resolves.toBeDefined();
+      await expect(
+        repository.query.byStatusClone({ status: "active", id: "123", test: "test" }).execute(),
+      ).resolves.toBeDefined();
+    });
+
     it("rejects a handler that returns an external builder", () => {
       const inputSchema: StandardSchemaV1<{ status: string }> = {
         "~standard": {
@@ -637,9 +673,18 @@ describe("Entity Repository", () => {
         },
       }).createRepository(mockTable as unknown as Table);
 
-      expect(() => externalRepository.query.byStatus({ status: "bad" })).toThrow(
-        "Entity query handlers must return a builder created from the scoped entity",
-      );
+      let thrown: unknown;
+      try {
+        externalRepository.query.byStatus({ status: "bad" });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(EntityError);
+      expect(thrown).toMatchObject({
+        code: ErrorCodes.INVALID_ENTITY_QUERY_BUILDER,
+        context: { entityName: "ExternalBuilderEntity", queryName: "byStatus" },
+      });
       expect(externalExecutor).not.toHaveBeenCalled();
     });
   });

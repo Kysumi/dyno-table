@@ -9,7 +9,7 @@ interface KeyInput extends DynamoItem {
   category?: string;
 }
 
-function createSchema(validate: (value: unknown) => StandardSchemaV1.Result<KeyInput>): StandardSchemaV1<KeyInput> {
+function createSchema(validate: StandardSchemaV1<KeyInput>["~standard"]["validate"]): StandardSchemaV1<KeyInput> {
   return {
     "~standard": {
       version: 1,
@@ -99,12 +99,23 @@ describe("createIndex", () => {
       .partitionKey(({ id }) => id)
       .withoutSortKey();
 
-    expect(composite.readOnly().isReadOnly).toBe(false);
+    expect(composite.readOnly().isReadOnly).toBe(true);
     expect(partitionOnly.readOnly().isReadOnly).toBe(true);
     expect(composite.readOnly(true).isReadOnly).toBe(true);
     expect(partitionOnly.readOnly(false).isReadOnly).toBe(false);
     expect(composite.isReadOnly).toBe(false);
     expect(partitionOnly.isReadOnly).toBe(false);
+  });
+
+  it("rejects asynchronous validation during synchronous key generation", () => {
+    const index = createIndex()
+      .input(createSchema(async (value) => ({ value: value as KeyInput })))
+      .partitionKey(({ id }) => id)
+      .withoutSortKey();
+
+    expect(() => index.generateKey({ id: "123" })).toThrow(
+      "Async schema validation is not supported during index key generation",
+    );
   });
 
   it("reports composite-index schema failures without generating keys", () => {

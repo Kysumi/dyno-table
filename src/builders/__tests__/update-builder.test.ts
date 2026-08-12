@@ -82,6 +82,44 @@ describe("UpdateBuilder", () => {
     });
   });
 
+  describe("updates to the same path", () => {
+    it("should accumulate repeated ADD values", () => {
+      const command = new UpdateBuilder<TestItem>(mockExecutor, tableName, key)
+        .add("count", 1)
+        .add("count", 1)
+        .toDynamoCommand();
+
+      expect(command.updateExpression).toBe("ADD #0 :0");
+      expect(command.expressionAttributeValues).toEqual({ ":0": 2 });
+    });
+
+    it("should accumulate repeated DELETE values", () => {
+      const command = new UpdateBuilder<TestItem>(mockExecutor, tableName, key)
+        .deleteElementsFromSet("tags", ["a"])
+        .deleteElementsFromSet("tags", ["b"])
+        .toDynamoCommand();
+
+      expect(command.updateExpression).toBe("DELETE #0 :0");
+      expect(command.expressionAttributeValues).toEqual({ ":0": new Set(["a", "b"]) });
+    });
+
+    it("should let the last operation win when operation types differ", () => {
+      const removeLast = new UpdateBuilder<TestItem>(mockExecutor, tableName, key)
+        .set("status", "active")
+        .remove("status")
+        .toDynamoCommand();
+      const setLast = new UpdateBuilder<TestItem>(mockExecutor, tableName, key)
+        .remove("status")
+        .set("status", "active")
+        .toDynamoCommand();
+
+      expect(removeLast.updateExpression).toBe("REMOVE #0");
+      expect(removeLast.expressionAttributeValues).toBeUndefined();
+      expect(setLast.updateExpression).toBe("SET #0 = :0");
+      expect(setLast.expressionAttributeValues).toEqual({ ":0": "active" });
+    });
+  });
+
   describe("condition", () => {
     it("should accept direct condition", () => {
       const builder = new UpdateBuilder<TestItem>(mockExecutor, tableName, key);

@@ -41,7 +41,8 @@ export function createIndex(): CreateIndexBuilder {
           ...(skFn && { sortKey: "sk" }),
           isReadOnly,
           generateKey: (item) => {
-            const data = schema["~standard"].validate(item) as StandardSchemaV1.Result<T>;
+            const data = schema["~standard"].validate(item);
+            if (data instanceof Promise) throw ValidationErrors.asyncIndexValidationNotSupported();
             if ("issues" in data && data.issues) {
               throw ValidationErrors.indexSchemaValidationFailed(data.issues, skFn ? "both" : "partition");
             }
@@ -51,7 +52,7 @@ export function createIndex(): CreateIndexBuilder {
         };
 
         return Object.assign(index, {
-          readOnly: (value = !skFn): IndexDefinition<T> => ({ ...index, isReadOnly: value }),
+          readOnly: (value = true): IndexDefinition<T> => ({ ...index, isReadOnly: value }),
         });
       };
 

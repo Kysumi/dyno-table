@@ -2,6 +2,7 @@ import { DynoTableError } from "../errors.js";
 import type { Table } from "../table.js";
 import type { DynamoItem } from "../types.js";
 import { ConfigurationErrors, IndexErrors } from "../utils/error-factory.js";
+import { extractRequiredAttributes } from "../utils/error-utils.js";
 import type { IndexDefinition } from "./create-index.js";
 
 /**
@@ -55,13 +56,14 @@ export class GsiKeyBuilder<T extends DynamoItem> {
         }
       } catch (error) {
         if (error instanceof DynoTableError) throw error;
+        const gsiConfig = this.table.gsis[indexName];
 
         throw IndexErrors.generationFailed(
           indexName,
           "create",
           item,
-          indexDef.partitionKey,
-          indexDef.sortKey,
+          gsiConfig?.partitionKey,
+          gsiConfig?.sortKey,
           error instanceof Error ? error : undefined,
         );
       }
@@ -147,7 +149,13 @@ export class GsiKeyBuilder<T extends DynamoItem> {
       return indexDef.generateKey(updatedItem);
     } catch (error) {
       if (error instanceof DynoTableError) throw error;
-      throw IndexErrors.missingAttributes(indexName, "update", [], updates, indexDef.isReadOnly);
+      throw IndexErrors.missingAttributes(
+        indexName,
+        "update",
+        extractRequiredAttributes(error) ?? [],
+        updates,
+        indexDef.isReadOnly,
+      );
     }
   }
 

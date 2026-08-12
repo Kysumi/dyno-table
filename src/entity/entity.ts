@@ -358,8 +358,12 @@ export function defineEntity<
               const builder = inputCallback(input)(
                 createScopedQueryEntity(table, entityTypeAttributeName, config.name, { beforeExecute }, scopedBuilders),
               );
-              if (!scopedBuilders.has(builder)) {
-                throw new TypeError("Entity query handlers must return a builder created from the scoped entity");
+              const clonedFromScopedBuilder =
+                typeof builder === "object" &&
+                builder !== null &&
+                (builder as unknown as { context?: BuilderContext }).context?.beforeExecute === beforeExecute;
+              if (!scopedBuilders.has(builder) && !clonedFromScopedBuilder) {
+                throw EntityErrors.invalidQueryBuilder(config.name, key);
               }
               return builder;
             },
@@ -379,7 +383,7 @@ export function defineEntity<
 export function createQueries<T extends DynamoItem>() {
   return {
     input: <I>(schema: StandardSchemaV1<I>) => ({
-      query: <R extends ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T>>(
+      query: <R extends ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T> | EntityGetBuilder<T>>(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
         const queryFn = (input: I) => (entity: QueryEntity<T>) => handler({ input, entity });

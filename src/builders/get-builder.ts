@@ -202,7 +202,7 @@ export class GetBuilder<T extends DynamoItem> {
     K extends keyof TEntities = keyof TEntities,
   >(batch: BatchBuilder<TEntities>, entityType?: K) {
     const command = this.toDynamoCommand();
-    batch.getWithCommand(command, entityType);
+    batch.getWithCommand(command, entityType, this.context.beforeExecute);
   }
 
   /**

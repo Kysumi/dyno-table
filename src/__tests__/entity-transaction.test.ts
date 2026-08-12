@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { createIndex, defineEntity } from "../entity/entity";
-import { EntityValidationError } from "../errors";
+import { EntityValidationError, KeyGenerationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -280,7 +280,7 @@ describe("Entity Transaction Support", () => {
         queries: {},
       });
 
-      const simpleRepo = simpleEntity.createRepository(mockTable as unknown as Table);
+      const simpleRepo = simpleEntity.createRepository({ ...mockTable, sortKey: undefined } as unknown as Table);
 
       const testData: TestEntity = {
         id: "999",
@@ -311,6 +311,30 @@ describe("Entity Transaction Support", () => {
       });
 
       expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+    });
+
+    it("rejects a missing generated sort key for tables that require one", () => {
+      const invalidEntity = defineEntity({
+        name: "InvalidEntity",
+        schema: testSchema,
+        primaryKey: createIndex()
+          .input(primaryKeySchema)
+          .partitionKey((item) => `INVALID#${item.id}`)
+          .withoutSortKey(),
+        queries: {},
+      });
+      const mockBuilder = { set: vi.fn().mockReturnThis(), withTransaction: vi.fn() };
+      mockTable.create.mockReturnValue(mockBuilder);
+
+      const builder = invalidEntity.createRepository(mockTable as unknown as Table).create({
+        id: "missing-sk",
+        name: "Invalid",
+        type: "test",
+        status: "active",
+      });
+
+      expect(() => builder.withTransaction(mockTransaction as never)).toThrow(KeyGenerationError);
+      expect(mockBuilder.withTransaction).not.toHaveBeenCalled();
     });
 
     it("should generate secondary index keys for transactions", () => {

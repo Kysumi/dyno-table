@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { IndexGenerationError } from "../../errors";
+import { ErrorCodes, IndexGenerationError } from "../../errors";
 import type { Table } from "../../table";
 import type { DynamoItem } from "../../types";
 import { GsiKeyBuilder } from "../ddb-indexing";
@@ -314,6 +314,28 @@ describe("GsiKeyBuilder", () => {
       }).toThrow(IndexGenerationError);
     });
 
+    it("reports missing update attributes without including current data", () => {
+      const updates = { status: "active" };
+      indexBuilder = new GsiKeyBuilder(mockTable, {
+        byStatus: {
+          name: "custom",
+          partitionKey: "pk",
+          sortKey: "sk",
+          isReadOnly: false,
+          generateKey: () => {
+            throw new Error("Missing attribute: category");
+          },
+        },
+      });
+
+      expect(() => indexBuilder.buildForUpdate({ id: "123" }, updates)).toThrowError(
+        expect.objectContaining({
+          code: ErrorCodes.INDEX_MISSING_ATTRIBUTES,
+          context: expect.objectContaining({ missingAttributes: ["category"], providedData: updates }),
+        }),
+      );
+    });
+
     it("should include specific missing attribute names in error message", () => {
       // This test specifically verifies our enhanced error messages
       const indexes: Record<string, IndexDefinition<DynamoItem>> = {
@@ -413,6 +435,27 @@ describe("GsiKeyBuilder", () => {
   });
 
   describe("buildForCreate", () => {
+    it("reports the registered GSI attribute names", () => {
+      indexBuilder = new GsiKeyBuilder(mockTable, {
+        byStatus: {
+          name: "custom",
+          partitionKey: "pk",
+          sortKey: "sk",
+          isReadOnly: false,
+          generateKey: () => {
+            throw new Error("generation failed");
+          },
+        },
+      });
+
+      expect(() => indexBuilder.buildForCreate({})).toThrowError(
+        expect.objectContaining({
+          code: ErrorCodes.INDEX_GENERATION_FAILED,
+          context: expect.objectContaining({ partitionKeyAttribute: "gsi1pk", sortKeyAttribute: "gsi1sk" }),
+        }),
+      );
+    });
+
     it("allows legitimate values containing undefined", () => {
       indexBuilder = new GsiKeyBuilder(mockTable, {
         byStatus: {

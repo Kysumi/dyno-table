@@ -141,6 +141,23 @@ describe("entity upsert", () => {
     expect(originalExecuteSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("applies caller overrides to debug output and execution", async () => {
+    const debugResult = { raw: { item: {} }, readable: {} };
+    const set = vi.fn().mockReturnThis();
+    mockTable.put.mockReturnValue({ set, debug: vi.fn().mockReturnValue(debugResult), execute: vi.fn() });
+
+    const builder = repository
+      .upsert({ id: "456", name: "Original", status: "inactive" })
+      .set({ name: "Overridden" })
+      .set("status", "active");
+
+    expect(builder.debug()).toBe(debugResult);
+    expect(set).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "Overridden", status: "active", pk: "TEST#456", sk: "METADATA" }),
+    );
+    await expect(builder.execute()).resolves.toMatchObject({ name: "Overridden", status: "active" });
+  });
+
   it("should throw a validation error when schema validation fails", async () => {
     const failingSchema: StandardSchemaV1<TestEntity> = {
       "~standard": {

@@ -122,8 +122,20 @@ export class UpdateBuilder<T extends DynamoItem> {
 
   private addUpdate(update: UpdateAction): void {
     const existingIndex = this.updates.findIndex(({ path }) => path === update.path);
-    if (existingIndex === -1) this.updates.push(update);
-    else this.updates[existingIndex] = update;
+    if (existingIndex === -1) {
+      this.updates.push(update);
+      return;
+    }
+
+    const existing = this.updates[existingIndex];
+    if (existing?.type === update.type && (update.type === "ADD" || update.type === "DELETE")) {
+      if (typeof existing.value === "number" && typeof update.value === "number") {
+        update.value += existing.value;
+      } else if (existing.value instanceof Set && update.value instanceof Set) {
+        update.value = new Set([...existing.value, ...update.value]);
+      }
+    }
+    this.updates[existingIndex] = update;
   }
 
   /**

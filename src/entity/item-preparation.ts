@@ -29,7 +29,11 @@ function finishPreparingItem<T extends DynamoItem, TInput extends DynamoItem, I 
   let primaryKey: { pk: string; sk?: string };
   try {
     primaryKey = config.primaryKey.generateKey(dataForKeyGeneration as unknown as I);
-    if (primaryKey.pk === undefined || primaryKey.pk === null) {
+    if (
+      primaryKey.pk === undefined ||
+      primaryKey.pk === null ||
+      (table.sortKey !== undefined && (primaryKey.sk === undefined || primaryKey.sk === null))
+    ) {
       throw EntityErrors.keyInvalidFormat(config.name, operation, dataForKeyGeneration, primaryKey);
     }
   } catch (error) {

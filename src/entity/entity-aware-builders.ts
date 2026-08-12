@@ -40,6 +40,7 @@ export interface EntityPutBuilder<T extends DynamoItem> {
 
 export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBuilder<T> {
   public item?: T;
+  private readonly overrides: Partial<T> = {};
 
   constructor(
     private readonly builder: PutBuilder<T>,
@@ -49,21 +50,24 @@ export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBui
     private readonly onExecuteResult?: (item: T, executorResult: T | undefined) => T | undefined,
   ) {}
 
-  private applySync(): void {
-    this.item = this.prepareSync();
+  private applyPrepared(item: T): void {
+    this.item = { ...item, ...this.overrides };
     this.builder.set(this.item);
   }
 
+  private applySync(): void {
+    this.applyPrepared(this.prepareSync());
+  }
+
   private async applyAsync(): Promise<void> {
-    this.item = await this.prepareAsync();
-    this.builder.set(this.item);
+    this.applyPrepared(await this.prepareAsync());
   }
 
   set(values: Partial<T>): this;
   set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
   set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
-    if (typeof valuesOrPath === "object") this.builder.set(valuesOrPath);
-    else this.builder.set(valuesOrPath, value as PathType<T, K>);
+    if (typeof valuesOrPath === "object") Object.assign(this.overrides, valuesOrPath);
+    else Object.assign(this.overrides, { [valuesOrPath]: value });
     return this;
   }
 
@@ -91,6 +95,7 @@ export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBui
   }
 
   debug(): ReturnType<PutBuilder<T>["debug"]> {
+    this.applySync();
     return this.builder.debug();
   }
 
@@ -270,11 +275,9 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
    * @returns The builder instance for method chaining
    */
   forceIndexRebuild(indexes: string | string[]): this {
-    if (Array.isArray(indexes)) {
-      this.forceRebuildIndexes = [...this.forceRebuildIndexes, ...indexes];
-    } else {
-      this.forceRebuildIndexes.push(indexes);
-    }
+    this.forceRebuildIndexes = [
+      ...new Set([...this.forceRebuildIndexes, ...(Array.isArray(indexes) ? indexes : [indexes])]),
+    ];
     return this;
   }
 
@@ -299,15 +302,15 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     const timestamps = this.entityConfig.generateTimestamps();
 
     // Build index updates with force rebuild support
-    const updatedItem = { ...this.entityConfig.key, ...this.entityConfig.data, ...timestamps } as T;
+    const updates = { ...this.entityConfig.data, ...timestamps };
     const indexUpdates = new GsiKeyBuilder(this.entityConfig.table, this.entityConfig.indexes).buildForUpdate(
       this.entityConfig.key,
-      updatedItem,
+      updates,
       { forceRebuildIndexes: this.forceRebuildIndexes },
     );
 
     // Apply all updates together: data, timestamps, and index updates
-    this.builder.set({ ...this.entityConfig.data, ...timestamps, ...indexUpdates });
+    this.builder.set({ ...updates, ...indexUpdates });
     this.updateDataApplied = true;
   }
 
@@ -352,6 +355,8 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   }
 
   toDynamoCommand(): UpdateCommandParams {
+    this.updateDataApplied = false;
+    this.applyEntityUpdates();
     return this.builder.toDynamoCommand();
   }
 
@@ -362,6 +367,8 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   }
 
   debug(): ReturnType<UpdateBuilder<T>["debug"]> {
+    this.updateDataApplied = false;
+    this.applyEntityUpdates();
     return this.builder.debug();
   }
 

@@ -3,7 +3,7 @@ import { BatchError, ErrorCodes } from "../errors.js";
 import type { BatchWriteOperation } from "../operation-types.js";
 import type { DynamoItem } from "../types.js";
 import { BatchErrors } from "../utils/error-factory.js";
-import type { DeleteCommandParams, PutCommandParams } from "./builder-types.js";
+import type { BeforeExecute, DeleteCommandParams, PutCommandParams } from "./builder-types.js";
 import type { GetCommandParams } from "./get-builder.js";
 
 // Constants for DynamoDB batch limits
@@ -169,6 +169,7 @@ export interface TypedBatchResult<TEntities extends Record<string, DynamoItem> =
 export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>> {
   private writeItems: Array<TypedBatchItem<DynamoItem>> = [];
   private getItems: Array<TypedBatchItem<DynamoItem>> = [];
+  private beforeGetExecute: BeforeExecute[] = [];
 
   constructor(
     private batchWriteExecutor: BatchWriteExecutor,
@@ -255,13 +256,18 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * @returns The batch builder for method chaining
    * @internal
    */
-  getWithCommand<K extends keyof TEntities>(command: GetCommandParams, entityType?: K): this {
+  getWithCommand<K extends keyof TEntities>(
+    command: GetCommandParams,
+    entityType?: K,
+    beforeExecute?: BeforeExecute,
+  ): this {
     const batchItem: TypedBatchItem<TEntities[K]> = {
       type: "Get",
       params: command,
       entityType: entityType as string,
     };
     this.getItems.push(batchItem);
+    if (beforeExecute) this.beforeGetExecute.push(beforeExecute);
     return this;
   }
 
@@ -401,6 +407,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    */
   async execute(): Promise<TypedBatchResult<TEntities>> {
     this.validateNotEmpty();
+    await Promise.all(this.beforeGetExecute.map((beforeExecute) => beforeExecute()));
 
     const errors: BatchError[] = [];
     let writeResults: { unprocessedItems: Array<BatchWriteOperation<DynamoItem>> } = { unprocessedItems: [] };
