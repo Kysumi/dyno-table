@@ -1,0 +1,12 @@
+{
+  "workspaces": [
+    {
+      "apiKeyEnv": "OPENWIKI_LANGSMITH_API_KEY",
+      "projects": [
+        {
+          "name": "Dyno Table"
+        }
+      ]
+    }
+  ]
+}
