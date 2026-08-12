@@ -1,3 +1,10 @@
+# [2.8.0](https://github.com/Kysumi/dyno-table/compare/v2.7.2...v2.8.0) (2026-08-12)
+
+
+### Features
+
+* Rework internals to make it more maintainable ([#79](https://github.com/Kysumi/dyno-table/issues/79)) ([f484b03](https://github.com/Kysumi/dyno-table/commit/f484b03f7e9547cf30adf8a9ffd5b2cdae62e6af))
+
 ## [2.7.2](https://github.com/Kysumi/dyno-table/compare/v2.7.1...v2.7.2) (2026-08-11)
 
 
