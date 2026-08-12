@@ -114,6 +114,7 @@ describe("Entity Timestamp Operations", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -176,6 +177,7 @@ describe("Entity Timestamp Operations", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -232,6 +234,7 @@ describe("Entity Timestamp Operations", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -316,6 +319,7 @@ describe("Entity Timestamp Operations", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -409,6 +413,7 @@ describe("Entity Timestamp Operations", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -458,6 +463,7 @@ describe("Entity Timestamp Operations", () => {
       };
 
       const mockBuilder = {
+        set: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 

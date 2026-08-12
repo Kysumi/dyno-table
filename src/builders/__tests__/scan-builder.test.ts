@@ -15,6 +15,15 @@ describe("ScanBuilder", () => {
     expect(builder).toBeInstanceOf(ScanBuilder);
   });
 
+  it("should preserve its execution guard when cloned", async () => {
+    const beforeExecute = vi.fn();
+    const builder = new ScanBuilder(mockExecutor, { beforeExecute });
+
+    await builder.clone().execute();
+
+    expect(beforeExecute).toHaveBeenCalledOnce();
+  });
+
   it("should set limit", () => {
     const builder = new ScanBuilder(mockExecutor);
     builder.limit(10);

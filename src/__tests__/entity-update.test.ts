@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UpdateBuilder } from "../builders/update-builder";
+import { type TransactionBuilder, UpdateBuilder } from "../builders";
+import type { UpdateCommandParams } from "../builders/builder-types";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -161,6 +162,38 @@ describe("Entity Update Operations", () => {
 
       // Verify the update data was set
       expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
+    });
+
+    it("does not duplicate entity update paths when reused in transactions", () => {
+      const executor: (params: UpdateCommandParams) => Promise<{ item?: TestEntity }> = vi.fn();
+      const rawBuilder = new UpdateBuilder<TestEntity>(executor, "TestTable", {
+        pk: "thisIsMyPK#456",
+        sk: "wowSearching#METADATA",
+      });
+      mockTable.update.mockReturnValue(rawBuilder);
+
+      const builder = repository.update({ id: "456" }, { name: "Updated" });
+      const updateWithCommand = vi.fn();
+      const transaction = { updateWithCommand } as unknown as TransactionBuilder;
+      builder.withTransaction(transaction);
+      builder.withTransaction(transaction);
+
+      expect(updateWithCommand).toHaveBeenCalledTimes(2);
+      expect(updateWithCommand.mock.calls[0]?.[0].updateExpression).toBe("SET #0 = :0");
+      expect(updateWithCommand.mock.calls[1]?.[0].updateExpression).toBe("SET #0 = :0");
+    });
+
+    it("applies entity updates before command inspection", () => {
+      const rawBuilder = new UpdateBuilder<TestEntity>(vi.fn(), "TestTable", {
+        pk: "thisIsMyPK#456",
+        sk: "wowSearching#METADATA",
+      });
+      mockTable.update.mockReturnValue(rawBuilder);
+
+      const builder = repository.update({ id: "456" }, { name: "Updated" });
+
+      expect(builder.toDynamoCommand().updateExpression).toBe("SET #0 = :0");
+      expect(builder.debug().raw.updateExpression).toBe("SET #0 = :0");
     });
 
     it("should add timestamps when configured", async () => {

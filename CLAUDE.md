@@ -29,7 +29,6 @@ This is **dyno-table** - an external TypeScript library published to npm that si
 - `pnpm run format` - Format code using Biome
 - `pnpm run format:check` - Check code formatting and linting
 - `pnpm run precommit` - Format and lint src/tests (used by Husky)
-- `pnpm run circular` - Check for circular dependencies using madge
 
 ## Library Architecture (for External Developers)
 

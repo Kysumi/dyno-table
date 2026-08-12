@@ -2,6 +2,7 @@ import type { ExpressionParams, PrimaryKeyWithoutExpression } from "../condition
 import { generateAttributeName } from "../expression.js";
 import type { DynamoItem } from "../types.js";
 import type { BatchBuilder } from "./batch-builder.js";
+import type { BuilderContext } from "./builder-types.js";
 import type { Path } from "./types.js";
 
 /**
@@ -77,6 +78,7 @@ export class GetBuilder<T extends DynamoItem> {
     key: PrimaryKeyWithoutExpression,
     tableName: string,
     indexAttributeNames: string[] = [],
+    private readonly context: BuilderContext = {},
   ) {
     this.params = {
       tableName,
@@ -200,7 +202,7 @@ export class GetBuilder<T extends DynamoItem> {
     K extends keyof TEntities = keyof TEntities,
   >(batch: BatchBuilder<TEntities>, entityType?: K) {
     const command = this.toDynamoCommand();
-    batch.getWithCommand(command, entityType);
+    batch.getWithCommand(command, entityType, this.context.beforeExecute);
   }
 
   /**
@@ -279,6 +281,7 @@ export class GetBuilder<T extends DynamoItem> {
    *          - item: The retrieved dinosaur or undefined if not found
    */
   async execute(): Promise<{ item: T | undefined }> {
+    await this.context.beforeExecute?.();
     const command = this.toDynamoCommand();
     const result = await this.executor(command);
     return {

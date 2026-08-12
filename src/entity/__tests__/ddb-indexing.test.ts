@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { IndexGenerationError } from "../../errors";
+import { ErrorCodes, IndexGenerationError } from "../../errors";
 import type { Table } from "../../table";
 import type { DynamoItem } from "../../types";
-import { IndexBuilder } from "../ddb-indexing";
+import { GsiKeyBuilder } from "../ddb-indexing";
 import type { IndexDefinition } from "../entity";
 
-describe("IndexBuilder", () => {
+describe("GsiKeyBuilder", () => {
   let mockTable: Table;
-  let indexBuilder: IndexBuilder<DynamoItem>;
+  let indexBuilder: GsiKeyBuilder<DynamoItem>;
 
   beforeEach(() => {
     mockTable = {
@@ -38,7 +38,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -82,7 +82,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       // Start with data that has all required fields
       const currentData = {
@@ -128,7 +128,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       // Test case 1: Updates preserve all required data
       const currentData1 = {
@@ -192,7 +192,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -240,7 +240,7 @@ describe("IndexBuilder", () => {
         sortKey: "gsi3sk",
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -297,7 +297,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -312,6 +312,28 @@ describe("IndexBuilder", () => {
       expect(() => {
         indexBuilder.buildForUpdate(currentData, updates);
       }).toThrow(IndexGenerationError);
+    });
+
+    it("reports missing update attributes without including current data", () => {
+      const updates = { status: "active" };
+      indexBuilder = new GsiKeyBuilder(mockTable, {
+        byStatus: {
+          name: "custom",
+          partitionKey: "pk",
+          sortKey: "sk",
+          isReadOnly: false,
+          generateKey: () => {
+            throw new Error("Missing attribute: category");
+          },
+        },
+      });
+
+      expect(() => indexBuilder.buildForUpdate({ id: "123" }, updates)).toThrowError(
+        expect.objectContaining({
+          code: ErrorCodes.INDEX_MISSING_ATTRIBUTES,
+          context: expect.objectContaining({ missingAttributes: ["category"], providedData: updates }),
+        }),
+      );
     });
 
     it("should include specific missing attribute names in error message", () => {
@@ -340,7 +362,7 @@ describe("IndexBuilder", () => {
         partitionKey: "gsi4pk",
         sortKey: "gsi4sk",
       };
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       // Scenario 1: Update that changes index but missing multiple attributes
       const currentData = {
@@ -393,7 +415,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const currentData = {
         id: "123",
@@ -413,6 +435,40 @@ describe("IndexBuilder", () => {
   });
 
   describe("buildForCreate", () => {
+    it("reports the registered GSI attribute names", () => {
+      indexBuilder = new GsiKeyBuilder(mockTable, {
+        byStatus: {
+          name: "custom",
+          partitionKey: "pk",
+          sortKey: "sk",
+          isReadOnly: false,
+          generateKey: () => {
+            throw new Error("generation failed");
+          },
+        },
+      });
+
+      expect(() => indexBuilder.buildForCreate({})).toThrowError(
+        expect.objectContaining({
+          code: ErrorCodes.INDEX_GENERATION_FAILED,
+          context: expect.objectContaining({ partitionKeyAttribute: "gsi1pk", sortKeyAttribute: "gsi1sk" }),
+        }),
+      );
+    });
+
+    it("allows legitimate values containing undefined", () => {
+      indexBuilder = new GsiKeyBuilder(mockTable, {
+        byStatus: {
+          name: "byStatus",
+          partitionKey: "gsi1pk",
+          isReadOnly: false,
+          generateKey: () => ({ pk: "region#undefinedRegion" }),
+        },
+      });
+
+      expect(indexBuilder.buildForCreate({})).toEqual({ gsi1pk: "region#undefinedRegion" });
+    });
+
     it("should build index attributes for item creation", () => {
       const indexes: Record<string, IndexDefinition<DynamoItem>> = {
         byStatus: {
@@ -427,7 +483,7 @@ describe("IndexBuilder", () => {
         },
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const item = {
         id: "123",
@@ -474,7 +530,7 @@ describe("IndexBuilder", () => {
         sortKey: undefined,
       };
 
-      indexBuilder = new IndexBuilder(mockTable, indexes);
+      indexBuilder = new GsiKeyBuilder(mockTable, indexes);
 
       const item = {
         id: "123",

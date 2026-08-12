@@ -120,6 +120,24 @@ export class UpdateBuilder<T extends DynamoItem> {
     this.key = key;
   }
 
+  private addUpdate(update: UpdateAction): void {
+    const existingIndex = this.updates.findIndex(({ path }) => path === update.path);
+    if (existingIndex === -1) {
+      this.updates.push(update);
+      return;
+    }
+
+    const existing = this.updates[existingIndex];
+    if (existing?.type === update.type && (update.type === "ADD" || update.type === "DELETE")) {
+      if (typeof existing.value === "number" && typeof update.value === "number") {
+        update.value += existing.value;
+      } else if (existing.value instanceof Set && update.value instanceof Set) {
+        update.value = new Set([...existing.value, ...update.value]);
+      }
+    }
+    this.updates[existingIndex] = update;
+  }
+
   /**
    * Sets multiple attributes of an item using an object.
    *
@@ -159,7 +177,7 @@ export class UpdateBuilder<T extends DynamoItem> {
         if (value === undefined) {
           throw ValidationErrors.undefinedValue(key, this.tableName, this.key);
         }
-        this.updates.push({
+        this.addUpdate({
           type: "SET",
           path: key,
           value,
@@ -169,7 +187,7 @@ export class UpdateBuilder<T extends DynamoItem> {
       if (value === undefined) {
         throw ValidationErrors.undefinedValue(valuesOrPath, this.tableName, this.key);
       }
-      this.updates.push({
+      this.addUpdate({
         type: "SET",
         path: valuesOrPath,
         value,
@@ -199,7 +217,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    * @returns The builder instance for method chaining
    */
   remove<K extends Path<T>>(path: K): this {
-    this.updates.push({
+    this.addUpdate({
       type: "REMOVE",
       path,
     });
@@ -230,7 +248,7 @@ export class UpdateBuilder<T extends DynamoItem> {
     if (value === undefined) {
       throw ValidationErrors.undefinedValue(path, this.tableName, this.key);
     }
-    this.updates.push({
+    this.addUpdate({
       type: "ADD",
       path,
       value,
@@ -282,7 +300,7 @@ export class UpdateBuilder<T extends DynamoItem> {
       valuesToDelete = value;
     }
 
-    this.updates.push({
+    this.addUpdate({
       type: "DELETE",
       path,
       value: valuesToDelete,

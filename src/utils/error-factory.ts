@@ -1,6 +1,7 @@
 import {
   BatchError,
   ConfigurationError,
+  EntityError,
   EntityValidationError,
   ErrorCodes,
   ExpressionError,
@@ -75,6 +76,16 @@ export const ValidationErrors = {
       },
     );
   },
+
+  asyncIndexValidationNotSupported: () =>
+    new ValidationError(
+      "Async schema validation is not supported during index key generation",
+      ErrorCodes.ASYNC_VALIDATION_NOT_SUPPORTED,
+      {
+        operation: "index key generation",
+        suggestion: "Use a synchronous schema for index definitions",
+      },
+    ),
 
   noUpdateActions: (tableName: string, key: Record<string, unknown>) =>
     new ValidationError("No update actions specified", ErrorCodes.NO_UPDATE_ACTIONS, {
@@ -364,6 +375,17 @@ export const BatchErrors = {
  * Factory functions for Entity errors
  */
 export const EntityErrors = {
+  invalidQueryBuilder: (entityName: string, queryName: string) =>
+    new EntityError(
+      "Entity query handlers must return a builder created from the scoped entity",
+      ErrorCodes.INVALID_ENTITY_QUERY_BUILDER,
+      {
+        entityName,
+        queryName,
+        suggestion: "Return a builder created from the entity argument passed to the query handler",
+      },
+    ),
+
   validationFailed: (entityName: string, operation: string, validationIssues: unknown, providedData: unknown) =>
     new EntityValidationError(
       `Validation failed for entity "${entityName}" during ${operation} operation`,
@@ -430,7 +452,7 @@ export const EntityErrors = {
 
   keyInvalidFormat: (entityName: string, operation: string, providedData: unknown, generatedKey: unknown) =>
     new KeyGenerationError(
-      `Primary key generation for entity "${entityName}" produced undefined/null partition key`,
+      `Primary key generation for entity "${entityName}" produced an undefined/null key`,
       ErrorCodes.KEY_INVALID_FORMAT,
       {
         entityName,

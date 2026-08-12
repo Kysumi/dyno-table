@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
-import { IndexGenerationError } from "../errors";
+import { ErrorCodes, IndexGenerationError } from "../errors";
 import type { StandardSchemaV1 } from "../standard-schema";
 import type { Table } from "../table";
 import type { DynamoItem } from "../types";
@@ -400,7 +400,11 @@ describe("Dinosaur Index Update Operations", () => {
 
         mockTable.update.mockReturnValue(mockBuilder);
 
-        const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("excavation-site-index");
+        const updateBuilder = repository
+          .update(fossilKey, updateData)
+          .forceIndexRebuild(["excavation-site-index", "excavation-site-index"])
+          .forceIndexRebuild("excavation-site-index");
+        expect(updateBuilder.getForceRebuildIndexes()).toEqual(["excavation-site-index"]);
         await updateBuilder.execute();
 
         // Verify that the set method was called with the readOnly index keys included
@@ -532,7 +536,10 @@ describe("Dinosaur Index Update Operations", () => {
         // This should throw an error because we're forcing rebuild but missing required attributes
         const updateBuilder = repository.update(fossilKey, updateData).forceIndexRebuild("species-diet-index");
 
-        await expect(updateBuilder.execute()).rejects.toThrow(IndexGenerationError);
+        await expect(updateBuilder.execute()).rejects.toMatchObject({
+          code: ErrorCodes.INDEX_UNDEFINED_VALUES,
+          context: { providedItem: updateData },
+        });
       });
     });
   });

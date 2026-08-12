@@ -1,6 +1,6 @@
 import type { Condition } from "../conditions.js";
 import type { DynamoItem, TableConfig } from "../types.js";
-import type { ScanBuilderInterface } from "./builder-types.js";
+import type { BuilderContext, ScanBuilderInterface } from "./builder-types.js";
 import { FilterBuilder, type FilterOptions } from "./filter-builder.js";
 import { ResultIterator } from "./result-iterator.js";
 
@@ -69,8 +69,8 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
 {
   protected readonly executor: ScanExecutor<T>;
 
-  constructor(executor: ScanExecutor<T>) {
-    super();
+  constructor(executor: ScanExecutor<T>, context: BuilderContext = {}) {
+    super(context);
     this.executor = executor;
   }
 
@@ -80,7 +80,7 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
    * @returns A new ScanBuilder instance with the same configuration
    */
   clone(): ScanBuilder<T, TConfig> {
-    const clone = new ScanBuilder<T, TConfig>(this.executor);
+    const clone = new ScanBuilder<T, TConfig>(this.executor, this.context);
     clone.options = {
       ...this.options,
       filter: this.deepCloneFilter(this.options.filter),
@@ -138,6 +138,7 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
    * @returns A promise that resolves to a ResultGenerator that behaves like an array
    */
   async execute(): Promise<ResultIterator<T, TConfig>> {
+    await this.runBeforeExecute();
     const directExecutor = () => this.executor(this.options);
     return new ResultIterator(this, directExecutor);
   }
