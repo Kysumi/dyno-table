@@ -23,13 +23,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.1106.0",
+    "@aws-sdk/lib-dynamodb": "^3.1106.0",
     "dyno-table": "file:../../",
-    "zod": "^3.22.4"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "tsx": "^4.19.4"
+    "typescript": "^7.0.2",
+    "tsx": "^4.23.12"
   }
 }

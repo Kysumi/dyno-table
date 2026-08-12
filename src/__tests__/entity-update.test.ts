@@ -106,6 +106,19 @@ describe("Entity Update Operations", () => {
       expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
     });
 
+    it("should include repository update data in debug output", () => {
+      mockTable.update.mockReturnValue(
+        new UpdateBuilder<TestEntity>(vi.fn(), "TestTable", {
+          pk: "thisIsMyPK#123",
+          sk: "wowSearching#METADATA",
+        }),
+      );
+
+      const debug = repository.update({ id: "123" }, { status: "active" }).debug();
+
+      expect(debug.readable.updateExpression).toBe('SET status = "active"');
+    });
+
     it("should handle complex update operations", async () => {
       const key = {
         id: "456",
