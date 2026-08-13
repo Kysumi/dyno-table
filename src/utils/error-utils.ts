@@ -19,17 +19,22 @@ import type {
   ValidationError,
 } from "../errors.js";
 
+function hasErrorName(error: unknown, name: string): boolean {
+  return typeof error === "object" && error !== null && "name" in error && error.name === name;
+}
+
 /**
- * Checks if an error is a DynamoDB conditional check failure
+ * Checks if an error is a DynamoDB conditional check failure.
+ *
+ * Table operations wrap the raw AWS SDK error in an OperationError (see error-factory.ts),
+ * preserving the original as `.cause` — so this checks both the error itself and its cause.
  *
  * @param error - The error to check
  * @returns true if the error is a conditional check failure
  */
 export function isConditionalCheckFailed(error: unknown): boolean {
-  if (typeof error === "object" && error !== null && "name" in error) {
-    return error.name === "ConditionalCheckFailedException";
-  }
-  return false;
+  const name = "ConditionalCheckFailedException";
+  return hasErrorName(error, name) || hasErrorName(error instanceof Error ? error.cause : undefined, name);
 }
 
 /**

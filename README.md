@@ -210,6 +210,32 @@ const dinoSchema = v.object({
 ```
 **[Schema Validation Guide →](docs/schema-validation.md)**
 
+### Migrations
+*Backfill and data-movement scripts with dry-run safety and resumability*
+
+```ts
+import { MigrationManager } from "dyno-table/migration";
+
+const manager = new MigrationManager({
+  repos: { orders: orderRepo },
+  migrationRepo: migrationCheckpointRepo,
+});
+
+manager.createMigration("backfill-order-totals", async ({ repos, cursor }) => {
+  for await (const order of cursor(repos.orders.scan())) {
+    await repos.orders.update({ id: order.id }, { total: computeTotal(order) }).execute();
+  }
+});
+
+// Dry run by default — no writes happen until you opt in
+await manager.run("backfill-order-totals");
+await manager.run("backfill-order-totals", { apply: true });
+
+// Run all pending migrations
+await manager.runAll({ apply: true })
+```
+**[Migrations Guide →](docs/migration.md)**
+
 ### Performance Optimization
 *Built for scale*
 
@@ -257,7 +283,7 @@ const largeDinos = await dinoRepo.batchGet([
 ### Advanced Topics
 - **[Performance →](docs/performance.md)** - Optimization strategies
 - **[Error Handling →](docs/error-handling.md)** - Robust error management
-- **[Migration →](docs/migration.md)** - Evolving your schema
+- **[Migrations →](docs/migration.md)** - Backfill scripts with dry-run safety and resumability
 
 ### Examples
 - **[E-commerce Store →](examples/ecommerce)** - Product catalog and orders
