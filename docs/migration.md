@@ -1,8 +1,8 @@
 # Migrations
 
-`dyno-table/migration` gives you a structured way to write backfill / data-movement scripts
-against your own entity repos — plain `for await` loops, arbitrary joins across repos, safe by
-default, and resumable if the process dies partway through a large table.
+`dyno-table/migration` provides infrastructure for backfill and data-movement scripts that use
+existing entity repositories. Migration functions use `for await` loops and can read from multiple
+repositories. Writes default to dry-run mode, and cursors can persist scan or query progress.
 
 ```bash
 npm install dyno-table
@@ -12,19 +12,17 @@ npm install dyno-table
 import { MigrationManager } from "dyno-table/migration";
 ```
 
-## Why this exists
+## Design constraints
 
-A one-off backfill script against a huge DynamoDB table has three recurring problems:
+A backfill over a large DynamoDB table typically needs to account for three concerns:
 
-1. **It's easy to accidentally write for real** while you're still checking what a script would do.
-2. **A crash halfway through a multi-million-item scan means starting over** unless you build your
-   own resume logic.
-3. **Ad-hoc scripts reimplement pagination, validation, and key generation** that your entity repos
-   already handle correctly.
+1. Previewing proposed writes before mutating data.
+2. Resuming a long-running scan or query after interruption.
+3. Reusing repository pagination, validation, and key generation.
 
-`MigrationManager` solves all three without introducing a parallel system: it wraps the
-`EntityRepository` you already have, reuses `Paginator` for pagination, and reuses your own
-`.debug()` output for dry-run previews.
+`MigrationManager` wraps existing `EntityRepository` instances, uses `Paginator` for pagination,
+and captures write-builder `.debug()` output during dry runs. Cursor state is stored through a
+repository supplied by the application.
 
 ## Defining and running a migration
 
@@ -50,24 +48,21 @@ manager.createMigration("backfill-order-totals", async ({ repos, cursor }) => {
   }
 });
 
-// Preview first — no writes happen, and you get back .debug() output for every write
-// the migration would have made.
+// Dry run: write calls return .debug() output without executing.
 const preview = await manager.run("backfill-order-totals");
 console.log(`Would write ${preview.writes} updates across ${preview.scanned} scanned orders`);
 console.log(preview.samples);
 
-// Looks right — run it for real.
+// Apply writes.
 await manager.run("backfill-order-totals", { apply: true });
 ```
 
-Run the same migration name again later (say, after a crash, or just to catch new orders created
-since the last run) — `apply: true` resumes from the last completed page instead of rescanning the
-whole table from the start.
+When a migration is run again with `apply: true`, it resumes from the last completed page. This
+applies after an interrupted run and when processing records created after an earlier run.
 
 ## Running every outstanding migration
 
-Instead of calling `run()` migration-by-migration, `runAll()` runs every registered migration that
-hasn't already succeeded:
+`runAll()` runs each registered migration whose checkpoint is not marked as successful:
 
 ```ts
 manager.createMigration("backfill-order-totals", async ({ repos, cursor }) => { /* ... */ });
@@ -76,67 +71,61 @@ manager.createMigration("backfill-user-emails", async ({ repos, cursor }) => { /
 const results = await manager.runAll({ apply: true });
 ```
 
-Migrations run in **registration order** by default — the order your `createMigration()` calls
-happened in. Pass an explicit `order` when that doesn't match how they're defined across modules
-(lower runs first; ties break by registration order):
+Migrations run in registration order by default. Pass an explicit `order` when migrations are
+registered across modules and require a different sequence. Lower values run first; ties use
+registration order.
 
 ```ts
 manager.createMigration("backfill-order-totals", fn, { order: 1 });
 manager.createMigration("backfill-user-emails", fn, { order: 2 });
 ```
 
-For each registered migration, `runAll()` checks its checkpoint `status` (see "Preventing
-concurrent runs" below) and:
+For each registered migration, `runAll()` checks its checkpoint `status` (see "Concurrency
+control"):
 
-- **`"success"`** — skipped, nothing to do.
-- **absent, or `"error"`** — outstanding, gets run (an errored migration resumes from its last
-  checkpoint, same as calling `run()` on it directly).
-- **`"running"`** on *any* registered migration — `runAll()` throws immediately, before running a
-  single one. Either another process is already working through the same batch, or a previous run
-  crashed and left that migration's lock stuck — either way, it isn't safe to guess which and
-  proceed, so the whole call aborts for you (or your caller) to investigate.
+- **`"success"`**: skipped.
+- **Absent or `"error"`**: run. A migration with `"error"` resumes from its last checkpoint, as it
+  does when called through `run()`.
+- **`"running"`** on any registered migration: throw before running any migrations. This can mean
+  that another process is running the batch or that a terminated process left a stale lock. The
+  caller must determine which case applies before proceeding.
 
-`runAll()` also stops at the first migration that throws, rather than continuing past it — later
-migrations may assume earlier ones already succeeded. Whatever already completed earlier in the
-same `runAll()` call stays applied; re-running `runAll()` picks up from there once the failure is
-fixed.
+`runAll()` stops when a migration throws because later migrations may depend on earlier ones.
+Migrations completed earlier in the same call remain applied. After the failure is resolved,
+another `runAll()` call skips those successful migrations and resumes the sequence.
 
-## Safe by default
+## Dry-run and apply modes
 
-`run()` never performs a real write unless you pass `{ apply: true }`. Every `create`, `upsert`,
-`update`, and `delete` call inside your migration function is intercepted:
+`run()` performs writes only when passed `{ apply: true }`. The manager intercepts every `create`,
+`upsert`, `update`, and `delete` call made through the wrapped repositories:
 
-- **Dry run (default)** — the write builder's `.debug()` output is captured instead of calling
-  `.execute()`. No network call happens. You get back `samples` in the result so you can inspect
-  exactly what would have been written.
-- **`{ apply: true }`** — the real `.execute()` runs.
+- **Dry run (default)**: captures the write builder's `.debug()` output instead of calling
+  `.execute()`. The result includes this output in `samples`. No write request is sent.
+- **`{ apply: true }`**: calls `.execute()` for each write.
 
-Reads (`get`, `query`, `scan`) are never intercepted — they always execute for real in both modes,
-because enrichment lookups (reading related data to decide what to write) depend on seeing real
-data even during a dry run.
+Reads (`get`, `query`, and `scan`) execute in both modes. A dry run therefore reads current data
+while suppressing writes.
 
-Because the wrapping happens fresh inside each `run()` call, the same `MigrationManager` can safely
-preview a migration and then apply it — or run it in dry-run mode repeatedly — without any state
-leaking between runs.
+Repositories are wrapped separately for each `run()` call. The same `MigrationManager` instance
+can therefore run the same migration in dry-run and apply modes without retaining wrapper state
+between calls.
 
-## Idempotency is on you
+## Idempotency requirements
 
-If the process crashes mid-page, resuming re-fetches and re-yields that same page. Write your
-migration body so re-processing an already-migrated item is harmless — check a "done" marker (like
-`order.total !== undefined` above) before writing, or use a conditional write.
+If a process stops while handling a page, the next run fetches and yields that page again.
+Migration code must tolerate repeated processing. It can check a completion marker, such as
+`order.total !== undefined` above, or use a conditional write.
 
 ## Resumability
 
-Pass a `cursor(builder)` around any `.scan()` or `.query()` builder instead of iterating it
-directly. `cursor()`:
+Pass a `.scan()` or `.query()` builder to `cursor(builder)` to enable checkpointing. `cursor()`:
 
-- checkpoints the DynamoDB `lastEvaluatedKey` **before** yielding each page's items to your loop
-  (so a crash mid-page re-fetches, not skips, that page on resume),
-- persists checkpoints via a repo you supply — a plain entity, no new storage mechanism,
-- clears its own checkpoint automatically once the scan/query completes.
+- stores the DynamoDB `lastEvaluatedKey` before yielding a page, so an interrupted page is fetched
+  again rather than skipped;
+- persists checkpoints through the supplied repository;
+- clears its checkpoint after the scan or query completes.
 
-A migration that drives more than one cursor (sequential backfills, multi-stage moves) gives each
-one an explicit `id`:
+A migration with more than one cursor must give each cursor an explicit `id`:
 
 ```ts
 manager.createMigration("multi-stage-move", async ({ repos, cursor }) => {
@@ -149,13 +138,13 @@ manager.createMigration("multi-stage-move", async ({ repos, cursor }) => {
 });
 ```
 
-Each `id` gets its own slot in the checkpoint record, so the two cursors don't clobber each other.
-Calling `cursor()` twice with the same `id` (including leaving both at the default) throws
-immediately — sharing one checkpoint slot between two independent cursors would corrupt both.
+Each `id` maps to a separate slot in the checkpoint record. Calling `cursor()` twice with the same
+`id`, including using the default for both, throws because independent cursors cannot share a
+checkpoint slot.
 
 ### Page size
 
-Pass `pageSize` to control how many items are fetched — and checkpointed — per DynamoDB request:
+Pass `pageSize` to limit the number of items fetched and checkpointed per DynamoDB request:
 
 ```ts
 for await (const order of cursor(repos.orders.scan(), { pageSize: 100 })) {
@@ -163,15 +152,14 @@ for await (const order of cursor(repos.orders.scan(), { pageSize: 100 })) {
 }
 ```
 
-Without it, the underlying `Paginator` has no per-request cap and drains the entire scan/query as
-a single logical page before the first checkpoint is ever written — on a huge table, that means a
-crash loses all progress, not just the current page. Pick a `pageSize` that bounds how much
-re-work an interrupted run would repeat.
+Without `pageSize`, the underlying `Paginator` has no per-request limit and consumes the scan or
+query as one logical page before writing a checkpoint. An interruption then requires repeating
+that entire page. Set `pageSize` according to the acceptable amount of repeated work.
 
 ### Defining your own checkpoint entity
 
-Checkpoints are stored through a regular entity repo — there's nothing migration-specific about
-the storage layer beyond the shape of the record:
+Checkpoints are stored through a regular entity repository. The record must have the following
+shape:
 
 ```ts
 import { defineEntity, createIndex, createQueries } from "dyno-table/entity";
@@ -196,15 +184,14 @@ export const MigrationCheckpointEntity = defineEntity({
 });
 ```
 
-Point every `MigrationManager` at the same table this entity is defined against, and checkpoints
-for all your migrations live in one place, one record per migration name.
+Each `MigrationManager` using this checkpoint entity must reference its table. The manager stores
+one checkpoint record per migration name.
 
-## Preventing concurrent runs
+## Concurrency control
 
-An `apply: true` run holds a lock on its checkpoint record for its whole duration. `status` goes
-to `"running"` before your migration function is invoked, then `"success"` or `"error"` once it
-settles — with the exception message persisted to `error` on failure, for diagnosing a stuck or
-failed migration without digging through logs.
+An `apply: true` run uses the checkpoint record as a lock for the duration of the migration. The
+manager sets `status` to `"running"` before invoking the migration function, then to `"success"` or
+`"error"` when it settles. On failure, the exception message is stored in `error`.
 
 ```ts
 await manager.run("backfill-order-totals", { apply: true });
@@ -212,22 +199,20 @@ await manager.run("backfill-order-totals", { apply: true });
 // Error: Migration "backfill-order-totals" is already running
 ```
 
-A second concurrent `run(name, { apply: true })` for the same migration name sees `"running"` and
-rejects immediately instead of racing with the first. Dry runs never touch this lock — only
-`apply: true` runs can conflict.
+A concurrent `run(name, { apply: true })` for the same migration sees `"running"` and rejects.
+Dry runs do not acquire or modify the lock.
 
-This is a plain mutual-exclusion flag, not staleness-checked: if the process holding the lock is
-killed outright (not a caught error — an actual crash, OOM, or `SIGKILL`), `status` stays
-`"running"` forever until you manually reset it on the checkpoint record. A migration function
-that throws a normal JavaScript error is fine — the lock is released and `status`/`error` are
-recorded correctly in that case; it's only a hard process kill that leaves it stuck.
+The lock has no staleness check. If the process terminates without handling an error, such as after
+an OOM or `SIGKILL`, `status` remains `"running"` until the checkpoint record is manually reset. A
+JavaScript exception that reaches `run()` is handled by recording `"error"` and releasing the
+lock.
 
 ## Error handling
 
-If your migration function throws, `run()` lets the rejection propagate — it isn't swallowed. Any
-checkpoints already persisted from pages that completed *before* the throw stay in place, so a
-subsequent `run(name, { apply: true })` resumes from there rather than restarting.
+If a migration function throws, `run()` propagates the rejection. Checkpoints persisted before the
+error remain in place, so a subsequent `run(name, { apply: true })` resumes from the last stored
+position.
 
-There's no retry logic inside `MigrationManager` itself, matching how `table.batchWrite` returns
-`unprocessedItems` for you to handle rather than silently retrying forever — if a write throws
-inside your loop, handle it there (or let it propagate and re-run the migration).
+`MigrationManager` does not retry failed writes. Migration code can handle a write error locally or
+allow it to propagate and rerun the migration. This is consistent with `table.batchWrite`, which
+returns `unprocessedItems` to the caller.
