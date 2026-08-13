@@ -7,7 +7,7 @@ tags: [api, packaging, typescript]
 
 # Public API and package contracts
 
-`package.json` defines an ESM package with CJS compatibility and declarations. `tsdown.config.ts` builds eight named entrypoints from `src/` to `dist/` in ESM (`.js`), CJS (`.cjs`), and `.d.ts` forms. Treat an export or type change as a consumer-facing compatibility change.
+`package.json` defines an ESM package with CJS compatibility and declarations. `tsdown.config.ts` builds nine named entrypoints from `src/` to `dist/` in ESM (`.js`), CJS (`.cjs`), and `.d.ts` forms. Treat an export or type change as a consumer-facing compatibility change.
 
 ## Published import map
 
@@ -16,6 +16,7 @@ tags: [api, packaging, typescript]
 | `dyno-table` | `src/index.ts` | Broad surface: Table, common builders, conditions, entity definition helpers/types, errors, error utilities, and key templates. |
 | `dyno-table/table` | `src/table.ts` | `Table` module. |
 | `dyno-table/entity` | `src/entity.ts` | `defineEntity`, `createIndex`, `createQueries`, entity/repository/query types. |
+| `dyno-table/migration` | `src/migration.ts` | `MigrationManager` and migration/checkpoint/cursor types for repository-based resumable backfills. See [resumable migrations](../migration-system.md). |
 | `dyno-table/conditions` | `src/conditions.ts` | Condition AST helpers and condition/key types. |
 | `dyno-table/builders` | `src/builders.ts` | All builder classes plus command/result/path interfaces. |
 | `dyno-table/types` | `src/types.ts` | `DynamoItem`, `Index`, `IndexConfig`, `TableConfig`, and `GSINames`. |
