@@ -4,6 +4,7 @@ import { createIndex, defineEntity } from "../../entity/entity";
 import type { StandardSchemaV1 } from "../../standard-schema";
 import { Table } from "../../table";
 import type { DynamoItem } from "../../types";
+import { isConditionalCheckFailed } from "../../utils/error-utils";
 import { MigrationManager } from "../migration-manager";
 import type { MigrationCheckpointRecord } from "../types";
 
@@ -99,15 +100,24 @@ async function seedItems(table: Table, items: ReturnType<typeof createRepos>["it
   await batch.execute();
 }
 
-/** Wraps repo.update so every real call is counted, without changing its behavior. */
-function countUpdateCalls(repo: ReturnType<typeof createRepos>["checkpoints"]): { count(): number } {
+/** Counts real version conflicts without changing checkpoint update behavior. */
+function countConditionalCheckFailures(repo: ReturnType<typeof createRepos>["checkpoints"]): { count(): number } {
   const realUpdate = repo.update.bind(repo);
-  let calls = 0;
+  let failures = 0;
   repo.update = ((key, data) => {
-    calls += 1;
-    return realUpdate(key, data);
+    const builder = realUpdate(key, data);
+    const realExecute = builder.execute.bind(builder);
+    builder.execute = async () => {
+      try {
+        return await realExecute();
+      } catch (error) {
+        if (isConditionalCheckFailed(error)) failures += 1;
+        throw error;
+      }
+    };
+    return builder;
   }) as typeof repo.update;
-  return { count: () => calls };
+  return { count: () => failures };
 }
 
 describe("Cursor race-condition integration tests", () => {
@@ -117,8 +127,7 @@ describe("Cursor race-condition integration tests", () => {
 
     const manager = new MigrationManager({ repos: { items }, migrationRepo: checkpoints });
 
-    // Both runs are gated so they start on the same tick — maximizing the chance that both
-    // attempt to acquire the lock before either has written its "running" status back.
+    // Keep the winner inside the migration until the loser has failed to acquire the lock.
     let releaseGate: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       releaseGate = resolve;
@@ -133,6 +142,7 @@ describe("Cursor race-condition integration tests", () => {
 
     const run1 = manager.run("race-backfill", { apply: true });
     const run2 = manager.run("race-backfill", { apply: true });
+    await expect(Promise.race([run1, run2])).rejects.toThrow(/already running/);
     releaseGate();
 
     const results = await Promise.allSettled([run1, run2]);
@@ -164,7 +174,7 @@ describe("Cursor race-condition integration tests", () => {
   it("keeps two distinct cursor ids racing concurrently within one run from corrupting each other", async () => {
     const { table, items, checkpoints } = createRepos();
     await seedItems(table, items);
-    const updateCalls = countUpdateCalls(checkpoints);
+    const conditionalCheckFailures = countConditionalCheckFailures(checkpoints);
 
     const manager = new MigrationManager({ repos: { items }, migrationRepo: checkpoints });
 
@@ -196,9 +206,7 @@ describe("Cursor race-condition integration tests", () => {
     const { item: checkpoint } = await checkpoints.get({ name: "dual-cursor-backfill" }).execute();
     expect(checkpoint?.cursors).toEqual({});
 
-    // Same reasoning as above: more writes than the conflict-free minimum proves the two
-    // cursors genuinely collided on the shared record's version counter at least once.
-    expect(updateCalls.count()).toBeGreaterThan(2 * ITEM_COUNT);
+    expect(conditionalCheckFailures.count()).toBeGreaterThan(0);
   });
 
   it("rejects the loser when two runAll() calls over the same batch overlap, and the winner runs everything", async () => {

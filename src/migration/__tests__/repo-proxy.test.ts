@@ -11,6 +11,8 @@ function makeWriteBuilder(result: unknown) {
     condition: vi.fn(function (this: unknown) {
       return this;
     }),
+    withBatch: vi.fn(),
+    withTransaction: vi.fn(),
     execute: vi.fn().mockResolvedValue(result),
     debug: vi.fn().mockReturnValue({ raw: "raw-command", readable: "readable-command" }),
   };
@@ -63,6 +65,34 @@ describe("wrapRepo", () => {
     expect(writeBuilder.debug).not.toHaveBeenCalled();
     expect(result).toEqual({ item: { id: "1" } });
     expect(ctx.writes).toBe(1);
+  });
+
+  it.each(["withBatch", "withTransaction"] as const)("intercepts %s only during dry runs", async (method) => {
+    const writeBuilder = makeWriteBuilder(undefined);
+    const repo = { create: vi.fn().mockReturnValue(writeBuilder) };
+    const dryCtx = makeCtx(false);
+    const dryExecute = vi.fn().mockResolvedValue(undefined);
+    const dryDeferred = { execute: dryExecute };
+
+    wrapRepo(repo, dryCtx).create({ id: "1" })[method](dryDeferred);
+    await dryDeferred.execute();
+
+    expect(writeBuilder[method]).not.toHaveBeenCalled();
+    expect(dryExecute).not.toHaveBeenCalled();
+    expect(dryCtx.writes).toBe(1);
+    expect(dryCtx.samples).toEqual([{ raw: "raw-command", readable: "readable-command" }]);
+
+    writeBuilder.debug.mockClear();
+    const applyCtx = makeCtx(true);
+    const applyExecute = vi.fn().mockResolvedValue(undefined);
+    const applyDeferred = { execute: applyExecute };
+    wrapRepo(repo, applyCtx).create({ id: "1" })[method](applyDeferred);
+    await applyDeferred.execute();
+
+    expect(writeBuilder[method]).toHaveBeenCalledWith(applyDeferred);
+    expect(applyExecute).toHaveBeenCalledOnce();
+    expect(writeBuilder.debug).not.toHaveBeenCalled();
+    expect(applyCtx.writes).toBe(1);
   });
 
   it("keeps chaining working on the proxied write builder", async () => {

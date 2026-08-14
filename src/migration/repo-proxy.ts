@@ -1,10 +1,10 @@
-import type { DebuggableBuilder, RunContext } from "./types.js";
+import type { DebuggableBuilder, ExecutableBuilder, RunContext } from "./types.js";
 
 const WRITE_METHODS = new Set(["create", "upsert", "update", "delete"]);
 
 /**
- * Wraps a repo so create/upsert/update/delete builders route their execute() through
- * ctx (dry-run capture vs real write); get/query/scan pass through untouched.
+ * Wraps a repo so create/upsert/update/delete builders route direct and deferred execution
+ * through ctx (dry-run capture vs real write); get/query/scan pass through untouched.
  */
 export function wrapRepo<R extends Record<string, unknown>>(repo: R, ctx: RunContext): R {
   return new Proxy(repo, {
@@ -32,7 +32,17 @@ function wrapWriteBuilder<B extends DebuggableBuilder>(builder: B, ctx: RunConte
           return undefined;
         };
       }
-      return Reflect.get(target, prop, receiver);
+      const original = Reflect.get(target, prop, receiver);
+      if ((prop !== "withBatch" && prop !== "withTransaction") || typeof original !== "function") {
+        return original;
+      }
+      return (...args: unknown[]) => {
+        ctx.writes += 1;
+        if (ctx.apply) return original.apply(target, args);
+        ctx.samples.push(target.debug());
+        (args[0] as ExecutableBuilder).execute = async () => undefined;
+        return undefined;
+      };
     },
   });
 }
