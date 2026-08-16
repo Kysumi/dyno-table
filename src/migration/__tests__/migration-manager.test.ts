@@ -109,7 +109,8 @@ describe("MigrationManager", () => {
       startFrom(): unknown {
         return fakeBuilder;
       },
-      execute: async () => Object.assign(items(), { getLastEvaluatedKey: () => undefined }),
+      execute: async () =>
+        Object.assign(items(), { getContinuationKey: () => undefined, getLastEvaluatedKey: () => undefined }),
       findOne: async () => undefined,
     };
 

@@ -1,4 +1,11 @@
 export type {
+  CollectionConfig,
+  CollectionDefinition,
+  CollectionQueryBuilder,
+  CollectionReader,
+} from "./entity/collection.js";
+export { CollectionPageIterator, CollectionResultIterator, defineCollection, groupByEntityType } from "./entity/collection.js";
+export type {
   BuiltIndexDefinition,
   CreateIndexBuilder,
   EntityConfig,

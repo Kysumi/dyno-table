@@ -99,6 +99,8 @@ const cretaceousDinos = await dinoRepo.query
 ```
 **[Complete Entity Guide →](docs/entities.md)**
 
+- **Entity collections:** Query shared indexes and stream results grouped by entity type. [Guide →](docs/collections.md)
+
 ### Direct Table Operations
 *Low-level control for advanced use cases*
 
@@ -278,6 +280,7 @@ const largeDinos = await dinoRepo.batchGet([
 - **[Transactions →](docs/transactions.md)** - ACID operations
 - **[Batch Operations →](docs/batch-operations.md)** - Bulk operations
 - **[Pagination →](docs/pagination.md)** - Handle large datasets
+- **[Entity Collections →](docs/collections.md)** - Group shared-index query pages by entity type
 - **[Type Safety →](docs/type-safety.md)** - TypeScript integration
 
 ### Advanced Topics

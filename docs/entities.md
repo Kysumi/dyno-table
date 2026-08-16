@@ -180,6 +180,8 @@ const ProductEntity = defineEntity({
 
 ## Index Configuration
 
+When multiple entity types share one physical index and partition, use [entity collections](collections.md) to query and group them page by page.
+
 ### Primary Key Configuration
 
 ```ts

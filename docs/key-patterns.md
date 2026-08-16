@@ -225,6 +225,8 @@ const overloadedIndex = createIndex()
 // - Researchers by specialty: PK = "RESEARCHER#paleontology"
 ```
 
+When an overloaded partition contains multiple entity types, [entity collections](collections.md) can return each query page grouped by entity.
+
 ### Sparse Index Patterns
 Create indexes only for items that have certain attributes:
 

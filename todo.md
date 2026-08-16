@@ -25,5 +25,6 @@
   - Allow transactions to work across table instances
 
 - Relationships + Adjacent records
+  - `defineCollection` covers shared-index grouping, not joins or eager loading
   - Add built-in support for Adjacent records at repo level
     - eager loading

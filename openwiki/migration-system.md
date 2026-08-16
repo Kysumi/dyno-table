@@ -67,7 +67,7 @@ const applied = await manager.run(name, { apply: true });
 
 ### Dry-run versus applied writes
 
-`wrapRepo` intercepts only `create`, `upsert`, `update`, and `delete`. Each intercepted `.execute()` increments `writes`; dry-runs collect `builder.debug()` and do not call the real executor, whereas `{ apply: true }` delegates to it. `get`, `query`, and `scan` pass through unchanged in both modes. Do not rely on the return value of a write during a dry run: its intercepted execute resolves `undefined`.
+`wrapRepo` intercepts only `create`, `upsert`, `update`, and `delete`. Each intercepted direct `.execute()` increments `writes`; dry-runs collect `builder.debug()` and do not call the real executor, whereas `{ apply: true }` delegates to it. It also intercepts those write builders' `.withBatch()` and `.withTransaction()` attachment: an applied run delegates the attachment, while a dry run records the command and replaces the supplied deferred builder's `.execute()` with a no-op. `get`, `query`, and `scan` pass through unchanged in both modes. Do not rely on the return value of a write during a dry run: its intercepted execute resolves `undefined`.
 
 ### Resuming a cursor
 
@@ -108,4 +108,4 @@ Focused unit checks are:
 pnpm test -- src/migration/__tests__/migration-manager.test.ts src/migration/__tests__/cursor.test.ts src/migration/__tests__/checkpoint-store.test.ts src/migration/__tests__/repo-proxy.test.ts
 ```
 
-These cover dry-run interception, applied writes, lock statuses, ordering, cursor resume/checkpoint timing, conflict retries, and id isolation. Run `pnpm test:int -- src/migration/__tests__/migration-manager.itest.ts src/migration/__tests__/cursor-race.itest.ts` only when changing real DynamoDB behavior, concurrency, or repository integration; it requires the DynamoDB Local setup documented in [testing](development/testing.md). A published surface change additionally requires `pnpm run check-types && pnpm run build`.
+These cover direct and deferred dry-run interception, applied writes, lock statuses, ordering, cursor resume/checkpoint timing, conflict retries, and id isolation. `cursor-race.itest.ts` additionally demonstrates real conditional-version conflicts between cursor updates rather than merely counting update calls. Run `pnpm test:int -- src/migration/__tests__/migration-manager.itest.ts src/migration/__tests__/cursor-race.itest.ts` only when changing real DynamoDB behavior, concurrency, or repository integration; it requires the DynamoDB Local setup documented in [testing](development/testing.md). A published surface change additionally requires `pnpm run check-types && pnpm run build`.

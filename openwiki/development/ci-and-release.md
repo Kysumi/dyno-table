@@ -34,12 +34,6 @@ Integration tests are therefore a CI requirement, not an optional example. The j
 
 The Angular conventional-commit analyzer maps `feat` to minor, most `fix`/docs/style/refactor/perf/build/chore/revert changes to patch, `test` and `ci` to no release, and breaking changes to major. It generates release notes/changelog, publishes through npm and GitHub plugins, and commits generated `package.json` and `CHANGELOG.md` with `chore(release): ${nextRelease.version} [skip ci]`.
 
-## Documentation automation
-
-`.github/workflows/openwiki-update.yml` runs manually or daily at `0 8 * * *`. It checks out full history because `openwiki code --update` diffs against the prior documented commit, uses Node 22, installs OpenWiki plus Mermaid/jsdom validation dependencies, and runs `openwiki code --update --print`. Its external boundary is the configured OpenRouter provider/model and the LangSmith connector/tracing environment; credentials are GitHub secrets and must never be placed in source or documentation.
-
-It uses `peter-evans/create-pull-request` to create/update `openwiki/update` with `docs: update OpenWiki`, including `openwiki`, `AGENTS.md`, `CLAUDE.md`, and the workflow itself. Treat this as a generated documentation PR that still needs normal review for source grounding and safe instructions.
-
 ## Maintenance guidance
 
 A public API change needs both normal validation and package build. A release-policy change needs review of workflow triggers, `.releaserc.json`, dependency/plugin availability, generated-file assets, and branch protection. An OpenWiki automation change also needs review of its update scope, full-history requirement, provider/connector boundary, and PR paths. Recent history includes release commits and `f484b03` (internals rework), reinforcing that changelog/version commits are automation output, not hand-authored implementation changes.
