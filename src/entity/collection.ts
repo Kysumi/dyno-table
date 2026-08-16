@@ -158,8 +158,7 @@ export function defineCollection<E extends Record<string, AnyEntityDefinition>>(
               config.entities,
               entityTypeAttributeName,
             ),
-          execute: async () =>
-            new CollectionResultIterator(await execute(), config.entities, entityTypeAttributeName),
+          execute: async () => new CollectionResultIterator(await execute(), config.entities, entityTypeAttributeName),
         }) as CollectionQueryBuilder<E>;
       },
     }),

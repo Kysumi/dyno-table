@@ -4,7 +4,12 @@ export type {
   CollectionQueryBuilder,
   CollectionReader,
 } from "./entity/collection.js";
-export { CollectionPageIterator, CollectionResultIterator, defineCollection, groupByEntityType } from "./entity/collection.js";
+export {
+  CollectionPageIterator,
+  CollectionResultIterator,
+  defineCollection,
+  groupByEntityType,
+} from "./entity/collection.js";
 export type {
   BuiltIndexDefinition,
   CreateIndexBuilder,
