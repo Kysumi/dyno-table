@@ -1,3 +1,10 @@
+# [2.10.0](https://github.com/Kysumi/dyno-table/compare/v2.9.0...v2.10.0) (2026-08-17)
+
+
+### Features
+
+* Adding collections support ([#86](https://github.com/Kysumi/dyno-table/issues/86)) ([fbbaa0a](https://github.com/Kysumi/dyno-table/commit/fbbaa0a4c116fbf6e0a0c526e6ce0524e10f8880))
+
 # [2.9.0](https://github.com/Kysumi/dyno-table/compare/v2.8.0...v2.9.0) (2026-08-17)
 
 
