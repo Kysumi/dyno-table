@@ -18,12 +18,12 @@ tags: [api, packaging, typescript]
 | `dyno-table/entity` | `src/entity.ts` | `defineEntity`, `createIndex`, `createQueries`, entity/repository/query types, plus `defineCollection`, `groupByEntityType`, `CollectionPageIterator`, `CollectionResultIterator`, and collection types. See [entity collections](../entities/collections.md). |
 | `dyno-table/migration` | `src/migration.ts` | `MigrationManager` and migration/checkpoint/cursor types for repository-based resumable backfills. See [resumable migrations](../migration-system.md). |
 | `dyno-table/conditions` | `src/conditions.ts` | Condition AST helpers and condition/key types. |
-| `dyno-table/builders` | `src/builders.ts` | All builder classes plus command/result/path interfaces. |
+| `dyno-table/builders` | `src/builders.ts` | All builder classes plus command/result/path interfaces, including `ParallelScanIterator` and `ParallelScanPaginator`. See [builder execution](../builders/execution.md#parallel-scans-independent-cursors-merged-results). |
 | `dyno-table/types` | `src/types.ts` | `DynamoItem`, `Index`, `IndexConfig`, `TableConfig`, and `GSINames`. |
 | `dyno-table/standard-schema` | `src/standard-schema.ts` | Standard Schema v1 contract and inference types. |
 | `dyno-table/utils` | `src/utils.ts` | Template helpers; the root additionally re-exports error helpers. See [utilities](utilities.md). |
 
-The root is curated, not a wildcard re-export. For example `GetBuilder`, `ScanBuilder`, `Paginator`, and `ResultIterator` are available through `./builders`, while root exports selected query/write/batch/transaction builders. Match a new public symbol to the intended import path deliberately.
+The root is curated, not a wildcard re-export. For example `GetBuilder`, `ScanBuilder`, `Paginator`, `ResultIterator`, `ParallelScanIterator`, and `ParallelScanPaginator` are available through `./builders`, while root exports selected query/write/batch/transaction builders. Match a new public symbol to the intended import path deliberately.
 
 ## Core configuration contracts
 

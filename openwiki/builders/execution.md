@@ -11,7 +11,7 @@ tags: [builders, pagination, transactions, batch]
 
 ## Read builders: lazy pages and projections
 
-`QueryBuilder` and `ScanBuilder` extend `FilterBuilder`. Shared methods are `limit`, `useIndex`, `consistentRead`, `filter`, `select`, `startFrom`, `paginate`, `findOne`, and `clone`; Query additionally controls `sortAscending`/`sortDescending`. `execute()` returns `ResultIterator`, an async iterable; consume it with `for await` for streaming or `.toArray()` when materializing all items is safe.
+`QueryBuilder` and `ScanBuilder` extend `FilterBuilder`. Shared methods are `limit`, `useIndex`, `consistentRead`, `filter`, `select`, `startFrom`, `paginate`, `findOne`, and `clone`; Query additionally controls `sortAscending`/`sortDescending`. `execute()` returns `ResultIterator`, an async iterable; consume it with `for await` for streaming or `.toArray()` when materializing all items is safe. `ScanBuilder.segments(totalSegments)` instead creates a `ParallelScanIterator`; its independent segment scans still use the same filters, index, projection, and per-segment page iteration described below.
 
 ```mermaid
 flowchart TD
@@ -33,6 +33,33 @@ This shows why merely awaiting `execute()` does not send a query/scan; consumpti
 [Resumable migrations](../migration-system.md) compose `Paginator` with a query or scan builder, yield each fetched page's items to the migration consumer, then persist that page's continuation key. Changes to paginator page-size or continuation behavior therefore affect the migration replay boundary as well as direct consumers.
 
 `GetBuilder` runs its optional `beforeExecute` guard immediately before its one request. It supports selection, consistent reads, optional index fields, and deferred addition to a `BatchBuilder`.
+
+## Parallel scans: independent cursors, merged results
+
+`ScanBuilder.segments(totalSegments)` validates an integer from 1 through 1,000,000, clones the configured builder once for each zero-based segment, and sets `Segment` and `TotalSegments` on each resulting `ScanCommand`. `Table.scan()` forwards those fields to DynamoDBDocument. This is DynamoDB's segmented scan facility, not client-side partitioning: use it only when a full scan is appropriate and tune the segment count for the consumer's capacity and concurrency budget.
+
+```mermaid
+sequenceDiagram
+  participant Caller
+  participant Scan as ScanBuilder
+  participant Parallel as ParallelScanIterator
+  participant Segment as Segment ResultIterator
+  participant Ddb as DynamoDBDocument
+  Caller->>Scan: segments(totalSegments)
+  Scan->>Parallel: create one clone per segment
+  Caller->>Parallel: consume async iterator
+  Parallel->>Segment: execute each cloned scan
+  Segment->>Ddb: ScanCommand with Segment and TotalSegments
+  Ddb-->>Segment: page and segment cursor
+  Segment-->>Parallel: item when available
+  Parallel-->>Caller: first available item across segments
+```
+
+This shows that each segment owns its own DynamoDB continuation cursor while `ParallelScanIterator` races the next item from every active segment; output order is therefore not stable or key-sorted. A segment's `beforeExecute` guard runs only on consumption, once per segment. If a segment fails initially or on a later page, the merged iterator rejects. `.toArray()` consumes the same iterator behavior.
+
+A builder `.limit(n)` remains a **global yielded-item cap** after merging, rather than a per-segment cap. `ParallelScanIterator.paginate(pageSize?)` creates `ParallelScanPaginator`, whose in-memory iterator state produces logical merged pages. `pageSize` must be a positive integer; `getCurrentPage()` starts at zero, each fetched page increments it, and once exhaustion is observed later `getNextPage()` returns an empty terminal result. It has no composite continuation token, so it cannot resume a parallel scan in another process.
+
+Change this seam in `src/builders/scan-builder.ts`, `parallel-scan-iterator.ts`, and `src/table.ts`; preserve clone isolation for filters/index selection and independent segment cursors. `src/__tests__/scan-parallel.test.ts` covers segment assignment and continuation, cloned settings, first-ready ordering, global limits, logical pagination, deferred guards, failures, and validation bounds. When the emitted SDK parameters or DynamoDB behavior changes, additionally run the DynamoDB Local coverage/no-overlap tests in `src/__tests__/scan-parallel.itest.ts`; see [testing](../development/testing.md). Export changes also require the shipped-surface checks in [public API](../reference/public-api.md).
 
 ## Write and condition command rules
 
@@ -63,6 +90,7 @@ The builder forbids more than one item targeting the same table primary key acro
 ## Focused tests and validation
 
 - `src/builders/__tests__/query-builder.test.ts`: guards, selection/index-field hiding, clone isolation, iterator triggering, pagination, `findOne`, and filter composition.
+- `src/__tests__/scan-parallel.test.ts`: independent segment cursors, preserved scan configuration, merged first-ready output, global limits, logical pages, lazy guard execution, failure propagation, and input validation; `scan-parallel.itest.ts` verifies complete/non-overlapping DynamoDB Local coverage, filters, GSI scans, and service response page boundaries.
 - `src/builders/__tests__/update-builder.test.ts`: clause generation, same-path resolution, debugging, and undefined-value errors.
 - `src/builders/__tests__/condition-check-builder.test.ts`: nested expressions and missing/invalid conditions.
 - `src/__tests__/table-batch.itest.ts`, `table-transaction.itest.ts`, and `transaction-builder.itest.ts`: service-level batch chunking and transaction atomicity.
