@@ -17,6 +17,7 @@ tags: [api, packaging, typescript]
 | `dyno-table/table` | `src/table.ts` | `Table` module. |
 | `dyno-table/entity` | `src/entity.ts` | `defineEntity`, `createIndex`, `createQueries`, entity/repository/query types, plus `defineCollection`, `groupByEntityType`, `CollectionPageIterator`, `CollectionResultIterator`, and collection types. See [entity collections](../entities/collections.md). |
 | `dyno-table/migration` | `src/migration.ts` | `MigrationManager` and migration/checkpoint/cursor types for repository-based resumable backfills. See [resumable migrations](../migration-system.md). |
+| `dyno-table/migration` | `src/migration.ts` | `MigrationManager` and migration/checkpoint/cursor types for repository-based resumable backfills. See [resumable migrations](../migration-system.md). |
 | `dyno-table/conditions` | `src/conditions.ts` | Condition AST helpers and condition/key types. |
 | `dyno-table/builders` | `src/builders.ts` | All builder classes plus command/result/path interfaces. |
 | `dyno-table/types` | `src/types.ts` | `DynamoItem`, `Index`, `IndexConfig`, `TableConfig`, and `GSINames`. |

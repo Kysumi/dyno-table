@@ -68,7 +68,16 @@ export class MigrationManager<TRepos extends Record<string, unknown>> {
     try {
       await registered.fn({ repos: wrappedRepos, cursor });
     } catch (err) {
-      if (apply) await this.markFailed(name, err);
+      if (apply) {
+        try {
+          await this.markFailed(name, err);
+        } catch (checkpointErr) {
+          throw new Error(
+            `Migration "${name}" failed, and the checkpoint could not be marked as failed: ${String(checkpointErr)}`,
+            { cause: err },
+          );
+        }
+      }
       throw err;
     }
     if (apply) await this.markSucceeded(name);

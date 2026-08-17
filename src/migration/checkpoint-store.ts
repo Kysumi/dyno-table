@@ -19,10 +19,10 @@ export async function ensureCheckpointRecordExists(repo: MigrationCheckpointRepo
  * under concurrent writers.
  *
  * `computePatch` receives the current record (undefined if not yet created) and returns the
- * fields to merge in — a field set to `undefined` is removed (e.g. clearing a stale `error`)
- * rather than written literally, since DynamoDB can't store `undefined`. `computePatch` may also
- * throw instead of returning a patch — e.g. to reject an update because a lock is already held —
- * and that error propagates immediately, with no retry.
+ * fields to merge in — `error: undefined` removes a stale error rather than writing it literally,
+ * since DynamoDB can't store `undefined`. `computePatch` may also throw instead of returning a
+ * patch — e.g. to reject an update because a lock is already held — and that error propagates
+ * immediately, with no retry.
  */
 export async function patchCheckpoint(
   repo: MigrationCheckpointRepo,
@@ -37,8 +37,10 @@ export async function patchCheckpoint(
     const setFields: Partial<MigrationCheckpointRecord> = {};
     const removeFields: Array<"error"> = [];
     for (const [key, value] of Object.entries(patch)) {
-      if (value === undefined) removeFields.push(key as "error");
-      else Object.assign(setFields, { [key]: value });
+      if (value === undefined) {
+        if (key !== "error") throw new Error(`Checkpoint field "${key}" cannot be removed`);
+        removeFields.push(key);
+      } else Object.assign(setFields, { [key]: value });
     }
 
     try {
@@ -51,7 +53,8 @@ export async function patchCheckpoint(
       return;
     } catch (err) {
       if (!isConditionalCheckFailed(err) || attempt >= MAX_CHECKPOINT_RETRIES) throw err;
-      // lost the race to a concurrent writer — reload the fresh version + record and retry
+      // lost the race to a concurrent writer — back off, then reload the fresh version + record
+      await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 10 * (0.5 + Math.random())));
     }
   }
 }

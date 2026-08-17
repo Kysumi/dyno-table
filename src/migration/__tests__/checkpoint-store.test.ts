@@ -95,6 +95,18 @@ describe("patchCheckpoint", () => {
     expect(chain.remove).toHaveBeenCalledWith("error");
   });
 
+  it("rejects removal of fields outside the checkpoint repo contract", async () => {
+    const repo = makeMigrationRepo();
+    (repo.get as ReturnType<typeof vi.fn>).mockReturnValue({
+      execute: vi.fn().mockResolvedValue({ item: { name: "m", version: 0, cursors: {} } }),
+    });
+
+    await expect(patchCheckpoint(repo, "m", () => ({ status: undefined }))).rejects.toThrow(
+      'Checkpoint field "status" cannot be removed',
+    );
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
   it("propagates a computePatch throw immediately, without reading or writing again", async () => {
     const repo = makeMigrationRepo();
     (repo.get as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -152,6 +164,9 @@ describe("patchCheckpoint", () => {
     await expect(patchCheckpoint(repo, "m", () => ({ status: "success" }))).rejects.toThrow(
       /ConditionalCheckFailedException|conditional check failed/,
     );
+
+    expect(repo.get).toHaveBeenCalledTimes(6);
+    expect(repo.update).toHaveBeenCalledTimes(6);
   });
 
   it("propagates a non-conditional update failure immediately, without retrying", async () => {

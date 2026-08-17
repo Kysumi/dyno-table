@@ -32,6 +32,8 @@ This shows why merely awaiting `execute()` does not send a query/scan; consumpti
 
 [Resumable migrations](../migration-system.md) compose `Paginator` with a query or scan builder and persist each fetched page's continuation key before yielding its items. Changes to paginator page-size or continuation behavior therefore affect the migration replay boundary as well as direct consumers.
 
+[Resumable migrations](../migration-system.md) compose `Paginator` with a query or scan builder, yield each fetched page's items to the migration consumer, then persist that page's continuation key. Changes to paginator page-size or continuation behavior therefore affect the migration replay boundary as well as direct consumers.
+
 `GetBuilder` runs its optional `beforeExecute` guard immediately before its one request. It supports selection, consistent reads, optional index fields, and deferred addition to a `BatchBuilder`.
 
 ## Write and condition command rules

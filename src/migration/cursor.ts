@@ -29,17 +29,16 @@ export function makeCursor(ctx: RunContext, migrationRepo: MigrationCheckpointRe
         const paginator = new Paginator(builder, options?.pageSize);
         while (paginator.hasNextPage()) {
           const page = await paginator.getNextPage();
+          for (const item of page.items) {
+            ctx.scanned += 1;
+            yield item;
+          }
 
           if (ctx.apply && page.lastEvaluatedKey) {
             const lastEvaluatedKey = page.lastEvaluatedKey;
             await patchCheckpoint(migrationRepo, name, (record) => ({
               cursors: { ...(record?.cursors ?? {}), [id]: { lastEvaluatedKey } },
             }));
-          }
-
-          for (const item of page.items) {
-            ctx.scanned += 1;
-            yield item;
           }
         }
 

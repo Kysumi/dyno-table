@@ -58,7 +58,7 @@ Query input validation runs through `beforeExecute`; thus for query/scan it occu
 
 A change to entity behavior crosses `src/entity/entity.ts`, the relevant wrapper in `entity-aware-builders.ts`, preparation/index code, root and `./entity` exports, and focused tests. Preserve deferred timing: create/upsert validation, timestamps, and keys happen at `.execute()` (or synchronous batch/transaction attachment), not at repository method call. Preserve the discriminator condition/filter when adding repository methods.
 
-[`MigrationManager`](../migration-system.md) deliberately accepts a caller-supplied record of these repositories and wraps their `create`, `upsert`, `update`, and `delete` builders for preview/apply behavior. Its checkpoint repository is also structurally satisfied by an entity repository. Changes to repository write builders must therefore preserve their `.execute()` and `.debug()` behavior, or update the migration proxy and its focused tests together.
+[`MigrationManager`](../migration-system.md) deliberately accepts a caller-supplied record of these repositories and wraps their `create`, `upsert`, `update`, and `delete` builders for preview/apply behavior. Its checkpoint repository is also structurally satisfied by an entity repository. The proxy samples and suppresses direct and `withBatch`/`withTransaction`-attached writes in dry runs, while applied runs delegate them. Changes to repository write builders must therefore preserve their `.execute()`, `.debug()`, `withBatch()`, and `withTransaction()` behavior, or update the migration proxy and its focused tests together.
 
 ## Evidence and checks
 

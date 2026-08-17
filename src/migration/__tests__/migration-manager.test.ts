@@ -109,8 +109,7 @@ describe("MigrationManager", () => {
       startFrom(): unknown {
         return fakeBuilder;
       },
-      execute: async () =>
-        Object.assign(items(), { getContinuationKey: () => undefined, getLastEvaluatedKey: () => undefined }),
+      execute: async () => Object.assign(items(), { getLastEvaluatedKey: () => undefined }),
       findOne: async () => undefined,
     };
 
@@ -217,6 +216,28 @@ describe("MigrationManager", () => {
     const updateCalls = (migrationRepo.update as ReturnType<typeof vi.fn>).mock.calls;
     const [, lastData] = updateCalls.at(-1) ?? [];
     expect(lastData).toEqual({ status: "error", error: "boom" });
+  });
+
+  it("preserves the migration error if its failed checkpoint cannot be written", async () => {
+    const migrationRepo = makeMigrationRepo();
+    const originalError = new Error("migration failed");
+    const checkpointError = new Error("checkpoint write failed");
+    const execute = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(checkpointError);
+    (migrationRepo.update as ReturnType<typeof vi.fn>).mockReturnValue({
+      add: vi.fn().mockReturnThis(),
+      remove: vi.fn().mockReturnThis(),
+      condition: vi.fn().mockReturnThis(),
+      execute,
+    });
+    const manager = new MigrationManager({ repos: {}, migrationRepo });
+    manager.createMigration("backfill", async () => {
+      throw originalError;
+    });
+
+    await expect(manager.run("backfill", { apply: true })).rejects.toMatchObject({
+      message: expect.stringContaining("checkpoint write failed"),
+      cause: originalError,
+    });
   });
 
   describe("runAll()", () => {

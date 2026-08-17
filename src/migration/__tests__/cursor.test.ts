@@ -32,10 +32,7 @@ function makeQueryBuilder(pages: Page[]) {
       async function* gen() {
         for (const item of page.items) yield item;
       }
-      return Object.assign(gen(), {
-        getContinuationKey: () => page.lastEvaluatedKey,
-        getLastEvaluatedKey: () => page.lastEvaluatedKey,
-      });
+      return Object.assign(gen(), { getLastEvaluatedKey: () => page.lastEvaluatedKey });
     },
     findOne: async () => undefined,
   } as unknown as QueryBuilderInterface<DynamoItem>;
@@ -100,7 +97,7 @@ describe("makeCursor", () => {
     expect(repo.update).toHaveBeenCalledWith({ name: "my-migration" }, { cursors: {} });
   });
 
-  it("checkpoints each page's lastEvaluatedKey as it's fetched", async () => {
+  it("checkpoints each page's lastEvaluatedKey after its items are consumed", async () => {
     const repo = makeMigrationRepo();
     (repo.create as ReturnType<typeof vi.fn>).mockReturnValue({ execute: vi.fn().mockResolvedValue(undefined) });
     (repo.get as ReturnType<typeof vi.fn>).mockReturnValue({ execute: vi.fn().mockResolvedValue({ item: undefined }) });
@@ -175,30 +172,31 @@ describe("makeCursor", () => {
     expect(startFrom).toHaveBeenCalledWith({ pk: "resume" });
   });
 
-  it("checkpoints a page before yielding its items", async () => {
+  it("does not checkpoint a page when its consumer fails partway through", async () => {
     const repo = makeMigrationRepo();
     (repo.create as ReturnType<typeof vi.fn>).mockReturnValue({ execute: vi.fn().mockResolvedValue(undefined) });
     (repo.get as ReturnType<typeof vi.fn>).mockReturnValue({ execute: vi.fn().mockResolvedValue({ item: undefined }) });
-    const order: string[] = [];
     const updateChain = {
       add: vi.fn().mockReturnThis(),
       condition: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockImplementation(async () => {
-        order.push("checkpoint");
-      }),
+      execute: vi.fn().mockResolvedValue(undefined),
     };
     (repo.update as ReturnType<typeof vi.fn>).mockReturnValue(updateChain);
 
     const ctx = makeCtx(true);
     const cursor = makeCursor(ctx, repo, "my-migration");
-    const { builder } = makeQueryBuilder([{ items: [{ id: "1" }], lastEvaluatedKey: { pk: "1" } }]);
+    const { builder } = makeQueryBuilder([{ items: [{ id: "1" }, { id: "2" }], lastEvaluatedKey: { pk: "2" } }]);
 
-    for await (const item of cursor(builder)) {
-      order.push(`yield:${item.id}`);
-    }
+    await expect(
+      (async () => {
+        for await (const item of cursor(builder)) {
+          if (item.id === "1") throw new Error("consumer failed");
+        }
+      })(),
+    ).rejects.toThrow("consumer failed");
 
-    expect(order[0]).toBe("checkpoint");
-    expect(order).toContain("yield:1");
+    expect(repo.update).not.toHaveBeenCalled();
+    expect(ctx.scanned).toBe(1);
   });
 
   it("retries the checkpoint write on a version conflict, reloading the fresh version", async () => {
