@@ -207,15 +207,15 @@ const orderRepo = OrderEntity.createRepository(table);
 
 ```ts
 // Get specific user by ID
-const user = await userRepo.get({ id: "123" });
-console.log(`User: ${user.name} (${user.status})`);
+const { item: user } = await userRepo.get({ id: "123" }).execute();
+console.log(`User: ${user?.name} (${user?.status})`);
 
 // Get specific order
-const order = await orderRepo.get({ userId: "123", orderId: "456" });
-console.log(`Order ${order.orderId}: $${order.amount}`);
+const { item: order } = await orderRepo.get({ userId: "123", orderId: "456" }).execute();
+console.log(`Order ${order?.orderId}: $${order?.amount}`);
 
 // Strong consistency read
-const criticalUser = await userRepo.get({ id: "123" }).consistentRead(true);
+const { item: criticalUser } = await userRepo.get({ id: "123" }).consistentRead(true).execute();
 ```
 
 ### Query Operations - Semantic Business Methods
@@ -266,19 +266,24 @@ const userProfiles = await userRepo.scan()
 ### Batch Operations
 
 ```ts
-// Get multiple users
-const users = await userRepo.batchGet([
-  { id: "123" },
-  { id: "456" },
-  { id: "789" }
-]).execute();
+// Get multiple users - queue individual gets on a shared batch
+const batch = table.batchBuilder();
+[{ id: "123" }, { id: "456" }, { id: "789" }]
+  .forEach(key => userRepo.get(key).withBatch(batch));
+
+const { reads } = await batch.execute();
+const users = reads.itemsByType.User;
 
 // Get multiple orders
-const orders = await orderRepo.batchGet([
+const orderBatch = table.batchBuilder();
+[
   { userId: "123", orderId: "001" },
   { userId: "123", orderId: "002" },
   { userId: "456", orderId: "003" }
-]).execute();
+].forEach(key => orderRepo.get(key).withBatch(orderBatch));
+
+const { reads: orderReads } = await orderBatch.execute();
+const orders = orderReads.itemsByType.Order;
 ```
 
 ## Key Conditions
@@ -290,10 +295,10 @@ const orders = await orderRepo.batchGet([
 // No need to manually construct "USER#123" or "ORDER#456"
 
 // Get user profile (pk: "USER#123", sk: "PROFILE")
-const user = await userRepo.get({ id: "123" });
+const { item: user } = await userRepo.get({ id: "123" }).execute();
 
 // Get specific order (pk: "USER#123", sk: "ORDER#456")
-const order = await orderRepo.get({ userId: "123", orderId: "456" });
+const { item: order } = await orderRepo.get({ userId: "123", orderId: "456" }).execute();
 ```
 
 ### Range Queries with Semantic Methods
@@ -336,7 +341,7 @@ const user: User = {
   credits: 100,
 };
 
-await userRepo.put(user);
+await userRepo.create(user).execute();
 
 // Query by date range works correctly with lexical sorting
 const recentUsers = await userRepo.query
@@ -826,11 +831,12 @@ const recentOrders = await orderRepo.query
 
 ```ts
 // Eventual consistency (default)
-const user = await userRepo.get({ id: "123" });
+const { item: user } = await userRepo.get({ id: "123" }).execute();
 
 // Strong consistency for critical data
-const criticalUser = await userRepo.get({ id: "123" })
-  .consistentRead(true);
+const { item: criticalUser } = await userRepo.get({ id: "123" })
+  .consistentRead(true)
+  .execute();
 ```
 
 ### Sort Direction
@@ -876,20 +882,14 @@ do {
 ```ts
 // Ensure inventory before purchase with full validation
 await table.transaction(async (tx) => {
-  // Check stock exists
-  tx.conditionCheckWithCommand(inventoryRepo.conditionCheck(
-    { productId: "123" },
-    op => op.gt("quantity", 0)
-  ));
-
-  // Reduce inventory
-  tx.updateWithCommand(inventoryRepo.update(
-    { productId: "123" },
-    { quantity: val => val.add(-1) }
-  ));
+  // Reduce inventory - condition enforces stock was available, atomically
+  inventoryRepo.update({ productId: "123" }, {})
+    .add("quantity", -1)
+    .condition(op => op.gt("quantity", 0))
+    .withTransaction(tx);
 
   // Create order (automatically validated against schema)
-  tx.putWithCommand(orderRepo.put({
+  orderRepo.create({
     orderId: "789",
     userId: "456",
     amount: 29.99,
@@ -900,7 +900,7 @@ await table.transaction(async (tx) => {
       quantity: 1,
       price: 29.99
     }]
-  }));
+  }).withTransaction(tx);
 });
 ```
 
@@ -909,7 +909,7 @@ await table.transaction(async (tx) => {
 ```ts
 // Create user only if doesn't exist (with automatic validation)
 await userRepo
-  .put({
+  .create({
     id: "123",
     name: "John Doe",
     email: "john@example.com",
@@ -922,13 +922,13 @@ await userRepo
 
 // Schema validation prevents invalid data
 try {
-  await userRepo.put({
+  await userRepo.create({
     id: "123",
     name: "",  // ❌ Fails schema validation (min length 1)
     email: "invalid-email",  // ❌ Fails email validation
     status: "unknown" as any,  // ❌ Invalid enum value
     createdAt: new Date().toISOString()
-  });
+  }).execute();
 } catch (error) {
   console.error("Schema validation failed:", error);
 }
@@ -939,10 +939,8 @@ try {
 ```ts
 // Update user credits only if active
 await userRepo
-  .update({ id: "123" }, {
-    credits: val => val.add(100),
-    lastUpdated: new Date().toISOString()
-  })
+  .update({ id: "123" }, { lastUpdated: new Date().toISOString() })
+  .add("credits", 100)
   .condition(op => op.eq("status", "active"))
   .execute();
 
@@ -1078,13 +1076,13 @@ for await (const user of users) {
 ```ts
 // Invalid data is caught at runtime
 try {
-  await userRepo.put({
+  await userRepo.create({
     id: "123",
     name: "",  // Fails min length validation
     email: "not-an-email",  // Fails email validation
     status: "invalid" as any,  // Invalid enum value
     createdAt: new Date().toISOString()
-  });
+  }).execute();
 } catch (error) {
   console.error("Validation failed:", error.issues);
   // Provides detailed validation errors from Zod
@@ -1207,7 +1205,8 @@ const vipEngagedUsers = await extendedUserRepo.query
 ```ts
 // Business intelligence query using entity layer
 async function getCustomerInsights(userId: string) {
-  const user = await userRepo.get({ id: userId });
+  const { item: user } = await userRepo.get({ id: userId }).execute();
+  if (!user) throw new Error(`User not found: ${userId}`);
 
   const orders = await orderRepo.query
     .getUserOrders({ userId })
@@ -1273,31 +1272,19 @@ async function processOrderWithValidation(orderData: {
 
   // Execute transaction with validation at each step
   await table.transaction(async (tx) => {
-    // Check inventory for each item
+    // Reduce inventory for each item - condition enforces stock was available
     for (const item of orderData.items) {
-      tx.conditionCheckWithCommand(
-        inventoryRepo.conditionCheck(
-          { productId: item.productId },
-          op => op.gte("quantity", item.quantity)
-        )
-      );
-    }
-
-    // Update inventory
-    for (const item of orderData.items) {
-      tx.updateWithCommand(
-        inventoryRepo.update(
-          { productId: item.productId },
-          {
-            quantity: val => val.add(-item.quantity),
-            lastSold: new Date().toISOString()
-          }
-        )
-      );
+      inventoryRepo.update(
+        { productId: item.productId },
+        { lastSold: new Date().toISOString() }
+      )
+        .add("quantity", -item.quantity)
+        .condition(op => op.gte("quantity", item.quantity))
+        .withTransaction(tx);
     }
 
     // Create the order with automatic validation
-    tx.putWithCommand(orderRepo.put(order));
+    orderRepo.create(order).withTransaction(tx);
   });
 
   return order;
@@ -1343,9 +1330,9 @@ class UserService {
   }
 
   async promoteToVip(userId: string) {
-    const user = await this.userRepo.get({ id: userId });
+    const { item: user } = await this.userRepo.get({ id: userId }).execute();
 
-    if (user.credits < 5000) {
+    if (!user || user.credits < 5000) {
       throw new Error("User does not qualify for VIP status");
     }
 
@@ -1353,8 +1340,8 @@ class UserService {
       .update({ id: userId }, {
         vipStatus: true,
         vipSince: new Date().toISOString(),
-        credits: val => val.add(1000) // VIP bonus
       })
+      .add("credits", 1000) // VIP bonus
       .condition(op => op.and(
         op.eq("status", "active"),
         op.gte("credits", 5000)

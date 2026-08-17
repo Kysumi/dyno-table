@@ -375,8 +375,7 @@ function testSortKeyRangeQueries(items: any[], sortKeyFunction: (item: any) => s
 
 ## 📚 Related Guides
 
-- [Single Table Design](./single-table.md) - Multi-entity key patterns
-- [Performance](./performance.md) - Optimization strategies
+- [Table Operations](./table-query-builder.md) - Indexes, scans, and parallel scan segments
 - [First Entity](./first-entity.md) - Basic key design tutorial
 - [Entity vs Table](./entity-vs-table.md) - When to use different patterns
 

@@ -75,8 +75,11 @@ Define your entity with indexes and queries:
 
 ```typescript
 // entities/dinosaur.ts
-import { defineEntity, createIndex, createQuery } from "dyno-table/entity";
+import { z } from "zod";
+import { defineEntity, createIndex, createQueries } from "dyno-table/entity";
 import { dinosaurSchema, type Dinosaur } from "../schemas/dinosaur.js";
+
+const createQuery = createQueries<Dinosaur>();
 
 export const DinosaurEntity = defineEntity({
   name: "Dinosaur",
@@ -121,14 +124,14 @@ export const DinosaurEntity = defineEntity({
     getExpeditionDinosaurs: createQuery
       .input(z.object({ expeditionId: z.string() }))
       .query(({ input, entity }) =>
-        entity.query({ expeditionId: input.expeditionId }).useIndex("gsi1")
+        entity.query({ pk: `EXP#${input.expeditionId}` }).useIndex("byExpedition")
       ),
 
     // Find dinosaurs by species
     getBySpecies: createQuery
       .input(z.object({ species: z.string() }))
       .query(({ input, entity }) =>
-        entity.query({ species: input.species }).useIndex("gsi2")
+        entity.query({ pk: `SPECIES#${input.species}` }).useIndex("bySpecies")
       ),
 
     // Get large carnivores from a specific period
@@ -138,8 +141,8 @@ export const DinosaurEntity = defineEntity({
         minWeight: z.number().default(1000)
       }))
       .query(({ input, entity }) =>
-        entity.query({ diet: "carnivore" })
-          .useIndex("gsi3")
+        entity.query({ pk: "DIET#carnivore" })
+          .useIndex("byDietPeriod")
           .filter(op =>
             op.and(
               op.eq("period", input.period),
@@ -152,8 +155,7 @@ export const DinosaurEntity = defineEntity({
     getByCountry: createQuery
       .input(z.object({ country: z.string() }))
       .query(({ input, entity }) =>
-        entity.query({ location: { country: input.country } })
-          .useIndex("gsi4")
+        entity.query({ pk: `LOC#${input.country}` }).useIndex("byLocation")
       ),
 
     // Get recent discoveries (last 30 days)
@@ -177,8 +179,9 @@ Create your table and repository:
 ```typescript
 // index.ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { Table } from "dyno-table/table";
-import { DinosaurRepository } from "./repositories/dinosaur-repository.js";
+import { DinosaurEntity } from "./entities/dinosaur.js";
 
 // Configure DynamoDB client
 const client = new DynamoDBClient({
@@ -187,48 +190,48 @@ const client = new DynamoDBClient({
   // endpoint: "http://localhost:8000"
 });
 
+const docClient = DynamoDBDocument.from(client);
+
 // Create table instance
 const table = new Table({
-  client,
+  client: docClient,
   tableName: "dinosaur-research",
-  partitionKey: "pk",
-  sortKey: "sk",
-  /**
-   * The indexes are intentionally numbered to allow each model
-   * have its own representation of what that index represents.
-   *
-   * The queries attribute on the entity is to allow use to hide this complexity from the user.
-   */
   indexes: {
-    gsi1: {
-      partitionKey: "gsi1pk",
-      sortKey: "gsi1sk"
-    },
-    gsi2: {
-      partitionKey: "gsi2pk",
-      sortKey: "gsi2sk"
-    },
-    gsi3: {
-      partitionKey: "gsi3pk",
-      sortKey: "gsi3sk"
-    },
-    gsi4: {
-      partitionKey: "gsi4pk",
-      sortKey: "gsi4sk"
+    partitionKey: "pk",
+    sortKey: "sk",
+    // GSI names must match the entity's own index names exactly (byExpedition,
+    // bySpecies, ...) — dyno-table looks up the physical GSI by that name when
+    // generating and querying index attributes.
+    gsis: {
+      byExpedition: {
+        partitionKey: "gsi1pk",
+        sortKey: "gsi1sk"
+      },
+      bySpecies: {
+        partitionKey: "gsi2pk",
+        sortKey: "gsi2sk"
+      },
+      byDietPeriod: {
+        partitionKey: "gsi3pk",
+        sortKey: "gsi3sk"
+      },
+      byLocation: {
+        partitionKey: "gsi4pk",
+        sortKey: "gsi4sk"
+      }
     }
   }
 });
 
 // Create repository
-export const dinosaurRepo = new DinosaurRepository(table);
+export const dinosaurRepo = DinosaurEntity.createRepository(table);
 ```
 
 ## Next Steps
 
 Now that you have your first entity working, explore these advanced topics:
 
-- **[Schema Validation](./schema-validation.md)** - Deep dive into validation patterns
-- **[Single Table Design](./single-table.md)** - Advanced multi-entity patterns
-- **[Performance](./performance.md)** - Optimize your queries and indexes
-- **[Testing](./testing.md)** - Test your entities effectively
+- **[Standard Schema Support](./entities.md#standard-schema-support)** - Deep dive into validation patterns
+- **[Key Design Patterns](./key-patterns.md)** - Advanced multi-entity key patterns
+- **[Table Operations](./table-query-builder.md)** - Indexes, scans, and parallel scan segments
 - **[Transactions](./transactions.md)** - ACID operations across entities

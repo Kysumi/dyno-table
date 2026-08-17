@@ -29,30 +29,31 @@ Get multiple dinosaurs efficiently:
 
 ```ts
 // Get several dinosaurs at once
-const dinosaurs = await table.batchGet<Dinosaur>([
+const { items: dinosaurs } = await table.batchGet<Dinosaur>([
   { pk: "DINO#t-rex-001", sk: "PROFILE" },
   { pk: "DINO#triceratops-001", sk: "PROFILE" },
   { pk: "DINO#stegosaurus-001", sk: "PROFILE" },
   { pk: "DINO#brontosaurus-001", sk: "PROFILE" }
-]).execute();
+]);
 
-for await (const dino of dinosaurs) {
+for (const dino of dinosaurs) {
   console.log(`Found ${dino.species} from ${dino.period} period`);
 }
 ```
 
 ### Entity Batch Get
 
-Use entities for type-safe batch operations:
+Entity repositories don't have their own `batchGet` — queue individual `.get()` calls on a shared batch instead, which keeps the automatic key generation and schema typing:
 
 ```ts
 // Batch get with entities (automatic key generation)
-const expeditionDinosaurs = await dinoRepo.batchGet([
-  { id: "t-rex-001" },
-  { id: "triceratops-001" },
-  { id: "stegosaurus-001" },
-  { id: "velociraptor-001" }
-]).execute();
+const batch = table.batchBuilder();
+
+[{ id: "t-rex-001" }, { id: "triceratops-001" }, { id: "stegosaurus-001" }, { id: "velociraptor-001" }]
+  .forEach(key => dinoRepo.get(key).withBatch(batch));
+
+const { reads } = await batch.execute();
+const expeditionDinosaurs = reads.itemsByType.Dinosaur;
 
 // Process results
 const expeditionReport = expeditionDinosaurs.map(dino => ({
@@ -69,12 +70,12 @@ Get items from different collections:
 
 ```ts
 // Mix dinosaurs, paleontologists, and discoveries
-const expeditionData = await table.batchGet([
+const { items: expeditionData } = await table.batchGet([
   { pk: "DINO#t-rex-001", sk: "PROFILE" },
   { pk: "PALEO#brown-001", sk: "PROFILE" },
   { pk: "DISCOVERY#montana-1905", sk: "DETAILS" },
   { pk: "MUSEUM#amnh", sk: "COLLECTION" }
-]).execute();
+]);
 ```
 
 ## 📝 Batch Write Operations
@@ -171,11 +172,13 @@ await batch.execute();
 
 ```ts
 // Batch get with type safety
-const museumCollection = await dinoRepo.batchGet([
-  { id: "t-rex-001" },
-  { id: "triceratops-001" },
-  { id: "stegosaurus-001" }
-]).execute();
+const getBatch = table.batchBuilder();
+
+[{ id: "t-rex-001" }, { id: "triceratops-001" }, { id: "stegosaurus-001" }]
+  .forEach(key => dinoRepo.get(key).withBatch(getBatch));
+
+const { reads: museumReads } = await getBatch.execute();
+const museumCollection = museumReads.itemsByType.Dinosaur;
 
 // Batch operations with validation
 const batch = table.batchBuilder();
@@ -205,10 +208,9 @@ const batch = table.batchBuilder();
 dinoRepo.create(newDinosaur).withBatch(batch);
 
 // Update paleontologist's discovery count
-paleoRepo.update(
-  { id: newDinosaur.discoveredBy },
-  { discoveriesCount: val => val.add(1) }
-).withBatch(batch);
+paleoRepo.update({ id: newDinosaur.discoveredBy }, {})
+  .add("discoveriesCount", 1)
+  .withBatch(batch);
 
 // Create discovery event
 discoveryRepo.create({
@@ -275,17 +277,11 @@ For ACID compliance across batches:
 
 ```ts
 // Use transactions for smaller, consistent operations
-await table.transaction(tx => [
-  dinoRepo.create(newDinosaur).withTransaction(tx),
-  paleoRepo.update(
-    { id: paleontologistId },
-    { discoveriesCount: val => val.add(1) }
-  ).withTransaction(tx),
-  museumRepo.update(
-    { id: museumId },
-    { collectionsCount: val => val.add(1) }
-  ).withTransaction(tx)
-]);
+await table.transaction(async (tx) => {
+  dinoRepo.create(newDinosaur).withTransaction(tx);
+  paleoRepo.update({ id: paleontologistId }, {}).add("discoveriesCount", 1).withTransaction(tx);
+  museumRepo.update({ id: museumId }, {}).add("collectionsCount", 1).withTransaction(tx);
+});
 ```
 
 ### Batch Data Migration
@@ -334,9 +330,10 @@ async function migrateDinosaurData(oldRecords: OldDinosaurFormat[]) {
 // Batch operations for analytics
 async function generateExpeditionReport(expeditionId: string) {
   // Get all dinosaurs found in expedition
-  const expeditionDinosaurs = await dinoRepo.batchGet(
-    expeditionDinosaurIds.map(id => ({ id }))
-  ).execute();
+  const getBatch = table.batchBuilder();
+  expeditionDinosaurIds.forEach(id => dinoRepo.get({ id }).withBatch(getBatch));
+  const { reads } = await getBatch.execute();
+  const expeditionDinosaurs = reads.itemsByType.Dinosaur;
 
   // Batch create analytics records
   const batch = table.batchBuilder();
@@ -372,7 +369,7 @@ async function generateExpeditionReport(expeditionId: string) {
 ## 🧭 Related Guides
 
 - **[Transactions →](transactions.md)** - ACID operations for consistency
-- **[Performance →](performance.md)** - Optimize your database operations
+- **[Table Operations →](table-query-builder.md)** - Indexes, scans, and parallel scan segments
 - **[Error Handling →](error-handling.md)** - Handle batch failures gracefully
 - **[Entity Pattern →](entities.md)** - Type-safe entity operations
 

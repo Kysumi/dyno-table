@@ -408,9 +408,7 @@ const largeCarnivores = await dinoRepo.query
 
 ## 📚 Related Guides
 
-- [Performance](./performance.md) - Optimization strategies for large datasets
-- [Query Builders](./table-query-builder.md) - Building efficient queries
-- [Memory Management](./performance.md#memory-management) - Detailed memory patterns
+- [Query Builders](./table-query-builder.md) - Building efficient queries, including parallel scan segments
 - [Entity Queries](./entity-query-builder.md) - Entity-specific pagination
 
 ## 🎓 Best Practices

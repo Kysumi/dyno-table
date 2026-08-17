@@ -161,22 +161,18 @@ merged scan.
 
 ```ts
 // Get multiple user profiles
-const userProfiles = await table
-  .batchGet<User>([
-    { pk: "USER#123", sk: "PROFILE" },
-    { pk: "USER#456", sk: "PROFILE" },
-    { pk: "USER#789", sk: "PROFILE" }
-  ])
-  .execute();
+const { items: userProfiles } = await table.batchGet<User>([
+  { pk: "USER#123", sk: "PROFILE" },
+  { pk: "USER#456", sk: "PROFILE" },
+  { pk: "USER#789", sk: "PROFILE" }
+]);
 
 // Get specific orders
-const specificOrders = await table
-  .batchGet<Order>([
-    { pk: "USER#123", sk: "ORDER#001" },
-    { pk: "USER#123", sk: "ORDER#002" },
-    { pk: "USER#456", sk: "ORDER#003" }
-  ])
-  .execute();
+const { items: specificOrders } = await table.batchGet<Order>([
+  { pk: "USER#123", sk: "ORDER#001" },
+  { pk: "USER#123", sk: "ORDER#002" },
+  { pk: "USER#456", sk: "ORDER#003" }
+]);
 ```
 
 ## Key Conditions
@@ -705,22 +701,14 @@ do {
 ```ts
 // Ensure inventory before purchase
 await table.transaction(async (tx) => {
-  // Check stock exists
-  tx.conditionCheck(
-    "TableName",
-    { pk: "PRODUCT#123", sk: "INVENTORY" },
-    op => op.gt("quantity", 0)
-  );
-
-  // Reduce inventory
-  tx.update(
-    "TableName",
-    { pk: "PRODUCT#123", sk: "INVENTORY" },
-    { quantity: val => val.add(-1) }
-  );
+  // Reduce inventory — fails the whole transaction if stock is out
+  table.update({ pk: "PRODUCT#123", sk: "INVENTORY" })
+    .condition(op => op.gt("quantity", 0))
+    .add("quantity", -1)
+    .withTransaction(tx);
 
   // Create order
-  tx.put("TableName", {
+  table.create({
     pk: "USER#456",
     sk: "ORDER#789",
     orderId: "789",
@@ -728,7 +716,7 @@ await table.transaction(async (tx) => {
     amount: 29.99,
     status: "processing",
     createdAt: new Date().toISOString()
-  });
+  }).withTransaction(tx);
 });
 ```
 
@@ -757,16 +745,16 @@ await table
 ```ts
 // Update user credits only if active
 await table
-  .update({ pk: "USER#123", sk: "PROFILE" }, {
-    credits: val => val.add(100),
-    lastUpdated: new Date().toISOString()
-  })
+  .update({ pk: "USER#123", sk: "PROFILE" })
+  .set("lastUpdated", new Date().toISOString())
+  .add("credits", 100)
   .condition(op => op.eq("status", "active"))
   .execute();
 
 // Complex update conditions
 await table
-  .update({ pk: "USER#123", sk: "PROFILE" }, {
+  .update({ pk: "USER#123", sk: "PROFILE" })
+  .set({
     status: "suspended",
     suspendedAt: new Date().toISOString()
   })
@@ -1038,33 +1026,23 @@ async function getCustomerOrderSummary(userId: string) {
 async function processOrder(userId: string, orderId: string, items: Array<{productId: string, quantity: number}>) {
   // Execute transaction with all operations
   await table.transaction(async (tx) => {
-    // Check inventory for each item
+    // Reduce inventory for each item — fails the whole transaction if any item is short of stock
     for (const item of items) {
-      tx.conditionCheck(
-        "TableName",
-        { pk: `PRODUCT#${item.productId}`, sk: "INVENTORY" },
-        op => op.gte("quantity", item.quantity)
-      );
-    }
-
-    // Update inventory for each item
-    for (const item of items) {
-      tx.update(
-        "TableName",
-        { pk: `PRODUCT#${item.productId}`, sk: "INVENTORY" },
-        { quantity: val => val.add(-item.quantity) }
-      );
+      table.update({ pk: `PRODUCT#${item.productId}`, sk: "INVENTORY" })
+        .condition(op => op.gte("quantity", item.quantity))
+        .add("quantity", -item.quantity)
+        .withTransaction(tx);
     }
 
     // Create the order
-    tx.put("TableName", {
+    table.create({
       pk: `USER#${userId}`,
       sk: `ORDER#${orderId}`,
       orderId,
       items,
       status: "processing",
       createdAt: new Date().toISOString()
-    });
+    }).withTransaction(tx);
   });
 }
 ```
