@@ -20,6 +20,7 @@ type DirectExecutor<T extends DynamoItem> = () => Promise<{ items: T[]; lastEval
  */
 export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = TableConfig> {
   private lastEvaluatedKey?: DynamoItem | null;
+  private morePagesAvailable = false;
   private itemsYielded = 0;
   private readonly overallLimit?: number;
 
@@ -61,9 +62,11 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
         }
       }
 
+      this.morePagesAvailable = !!result.lastEvaluatedKey;
+
       // Stop if we've reached the overall limit or no more pages
       hasMorePages =
-        !!result.lastEvaluatedKey && (this.overallLimit === undefined || this.itemsYielded < this.overallLimit);
+        this.morePagesAvailable && (this.overallLimit === undefined || this.itemsYielded < this.overallLimit);
     }
   }
 
@@ -96,5 +99,10 @@ export class ResultIterator<T extends DynamoItem, TConfig extends TableConfig = 
    */
   getLastEvaluatedKey(): DynamoItem | undefined {
     return this.lastEvaluatedKey === null ? undefined : this.lastEvaluatedKey;
+  }
+
+  /** Gets the key for continuing only when the last DynamoDB response has more data. */
+  getContinuationKey(): DynamoItem | undefined {
+    return this.morePagesAvailable ? this.getLastEvaluatedKey() : undefined;
   }
 }

@@ -32,7 +32,10 @@ function makeQueryBuilder(pages: Page[]) {
       async function* gen() {
         for (const item of page.items) yield item;
       }
-      return Object.assign(gen(), { getLastEvaluatedKey: () => page.lastEvaluatedKey });
+      return Object.assign(gen(), {
+        getContinuationKey: () => page.lastEvaluatedKey,
+        getLastEvaluatedKey: () => page.lastEvaluatedKey,
+      });
     },
     findOne: async () => undefined,
   } as unknown as QueryBuilderInterface<DynamoItem>;

@@ -23,7 +23,7 @@ npm install dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 
 ```ts
 import { z } from "zod";
-import { defineEntity, createIndex, createQueries } from "dyno-table/entity";
+import { createIndex, createQueries, defineCollection, defineEntity } from "dyno-table/entity";
 
 const createQuery = createQueries<typeof dinosaurSchema._type>();
 
@@ -98,6 +98,27 @@ const cretaceousDinos = await dinoRepo.query
   .execute();
 ```
 **[Complete Entity Guide →](docs/entities.md)**
+
+### Entity Collections
+*Query shared indexes and group each page by entity type*
+
+```ts
+const pages = defineCollection({
+  entities: { Dinosaur: DinosaurEntity, Warehouse: WarehouseEntity },
+  indexName: "GSI1",
+})
+  .createReader(table)
+  .query({ pk: "LOCATION#WELLINGTON" })
+  .paginate();
+
+for await (const page of pages) {
+  console.log(page.Dinosaur, page.Warehouse);
+}
+```
+
+`paginate()` streams grouped pages. `execute()` streams individual configured items; its `toArray()` returns one grouped result.
+
+**[Collection Guide →](docs/collections.md)**
 
 ### Direct Table Operations
 *Low-level control for advanced use cases*
@@ -280,6 +301,7 @@ const largeDinos = await dinoRepo.batchGet([
 - **[Transactions →](docs/transactions.md)** - ACID operations
 - **[Batch Operations →](docs/batch-operations.md)** - Bulk operations
 - **[Pagination →](docs/pagination.md)** - Handle large datasets
+- **[Entity Collections →](docs/collections.md)** - Group shared-index query pages by entity type
 - **[Type Safety →](docs/type-safety.md)** - TypeScript integration
 
 ### Advanced Topics

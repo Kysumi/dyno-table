@@ -25,6 +25,7 @@ This shows the two consumer paths converging at the same DynamoDB execution boun
 
 - **Direct Table path:** configure physical partition/sort keys and GSI attributes, then create read/write/query/scan builders. Use it when the caller owns stored item shape and key strings. Read [Table operations](table/operations.md) and [runtime](architecture/runtime.md).
 - **Entity path:** declare Standard Schema validation, key/index derivation, optional timestamps, and named queries. The repository enriches writes and scopes multi-entity operations. Read [repositories](entities/repositories.md) and [keys indexes and timestamps](entities/indexes-and-lifecycle.md).
+- **Collection path:** query an intentionally shared base-table partition or GSI and group each page by configured entity type. It is a read-only wrapper over a normal Table query, not a join. Read [entity collections](entities/collections.md).
 - **Shared builder path:** all operations ultimately use mutable fluent builders, command compilers, paginator/iterator, batch, or transactions. Read [builder execution](builders/execution.md) and [conditions and expressions](expressions/conditions.md).
 - **Migration path:** `MigrationManager` runs repository-based backfills in preview mode by default, optionally applying writes with checkpointed query/scan cursors. Read [resumable migrations](migration-system.md).
 
@@ -37,6 +38,7 @@ This shows the two consumer paths converging at the same DynamoDB execution boun
 | [Table operations](table/operations.md) | Which low-level methods exist and what do their key/GSI/condition contracts require? |
 | [Builder execution](builders/execution.md) | What does `.execute()` do, when are reads lazy, and what are pagination, update, batch, and transaction invariants? |
 | [Entity repositories](entities/repositories.md) | How do schemas, entity scoping, semantic queries, and deferred validation work? |
+| [Entity collections](entities/collections.md) | How can one shared partition or GSI be queried and grouped into configured entity types? |
 | [Entity lifecycle](entities/indexes-and-lifecycle.md) | How are physical primary/GSI keys and timestamps produced or safely refreshed? |
 | [Resumable migrations](migration-system.md) | How do repository-based backfills preview writes, resume scans, and avoid concurrent applied runs? |
 | [Conditions and expressions](expressions/conditions.md) | How do typed conditions compile safely into DynamoDB expressions? |
@@ -49,18 +51,19 @@ This shows the two consumer paths converging at the same DynamoDB execution boun
 
 ## Task routing
 
-| Change intent | Canonical wiki page | Owning source entrypoints | Focused tests | Minimal validation |
-|---|---|---|---|---|
-| Add or change a low-level operation | [Table operations](table/operations.md) | `src/table.ts`, matching `src/builders/*-builder.ts` | `src/builders/__tests__/*`, matching `src/__tests__/table-*.itest.ts` | `pnpm test`; integration change: `pnpm test:int` |
-| Change query, scan, projection, iteration, or pagination | [Builder execution](builders/execution.md) | `query-builder.ts`, `scan-builder.ts`, `filter-builder.ts`, `paginator.ts`, `result-iterator.ts` | `query-builder.test.ts`, `scan-builder.test.ts`, `table-query-advanced.itest.ts` | `pnpm test` |
-| Change update syntax, batching, or transactions | [Builder execution](builders/execution.md) | `update-builder.ts`, `batch-builder.ts`, `transaction-builder.ts` | `update-builder.test.ts`, `table-batch.itest.ts`, `table-transaction.itest.ts` | `pnpm test`; then `pnpm test:int` |
-| Add entity behavior or a semantic query | [Entity repositories](entities/repositories.md) | `src/entity/entity.ts`, `entity-aware-builders.ts` | `entity-queries.test.ts` | `pnpm test` |
-| Add or change a data migration, checkpoint behavior, or dry-run policy | [Resumable migrations](migration-system.md) | `src/migration.ts`, `migration-manager.ts`, `cursor.ts`, `checkpoint-store.ts`, `repo-proxy.ts` | `migration-manager.test.ts`, `cursor.test.ts`, `checkpoint-store.test.ts`, `repo-proxy.test.ts` | `pnpm test -- src/migration/__tests__/migration-manager.test.ts src/migration/__tests__/cursor.test.ts` |
-| Change validation, key templates, timestamps, or GSI refresh | [Entity lifecycle](entities/indexes-and-lifecycle.md) | `create-index.ts`, `item-preparation.ts`, `ddb-indexing.ts` | `entity-index-update.test.ts`, `entity-timestamps.test.ts` | `pnpm test` |
-| Add condition operator or alter expression serialization | [Conditions and expressions](expressions/conditions.md) | `src/conditions.ts`, `src/expression.ts` | `in-operator.test.ts`, `condition-check-builder.test.ts`, `nested-and-conditions.itest.ts` | `pnpm test` |
-| Change a public export or package build | [Public API](reference/public-api.md) | `src/index.ts`, subpath barrels, `package.json`, `tsdown.config.ts` | consumer imports/examples | `pnpm run check-types && pnpm run build` |
-| Change error shape, error code, or retry classification | [Errors and validation](reference/errors-and-validation.md) | `src/errors.ts`, `src/utils/error-factory.ts`, `src/utils/error-utils.ts` | focused builder/entity tests | `pnpm test` |
-| Change CI, release, or generated documentation automation | [CI and release](development/ci-and-release.md) | `.github/workflows/`, `.releaserc.json` | workflow review plus local commands | appropriate workflow and `pnpm run build` |
+| Change intent | Canonical wiki page | Exact source entrypoints | Important symbols or types | Focused tests | Minimal validation |
+|---|---|---|---|---|---|
+| Add or change a low-level operation | [Table operations](table/operations.md) | `src/table.ts`, matching `src/builders/*-builder.ts` | `Table`, matching builder | `src/builders/__tests__/*`, matching `src/__tests__/table-*.itest.ts` | `pnpm test`; integration change: `pnpm test:int` |
+| Change query, scan, projection, iteration, or pagination | [Builder execution](builders/execution.md) | `src/builders/query-builder.ts`, `scan-builder.ts`, `filter-builder.ts`, `paginator.ts`, `result-iterator.ts` | `QueryBuilder`, `Paginator`, `ResultIterator` | `query-builder.test.ts`, `scan-builder.test.ts`, `table-query-advanced.itest.ts` | `pnpm test` |
+| Change update syntax, batching, or transactions | [Builder execution](builders/execution.md) | `src/builders/update-builder.ts`, `batch-builder.ts`, `transaction-builder.ts` | `UpdateBuilder`, `BatchBuilder`, `TransactionBuilder` | `update-builder.test.ts`, `table-batch.itest.ts`, `table-transaction.itest.ts` | `pnpm test`; then `pnpm test:int` |
+| Add entity behavior or a semantic query | [Entity repositories](entities/repositories.md) | `src/entity/entity.ts`, `src/entity/entity-aware-builders.ts` | `defineEntity`, `EntityRepository`, `createQueries` | `entity-queries.test.ts` | `pnpm test` |
+| Add a shared-index entity collection or change grouping | [Entity collections](entities/collections.md) | `src/entity/collection.ts`, `src/entity.ts` | `defineCollection`, `CollectionPageIterator`, `CollectionResultIterator` | `src/__tests__/entity-collection.test.ts` | `pnpm test -- src/__tests__/entity-collection.test.ts` |
+| Add or change a data migration, checkpoint behavior, or dry-run policy | [Resumable migrations](migration-system.md) | `src/migration.ts`, `src/migration/migration-manager.ts`, `cursor.ts`, `checkpoint-store.ts`, `repo-proxy.ts` | `MigrationManager`, `patchCheckpoint`, `wrapRepo` | `migration-manager.test.ts`, `cursor.test.ts`, `checkpoint-store.test.ts`, `repo-proxy.test.ts` | `pnpm test -- src/migration/__tests__/migration-manager.test.ts src/migration/__tests__/cursor.test.ts` |
+| Change validation, key templates, timestamps, or GSI refresh | [Entity lifecycle](entities/indexes-and-lifecycle.md) | `src/entity/create-index.ts`, `item-preparation.ts`, `ddb-indexing.ts` | `createIndex`, `prepareItemAsync`, `GsiKeyBuilder` | `entity-index-update.test.ts`, `entity-timestamps.test.ts` | `pnpm test` |
+| Add condition operator or alter expression serialization | [Conditions and expressions](expressions/conditions.md) | `src/conditions.ts`, `src/expression.ts` | `Condition`, condition operators | `in-operator.test.ts`, `condition-check-builder.test.ts`, `nested-and-conditions.itest.ts` | `pnpm test` |
+| Change a public export or package build | [Public API](reference/public-api.md) | `src/index.ts`, subpath barrels, `package.json`, `tsdown.config.ts` | export map, `typesVersions` | consumer imports/examples | `pnpm run check-types && pnpm run build` |
+| Change error shape, error code, or retry classification | [Errors and validation](reference/errors-and-validation.md) | `src/errors.ts`, `src/utils/error-factory.ts`, `src/utils/error-utils.ts` | `OperationError`, error factories | focused builder/entity tests | `pnpm test` |
+| Change CI, release, or generated documentation automation | [CI and release](development/ci-and-release.md) | `.github/workflows/`, `.releaserc.json` | workflow and release config | workflow review plus local commands | appropriate workflow and `pnpm run build` |
 
 ## Fast local loop
 

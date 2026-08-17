@@ -194,7 +194,7 @@ export class Paginator<T extends DynamoItem, TConfig extends TableConfig = Table
     }
 
     // Get the last evaluated key from the generator
-    const lastEvaluatedKey = generator.getLastEvaluatedKey();
+    const lastEvaluatedKey = generator.getContinuationKey();
 
     const result = { items, lastEvaluatedKey };
 

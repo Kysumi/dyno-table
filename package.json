@@ -119,7 +119,8 @@
     "semantic-release": "25.0.9",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
