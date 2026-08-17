@@ -6,6 +6,7 @@ This directory contains comprehensive documentation for the dyno-table library, 
 
 - **`query-builder.md`** - Comprehensive guide to the query builder system with DynamoDB best practices
 - **`conditions.md`** - Detailed guide to DynamoDB conditions, conditional operations, and duplicate prevention patterns
+- **`migration.md`** - Backfill/data-movement scripts with dry-run safety and checkpointed resumability
 - **`geoff-the-dyno.png`** - Library mascot and visual branding
 - **`images/`** - Directory for documentation images and diagrams
 

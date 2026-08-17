@@ -22,6 +22,11 @@
       "import": "./dist/entity.js",
       "require": "./dist/entity.cjs"
     },
+    "./migration": {
+      "types": "./dist/migration.d.ts",
+      "import": "./dist/migration.js",
+      "require": "./dist/migration.cjs"
+    },
     "./conditions": {
       "types": "./dist/conditions.d.ts",
       "import": "./dist/conditions.js",
@@ -55,6 +60,9 @@
       ],
       "entity": [
         "dist/entity.d.ts"
+      ],
+      "migration": [
+        "dist/migration.d.ts"
       ],
       "conditions": [
         "dist/conditions.d.ts"

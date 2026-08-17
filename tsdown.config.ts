@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     table: "src/table.ts",
     entity: "src/entity.ts",
+    migration: "src/migration.ts",
     conditions: "src/conditions.ts",
     types: "src/types.ts",
     "standard-schema": "src/standard-schema.ts",
