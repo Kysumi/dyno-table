@@ -264,4 +264,3 @@ const finalCondition = and(validStatuses, goodScore, eligibleUser);
 - [Transactions](./transactions.md) - Atomic operations with conditions
 - [Batch Operations](./batch-operations.md) - Bulk operations with conditional logic
 - [Error Handling](./error-handling.md) - Comprehensive error handling strategies
-- [Performance](./performance.md) - Optimizing condition performance

@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   const { id } = req.query;
 
   if (req.method === "GET") {
-    const dinosaur = await dinoRepo.get({ id });
+    const { item: dinosaur } = await dinoRepo.get({ id }).execute();
     res.json(dinosaur);
   }
 }
@@ -72,7 +72,7 @@ const router = express.Router();
 
 router.get("/:id", async (req, res) => {
   try {
-    const dinosaur = await dinoRepo.get({ id: req.params.id });
+    const { item: dinosaur } = await dinoRepo.get({ id: req.params.id }).execute();
     res.json(dinosaur);
   } catch (error) {
     res.status(404).json({ error: "Dinosaur not found" });
@@ -92,7 +92,8 @@ import { dinoRepo } from "./entities/dinosaur";
 @Injectable()
 export class DinosaurService {
   async findOne(id: string) {
-    return dinoRepo.get({ id });
+    const { item } = await dinoRepo.get({ id }).execute();
+    return item;
   }
 
   async findByDiet(diet: string) {
@@ -162,6 +163,6 @@ Your dyno-table installation is complete! Ready to start building with type-safe
 **Next steps:**
 - **[Quick Start Tutorial →](quick-start.md)** - Build your first application
 - **[Your First Entity →](first-entity.md)** - Learn the entity pattern
-- **[Best Practices →](performance.md)** - Optimize your database
+- **[Table Operations →](table-query-builder.md)** - Indexes, scans, and parallel scan segments
 
 *Welcome to modern, type-safe DynamoDB development!*

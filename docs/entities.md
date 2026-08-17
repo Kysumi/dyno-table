@@ -143,9 +143,9 @@ await repo.create({
   name: "Rexy",
   // weight is optional here due to default
   status: "active"
-}); // DinosaurInput type
+}).execute(); // DinosaurInput type
 
-const dinosaur = await repo.get({ id: "dino-001" });
+const { item: dinosaur } = await repo.get({ id: "dino-001" }).execute();
 console.log(dinosaur.weight); // number (required in output type)
 ```
 
@@ -396,15 +396,15 @@ const updatedUser = await userRepo.upsert({
 
 ```ts
 // Get by primary key
-const user = await userRepo.get({ id: "user-123" }).execute();
+const { item: user } = await userRepo.get({ id: "user-123" }).execute();
 
 // Get with consistent read
-const user = await userRepo.get({ id: "user-123" })
+const { item: freshUser } = await userRepo.get({ id: "user-123" })
   .consistentRead(true)
   .execute();
 
 // Get specific fields only
-const userProfile = await userRepo.get({ id: "user-123" })
+const { item: userProfile } = await userRepo.get({ id: "user-123" })
   .select(["name", "email", "status"])
   .execute();
 ```
@@ -956,7 +956,7 @@ while (paginator.hasNextPage()) {
 }
 
 // ✅ Good: Use consistent reads only when necessary
-const criticalData = await userRepo.get({ id: "user-123" })
+const { item: criticalData } = await userRepo.get({ id: "user-123" })
   .consistentRead(true) // Only when absolutely needed
   .execute();
 

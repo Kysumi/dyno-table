@@ -1,5 +1,6 @@
 import type { DynamoItem, TableConfig } from "../types.js";
 import type { DynamoCommandWithExpressions } from "../utils/debug-expression.js";
+import type { ParallelScanIterator } from "./parallel-scan-iterator.js";
 import type { ResultIterator } from "./result-iterator.js";
 
 export type BeforeExecute = () => void | Promise<void>;
@@ -91,7 +92,9 @@ export interface QueryBuilderInterface<T extends DynamoItem, TConfig extends Tab
  * without creating a circular dependency.
  */
 export interface ScanBuilderInterface<T extends DynamoItem, TConfig extends TableConfig = TableConfig>
-  extends BaseBuilderInterface<T, TConfig, ScanBuilderInterface<T, TConfig>> {}
+  extends BaseBuilderInterface<T, TConfig, ScanBuilderInterface<T, TConfig>> {
+  segments(totalSegments: number): ParallelScanIterator<T, TConfig>;
+}
 
 /**
  * Interface for the FilterBuilder class to be used by Paginator

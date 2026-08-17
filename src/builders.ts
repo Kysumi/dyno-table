@@ -16,6 +16,7 @@ export { DeleteBuilder } from "./builders/delete-builder.js";
 export { FilterBuilder } from "./builders/filter-builder.js";
 export { GetBuilder } from "./builders/get-builder.js";
 export { Paginator } from "./builders/paginator.js";
+export { ParallelScanIterator, ParallelScanPaginator } from "./builders/parallel-scan-iterator.js";
 export { PutBuilder } from "./builders/put-builder.js";
 export { QueryBuilder } from "./builders/query-builder.js";
 export { ResultIterator } from "./builders/result-iterator.js";

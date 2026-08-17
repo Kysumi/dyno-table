@@ -86,11 +86,11 @@ const carnivores = await dinoRepo.query
 ## Feature Overview
 
 ### Entity Pattern (Recommended)
-*Schema-validated, semantic queries with business logic*
+Use for most application code: schema validation, generated keys, and semantic query names instead of hand-written `pk`/`sk` strings. Every write is validated against your schema before it hits DynamoDB.
 
 ```ts
 // Get specific dinosaur
-const tRex = await dinoRepo.get({ id: "t-rex-1" });
+const { item: tRex } = await dinoRepo.get({ id: "t-rex-1" }).execute();
 
 // Semantic queries
 const cretaceousDinos = await dinoRepo.query
@@ -100,7 +100,7 @@ const cretaceousDinos = await dinoRepo.query
 **[Complete Entity Guide →](docs/entities.md)**
 
 ### Entity Collections
-*Query shared indexes and group each page by entity type*
+Use when several entity types share the same GSI and you want to query it in one shot (e.g. "everything at this location"). Results come back grouped by entity type, so downstream code reads `page.Dinosaur` / `page.Warehouse` rather than one mixed array.
 
 ```ts
 const pages = defineCollection({
@@ -121,7 +121,7 @@ for await (const page of pages) {
 **[Collection Guide →](docs/collections.md)**
 
 ### Direct Table Operations
-*Low-level control for advanced use cases*
+Use when you need raw `pk`/`sk` control or something the entity layer doesn't model. You own key construction yourself and skip schema validation.
 
 ```ts
 // Direct DynamoDB access with query
@@ -133,7 +133,7 @@ const carnivoresInCretaceous = await table
 **[Table Operations Guide →](docs/table-query-builder.md)**
 
 ### Advanced Querying & Filtering
-*Complex business logic with AND/OR operations*
+Use `.filter()` for business logic DynamoDB's key conditions can't express. It's applied after the read, so it narrows what's *returned*, not what's read — it doesn't reduce RCU cost the way a tighter key condition or index would.
 
 ```ts
 // Find large herbivores from Jurassic period using query + filter
@@ -148,44 +148,39 @@ const conditions = await dinoRepo.query
 **[Advanced Queries Guide →](docs/query-builder.md)**
 
 ### Batch Operations
-*Efficient bulk operations*
+Use when you're reading or writing many known keys at once (up to 100 reads / 25 writes per batch). Batches don't support conditions and aren't atomic — reach for `.transaction()` instead when operations must all succeed or all fail together.
 
 ```ts
-// Get multiple dinosaurs at once
-const dinos = await dinoRepo.batchGet([
-  { id: "t-rex-1" },
-  { id: "triceratops-1" },
-  { id: "stegosaurus-1" }
-]).execute();
-
-// Bulk create carnivores
 const batch = table.batchBuilder();
 
-carnivores.forEach(dino =>
-  dinoRepo.create(dino).withBatch(batch)
-);
+// Queue reads
+[{ id: "t-rex-1" }, { id: "triceratops-1" }, { id: "stegosaurus-1" }]
+  .forEach(key => dinoRepo.get(key).withBatch(batch));
 
-await batch.execute();
+// Queue writes — reads and writes can share one batch
+carnivores.forEach(dino => dinoRepo.create(dino).withBatch(batch));
+
+const { reads } = await batch.execute();
+const dinos = reads.itemsByType.Dinosaur;
 ```
 **[Batch Operations Guide →](docs/batch-operations.md)**
 
 ### Transactions
-*ACID transactions for data consistency*
+Use when multiple writes must succeed or fail together (ACID). Capped at 25 operations per transaction — for bulk work that doesn't need atomicity, batch operations are cheaper.
 
 ```ts
 // Atomic dinosaur discovery
-await table.transaction(tx => [
-  dinoRepo.create(newDinosaur).withTransaction(tx),
-  researchRepo.update(
-    { id: "paleontologist-1" },
-    { discoveriesCount: val => val.add(1) }
-  ).withTransaction(tx),
-]);
+await table.transaction(async (tx) => {
+  dinoRepo.create(newDinosaur).withTransaction(tx);
+  researchRepo.update({ id: "paleontologist-1" }, {})
+    .add("discoveriesCount", 1)
+    .withTransaction(tx);
+});
 ```
 **[Transactions Guide →](docs/transactions.md)**
 
 ### Pagination & Memory Management
-*Handle large datasets efficiently*
+Stream (`for await`) when you just need to process results one at a time and want flat memory usage. Use `.paginate(pageSize)` when you control page boundaries yourself — e.g. returning one page per API response. Only call `.toArray()` when you already know the result set is small.
 
 ```ts
 // Stream large datasets (memory efficient)
@@ -208,7 +203,7 @@ while (paginator.hasNextPage()) {
 **[Pagination Guide →](docs/pagination.md)**
 
 ### Schema Validation
-*Works with any Standard Schema library*
+Use whichever validation library your project already has — dyno-table works with anything implementing the Standard Schema interface, not just Zod.
 
 ```ts
 // Zod (included)
@@ -229,10 +224,10 @@ const dinoSchema = v.object({
   weight: v.pipe(v.number(), v.minValue(1)),
 });
 ```
-**[Schema Validation Guide →](docs/schema-validation.md)**
+**[Standard Schema Support →](docs/entities.md#standard-schema-support)**
 
 ### Migrations
-*Backfill and data-movement scripts with dry-run safety and resumability*
+Use for backfills or data-movement scripts that run against a live table. Every run is a dry run until you pass `{ apply: true }`, and an applied run resumes from its last completed page instead of restarting.
 
 ```ts
 import { MigrationManager } from "dyno-table/migration";
@@ -260,7 +255,7 @@ Choose a page size that bounds how much work an interrupted page may repeat.
 **[Migrations Guide →](docs/migration.md)**
 
 ### Performance Optimization
-*Built for scale*
+Reach for an index whenever you know the access pattern in advance — it's always cheaper than a scan. Reach for `.segments(n)` only when `.query()` isn't an option (no known partition key) and a sequential scan is the actual bottleneck: it parallelizes the scan across a table, but each segment issues its own concurrent request, so it can throttle a provisioned table if you scale it up carelessly.
 
 ```ts
 // Use indexes for fast lookups
@@ -272,14 +267,10 @@ const jurassicCarnivores = await dinoRepo.query
   .useIndex("period-diet-index")
   .execute();
 
-// Efficient filtering with batchGet for known species
-const largeDinos = await dinoRepo.batchGet([
-  { id: "t-rex-1" },
-  { id: "triceratops-1" },
-  { id: "brontosaurus-1" }
-]).execute();
+// Split a full-table scan across parallel segments
+const allDinos = await table.scan().segments(4).toArray();
 ```
-**[Performance Guide →](docs/performance.md)**
+**[Table Operations Guide →](docs/table-query-builder.md)**
 
 ---
 
@@ -292,28 +283,26 @@ const largeDinos = await dinoRepo.batchGet([
 
 ### Core Concepts
 - **[Entity vs Table →](docs/entity-vs-table.md)** - Choose your approach
-- **[Single Table Design →](docs/single-table.md)** - DynamoDB best practices
-- **[Key Design Patterns →](docs/key-patterns.md)** - Partition and sort keys
+- **[Key Design Patterns →](docs/key-patterns.md)** - Partition and sort keys, single-table design
 
 ### Features
 - **[Query Building →](docs/query-builder.md)** - Complex queries and filtering
-- **[Schema Validation →](docs/schema-validation.md)** - Type safety and validation
+- **[Standard Schema Support →](docs/entities.md#standard-schema-support)** - Zod, ArkType, Valibot validation
 - **[Transactions →](docs/transactions.md)** - ACID operations
 - **[Batch Operations →](docs/batch-operations.md)** - Bulk operations
 - **[Pagination →](docs/pagination.md)** - Handle large datasets
 - **[Entity Collections →](docs/collections.md)** - Group shared-index query pages by entity type
-- **[Type Safety →](docs/type-safety.md)** - TypeScript integration
+- **[Table Operations →](docs/table-query-builder.md)** - Direct table access, scans, parallel scan segments
 
 ### Advanced Topics
-- **[Performance →](docs/performance.md)** - Optimization strategies
 - **[Error Handling →](docs/error-handling.md)** - Robust error management
 - **[Migrations →](docs/migration.md)** - Backfill scripts with dry-run safety and resumability
 
 ### Examples
-- **[E-commerce Store →](examples/ecommerce)** - Product catalog and orders
-- **[User Management →](examples/users)** - Authentication and profiles
-- **[Content Management →](examples/cms)** - Blog posts and comments
-- **[Analytics →](examples/analytics)** - Event tracking and reporting
+- **[Entity Example App →](examples/entity-example)** - Full runnable project with entities and repositories
+- **[Entity Collections →](examples/collection-example.ts)** - Grouping shared-index query results by entity type
+- **[Single-Table GSI Design →](examples/gsi-example.ts)** - Multiple entity types on shared indexes
+- **[Multiple GSIs →](examples/multi-example.ts)** - Working with more than one global secondary index
 
 ---
 

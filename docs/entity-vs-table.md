@@ -37,39 +37,47 @@ Understand when to use entities vs direct table access in your applications.
 ### What You Get
 
 ```ts
-import { partitionKey, sortKey } from 'dyno-table/utils';
+import { createIndex, createQueries, defineEntity } from "dyno-table/entity";
+import { partitionKey, sortKey } from "dyno-table/utils";
+
+const createQuery = createQueries<Dinosaur>();
 
 // ✅ Define reusable key templates to avoid typos
 const DINO_PK = partitionKey`DINO#${"id"}`;
 const DINO_SK = sortKey`SPECIES#${"species"}#PERIOD#${"period"}`;
 const DIET_PK = partitionKey`DIET#${"diet"}`;
 const PERIOD_PK = partitionKey`PERIOD#${"period"}`;
-const METADATA_SK = sortKey`METADATA#${"type"}`;
 
 // ✅ Define entity with schema validation and key templating
 const DinosaurEntity = defineEntity({
   name: "Dinosaur",
   schema: DinosaurSchema, // Zod, ArkType, Valibot, etc.
-  partitionKey: DINO_PK, // Reusable template
-  sortKey: DINO_SK, // Reusable template
-  table,
+  primaryKey: createIndex()
+    .input(DinosaurSchema)
+    .partitionKey(DINO_PK) // Reusable template
+    .sortKey(DINO_SK), // Reusable template
+  indexes: {
+    byDiet: createIndex().input(DinosaurSchema).partitionKey(DIET_PK).sortKey(() => "DINO"),
+    byPeriod: createIndex().input(DinosaurSchema).partitionKey(PERIOD_PK).sortKey(() => "DINO"),
+    byFeatured: createIndex().input(DinosaurSchema).partitionKey(() => "FEATURED#true").sortKey(() => "DINO"),
+  },
   // ✅ Define semantic query methods using reusable templates
   queries: {
-    getDinosaursByDiet: ({ diet }: { diet: string }) => ({
-      index: "diet-index", // GSI on diet attribute
-      partitionKey: DIET_PK({ diet }), // Use template with data
-      sortKey: (op) => op.beginsWith("DINO#")
-    }),
-    getDinosaursByPeriod: ({ period }: { period: string }) => ({
-      index: "period-index",
-      partitionKey: PERIOD_PK({ period }), // Use template with data
-      sortKey: METADATA_SK({ type: "" }) // Use template, type can be empty
-    }),
-    getFeaturedDinosaurs: () => ({
-      index: "featured-index",
-      partitionKey: "FEATURED#true", // Simple string
-      sortKey: (op) => op.beginsWith("DINO#")
-    })
+    getDinosaursByDiet: createQuery
+      .input(z.object({ diet: z.string() }))
+      .query(({ input, entity }) =>
+        entity.query({ pk: DIET_PK(input) }).useIndex("byDiet")
+      ),
+    getDinosaursByPeriod: createQuery
+      .input(z.object({ period: z.string() }))
+      .query(({ input, entity }) =>
+        entity.query({ pk: PERIOD_PK(input) }).useIndex("byPeriod")
+      ),
+    getFeaturedDinosaurs: createQuery
+      .input(z.object({}))
+      .query(({ entity }) =>
+        entity.query({ pk: "FEATURED#true" }).useIndex("byFeatured")
+      ),
   }
 });
 
@@ -82,7 +90,7 @@ await dinoRepo.create({
   species: "", // ❌ Empty string fails validation
   period: "future", // ❌ Invalid enum value
   weight: -100 // ❌ Negative weight not allowed
-});
+}).execute();
 
 // ✅ Semantic method names with full query builder support
 const carnivores = await dinoRepo.query
@@ -95,16 +103,21 @@ const carnivores = await dinoRepo.query
   .execute();
 
 // ✅ Automatic key generation with templating
-const tRex = await dinoRepo.get({ id: "t-rex-001" }); // Becomes pk: "DINO#t-rex-001"
+const { item: tRex } = await dinoRepo.get({ id: "t-rex-001" }).execute(); // Becomes pk: "DINO#t-rex-001"
 
 // ✅ Advanced partition and sort key templating with multiple parameters
 const AdvancedDinosaurEntity = defineEntity({
   name: "Dinosaur",
   schema: DinosaurSchema,
-  partitionKey: partitionKey`DINO#${"id"}#LOCATION#${"location"}`, // Template: DINO#{id}#LOCATION#{location}
-  sortKey: sortKey`SPECIES#${"species"}#DIET#${"diet"}`, // Template: SPECIES#{species}#DIET#{diet}
-  table
+  primaryKey: createIndex()
+    .input(z.object({ id: z.string(), location: z.string(), species: z.string(), diet: z.string() }))
+    // Template: DINO#{id}#LOCATION#{location}
+    .partitionKey(partitionKey`DINO#${"id"}#LOCATION#${"location"}`)
+    // Template: SPECIES#{species}#DIET#{diet}
+    .sortKey(sortKey`SPECIES#${"species"}#DIET#${"diet"}`),
 });
+
+const advancedDinoRepo = AdvancedDinosaurEntity.createRepository(table);
 ```
 
 ### Perfect For
@@ -236,7 +249,7 @@ async function migrateDiscoveryData() {
 
 - **New to DynamoDB?** → Start with [Entity Pattern →](entities.md)
 - **DynamoDB expert?** → Try [Direct Table Access →](table-query-builder.md)
-- **Building apps?** → Check out [Performance Tips →](performance.md)
-- **Need validation?** → Learn about [Schema Validation →](schema-validation.md)
+- **Building apps?** → Check out [Key Design Patterns →](key-patterns.md)
+- **Need validation?** → Learn about [Standard Schema Support →](entities.md#standard-schema-support)
 
 *Choose your adventure, but remember: there's no wrong choice with dyno-table! 🦕*

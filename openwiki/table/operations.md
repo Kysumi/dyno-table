@@ -33,7 +33,7 @@ The `indexes` configuration describes an already-provisioned table. It is both r
 | Put/replace | `put(item)` | Use `condition`, `returnValues`, `withBatch`, `withTransaction`, `debug`, then `execute`. |
 | Read one | `get({ pk, sk })` | Use `select`, `consistentRead`, `includeIndexes`, or `withBatch`; composite tables require `sk`. |
 | Query partition | `query({ pk, sk? })` | `sk` accepts key-condition operators; chain filter, select, index, sort, limit, continuation, iterator/paginator APIs. |
-| Scan | `scan()` | Same shared filtering, projection, index, limit, continuation, iterator/paginator APIs; no key condition. |
+| Scan | `scan()` | Same shared filtering, projection, index, limit, continuation, iterator/paginator APIs; `.segments(totalSegments)` runs DynamoDB segmented scans and merges them; no key condition. |
 | Delete | `delete({ pk, sk })` | Optional condition/return old item; supports batch and transaction attachment. |
 | Update | `update({ pk, sk })` | Compose `set`, `remove`, `add`, set-element deletion, conditions, returns, and transaction attachment. |
 | Atomic guard | `conditionCheck({ pk, sk })` | Produces a condition-check builder for a transaction only. |
@@ -44,6 +44,20 @@ The `indexes` configuration describes an already-provisioned table. It is both r
 `query` constructs an equality condition on the configured primary partition-key attribute. If a sort-key callback is supplied, it may use `eq`, comparisons, `between`, `beginsWith`, or `and`; it is invalid to ask for a sort condition if the table lacks a sort key. `useIndex(name)` changes the request to the configured GSI attributes and fails fast for an unknown name.
 
 `filter` is a post-key-condition DynamoDB filter, not a substitute for an access pattern. Chained filters are combined with `AND`; logical combinations and nested attribute paths compile through the shared [condition system](../expressions/conditions.md). `select` creates a projection. Query/get results hide configured GSI key attributes by default; call `includeIndexes()` to retain them, including in a specified projection.
+
+For a full-table or index scan that can safely use parallel DynamoDB capacity, chain `.segments(totalSegments)` after scan configuration and consume the returned `ParallelScanIterator`:
+
+```ts
+const items = await table
+  .scan<MyItem>()
+  .useIndex("byStatus")
+  .filter((op) => op.eq("status", "active"))
+  .limit(100)
+  .segments(4)
+  .toArray();
+```
+
+Each segment receives the configured filter/index/projection and its own DynamoDB cursor; the merge emits whichever segment produces an item first, so no ordering is promised. The `limit(100)` applies across merged output, not once per segment. `.paginate(pageSize)` provides in-memory logical pages only, with no cross-process resume token. The execution and change invariants are canonical in [builder execution](../builders/execution.md#parallel-scans-independent-cursors-merged-results).
 
 ## Direct-operation lifecycle
 

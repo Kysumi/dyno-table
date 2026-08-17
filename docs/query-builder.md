@@ -47,7 +47,7 @@ const user = await table
   .execute();
 
 // Entity approach - semantic method
-const user = await userRepo.get({ id: "123" });
+const { item: user } = await userRepo.get({ id: "123" }).execute();
 ```
 
 ### Query with Filters

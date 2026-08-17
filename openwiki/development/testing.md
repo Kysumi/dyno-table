@@ -44,6 +44,8 @@ The CI integration workflow starts only the `dynamodb` service; its test setup c
 |---|---|---|
 | Condition/expression compiler | `src/builders/__tests__/condition-check-builder.test.ts`, `query-builder.test.ts`, `in-operator.test.ts` | `pnpm test` |
 | Query/iterator/pagination | query/scan builder tests; `table-query*.itest.ts` | `pnpm test`, then `pnpm test:int` |
+| Parallel scan segment/merge behavior | `src/__tests__/scan-parallel.test.ts` (independent cursors, merged global limit/pages, lazy guards, failure propagation) | `pnpm test -- src/__tests__/scan-parallel.test.ts` |
+| Parallel scan DynamoDB request and coverage behavior | `src/__tests__/scan-parallel.itest.ts` (full coverage without duplicates, filter/global limit, GSI, service page boundaries) | local setup then `pnpm test:int -- src/__tests__/scan-parallel.itest.ts` |
 | Write/update command rules | put/delete/update builder tests | `pnpm test` |
 | Entity schema/query/keys/timestamps | `entity-queries.test.ts`, `entity-timestamps.test.ts`, `entity-index-update.test.ts` | `pnpm test`, `pnpm check-types` |
 | Batch/transaction service behavior | `table-batch.itest.ts`, `table-transaction.itest.ts`, `transaction-builder.itest.ts` | local setup then `pnpm test:int` |

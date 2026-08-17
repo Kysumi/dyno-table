@@ -6,27 +6,27 @@ ACID transactions let you perform multiple operations atomically - either all su
 
 ```typescript
 await table.transaction(async (tx) => {
-  dinoRepo.put({
+  dinoRepo.create({
     id: "trex-001",
     species: "T-Rex",
     status: "discovered"
   }).withTransaction(tx);
 
-  expeditionRepo.update({ expeditionId: "exp-123" })
-    .set({ remainingSlots: op => op.subtract(1) })
+  expeditionRepo.update({ expeditionId: "exp-123" }, {})
+    .add("remainingSlots", -1)
     .condition(op => op.gt("remainingSlots", 0))
     .withTransaction(tx);
 
-  budgetRepo.update({ department: "paleontology" })
-    .set({ spentAmount: op => op.add(50000) })
+  budgetRepo.update({ department: "paleontology" }, {})
+    .add("spentAmount", 50000)
     .withTransaction(tx);
 });
 
 // Alternative: Builder pattern (for programmatic construction)
 const tx = table.transactionBuilder();
-dinoRepo.put({ id: "trex-001", species: "T-Rex", status: "discovered" }).withTransaction(tx);
-expeditionRepo.update({ expeditionId: "exp-123" })
-  .set({ remainingSlots: op => op.subtract(1) })
+dinoRepo.create({ id: "trex-001", species: "T-Rex", status: "discovered" }).withTransaction(tx);
+expeditionRepo.update({ expeditionId: "exp-123" }, {})
+  .add("remainingSlots", -1)
   .condition(op => op.gt("remainingSlots", 0))
   .withTransaction(tx);
 await tx.execute();
@@ -39,8 +39,8 @@ await tx.execute();
 ```typescript
 // ✅ Preferred approach
 await table.transaction(async (tx) => {
-  repo.put({ id: "1", name: "Item 1" }).withTransaction(tx);
-  repo.update({ id: "2" }).set({ count: op => op.add(1) }).withTransaction(tx);
+  repo.create({ id: "1", name: "Item 1" }).withTransaction(tx);
+  repo.update({ id: "2" }, {}).add("count", 1).withTransaction(tx);
 });
 ```
 
@@ -55,13 +55,13 @@ Use `table.transactionBuilder()` when you need to:
 const tx = table.transactionBuilder();
 
 if (shouldCreateNew) {
-  repo.put(newItem).withTransaction(tx);
+  repo.create(newItem).withTransaction(tx);
 } else {
-  repo.update(existingKey).set(updates).withTransaction(tx);
+  repo.update(existingKey, updates).withTransaction(tx);
 }
 
 if (updateRelated) {
-  relatedRepo.update(relatedKey).set(relatedUpdates).withTransaction(tx);
+  relatedRepo.update(relatedKey, relatedUpdates).withTransaction(tx);
 }
 
 await tx.execute(); // Explicit execution when ready
@@ -76,7 +76,7 @@ Perform up to 25 write operations atomically:
 // Dinosaur discovery workflow
 await table.transaction(async (tx) => {
   // 1. Register the discovery
-  dinoRepo.put({
+  dinoRepo.create({
     id: "spino-042",
     species: "Spinosaurus",
     discoveredAt: new Date(),
@@ -84,16 +84,13 @@ await table.transaction(async (tx) => {
   }).withTransaction(tx);
 
   // 2. Update expedition progress
-  expeditionRepo.update({ id: "sahara-2024" })
-    .set({
-      totalDiscoveries: op => op.add(1),
-      lastDiscovery: new Date()
-    })
+  expeditionRepo.update({ id: "sahara-2024" }, { lastDiscovery: new Date() })
+    .add("totalDiscoveries", 1)
     .withTransaction(tx);
 
   // 3. Reserve lab slot
-  expeditionRepo.update({ location: "paleontology-lab" })
-    .set({ occupiedSlots: op => op.add(1) })
+  expeditionRepo.update({ location: "paleontology-lab" }, {})
+    .add("occupiedSlots", 1)
     .condition(op => op.lt("occupiedSlots", "maxCapacity"))
     .withTransaction(tx);
 });
@@ -123,20 +120,19 @@ Ensure business rules are enforced:
 // Transfer dinosaur between expeditions
 await table.transaction(async (tx) => {
   // Remove from source expedition
-  expeditionRepo.update({ id: "expedition-a" })
-    .set({ dinoCount: op => op.subtract(1) })
+  expeditionRepo.update({ id: "expedition-a" }, {})
+    .add("dinoCount", -1)
     .condition(op => op.gt("dinoCount", 0))
     .withTransaction(tx);
 
   // Add to target expedition
-  expeditionRepo.update({ id: "expedition-b" })
-    .set({ dinoCount: op => op.add(1) })
+  expeditionRepo.update({ id: "expedition-b" }, {})
+    .add("dinoCount", 1)
     .condition(op => op.lt("dinoCount", "maxCapacity"))
     .withTransaction(tx);
 
   // Update dinosaur assignment
-  dinoRepo.update({ id: "trex-001" })
-    .set({ assignedExpedition: "expedition-b" })
+  dinoRepo.update({ id: "trex-001" }, { assignedExpedition: "expedition-b" })
     .condition(op => op.eq("status", "active"))
     .withTransaction(tx);
 });
@@ -149,8 +145,7 @@ Track resources atomically:
 // Equipment checkout system
 await table.transaction(async (tx) => {
   // Reserve equipment
-  equipmentRepo.update({ id: "excavator-pro" })
-    .set({
+  equipmentRepo.update({ id: "excavator-pro" }, {
       status: "checked-out",
       checkedOutBy: "researcher-123",
       checkedOutAt: new Date()
@@ -158,15 +153,13 @@ await table.transaction(async (tx) => {
     .condition(op => op.eq("status", "available"))
     .withTransaction(tx);
 
-  // Update researcher's equipment list
-  researcherRepo.update({ id: "researcher-123" })
-    .set({
-      checkedOutEquipment: op => op.listAppend(["excavator-pro"])
-    })
+  // Add to researcher's checked-out-equipment set
+  researcherRepo.update({ id: "researcher-123" }, {})
+    .add("checkedOutEquipment", new Set(["excavator-pro"]))
     .withTransaction(tx);
 
   // Log the transaction
-  activityLogRepo.put({
+  activityLogRepo.create({
     id: `checkout-${Date.now()}`,
     action: "equipment-checkout",
     equipment: "excavator-pro",
@@ -180,11 +173,8 @@ await table.transaction(async (tx) => {
 ```typescript
 // Update with version check
 await table.transaction(async (tx) => {
-  dinoRepo.update({ id: "trex-001" })
-    .set({
-      classification: "updated-classification",
-      version: op => op.add(1)
-    })
+  dinoRepo.update({ id: "trex-001" }, { classification: "updated-classification" })
+    .add("version", 1)
     .condition(op => op.eq("version", currentVersion))
     .withTransaction(tx);
 });

@@ -37,7 +37,9 @@ const table = new Table({
     partitionKey: "pk",
     sortKey: "sk",
     gsis: {
-      "diet-index": {
+      // Must match the entity's index name below exactly — dyno-table looks up
+      // the physical GSI by that name when generating and querying index attributes.
+      byDiet: {
         partitionKey: "dietPK",
         sortKey: "species",
       },
@@ -96,8 +98,8 @@ const DinosaurEntity = defineEntity({
     getDiscoveriesAfterYear: createQuery
       .input(z.object({ year: z.number() }))
       .query(({ input, entity }) =>
-        entity.query
-          .getDinosaursByDiet({ diet: "carnivore" })
+        entity.query({ pk: "DIET#carnivore" })
+          .useIndex("byDiet")
           .filter(op => op.gte("discoveryYear", input.year))
       ),
   },
@@ -155,7 +157,7 @@ const triceratops = await dinoRepo.create({
 
 ```ts
 // Get a specific dinosaur
-const myTRex = await dinoRepo.get({ id: "t-rex-001" });
+const { item: myTRex } = await dinoRepo.get({ id: "t-rex-001" }).execute();
 console.log(`Found ${myTRex.species} weighing ${myTRex.weight}kg!`);
 
 // Find all carnivores (efficient query!)
@@ -174,11 +176,12 @@ const modernDiscoveries = await dinoRepo.query
   .execute();
 
 // Get multiple dinosaurs at once
-const myCollection = await dinoRepo.batchGet([
-  { id: "t-rex-001" },
-  { id: "bronto-001" },
-  { id: "trike-001" }
-]).execute();
+const batch = table.batchBuilder();
+[{ id: "t-rex-001" }, { id: "bronto-001" }, { id: "trike-001" }]
+  .forEach(key => dinoRepo.get(key).withBatch(batch));
+
+const { reads } = await batch.execute();
+const myCollection = reads.itemsByType.Dinosaur;
 ```
 
 ### Update and Delete
@@ -224,8 +227,8 @@ Ready to learn more? Check out these guides:
 
 - **[Entity Pattern Guide →](entities.md)** - Master the entity approach
 - **[Advanced Queries →](query-builder.md)** - Complex filtering and joins
-- **[Performance Tips →](performance.md)** - Scale your dinosaur database
-- **[Schema Validation →](schema-validation.md)** - Advanced validation patterns
+- **[Table Operations →](table-query-builder.md)** - Indexes, scans, and parallel scan segments
+- **[Standard Schema Support →](entities.md#standard-schema-support)** - Advanced validation patterns
 - **[Error Handling →](error-handling.md)** - Robust error management
 
 ## Troubleshooting

@@ -410,7 +410,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         .join(", ");
 
       const { expressionAttributeNames, expressionAttributeValues } = expressionParams;
-      const { indexName, limit, consistentRead, lastEvaluatedKey } = options;
+      const { indexName, limit, consistentRead, lastEvaluatedKey, segment, totalSegments } = options;
 
       const params: ScanCommandInput = {
         TableName: this.tableName,
@@ -424,6 +424,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         ConsistentRead: consistentRead,
         ProjectionExpression: projectionExpression,
         ExclusiveStartKey: lastEvaluatedKey,
+        Segment: segment,
+        TotalSegments: totalSegments,
       };
 
       try {

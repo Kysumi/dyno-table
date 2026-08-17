@@ -2,13 +2,19 @@ import type { Condition } from "../conditions.js";
 import type { DynamoItem, TableConfig } from "../types.js";
 import type { BuilderContext, ScanBuilderInterface } from "./builder-types.js";
 import { FilterBuilder, type FilterOptions } from "./filter-builder.js";
+import { ParallelScanIterator } from "./parallel-scan-iterator.js";
 import { ResultIterator } from "./result-iterator.js";
+
+const DDB_MAX_SCAN_SEGMENTS = 1_000_000;
 
 /**
  * Configuration options for DynamoDB scan operations.
  * Extends the base FilterOptions.
  */
-export type ScanOptions = FilterOptions;
+export interface ScanOptions extends FilterOptions {
+  segment?: number;
+  totalSegments?: number;
+}
 
 /**
  * Function type for executing DynamoDB filter operations.
@@ -67,6 +73,7 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
   extends FilterBuilder<T, TConfig>
   implements ScanBuilderInterface<T, TConfig>
 {
+  protected override options: ScanOptions = {};
   protected readonly executor: ScanExecutor<T>;
 
   constructor(executor: ScanExecutor<T>, context: BuilderContext = {}) {
@@ -100,6 +107,22 @@ export class ScanBuilder<T extends DynamoItem, TConfig extends TableConfig = Tab
       };
     }
     return { ...filter };
+  }
+
+  /** Splits the scan across independent DynamoDB segments and merges their results. */
+  segments(totalSegments: number): ParallelScanIterator<T, TConfig> {
+    if (!Number.isInteger(totalSegments) || totalSegments < 1 || totalSegments > DDB_MAX_SCAN_SEGMENTS) {
+      throw new Error(`segments: totalSegments must be an integer between 1 and ${DDB_MAX_SCAN_SEGMENTS}`);
+    }
+
+    const segments = Array.from({ length: totalSegments }, (_, segment) => {
+      const builder = this.clone();
+      builder.options.segment = segment;
+      builder.options.totalSegments = totalSegments;
+      return () => builder.execute();
+    });
+
+    return new ParallelScanIterator(segments, this.getLimit());
   }
 
   /**
