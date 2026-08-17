@@ -1,3 +1,10 @@
+# [2.9.0](https://github.com/Kysumi/dyno-table/compare/v2.8.0...v2.9.0) (2026-08-17)
+
+
+### Features
+
+* Adding migration support ([dc029d3](https://github.com/Kysumi/dyno-table/commit/dc029d3f651f195b12e7a093edc0d829732b6744))
+
 # [2.8.0](https://github.com/Kysumi/dyno-table/compare/v2.7.2...v2.8.0) (2026-08-12)
 
 
