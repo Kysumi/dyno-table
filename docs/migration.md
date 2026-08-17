@@ -57,8 +57,9 @@ console.log(preview.samples);
 await manager.run("backfill-order-totals", { apply: true });
 ```
 
-When a migration is run again with `apply: true`, it resumes from the last completed page. This
-applies after an interrupted run and when processing records created after an earlier run.
+After a handled failure, running a migration again with `apply: true` resumes from the last
+completed page. After an OOM, `SIGKILL`, or other hard termination, manually change its checkpoint
+status from `"running"` to `"error"` before retrying.
 
 ## Running every outstanding migration
 
@@ -90,6 +91,9 @@ control"):
   that another process is running the batch or that a terminated process left a stale lock. The
   caller must determine which case applies before proceeding.
 
+These preflight checkpoint reads happen in both dry-run and apply modes. Dry runs do not acquire
+locks or mutate checkpoints.
+
 `runAll()` stops when a migration throws because later migrations may depend on earlier ones.
 Migrations completed earlier in the same call remain applied. After the failure is resolved,
 another `runAll()` call skips those successful migrations and resumes the sequence.
@@ -106,6 +110,9 @@ another `runAll()` call skips those successful migrations and resumes the sequen
 Reads (`get`, `query`, and `scan`) execute in both modes. A dry run therefore reads current data
 while suppressing writes.
 
+Dry-run write calls still count and are sampled, but their `.execute()` resolves to `undefined`.
+Do not consume or chain from a write result inside a migration that must support dry runs.
+
 Repositories are wrapped separately for each `run()` call. The same `MigrationManager` instance
 can therefore run the same migration in dry-run and apply modes without retaining wrapper state
 between calls.
@@ -120,8 +127,8 @@ Migration code must tolerate repeated processing. It can check a completion mark
 
 Pass a `.scan()` or `.query()` builder to `cursor(builder)` to enable checkpointing. `cursor()`:
 
-- stores the DynamoDB `lastEvaluatedKey` before yielding a page, so an interrupted page is fetched
-  again rather than skipped;
+- stores the DynamoDB `lastEvaluatedKey` after every item in a page is consumed, so an interrupted
+  page is fetched again rather than skipped;
 - persists checkpoints through the supplied repository;
 - clears its checkpoint after the scan or query completes.
 

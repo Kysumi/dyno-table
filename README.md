@@ -222,7 +222,7 @@ const manager = new MigrationManager({
 });
 
 manager.createMigration("backfill-order-totals", async ({ repos, cursor }) => {
-  for await (const order of cursor(repos.orders.scan())) {
+  for await (const order of cursor(repos.orders.scan(), { pageSize: 100 })) {
     await repos.orders.update({ id: order.id }, { total: computeTotal(order) }).execute();
   }
 });
@@ -234,6 +234,8 @@ await manager.run("backfill-order-totals", { apply: true });
 // Run all pending migrations
 await manager.runAll({ apply: true })
 ```
+Choose a page size that bounds how much work an interrupted page may repeat.
+
 **[Migrations Guide →](docs/migration.md)**
 
 ### Performance Optimization

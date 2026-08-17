@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { beforeEach, describe, expect, it } from "vitest";
 import { docClient } from "../../tests/ddb-client";
 import { createIndex, defineEntity } from "../entity/entity";
@@ -153,9 +154,11 @@ describe("Entity Upsert Integration Tests", () => {
     const upsertResult = await repository.upsert(dino).execute();
     const getResult = await repository.get({ id: "existing-dino" }).execute();
 
-    expect(upsertResult?.demoPartitionKey).toBe(getResult.item?.demoPartitionKey);
-    expect(upsertResult?.demoSortKey).toBe(getResult.item?.demoSortKey);
-    expect(upsertResult?.entityType).toBe(getResult.item?.entityType);
-    expect(upsertResult?.species).toBe(getResult.item?.species);
+    assert(upsertResult);
+    assert(getResult.item);
+    expect(upsertResult.demoPartitionKey).toBe(getResult.item.demoPartitionKey);
+    expect(upsertResult.demoSortKey).toBe(getResult.item.demoSortKey);
+    expect(upsertResult.entityType).toBe(getResult.item.entityType);
+    expect(upsertResult.species).toBe(getResult.item.species);
   });
 });

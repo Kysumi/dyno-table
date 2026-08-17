@@ -314,8 +314,16 @@ describe("MigrationManager Integration Tests", () => {
 
     const firstRun = manager.run("slow-backfill", { apply: true });
 
-    // Give the first run a moment to actually acquire the lock before the second attempts to.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    let lockAcquired = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const { item } = await checkpoints.get({ name: "slow-backfill" }).execute();
+      if (item?.status === "running") {
+        lockAcquired = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(lockAcquired).toBe(true);
 
     await expect(manager.run("slow-backfill", { apply: true })).rejects.toThrow(/already running/);
 
