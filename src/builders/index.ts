@@ -5,6 +5,7 @@ export { DeleteBuilder } from "./delete-builder.js";
 export { FilterBuilder } from "./filter-builder.js";
 export { GetBuilder } from "./get-builder.js";
 export { Paginator } from "./paginator.js";
+export { ParallelScanIterator, ParallelScanPaginator } from "./parallel-scan-iterator.js";
 export { PutBuilder } from "./put-builder.js";
 export { QueryBuilder } from "./query-builder.js";
 export { ResultIterator } from "./result-iterator.js";
