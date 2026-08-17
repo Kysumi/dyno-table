@@ -118,6 +118,45 @@ const userProfiles = await table
   .execute();
 ```
 
+#### Parallel Scan
+
+Use `.segments(n)` for full-table jobs where one sequential scan is the bottleneck. `n` must be an integer from 1 to
+1,000,000. The method returns an async iterable directly:
+
+```ts
+const users = table
+  .scan<User>()
+  .filter(op => op.eq("status", "active"))
+  .segments(4);
+
+for await (const user of users) {
+  await exportUser(user);
+}
+
+const allUsers = await userRepo.scan().segments(4).toArray();
+```
+
+Each segment paginates independently and results arrive as soon as each segment produces them. A failure in any segment
+fails the merged scan.
+
+`.limit(n)` applies to the merged result, so `.limit(10).segments(4)` returns at most 10 items total. Each segment can still
+issue a concurrent scan request with that limit, so parallel scans can throttle provisioned tables; reserve them for large
+full-table work.
+
+Use `.paginate(pageSize)` for page-by-page processing:
+
+```ts
+const paginator = table.scan<User>().segments(4).paginate(100);
+
+while (paginator.hasNextPage()) {
+  const page = await paginator.getNextPage();
+  await exportUsers(page.items);
+}
+```
+
+Parallel pagination state is held in memory because DynamoDB returns one continuation key per segment, not one key for the
+merged scan.
+
 ### Batch Get - Multiple Items by Key
 
 ```ts
