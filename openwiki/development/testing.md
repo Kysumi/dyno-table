@@ -47,6 +47,8 @@ The CI integration workflow starts only the `dynamodb` service; its test setup c
 | Write/update command rules | put/delete/update builder tests | `pnpm test` |
 | Entity schema/query/keys/timestamps | `entity-queries.test.ts`, `entity-timestamps.test.ts`, `entity-index-update.test.ts` | `pnpm test`, `pnpm check-types` |
 | Batch/transaction service behavior | `table-batch.itest.ts`, `table-transaction.itest.ts`, `transaction-builder.itest.ts` | local setup then `pnpm test:int` |
+| Migration cursor/checkpoint/proxy behavior | `src/migration/__tests__/cursor.test.ts` (`does not checkpoint a page when its consumer fails partway through`), `checkpoint-store.test.ts`, `repo-proxy.test.ts` | `pnpm test -- src/migration/__tests__/migration-manager.test.ts src/migration/__tests__/cursor.test.ts src/migration/__tests__/checkpoint-store.test.ts src/migration/__tests__/repo-proxy.test.ts` |
+| Migration lock races or real repository attachment | `src/migration/__tests__/migration-manager.itest.ts`, `cursor-race.itest.ts` | local setup then `pnpm test:int -- src/migration/__tests__/migration-manager.itest.ts src/migration/__tests__/cursor-race.itest.ts` |
 | Exports/declarations/build | package/entrypoint changes and standalone example | `pnpm check-types`, `pnpm build`, example `pnpm verify` |
 
 Run broader checks for public API, Table runtime, or infrastructure changes. The CI and release pipelines are documented separately in [CI and release](ci-and-release.md).

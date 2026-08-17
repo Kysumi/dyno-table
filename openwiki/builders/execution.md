@@ -30,7 +30,7 @@ This shows why merely awaiting `execute()` does not send a query/scan; consumpti
 
 `Paginator` instead clones the source for each `getNextPage()`, applies the page size and its current continuation key, then advances page number and total retrieved count from the returned page. A returned continuation key keeps `hasNextPage()` true; an absent one marks it exhausted, so later calls have no next page to fetch. It also reduces an effective page size when an overall limit leaves fewer items. `findOne()` clones with limit one but can traverse empty filtered pages. DynamoDB evaluates the operation limit before its filter, so filters can reduce returned matches below the requested count.
 
-[Resumable migrations](../migration-system.md) compose `Paginator` with a query or scan builder and persist each fetched page's continuation key before yielding its items. Changes to paginator page-size or continuation behavior therefore affect the migration replay boundary as well as direct consumers.
+[Resumable migrations](../migration-system.md) compose `Paginator` with a query or scan builder, yield each fetched page's items to the migration consumer, then persist that page's continuation key. Changes to paginator page-size or continuation behavior therefore affect the migration replay boundary as well as direct consumers.
 
 `GetBuilder` runs its optional `beforeExecute` guard immediately before its one request. It supports selection, consistent reads, optional index fields, and deferred addition to a `BatchBuilder`.
 
