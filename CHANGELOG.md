@@ -1,3 +1,10 @@
+# [2.11.0](https://github.com/Kysumi/dyno-table/compare/v2.10.0...v2.11.0) (2026-08-17)
+
+
+### Features
+
+* Adding parallel scan support via dynamodb segments ([#87](https://github.com/Kysumi/dyno-table/issues/87)) ([f0d04d3](https://github.com/Kysumi/dyno-table/commit/f0d04d325a0323cbcb1b903d34d9008543c2b46f))
+
 # [2.10.0](https://github.com/Kysumi/dyno-table/compare/v2.9.0...v2.10.0) (2026-08-17)
 
 
