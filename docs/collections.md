@@ -34,7 +34,7 @@ for await (const page of pages) {
 }
 ```
 
-Collection pagination defaults to 25 items per `Paginator` page, so large partitions are processed in bounded groups. Pass a different size to `paginate(n)` when needed. Calling other terminal methods such as `execute()` retains the normal, flat `QueryBuilder` behavior.
+Collection pagination defaults to 25 items per `Paginator` page, so large partitions are processed in bounded groups. Pass a different size to `paginate(n)` when needed. Calling `execute()` returns a `CollectionResultIterator`: `for await` streams individual configured items, while `toArray()` returns one complete result grouped by entity type.
 
 Items whose entity type is not configured in the collection are omitted. Empty pages still include every configured key with an empty array.
 
