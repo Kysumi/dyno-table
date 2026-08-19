@@ -1,0 +1,48 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal code sample that reproduces the issue (Table or Entity layer).
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant error output
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: dyno-table version
+      placeholder: e.g. 2.11.0
+    validations:
+      required: true
+
+  - type: input
+    id: sdk-version
+    attributes:
+      label: AWS SDK version
+      placeholder: e.g. @aws-sdk/lib-dynamodb 3.x
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Node.js version / environment
+      placeholder: e.g. Node 22, local DynamoDB via Docker

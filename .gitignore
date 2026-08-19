@@ -12,6 +12,7 @@ coverage/
 .idea/
 .vscode/
 .air/
+.nodeterm/
 
 # Logs
 *.log
