@@ -110,7 +110,7 @@
     "url": "git+https://github.com/Kysumi/dyno-table.git"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.7",
+    "@biomejs/biome": "2.5.9",
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/git": "^11.0.1",
     "@types/node": "^26.2.0",
