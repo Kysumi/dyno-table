@@ -24,3 +24,4 @@ export { ScanBuilder } from "./builders/scan-builder.js";
 export { TransactionBuilder } from "./builders/transaction-builder.js";
 export type { Path, PathType } from "./builders/types.js";
 export { UpdateBuilder } from "./builders/update-builder.js";
+export type { BatchExecutionOptions } from "./operation-types.js";

@@ -29,6 +29,8 @@ export interface GetCommandParams {
   expressionAttributeNames?: Record<string, string>;
   /** Whether to use strongly consistent reads */
   consistentRead?: boolean;
+  /** Original projection paths, retained for compatible batch grouping. */
+  projection?: string[];
 }
 
 /**
@@ -223,6 +225,7 @@ export class GetBuilder<T extends DynamoItem> {
 
     return {
       ...this.params,
+      projection: this.selectedFields.size > 0 ? Array.from(this.selectedFields) : undefined,
       projectionExpression: projectionExpression.length > 0 ? projectionExpression : undefined,
       expressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
     };

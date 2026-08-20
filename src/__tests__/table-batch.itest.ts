@@ -65,6 +65,15 @@ describe("Table Integration Tests - Batch Operations", () => {
     expect(names).toEqual(["Batch Dino 1", "Batch Dino 3", "Batch Dino 5"].sort());
   });
 
+  it("should preserve projection and consistency in builder batch gets", async () => {
+    const batch = table.batchBuilder();
+    table.get<Dinosaur>({ pk: "dinosaur#batch", sk: "dino#1" }).select("name").consistentRead().withBatch(batch);
+
+    const result = await batch.execute();
+
+    expect(result.reads.items).toEqual([{ name: "Batch Dino 1" }]);
+  });
+
   it("should handle non-existent items in batch get", async () => {
     const keys = [
       { pk: "dinosaur#batch", sk: "dino#1" },

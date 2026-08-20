@@ -1,3 +1,4 @@
+export type { BatchExecutionOptions } from "../operation-types.js";
 export { BatchBuilder } from "./batch-builder.js";
 export type * from "./builder-types.js";
 export { ConditionCheckBuilder } from "./condition-check-builder.js";

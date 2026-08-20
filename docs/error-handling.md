@@ -402,37 +402,17 @@ try {
 
 ### 5. Batch operations with partial failures
 
-`table.batchWrite()` doesn't throw for ordinary partial failures. It returns any `unprocessedItems` for you to retry:
+`table.batchWrite()` automatically retries ordinary partial failures. Configure the bounded retry policy and check the final remainder after the attempt budget is exhausted:
 
 ```typescript
-async function batchWriteWithRetry(
-  operations: Array<{ type: "put"; item: Record<string, unknown> } | { type: "delete"; key: { pk: string; sk?: string } }>,
-  maxRetries = 3,
-) {
-  let attempt = 0;
-  let remaining = operations;
+const { unprocessedItems } = await table.batchWrite(operations, {
+  maxAttempts: 5,
+  baseDelayMs: 25,
+  abortSignal,
+});
 
-  while (attempt < maxRetries && remaining.length > 0) {
-    const { unprocessedItems } = await table.batchWrite(remaining);
-    remaining = unprocessedItems;
-
-    if (remaining.length === 0) {
-      return { success: true };
-    }
-
-    console.log(`Attempt ${attempt + 1}: ${remaining.length} unprocessed items`);
-    attempt++;
-
-    // Exponential backoff
-    await new Promise(resolve =>
-      setTimeout(resolve, Math.pow(2, attempt) * 1000)
-    );
-  }
-
-  return {
-    success: remaining.length === 0,
-    unprocessedCount: remaining.length
-  };
+if (unprocessedItems.length > 0) {
+  console.warn(`${unprocessedItems.length} writes remain unprocessed`);
 }
 ```
 
