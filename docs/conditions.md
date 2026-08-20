@@ -1,13 +1,14 @@
-# 🎯 DynamoDB Conditions Guide
+# DynamoDB conditions guide
 
-Conditions in DynamoDB are powerful expressions that control when operations succeed or fail. They're essential for data integrity, preventing race conditions, and implementing complex business logic atomically.
+A condition is an expression DynamoDB checks before an operation runs. If it's false, the operation fails instead of silently succeeding. That's how you prevent duplicate writes, avoid race conditions, and enforce business rules atomically.
 
-## 📋 Quick Reference
+## Quick reference
 
 ```typescript
 // Prevent duplicate inserts
 await table.put(newUser)
-  .condition(op => op.attributeNotExists("email"));
+  .condition(op => op.attributeNotExists("email"))
+  .execute();
 
 // Conditional updates
 await table.update({ pk: "USER#123" })
@@ -15,7 +16,8 @@ await table.update({ pk: "USER#123" })
   .condition(op => op.and(
     op.eq("status", "ACTIVE"),
     op.gte("credits", 1000)
-  ));
+  ))
+  .execute();
 
 // Complex business logic
 await table.delete({ pk: "ORDER#456" })
@@ -25,32 +27,26 @@ await table.delete({ pk: "ORDER#456" })
       op.eq("status", "PENDING"),
       op.lt("createdAt", "2024-01-01")
     )
-  ));
+  ))
+  .execute();
 ```
 
-## 🔍 What Are Conditions?
+## What are conditions?
 
-Conditions are boolean expressions that DynamoDB evaluates **before** performing an operation. If the condition evaluates to `false`, the operation is rejected with a `ConditionalCheckFailedException`.
+Conditions are boolean expressions that DynamoDB evaluates before it performs an operation. If a condition evaluates to `false`, DynamoDB rejects the request with a `ConditionalCheckFailedException` instead of applying the change. Use them for optimistic locking as well as the cases above.
 
-### Key Benefits
+## When conditions are evaluated
 
-- **Data Integrity**: Prevent invalid state transitions
-- **Race Condition Prevention**: Ensure atomic operations in concurrent environments
-- **Business Logic Enforcement**: Implement complex rules at the database level
-- **Optimistic Locking**: Handle concurrent updates safely
-
-## 🎯 When Conditions Are Evaluated
-
-| Operation | When Conditions Are Checked | Impact if Failed |
+| Operation | When conditions are checked | Impact if failed |
 |-----------|----------------------------|------------------|
 | **PUT** | Before writing the item | Item is not created/replaced |
 | **UPDATE** | Before applying updates | Item remains unchanged |
 | **DELETE** | Before removing the item | Item is not deleted |
 | **Transaction** | Before any operation executes | Entire transaction is rolled back |
 
-## 🚀 Comparison Operators
+## Comparison operators
 
-### Equality & Inequality
+### Equality and inequality
 
 ```typescript
 interface User {
@@ -67,7 +63,7 @@ op.eq("status", "ACTIVE") // status = "ACTIVE"
 op.ne("status", "BANNED") // status <> "BANNED"
 ```
 
-### Numeric & Lexicographic Comparisons
+### Numeric and lexicographic comparisons
 
 ```typescript
 // Numeric comparisons
@@ -84,7 +80,7 @@ op.gte("version", "2.0") // Version 2.0 and above
 op.gt("createdAt", "2024-01-01T00:00:00Z")
 ```
 
-### Range & Membership Testing
+### Range and membership testing
 
 ```typescript
 // Range testing (inclusive)
@@ -96,7 +92,7 @@ op.inArray("status", ["ACTIVE", "PENDING", "PROCESSING"])
 op.inArray("priority", [1, 2, 3])
 ```
 
-### String Operations
+### String operations
 
 ```typescript
 // Prefix matching
@@ -108,7 +104,7 @@ op.contains("description", "urgent")     // contains(description, "urgent")
 op.contains("tags", "featured")          // contains(tags, "featured") - for sets
 ```
 
-### Attribute Existence
+### Attribute existence
 
 ```typescript
 // Check if attribute exists
@@ -120,9 +116,9 @@ op.attributeNotExists("deletedAt")       // attribute_not_exists(deletedAt)
 op.attributeNotExists("processedAt")     // attribute_not_exists(processedAt)
 ```
 
-## 🔗 Logical Operators
+## Logical operators
 
-### AND Logic - All Must Be True
+### AND logic: all must be true
 
 ```typescript
 // Multiple criteria must all be met
@@ -142,7 +138,7 @@ op.and(
 )
 ```
 
-### OR Logic - At Least One Must Be True
+### OR logic: at least one must be true
 
 ```typescript
 // Alternative conditions - any can be satisfied
@@ -165,7 +161,7 @@ op.or(
 )
 ```
 
-### NOT Logic - Negation
+### NOT logic: negation
 
 ```typescript
 // Exclude specific conditions
@@ -183,11 +179,11 @@ op.not(
 op.not(op.inArray("status", ["DELETED", "ARCHIVED", "SUSPENDED"]))
 ```
 
-## 🛡️ Conditional Inserts - Preventing Duplicates
+## Conditional inserts: preventing duplicates
 
-One of the most common use cases for conditions is preventing duplicate data insertion. Here are comprehensive patterns for different scenarios:
+One of the most common uses for conditions is preventing duplicate writes.
 
-### Prevent Duplicate Primary Keys
+### Prevent duplicate primary keys
 
 ```typescript
 // Ensure item doesn't already exist
@@ -198,13 +194,14 @@ await table.put({
   name: "John Doe",
   createdAt: new Date().toISOString()
 })
-.condition(op => op.attributeNotExists("pk"));
+.condition(op => op.attributeNotExists("pk"))
+.execute();
 // Fails if any item with this pk already exists
 ```
 
-## ⚠️ Common Pitfalls & Solutions
+## Common pitfalls and solutions
 
-### 1. Condition Expression Limitations
+### 1. Condition expression limitations
 
 ```typescript
 // ❌ Wrong: Referencing non-existent attributes in comparison
@@ -223,7 +220,7 @@ op.or(
 )
 ```
 
-### 2. Type Mismatches
+### 2. Type mismatches
 
 ```typescript
 // ❌ Wrong: Comparing string to number
@@ -234,7 +231,7 @@ op.gt("numericField", 100)
 op.gt("stringField", "100") // Lexicographic comparison
 ```
 
-### 3. Complex Condition Readability
+### 3. Complex condition readability
 
 ```typescript
 // ❌ Hard to read and maintain
@@ -257,10 +254,10 @@ const eligibleUser = or(
 const finalCondition = and(validStatuses, goodScore, eligibleUser);
 ```
 
-## 📚 Related Guides
+## Related guides
 
-- [Table Query Builder](./table-query-builder.md) - Using conditions in queries and scans
-- [Entity Query Builder](./entity-query-builder.md) - Type-safe conditions with entities
+- [Table query builder](./table-query-builder.md) - Using conditions in queries and scans
+- [Entity query builder](./entity-query-builder.md) - Type-safe conditions with entities
 - [Transactions](./transactions.md) - Atomic operations with conditions
-- [Batch Operations](./batch-operations.md) - Bulk operations with conditional logic
-- [Error Handling](./error-handling.md) - Comprehensive error handling strategies
+- [Batch operations](./batch-operations.md) - Bulk operations with conditional logic
+- [Error handling](./error-handling.md) - What a failed condition throws and how to catch it

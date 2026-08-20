@@ -1,8 +1,8 @@
-# 📄 Pagination & Memory Management
+# Pagination and memory management
 
-Handle large datasets efficiently with dyno-table's memory-conscious pagination patterns. Perfect for browsing through millions of dinosaur fossils without breaking your server!
+dyno-table gives you two ways to work through large result sets without loading everything into memory: an async iterator for streaming, and a paginator for page-by-page control.
 
-## 📋 Quick Reference
+## Quick reference
 
 ```typescript
 // Memory-efficient streaming (recommended for large datasets)
@@ -19,9 +19,9 @@ while (paginator.hasNextPage()) {
 }
 ```
 
-## ✨ Pagination Strategies
+## Pagination strategies
 
-### Streaming Iterator (Best for Processing)
+### Streaming iterator (best for processing)
 Memory-efficient processing of large result sets:
 
 ```typescript
@@ -41,95 +41,80 @@ for await (const carnivore of carnivores) {
 }
 ```
 
-### Explicit Pagination (Best for UIs)
-Perfect for implementing paginated lists in applications:
+### Explicit pagination (best for UIs)
+Use this for paginated lists in applications:
 
 ```typescript
-class DinosaurExplorer {
-  async getExpeditionPage(expeditionId: string, pageSize = 25) {
-    const paginator = dinoRepo.query
-      .getByExpedition({ expeditionId })
-      .sort("desc") // Newest first
-      .paginate(pageSize);
+const paginator = dinoRepo.query
+  .getByExpedition({ expeditionId: "sahara-2024" })
+  .sortDescending() // Newest first
+  .paginate(25);
 
-    return {
-      hasData: paginator.hasNextPage(),
-      getNext: () => paginator.getNextPage(),
-      reset: () => paginator.reset()
-    };
-  }
-}
-
-// Usage in UI
-const explorer = new DinosaurExplorer();
-const pager = await explorer.getExpeditionPage("sahara-2024");
-
-while (pager.hasData) {
-  const page = await pager.getNext();
+while (paginator.hasNextPage()) {
+  const page = await paginator.getNextPage();
 
   page.items.forEach(dino => {
     console.log(`${dino.species} - ${dino.discoveredAt}`);
   });
 
   // Ask user if they want to continue
-  const continue = await askUser("Load more dinosaurs? (y/n)");
-  if (continue !== 'y') break;
+  const keepGoing = await askUser("Load more dinosaurs? (y/n)");
+  if (keepGoing !== 'y') break;
 }
 ```
 
-### Batch Loading (Small Datasets Only)
-Load all results into memory - use sparingly:
+### Batch loading (small datasets only)
+Load all results into memory. Use sparingly:
 
 ```typescript
 // ✅ Good for small, known datasets
-const recentDiscoveries = await dinoRepo.query
+const recentDiscoveriesResult = await dinoRepo.query
   .getByDateRange({
     startDate: new Date('2024-01-01'),
     endDate: new Date('2024-12-31')
   })
   .limit(100) // Explicit limit for safety
-  .toArray();
+  .execute();
+const recentDiscoveries = await recentDiscoveriesResult.toArray();
 
 // ❌ Dangerous for large datasets
-const allDinosaurs = await dinoRepo.scan().toArray(); // Could cause OOM!
+const allDinosaurs = await (await dinoRepo.scan().execute()).toArray(); // Could cause OOM!
 ```
 
-## 🎯 Pagination Patterns
+## Pagination patterns
 
-### Cursor-Based Navigation
+### Cursor-based navigation
 Navigate forward and backward through results:
 
 ```typescript
 class DinosaurCatalog {
-  private currentCursor?: string;
+  private cursor?: Record<string, unknown>;
 
   async getNextPage(pageSize = 20) {
-    const result = await dinoRepo.scan()
-      .limit(pageSize)
-      .startAfter(this.currentCursor ? { id: this.currentCursor } : undefined)
-      .execute();
-
-    const items = await result.toArray();
-
-    if (items.length > 0) {
-      this.currentCursor = items[items.length - 1].id;
+    let query = dinoRepo.scan().limit(pageSize);
+    if (this.cursor) {
+      query = query.startFrom(this.cursor);
     }
+
+    const result = await query.execute();
+    const items = await result.toArray();
+    this.cursor = result.getLastEvaluatedKey();
 
     return {
       items,
-      hasMore: items.length === pageSize,
-      cursor: this.currentCursor
+      hasMore: !!this.cursor,
+      cursor: this.cursor
     };
   }
 
   reset() {
-    this.currentCursor = undefined;
+    this.cursor = undefined;
   }
 }
 ```
 
-### Offset-Based Pagination (Not Recommended)
-❌ Avoid offset-based pagination with DynamoDB - it's inefficient:
+### Offset-based pagination (not recommended)
+Avoid offset-based pagination with DynamoDB. It's inefficient:
 
 ```typescript
 // ❌ Don't do this - DynamoDB doesn't support efficient offset
@@ -137,49 +122,51 @@ async function getPageWithOffset(pageNumber: number, pageSize: number) {
   const offset = pageNumber * pageSize;
 
   // This is inefficient - DynamoDB has to scan through all skipped items
-  const items = await dinoRepo.scan()
+  const result = await dinoRepo.scan()
     .limit(offset + pageSize)
-    .toArray();
+    .execute();
+  const items = await result.toArray();
 
   return items.slice(offset, offset + pageSize);
 }
 
 // ✅ Use cursor-based pagination instead
-async function getPageWithCursor(cursor?: string, pageSize = 20) {
-  return await dinoRepo.scan()
-    .limit(pageSize)
-    .startAfter(cursor ? { id: cursor } : undefined)
-    .execute();
+async function getPageWithCursor(cursor?: Record<string, unknown>, pageSize = 20) {
+  let query = dinoRepo.scan().limit(pageSize);
+  if (cursor) {
+    query = query.startFrom(cursor);
+  }
+  return await query.execute();
 }
 ```
 
-## 🎨 Advanced Pagination
+## Advanced pagination
 
-### Bidirectional Pagination
+### Bidirectional pagination
 Navigate both forward and backward:
 
 ```typescript
 class BidirectionalPaginator<T> {
-  private forwardCursor?: string;
-  private backwardCursor?: string;
-  private history: string[] = [];
+  private forwardCursor?: Record<string, unknown>;
+  private history: Record<string, unknown>[] = [];
 
   async getNextPage(pageSize = 20) {
-    const items = await dinoRepo.scan()
-      .limit(pageSize)
-      .startAfter(this.forwardCursor ? { id: this.forwardCursor } : undefined)
-      .toArray();
-
-    if (items.length > 0) {
-      // Track history for backward navigation
-      if (this.forwardCursor) {
-        this.history.push(this.forwardCursor);
-      }
-
-      this.forwardCursor = items[items.length - 1].id;
+    let query = dinoRepo.scan().limit(pageSize);
+    if (this.forwardCursor) {
+      query = query.startFrom(this.forwardCursor);
     }
 
-    return { items, hasNext: items.length === pageSize };
+    const result = await query.execute();
+    const items = await result.toArray();
+    const nextCursor = result.getLastEvaluatedKey();
+
+    // Track history for backward navigation
+    if (this.forwardCursor) {
+      this.history.push(this.forwardCursor);
+    }
+    this.forwardCursor = nextCursor;
+
+    return { items, hasNext: !!nextCursor };
   }
 
   async getPreviousPage(pageSize = 20) {
@@ -189,60 +176,61 @@ class BidirectionalPaginator<T> {
 
     this.forwardCursor = this.history.pop();
 
-    const items = await dinoRepo.scan()
-      .limit(pageSize)
-      .startAfter(this.forwardCursor ? { id: this.forwardCursor } : undefined)
-      .toArray();
+    let query = dinoRepo.scan().limit(pageSize);
+    if (this.forwardCursor) {
+      query = query.startFrom(this.forwardCursor);
+    }
+
+    const result = await query.execute();
+    const items = await result.toArray();
 
     return { items, hasPrevious: this.history.length > 0 };
   }
 }
 ```
 
-### Filtered Pagination
+### Filtered pagination
 Combine pagination with complex filters:
 
 ```typescript
 async function getPaginatedCarnivores(
   minWeight: number,
-  cursor?: string,
+  cursor?: Record<string, unknown>,
   pageSize = 25
 ) {
-  const iterator = await dinoRepo.query
+  let query = dinoRepo.query
     .getByDiet({ diet: "carnivore" })
     .filter(op =>
       op.and(
         op.gte("weight", minWeight),
-        op.exists("measurements.length")
+        op.attributeExists("measurements.length")
       )
     )
-    .startAfter(cursor ? {
-      diet: "carnivore",
-      species: cursor
-    } : undefined)
-    .limit(pageSize)
-    .execute();
+    .limit(pageSize);
 
-  const items = [];
-  for await (const item of iterator) {
-    items.push(item);
+  if (cursor) {
+    query = query.startFrom(cursor);
   }
+
+  const result = await query.execute();
+  const items = await result.toArray();
+  const nextCursor = result.getLastEvaluatedKey();
 
   return {
     items,
-    nextCursor: items.length === pageSize ? items[items.length - 1].species : null,
-    hasMore: items.length === pageSize
+    nextCursor: nextCursor ?? null,
+    hasMore: !!nextCursor
   };
 }
 ```
 
-### Infinite Scroll Pattern
-Perfect for modern UIs:
+### Infinite scroll pattern
+Load more items as the user scrolls:
 
 ```typescript
 class InfiniteScrollDinosaurs {
   private items: Dinosaur[] = [];
-  private cursor?: string;
+  private cursor?: Record<string, unknown>;
   private loading = false;
   private hasMore = true;
 
@@ -252,17 +240,17 @@ class InfiniteScrollDinosaurs {
     this.loading = true;
 
     try {
-      const result = await dinoRepo.scan()
-        .limit(pageSize)
-        .startAfter(this.cursor ? { id: this.cursor } : undefined)
-        .toArray();
-
-      this.items.push(...result);
-      this.hasMore = result.length === pageSize;
-
-      if (result.length > 0) {
-        this.cursor = result[result.length - 1].id;
+      let query = dinoRepo.scan().limit(pageSize);
+      if (this.cursor) {
+        query = query.startFrom(this.cursor);
       }
+
+      const result = await query.execute();
+      const newItems = await result.toArray();
+
+      this.items.push(...newItems);
+      this.cursor = result.getLastEvaluatedKey();
+      this.hasMore = !!this.cursor;
     } finally {
       this.loading = false;
     }
@@ -280,9 +268,9 @@ class InfiniteScrollDinosaurs {
 }
 ```
 
-## ⚡ Performance Optimization
+## Performance optimization
 
-### Smart Page Sizing
+### Smart page sizing
 Adjust page size based on item complexity:
 
 ```typescript
@@ -303,31 +291,33 @@ const pageSize = getOptimalPageSize("basic-info");
 const page = await dinoRepo.scan().paginate(pageSize).getNextPage();
 ```
 
-### Parallel Page Loading
+### Parallel page loading
 Load multiple pages concurrently:
 
 ```typescript
 async function loadMultiplePages(
-  startCursors: string[],
+  startCursors: Record<string, unknown>[],
   pageSize = 20
 ): Promise<Dinosaur[][]> {
-  const pagePromises = startCursors.map(cursor =>
-    dinoRepo.scan()
-      .startAfter({ id: cursor })
+  const pagePromises = startCursors.map(async cursor => {
+    const result = await dinoRepo.scan()
+      .startFrom(cursor)
       .limit(pageSize)
-      .toArray()
-  );
+      .execute();
+    return result.toArray();
+  });
 
   return Promise.all(pagePromises);
 }
 
-// Load 3 pages in parallel
+// Load pages in parallel from 3 previously saved cursors
+// (each captured earlier via result.getLastEvaluatedKey())
 const [page1, page2, page3] = await loadMultiplePages([
-  "cursor1", "cursor2", "cursor3"
+  savedCursor1, savedCursor2, savedCursor3
 ]);
 ```
 
-### Memory-Conscious Processing
+### Memory-conscious processing
 Process large datasets without memory issues:
 
 ```typescript
@@ -363,9 +353,9 @@ async function processLargeDataset(
 }
 ```
 
-## 🚨 Common Pitfalls
+## Common pitfalls
 
-### Memory Leaks
+### Memory leaks
 ```typescript
 // ❌ Don't hold references to large arrays
 class BadDinosaurService {
@@ -373,7 +363,8 @@ class BadDinosaurService {
 
   async loadAll() {
     // This keeps growing and never releases memory
-    const newDinos = await dinoRepo.scan().toArray();
+    const result = await dinoRepo.scan().execute();
+    const newDinos = await result.toArray();
     this.allDinosaurs.push(...newDinos);
   }
 }
@@ -391,32 +382,30 @@ class GoodDinosaurService {
 }
 ```
 
-### Inefficient Filters
+### Inefficient filters
 ```typescript
 // ❌ Don't filter after loading
-const allDinos = await dinoRepo.scan().toArray();
+const allDinosResult = await dinoRepo.scan().execute();
+const allDinos = await allDinosResult.toArray();
 const largeCarnivores = allDinos.filter(d =>
   d.diet === "carnivore" && d.weight > 5000
 );
 
 // ✅ Filter at the database level
-const largeCarnivores = await dinoRepo.query
+const carnivoresResult = await dinoRepo.query
   .getByDiet({ diet: "carnivore" })
   .filter(op => op.gt("weight", 5000))
-  .toArray();
+  .execute();
+const largeCarnivores = await carnivoresResult.toArray();
 ```
 
-## 📚 Related Guides
+## Related guides
 
-- [Query Builders](./table-query-builder.md) - Building efficient queries, including parallel scan segments
-- [Entity Queries](./entity-query-builder.md) - Entity-specific pagination
+- [Query builders](./table-query-builder.md) - Building efficient queries, including parallel scan segments
+- [Entity queries](./entity-query-builder.md) - Entity-specific pagination
 
-## 🎓 Best Practices
+## Best practices
 
-1. **Use streaming for processing** - Iterator pattern for large datasets
-2. **Use explicit pagination for UIs** - Paginator pattern for user interfaces
-3. **Set reasonable page sizes** - Balance between performance and memory
-4. **Implement cursor-based navigation** - Avoid offset-based pagination
-5. **Monitor memory usage** - Use streaming for unknown dataset sizes
-6. **Add loading states** - Show progress for long-running operations
-7. **Handle edge cases** - Empty results, network errors, incomplete pages
+- Treat the value from `getLastEvaluatedKey()` as opaque. Pass it straight into `startFrom()` on the next request instead of parsing or rebuilding it from individual fields.
+- Avoid offset-based pagination. DynamoDB has no efficient way to skip N items, so cursors are the only scalable option.
+- Handle edge cases: empty result sets, and an `undefined` cursor once `getLastEvaluatedKey()` stops returning a value.

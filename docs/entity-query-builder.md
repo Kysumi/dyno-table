@@ -1,24 +1,24 @@
-# dyno-table Entity Query Builder Guide
+# dyno-table entity query builder guide
 
-The dyno-table Entity Query Builder provides a high-level, schema-validated approach to DynamoDB operations. This approach abstracts away partition keys, sort keys, and indexes while providing semantic, business-meaningful query methods and automatic validation.
+The Entity Query Builder replaces raw partition keys, sort keys, and index names with named query methods, validated against your schema.
 
-## Table of Contents
+## Table of contents
 
-- [Getting Started](#getting-started)
-- [Entity Definition](#entity-definition)
-- [Query Operations](#query-operations)
-- [Key Conditions](#key-conditions)
-- [Filter Conditions](#filter-conditions)
-- [Query Constraints](#query-constraints)
-- [Transaction Operations](#transaction-operations)
-- [Pagination & Results](#pagination--results)
-- [Type Safety](#type-safety)
-- [Custom Query Methods](#custom-query-methods)
-- [Advanced Examples](#advanced-examples)
+- [Getting started](#getting-started)
+- [Entity definition](#entity-definition)
+- [Query operations](#query-operations)
+- [Key conditions](#key-conditions)
+- [Filter conditions](#filter-conditions)
+- [Query constraints](#query-constraints)
+- [Transaction operations](#transaction-operations)
+- [Pagination & results](#pagination--results)
+- [Type safety](#type-safety)
+- [Custom query methods](#custom-query-methods)
+- [Advanced examples](#advanced-examples)
 
-## Getting Started
+## Getting started
 
-### Basic Setup with Entity
+### Basic setup with entity
 
 ```ts
 import { z } from "zod";
@@ -51,9 +51,9 @@ const table = new Table({
 });
 ```
 
-## Entity Definition
+## Entity definition
 
-### User Entity with Schema Validation
+### User entity with schema validation
 
 ```ts
 // Define schema with validation
@@ -133,7 +133,7 @@ const UserEntity = defineEntity({
 const userRepo = UserEntity.createRepository(table);
 ```
 
-### Order Entity Definition
+### Order entity definition
 
 ```ts
 const orderSchema = z.object({
@@ -201,9 +201,9 @@ const OrderEntity = defineEntity({
 const orderRepo = OrderEntity.createRepository(table);
 ```
 
-## Query Operations
+## Query operations
 
-### Get Operations - Direct Item Retrieval
+### Get operations: direct item retrieval
 
 ```ts
 // Get specific user by ID
@@ -218,7 +218,7 @@ console.log(`Order ${order?.orderId}: $${order?.amount}`);
 const { item: criticalUser } = await userRepo.get({ id: "123" }).consistentRead(true).execute();
 ```
 
-### Query Operations - Semantic Business Methods
+### Query operations: semantic business methods
 
 ```ts
 // Get all orders for a specific user
@@ -246,7 +246,7 @@ const recentUsers = await userRepo.query
   .execute();
 ```
 
-### Scan Operations - Full Entity Examination
+### Scan operations: full entity examination
 
 ```ts
 // Scan all users (with automatic validation)
@@ -263,7 +263,7 @@ const userProfiles = await userRepo.scan()
   .execute();
 ```
 
-### Batch Operations
+### Batch operations
 
 ```ts
 // Get multiple users - queue individual gets on a shared batch
@@ -286,9 +286,9 @@ const { reads: orderReads } = await orderBatch.execute();
 const orders = orderReads.itemsByType.Order;
 ```
 
-## Key Conditions
+## Key conditions
 
-### Automatic Key Management
+### Automatic key management
 
 ```ts
 // Entity handles key construction automatically
@@ -301,7 +301,7 @@ const { item: user } = await userRepo.get({ id: "123" }).execute();
 const { item: order } = await orderRepo.get({ userId: "123", orderId: "456" }).execute();
 ```
 
-### Range Queries with Semantic Methods
+### Range queries with semantic methods
 
 ```ts
 // Get orders before a specific date (using semantic query)
@@ -328,7 +328,7 @@ const ordersInRange = await orderRepo.query
   .execute();
 ```
 
-### Proper Date Formatting (Automatic with Entities)
+### Proper date formatting (automatic with entities)
 
 ```ts
 // Entity ensures proper ISO date format for lexical sorting
@@ -349,13 +349,13 @@ const recentUsers = await userRepo.query
   .execute();
 ```
 
-## Filter Conditions
+## Filter conditions
 
-Filters control which items are returned from queries and scans with automatic type safety and schema validation.
+Filters narrow which items a query or scan returns, with type-safe operators validated against your schema.
 
 **→ For comprehensive condition patterns including conditional writes and duplicate prevention, see [Conditions Guide](./conditions.md)**
 
-### Comparison Operations
+### Comparison operations
 
 ```ts
 // Equal to - active users only
@@ -384,7 +384,7 @@ const processingOrders = await orderRepo.scan()
   .execute();
 ```
 
-### String and Set Operations
+### String and set operations
 
 ```ts
 // String begins with - find users by name prefix
@@ -406,7 +406,7 @@ const ordersWithProduct = await orderRepo.scan()
   .execute();
 ```
 
-### Attribute Existence
+### Attribute existence
 
 ```ts
 // Must have settings - configured users
@@ -420,7 +420,7 @@ const activeRecords = await userRepo.scan()
   .execute();
 ```
 
-### Complex Logical Operations
+### Complex logical operations
 
 ```ts
 // AND conditions - premium active users
@@ -461,12 +461,10 @@ const targetUsers = await userRepo.scan()
   .execute();
 ```
 
-### Advanced AND/OR Business Logic Patterns
-
-Here are comprehensive real-world examples using entities with schema validation:
+### Advanced AND/OR business logic patterns
 
 ```ts
-// Find VIP candidates
+// AND/OR combination: VIP candidates
 const vipCandidates = await userRepo.scan()
   .filter(op => op.and(
     op.or(
@@ -479,135 +477,11 @@ const vipCandidates = await userRepo.scan()
   ))
   .execute();
 
-// Find priority orders requiring immediate attention
-const priorityOrders = await orderRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.gt("amount", 1000),
-      op.attributeExists("rushDelivery"),
-      op.contains("items", { priority: "urgent" })
-    ),
-    op.or(
-      op.eq("status", "pending"),
-      op.eq("status", "processing")
-    ),
-    op.or(
-      op.eq("customerTier", "platinum"),
-      op.eq("customerTier", "gold")
-    )
-  ))
-  .execute();
-
-// User Engagement: Find users who need re-engagement
-// Need re-engagement = (Inactive recently OR low engagement) AND (was active) AND (has value)
-const usersNeedingReengagement = await userRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.lt("lastLoginAt", "2024-01-01"),   // Haven't logged in recently
-      op.lt("sessionCount", 5),             // Low session count
-      op.eq("engagementScore", 0)           // No engagement
-    ),
-    op.or(
-      op.eq("status", "inactive"),          // Currently inactive
-      op.attributeExists("dormant")         // Marked as dormant
-    ),
-    op.or(
-      op.gt("lifetimeValue", 100),          // Has spent money
-      op.gt("credits", 0),                  // Has credits
-      op.attributeExists("purchaseHistory") // Has purchase history
-    )
-  ))
-  .execute();
-
-// Multi-tenant SaaS: Find organizations needing account review
-// Need review = (Usage anomaly OR payment issues) AND (active subscription) AND (not recently reviewed)
-const organizationsNeedingReview = await organizationRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.gt("monthlyApiCalls", 1000000),    // High API usage
-      op.gt("storageGB", 500),              // High storage usage
-      op.gt("failedPayments", 1),           // Payment issues
-      op.lt("paymentSuccessRate", 0.8)      // Low payment success rate
-    ),
-    op.eq("subscriptionStatus", "active"),  // Active subscription
-    op.or(
-      op.attributeNotExists("lastReviewedAt"), // Never reviewed
-      op.lt("lastReviewedAt", "2024-01-01")    // Not reviewed recently
-    )
-  ))
-  .execute();
-
-// E-commerce Inventory: Find products needing attention
-// Need attention = (Low stock OR high return rate OR poor reviews) AND (currently active) AND (profitable)
-const productsNeedingAttention = await productRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.lt("stockQuantity", 10),           // Low stock
-      op.gt("returnRate", 0.15),            // High return rate (>15%)
-      op.lt("averageRating", 3.0),          // Poor reviews
-      op.gt("supportTickets", 10)           // Many support tickets
-    ),
-    op.eq("status", "active"),              // Currently active
-    op.or(
-      op.gt("profitMargin", 0.2),           // Good profit margin
-      op.gt("salesVolume", 100),            // High sales volume
-      op.eq("strategic", true)              // Strategic product
-    )
-  ))
-  .execute();
-
-// Healthcare: Patient priority triage
-// High priority = (Critical symptoms OR emergency referral) AND (not seen today) AND (insurance or emergency)
-const highPriorityPatients = await patientRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.contains("symptoms", "chest pain"),     // Critical symptoms
-      op.contains("symptoms", "difficulty breathing"),
-      op.contains("symptoms", "severe pain"),
-      op.eq("emergencyReferral", true),          // Emergency referral
-      op.eq("triageLevel", "immediate")          // Immediate triage
-    ),
-    op.or(
-      op.attributeNotExists("seenToday"),        // Not seen today
-      op.ne("lastVisitDate", new Date().toISOString().split('T')[0])  // Not today
-    ),
-    op.or(
-      op.eq("insuranceVerified", true),          // Insurance verified
-      op.eq("emergencyCase", true),              // Emergency case
-      op.eq("membershipTier", "premium")         // Premium member
-    )
-  ))
-  .execute();
-
-// Financial Services: Risk assessment
-// High risk = (Suspicious activity OR high transaction volume) AND (new account OR previous flags) AND (not verified)
-const highRiskAccounts = await accountRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.gt("dailyTransactionCount", 100),       // High transaction frequency
-      op.gt("dailyTransactionVolume", 50000),    // High transaction volume
-      op.attributeExists("suspiciousActivityFlag"), // Flagged activity
-      op.contains("transactionPatterns", "unusual")  // Unusual patterns
-    ),
-    op.or(
-      op.lt("accountAgeInDays", 30),             // New account
-      op.attributeExists("previousFlags"),       // Previous red flags
-      op.gt("velocityWarnings", 2)               // Multiple velocity warnings
-    ),
-    op.or(
-      op.ne("kycStatus", "verified"),            // Not KYC verified
-      op.attributeNotExists("documentsVerified"), // Documents not verified
-      op.eq("manualReviewRequired", true)        // Requires manual review
-    )
-  ))
-  .execute();
-
-// Gaming: Matchmaking system
-// Good match = (Similar skill AND region) OR (skill difference compensated by latency) AND availability
+// Nested condition groups: matchmaking (OR of ANDs, combined with further ANDs)
 const potentialGameMatches = await playerRepo.scan()
   .filter(op => op.and(
     op.or(
-      op.and(                                    // Similar skill same region
+      op.and(                                    // Similar skill, same region
         op.between("skillRating", 1800, 2200),
         op.eq("region", "us-west")
       ),
@@ -617,135 +491,14 @@ const potentialGameMatches = await playerRepo.scan()
       )
     ),
     op.or(
-      op.eq("status", "online"),                 // Currently online
-      op.eq("status", "looking-for-game"),       // Looking for game
-      op.gte("lastActiveAt", "2024-01-20")       // Recently active
-    ),
-    op.or(
-      op.eq("gameMode", "ranked"),               // Ranked player
-      op.eq("gameMode", "competitive"),          // Competitive player
-      op.and(                                    // Casual but experienced
-        op.eq("gameMode", "casual"),
-        op.gt("gamesPlayed", 100)
-      )
-    )
-  ))
-  .execute();
-
-// Content Moderation: Find content for review
-// Needs review = (User reports OR AI detection OR viral content) AND (not reviewed) AND (significant reach)
-const contentForModeration = await contentRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.gt("userReports", 2),                   // Multiple user reports
-      op.attributeExists("aiModerationFlag"),    // AI detected issues
-      op.contains("detectedContent", "sensitive"), // Sensitive content detected
-      op.gt("viralityScore", 8.0)                // Highly viral content
-    ),
-    op.or(
-      op.attributeNotExists("moderationStatus"), // Not moderated
-      op.eq("moderationStatus", "pending")       // Pending moderation
-    ),
-    op.or(
-      op.gt("viewCount", 10000),                 // High view count
-      op.gt("shareCount", 1000),                 // High share count
-      op.gt("engagementRate", 0.1),              // High engagement
-      op.eq("trending", true)                    // Currently trending
-    )
-  ))
-  .execute();
-
-// Real Estate: Property recommendations
-// Good match = (Price range OR negotiable) AND (location preferences) AND (feature requirements)
-const recommendedProperties = await propertyRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.between("price", 400000, 600000),       // In price range
-      op.eq("negotiable", true),                 // Price negotiable
-      op.eq("auctionProperty", true)             // Auction property
-    ),
-    op.or(
-      op.eq("neighborhood", "downtown"),         // Preferred neighborhoods
-      op.eq("neighborhood", "westside"),
-      op.eq("neighborhood", "suburb"),
-      op.lt("commuteTime", 30)                   // Acceptable commute
-    ),
-    op.or(
-      op.and(                                    // Family requirements
-        op.gte("bedrooms", 3),
-        op.gte("bathrooms", 2),
-        op.eq("schoolDistrict", "excellent")
-      ),
-      op.and(                                    // Young professional
-        op.gte("bedrooms", 1),
-        op.attributeExists("publicTransport"),
-        op.attributeExists("walkabilityScore")
-      ),
-      op.and(                                    // Investment property
-        op.gt("rentalYield", 0.05),
-        op.eq("rentabilityGrade", "A"),
-        op.lt("maintenanceScore", 3)
-      )
+      op.eq("status", "online"),
+      op.eq("status", "looking-for-game")
     )
   ))
   .execute();
 ```
 
-### Entity-Specific Query Patterns
-
-Leverage entity schemas for domain-specific filtering:
-
-```ts
-// User lifecycle queries using schema-validated enums
-const usersInTransition = await userRepo.scan()
-  .filter(op => op.and(
-    op.inArray("status", ["pending", "trial", "converting"]),  // Transitional states
-    op.or(
-      op.gte("trialExpiresAt", new Date().toISOString()),      // Trial not expired
-      op.attributeExists("conversionIntent")                    // Shows conversion intent
-    ),
-    op.gt("engagementScore", 5)                                // Engaged users
-  ))
-  .execute();
-
-// Order fulfillment optimization
-const ordersForOptimization = await orderRepo.scan()
-  .filter(op => op.and(
-    op.inArray("status", ["pending", "processing"]),           // Processable orders
-    op.or(
-      op.eq("shippingMethod", "standard"),                     // Standard shipping
-      op.eq("shippingMethod", "expedited")                     // Expedited shipping
-    ),
-    op.or(
-      op.eq("warehouseRegion", "west"),                        // Western warehouse
-      op.eq("warehouseRegion", "central"),                     // Central warehouse
-      op.lt("estimatedShippingDays", 3)                        // Fast shipping available
-    )
-  ))
-  .execute();
-
-// Subscription management with business rules
-const subscriptionsForReview = await subscriptionRepo.scan()
-  .filter(op => op.and(
-    op.or(
-      op.eq("autoRenew", false),                               // No auto-renewal
-      op.lt("paymentSuccessRate", 0.8),                        // Payment issues
-      op.attributeExists("downgradeRequest")                   // Downgrade requested
-    ),
-    op.or(
-      op.gte("daysUntilExpiry", 7),                            // Expiring soon
-      op.gte("daysUntilExpiry", 30)                            // Expiring in month
-    ),
-    op.or(
-      op.gt("lifetimeValue", 500),                             // Valuable customers
-      op.eq("tier", "enterprise"),                             // Enterprise customers
-      op.gt("usageMetrics", 1000)                              // High usage
-    )
-  ))
-  .execute();
-```
-
-### Performance-Optimized Complex Queries
+### Performance-optimized complex queries
 
 ```ts
 // ❌ Inefficient: Multiple OR conditions for status
@@ -781,7 +534,7 @@ const businessOptimizedQuery = await userRepo.scan()
   .execute();
 ```
 
-### Chaining Filters with Entity Queries
+### Chaining filters with entity queries
 
 ```ts
 // Entity queries support chaining additional filters
@@ -808,9 +561,9 @@ const targetCustomersQuery = await orderRepo.query
   .execute();
 ```
 
-## Query Constraints
+## Query constraints
 
-### Limiting Results
+### Limiting results
 
 ```ts
 // Get first 10 orders for user
@@ -827,7 +580,7 @@ const recentOrders = await orderRepo.query
   .execute();
 ```
 
-### Consistency Control
+### Consistency control
 
 ```ts
 // Eventual consistency (default)
@@ -839,7 +592,7 @@ const { item: criticalUser } = await userRepo.get({ id: "123" })
   .execute();
 ```
 
-### Sort Direction
+### Sort direction
 
 ```ts
 // Ascending (default) - oldest first
@@ -855,7 +608,7 @@ const newestFirst = await orderRepo.query
   .execute();
 ```
 
-### Pagination Control
+### Pagination control
 
 ```ts
 // Manual pagination with entity queries
@@ -875,9 +628,9 @@ do {
 } while (lastKey);
 ```
 
-## Transaction Operations
+## Transaction operations
 
-### Conditional Checks with Entity Validation
+### Conditional checks with entity validation
 
 ```ts
 // Ensure inventory before purchase with full validation
@@ -904,7 +657,7 @@ await table.transaction(async (tx) => {
 });
 ```
 
-### Conditional Put with Schema Validation
+### Conditional put with schema validation
 
 ```ts
 // Create user only if doesn't exist (with automatic validation)
@@ -934,7 +687,7 @@ try {
 }
 ```
 
-### Conditional Updates
+### Conditional updates
 
 ```ts
 // Update user credits only if active
@@ -957,7 +710,7 @@ await userRepo
   .execute();
 ```
 
-### Conditional Deletes
+### Conditional deletes
 
 ```ts
 // Delete only inactive users
@@ -967,9 +720,9 @@ await userRepo
   .execute();
 ```
 
-## Pagination & Results
+## Pagination & results
 
-### Automatic Pagination with Entities
+### Automatic pagination with entities
 
 ```ts
 // Create paginator for semantic query
@@ -990,7 +743,7 @@ while (paginator.hasNextPage()) {
 }
 ```
 
-### Load All Pages at Once
+### Load all pages at once
 
 ```ts
 // Get all orders for user (use carefully with large datasets)
@@ -1002,7 +755,7 @@ const allUserOrders = await orderRepo.query
 console.log(`Total orders: ${allUserOrders.length}`);
 ```
 
-### ResultIterator - Memory Efficient Streaming
+### ResultIterator: memory-efficient streaming
 
 ```ts
 // Process one item at a time (memory efficient)
@@ -1027,7 +780,7 @@ for await (const order of orderIterator) {
 console.log(`Processed ${orderCount} orders, total: $${totalAmount}`);
 ```
 
-### Find One Item
+### Find one item
 
 ```ts
 // Get the latest order without manual paging
@@ -1041,7 +794,7 @@ if (latestOrder) {
 }
 ```
 
-### Array Loading
+### Array loading
 
 ```ts
 // Load all results into memory (for small datasets)
@@ -1054,9 +807,9 @@ const orders = await results.toArray();
 console.log(`Found ${orders.length} orders`);
 ```
 
-## Type Safety
+## Type safety
 
-### Automatic Schema-Based Types
+### Automatic schema-based types
 
 ```ts
 // Entity automatically provides full type safety
@@ -1071,7 +824,7 @@ for await (const user of users) {
 }
 ```
 
-### Schema Validation at Runtime
+### Schema validation at runtime
 
 ```ts
 // Invalid data is caught at runtime
@@ -1089,7 +842,7 @@ try {
 }
 ```
 
-### Input Validation for Queries
+### Input validation for queries
 
 ```ts
 // Query inputs are also validated
@@ -1107,9 +860,9 @@ const user = await userRepo.query.getUserByEmail({
 }).execute();
 ```
 
-## Custom Query Methods
+## Custom query methods
 
-### Defining Semantic Query Methods
+### Defining semantic query methods
 
 ```ts
 // Add business-meaningful query methods to entities
@@ -1170,7 +923,7 @@ const UserEntityExtended = defineEntity({
 const extendedUserRepo = UserEntityExtended.createRepository(table);
 ```
 
-### Using Custom Query Methods
+### Using custom query methods
 
 ```ts
 // Use semantic business methods
@@ -1198,9 +951,9 @@ const vipEngagedUsers = await extendedUserRepo.query
   .execute();
 ```
 
-## Advanced Examples
+## Advanced examples
 
-### E-commerce Customer Analytics
+### E-commerce customer analytics
 
 ```ts
 // Business intelligence query using entity layer
@@ -1244,7 +997,7 @@ async function getCustomerInsights(userId: string) {
 }
 ```
 
-### Validated Order Processing
+### Validated order processing
 
 ```ts
 async function processOrderWithValidation(orderData: {
@@ -1291,7 +1044,7 @@ async function processOrderWithValidation(orderData: {
 }
 ```
 
-### User Status Management
+### User status management
 
 ```ts
 // Business logic for user lifecycle management
@@ -1353,7 +1106,7 @@ class UserService {
 const userService = new UserService(userRepo);
 ```
 
-### Efficient Bulk Operations
+### Efficient bulk operations
 
 ```ts
 // Process large datasets efficiently with entities
@@ -1411,5 +1164,3 @@ async function processAllActiveUsers() {
   };
 }
 ```
-
-This comprehensive guide demonstrates how dyno-table's Entity Query Builder provides schema validation, semantic query methods, and business-meaningful abstractions while maintaining all the power and flexibility of the underlying DynamoDB operations.

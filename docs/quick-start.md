@@ -1,8 +1,8 @@
-# Quick Start Guide
+# Quick start guide
 
-Get up and running with dyno-table quickly using a practical example database.
+A practical example: a dinosaur database, built from scratch with dyno-table.
 
-## What We'll Build
+## What we'll build
 
 A type-safe dinosaur database that can:
 - Store dinosaur information with validation
@@ -15,7 +15,7 @@ A type-safe dinosaur database that can:
 npm install dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb zod
 ```
 
-## Step 2: Setup DynamoDB Client
+## Step 2: Set up the DynamoDB client
 
 ```ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -37,7 +37,7 @@ const table = new Table({
     partitionKey: "pk",
     sortKey: "sk",
     gsis: {
-      // Must match the entity's index name below exactly — dyno-table looks up
+      // Must match the entity's index name below exactly. dyno-table looks up
       // the physical GSI by that name when generating and querying index attributes.
       byDiet: {
         partitionKey: "dietPK",
@@ -48,7 +48,7 @@ const table = new Table({
 });
 ```
 
-## Step 3: Define Your First Entity
+## Step 3: Define your first entity
 
 ```ts
 import { z } from "zod";
@@ -108,7 +108,7 @@ const DinosaurEntity = defineEntity({
 const dinoRepo = DinosaurEntity.createRepository(table);
 ```
 
-## Step 4: Start Using Your Database
+## Step 4: Start using your database
 
 ### Create Some Dinosaurs
 
@@ -210,20 +210,9 @@ await dinoRepo.delete({ id: "old-classification-001" })
   .execute();
 ```
 
-## You're All Set!
+## What's next?
 
-You've now created a fully functional, type-safe database with:
-
-- ✅ **Schema validation** - Invalid data gets caught automatically
-- ✅ **Efficient queries** - Using proper DynamoDB indexes
-- ✅ **Type safety** - TypeScript catches errors at compile time
-- ✅ **Semantic methods** - `getDinosaursByDiet()` instead of cryptic queries
-- ✅ **Batch operations** - Get multiple items efficiently
-- ✅ **Conditional updates** - Safe data modifications
-
-## What's Next?
-
-Ready to learn more? Check out these guides:
+A few places to go from here:
 
 - **[Entity Pattern Guide →](entities.md)** - Master the entity approach
 - **[Advanced Queries →](query-builder.md)** - Complex filtering and joins
@@ -233,7 +222,7 @@ Ready to learn more? Check out these guides:
 
 ## Troubleshooting
 
-### Common Issues
+### Common issues
 
 **"Table doesn't exist" error?**
 Make sure your DynamoDB table is created with the correct indexes:
@@ -264,7 +253,3 @@ const goodDino = {
 ```
 
 **Need help?** Check out our [Error Handling Guide →](error-handling.md)
-
----
-
-*Ready to build robust, type-safe DynamoDB applications? Start exploring the advanced features!*

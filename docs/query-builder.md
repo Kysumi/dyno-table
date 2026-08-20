@@ -1,30 +1,13 @@
-# dyno-table Query Builder Guide
+# dyno-table query builder guide
 
-The dyno-table Query Builder provides a powerful, type-safe API for creating complex DynamoDB queries with a fluent, chainable interface. dyno-table offers two complementary approaches to DynamoDB operations, each optimized for different use cases.
+The dyno-table Query Builder builds complex DynamoDB queries through a chainable, type-safe API. dyno-table offers two approaches to DynamoDB operations, each suited to different situations.
 
-## Choose Your Approach
+## Table vs entity: which to use
 
-dyno-table provides two ways to work with DynamoDB, each with distinct advantages:
+- **Table Query Builder.** Direct control over partition keys, sort keys, and indexes. Best for complex or custom access patterns and for learning DynamoDB concepts. See the [Table Query Builder Guide](./table-query-builder.md).
+- **Entity Query Builder.** Schema validation and business-semantic query methods (e.g. `getActiveUsers()` instead of raw key conditions). Best for application development and maintainability. See the [Entity Query Builder Guide](./entity-query-builder.md).
 
-### 🔧 Table Query Builder
-**Direct control with full DynamoDB flexibility**
-
-- **When to use**: You need direct control over partition keys, sort keys, and indexes
-- **Best for**: Complex queries, custom access patterns, learning DynamoDB concepts
-- **Approach**: Manual key management, explicit index usage, direct DynamoDB operations
-
-**→ [Complete Table Query Builder Guide](./table-query-builder.md)**
-
-### 🎯 Entity Query Builder
-**High-level abstraction with business semantics**
-
-- **When to use**: You want schema validation, semantic queries, and business-focused methods
-- **Best for**: Application development, team productivity, maintainable code
-- **Approach**: Schema-first design, automatic validation, business-meaningful query names
-
-**→ [Complete Entity Query Builder Guide](./entity-query-builder.md)**
-
-## Quick Comparison
+Both are built on the same underlying operations, so you can mix them in the same application.
 
 | Feature | Table Approach | Entity Approach |
 |---------|---------------|-----------------|
@@ -37,9 +20,9 @@ dyno-table provides two ways to work with DynamoDB, each with distinct advantage
 | **Learning Curve** | Higher (DynamoDB knowledge required) | Lower (focus on business logic) |
 | **Flexibility** | Maximum | High (within entity constraints) |
 
-## Side-by-Side Examples
+## Side-by-side examples
 
-### Get a User
+### Get a user
 ```ts
 // Table approach - direct key specification
 const user = await table
@@ -50,7 +33,7 @@ const user = await table
 const { item: user } = await userRepo.get({ id: "123" }).execute();
 ```
 
-### Query with Filters
+### Query with filters
 ```ts
 // Table approach - explicit structure
 const activeUsers = await table
@@ -67,7 +50,7 @@ const activeUsers = await userRepo.query
   .execute();
 ```
 
-### Complex Business Query
+### Complex business query
 ```ts
 // Table approach - direct conditions
 const premiumUsers = await table
@@ -82,36 +65,9 @@ const premiumUsers = await userRepo.query
   .execute();
 ```
 
-## Supported Features
+## Documentation structure
 
-Both approaches support the complete feature set of dyno-table:
-
-### Core Operations
-- ✅ Query, Scan, BatchGet, Transactions
-- ✅ All DynamoDB condition operators (`eq`, `gt`, `between`, `beginsWith`, etc.)
-- ✅ Complex logical operations (`and`, `or`, `not`)
-- ✅ Global Secondary Index support
-- ✅ Pagination with multiple strategies
-- ✅ Memory-efficient streaming with `ResultIterator`
-
-### Type Safety & Validation
-- ✅ Full TypeScript integration
-- ✅ Union type support for enums
-- ✅ Nested property access
-- ✅ Runtime schema validation (Entity approach)
-- ✅ Compile-time type checking
-
-### Advanced Features
-- ✅ Conditional operations for all CRUD operations
-- ✅ Transaction support with condition checks
-- ✅ Consistent reads
-- ✅ Sort direction control
-- ✅ Manual and automatic pagination
-- ✅ Performance optimization patterns
-
-## Documentation Structure
-
-Each approach has comprehensive documentation covering:
+Each approach's guide covers:
 
 - **Getting Started** - Setup and basic concepts
 - **Query Operations** - All supported operation types
@@ -122,7 +78,7 @@ Each approach has comprehensive documentation covering:
 - **Pagination & Results** - Different result handling strategies
 - **Advanced Examples** - Real-world patterns and best practices
 
-## Migration Between Approaches
+## Migration between approaches
 
 You can start with one approach and migrate to the other, or even use both in the same application:
 
@@ -142,14 +98,3 @@ const orders = await orderRepo.query
 const tableResults = await table.scan().execute();
 const entityResults = await userRepo.scan().execute();
 ```
-
-## Next Steps
-
-Choose the approach that best fits your needs:
-
-- **Learning DynamoDB?** → Start with [Table Query Builder](./table-query-builder.md)
-- **Building applications?** → Jump to [Entity Query Builder](./entity-query-builder.md)
-- **Need maximum flexibility?** → Use [Table Query Builder](./table-query-builder.md)
-- **Want productivity & validation?** → Use [Entity Query Builder](./entity-query-builder.md)
-
-Both approaches provide the same powerful, type-safe foundation with different levels of abstraction to match your specific use case.

@@ -1,8 +1,8 @@
-# 🔒 ACID Transactions
+# ACID transactions
 
-ACID transactions let you perform multiple operations atomically - either all succeed or all fail.
+ACID transactions perform multiple operations atomically. Either all of them succeed, or none do.
 
-## 📋 Quick Reference
+## Quick reference
 
 ```typescript
 await table.transaction(async (tx) => {
@@ -32,9 +32,9 @@ expeditionRepo.update({ expeditionId: "exp-123" }, {})
 await tx.execute();
 ```
 
-## 🎨 Choosing a Pattern
+## Choosing a pattern
 
-### Callback Pattern (Recommended)
+### Callback pattern (recommended)
 
 ```typescript
 // ✅ Preferred approach
@@ -44,7 +44,7 @@ await table.transaction(async (tx) => {
 });
 ```
 
-### Builder Pattern
+### Builder pattern
 Use `table.transactionBuilder()` when you need to:
 - Conditionally build transactions based on runtime logic
 - Construct transactions programmatically across multiple functions
@@ -67,9 +67,9 @@ if (updateRelated) {
 await tx.execute(); // Explicit execution when ready
 ```
 
-## ✨ Transaction Types
+## Transaction types
 
-### Write Transactions
+### Write transactions
 Perform up to 25 write operations atomically:
 
 ```typescript
@@ -96,25 +96,16 @@ await table.transaction(async (tx) => {
 });
 ```
 
-### Read Transactions
-Get consistent snapshot across multiple items:
+### Read transactions
 
-```typescript
-// Note: Read transactions are not currently supported in this library
-// For consistent reads, use DynamoDB's native transactGet via AWS SDK
-// This library focuses on write transactions for now
-```
+`TransactionBuilder` only supports `Put`, `Update`, `Delete`, and `ConditionCheck` operations. There's no read/`TransactGet` equivalent. For a consistent read snapshot across multiple items, use DynamoDB's native `TransactGetItems` via the AWS SDK directly.
 
-## 🎯 Common Patterns
+## Common patterns
 
-Transactions become powerful when combined with conditions to enforce business rules atomically.
+Combine transactions with conditions to enforce business rules atomically. See the [conditions guide](./conditions.md) for condition patterns.
 
-**→ For comprehensive conditional operation patterns, see [Conditions Guide](./conditions.md)**
-
-### Conditional Updates
-Ensure business rules are enforced:
-
-**→ For detailed condition patterns and examples, see [Conditions Guide](./conditions.md)**
+### Conditional updates
+Enforce business rules with conditions:
 
 ```typescript
 // Transfer dinosaur between expeditions
@@ -138,7 +129,7 @@ await table.transaction(async (tx) => {
 });
 ```
 
-### Inventory Management
+### Inventory management
 Track resources atomically:
 
 ```typescript
@@ -169,7 +160,7 @@ await table.transaction(async (tx) => {
 });
 ```
 
-### Optimistic Locking with Transactions
+### Optimistic locking with transactions
 ```typescript
 // Update with version check
 await table.transaction(async (tx) => {
@@ -180,6 +171,6 @@ await table.transaction(async (tx) => {
 });
 ```
 
-## 📚 Related Guides
+## Related guides
 
-- [Batch Operations](./batch-operations.md) - For non-transactional bulk operations
+- [Batch operations](./batch-operations.md) - For non-transactional bulk operations

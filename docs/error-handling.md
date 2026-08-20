@@ -1,62 +1,49 @@
-# Error Handling
+# Error handling
 
-dyno-table provides comprehensive error handling with rich context to help you debug and handle failures gracefully. All errors extend a base `DynoTableError` class and include structured context for debugging.
+Every dyno-table error extends `DynoTableError`, which carries a `code` for programmatic handling and a `context` object for debugging.
 
-## Error Class Hierarchy
+## Error class hierarchy
 
-All dyno-table errors extend the base `DynoTableError` class:
+The base class looks like this:
 
 ```typescript
 class DynoTableError extends Error {
   readonly code: string;           // Error code for programmatic handling
-  readonly context: Record<string, unknown>; // Rich debugging context
+  readonly context: Record<string, unknown>; // Debugging context
   readonly cause?: Error;          // Original error (e.g., from AWS SDK)
 }
 ```
 
-### Error Types
+### Error types
 
 #### 1. ValidationError
-Thrown when input validation fails, including schema validation and parameter validation.
-
-**Common scenarios:**
-- Schema validation failure
-- Missing required fields
-- Invalid parameter types
-- Constraint violations
+Thrown when input validation fails, e.g. calling `.execute()` on a builder that has no actions configured, or passing an undefined value where DynamoDB requires one.
 
 **Example:**
 ```typescript
-import { ValidationError, ErrorCodes } from 'dyno-table';
+import { ValidationError } from 'dyno-table';
 
 try {
-  await userRepo.create({
-    // missing required 'email' field
-    name: "John Doe"
-  }).execute();
+  // No set()/remove()/add()/delete() calls configured
+  await table.update({ pk: "USER#123", sk: "PROFILE" }).execute();
 } catch (error) {
   if (error instanceof ValidationError) {
     console.log('Validation failed:', error.message);
-    console.log('Error code:', error.code); // "VALIDATION_FAILED"
+    console.log('Error code:', error.code); // "NO_UPDATE_ACTIONS"
     console.log('Context:', error.context);
-    // Context includes: entityName, operation, validationIssues
+    // Context includes: tableName, key, suggestion
   }
 }
 ```
 
-#### 2. OperationError
-Thrown when a DynamoDB operation fails.
+Entity schema validation failures (e.g. a missing required field on `userRepo.create()`) throw the `EntityValidationError` subclass instead. See [Entity-specific errors](#7-entity-specific-errors) below.
 
-**Common scenarios:**
-- Query/scan failures
-- Put/update/delete failures
-- Conditional check failures
-- Throughput exceeded
-- Item not found
+#### 2. OperationError
+Thrown when a DynamoDB operation (query, scan, get, put, update, delete, or a conditional check) fails.
 
 **Example:**
 ```typescript
-import { OperationError } from 'dyno-table';
+import { OperationError, isConditionalCheckFailed, getAwsErrorCode } from 'dyno-table';
 
 try {
   await table.put({ pk: "USER#123", name: "John" })
@@ -66,10 +53,10 @@ try {
   if (error instanceof OperationError) {
     console.log('Operation:', error.context.operation); // "put"
     console.log('Table:', error.context.tableName);
-    console.log('AWS Error:', error.context.awsErrorCode);
+    console.log('AWS Error:', getAwsErrorCode(error.cause));
 
     // Check if it's a conditional check failure
-    if (error.code === ErrorCodes.CONDITIONAL_CHECK_FAILED) {
+    if (isConditionalCheckFailed(error)) {
       console.log('Item already exists');
     }
   }
@@ -77,62 +64,52 @@ try {
 ```
 
 #### 3. TransactionError
-Thrown when transaction operations fail.
+Thrown when a transaction fails.
 
 **Common scenarios:**
-- Too many items in transaction (>25 for writes, >100 for reads)
 - Duplicate items in transaction
-- Transaction cancellation
+- Transaction cancellation or DynamoDB rejecting the request (e.g. exceeding the 25-item limit)
 - Invalid transaction configuration
 
 **Example:**
 ```typescript
-import { TransactionError, ErrorCodes } from 'dyno-table';
+import { TransactionError, ErrorCodes, getAwsErrorMessage } from 'dyno-table';
 
 try {
-  const transaction = table.createTransaction();
-
-  // Add too many items...
-  for (let i = 0; i < 30; i++) {
-    transaction.put({ pk: `ITEM#${i}`, data: "value" });
-  }
-
-  await transaction.execute();
-} catch (error) {
-  if (error instanceof TransactionError) {
-    if (error.code === ErrorCodes.TRANSACTION_ITEM_LIMIT) {
-      console.log('Too many items:', error.context.itemCount);
-      console.log('Limit:', error.context.limit);
+  await table.transaction(async (tx) => {
+    // DynamoDB rejects transactions with more than 25 items
+    for (let i = 0; i < 30; i++) {
+      table.put({ pk: `ITEM#${i}`, sk: "DATA", data: "value" }).withTransaction(tx);
     }
+  });
+} catch (error) {
+  if (error instanceof TransactionError && error.code === ErrorCodes.TRANSACTION_FAILED) {
+    console.log('Items in transaction:', error.context.itemCount);
+    console.log('Underlying AWS error:', getAwsErrorMessage(error.cause));
   }
 }
 ```
 
 #### 4. BatchError
-Thrown when batch operations encounter unprocessed items.
-
-**Common scenarios:**
-- Partial batch failures
-- Throughput exceeded during batch
-- Batch size limits exceeded
+Thrown when an entire batch request fails outright. Ordinary partial failures don't throw; they come back as `unprocessed` items on the result (see [Batch operations](./batch-operations.md)).
 
 **Example:**
 ```typescript
 import { BatchError } from 'dyno-table';
 
 try {
-  await table.batchWrite()
-    .put([/* ... items ... */])
-    .execute();
+  const batch = table.batchBuilder();
+  itemsToWrite.forEach(item => table.put(item).withBatch(batch));
+  await batch.execute();
 } catch (error) {
   if (error instanceof BatchError) {
     console.log('Unprocessed items:', error.unprocessedItems.length);
     console.log('Context:', error.context);
 
     // Retry unprocessed items
-    const retryBatch = table.batchWrite();
+    const retryBatch = table.batchBuilder();
     for (const item of error.unprocessedItems) {
-      retryBatch.put(item);
+      table.put(item as Record<string, unknown>).withBatch(retryBatch);
     }
     await retryBatch.execute();
   }
@@ -140,13 +117,7 @@ try {
 ```
 
 #### 5. ExpressionError
-Thrown when building or validating DynamoDB expressions fails.
-
-**Common scenarios:**
-- Invalid condition operators
-- Missing required attributes
-- Invalid expression syntax
-- Unsupported operations
+Thrown when building or validating DynamoDB condition/filter expressions fails, e.g. a logical operator (`and`/`or`) with no conditions passed to it.
 
 **Example:**
 ```typescript
@@ -154,25 +125,19 @@ import { ExpressionError } from 'dyno-table';
 
 try {
   await table.query({ pk: "USER#123" })
-    .filter(op => op.between("age", 18)) // Missing upper bound
+    .filter(op => op.and()) // No conditions passed
     .execute();
 } catch (error) {
   if (error instanceof ExpressionError) {
     console.log('Expression error:', error.message);
-    console.log('Condition type:', error.context.conditionType);
+    console.log('Condition type:', error.context.conditionType); // "and"
     console.log('Suggestion:', error.context.suggestion);
   }
 }
 ```
 
 #### 6. ConfigurationError
-Thrown when table or entity configuration is invalid.
-
-**Common scenarios:**
-- Missing sort key when required
-- Invalid GSI configuration
-- Table configuration mismatch
-- Invalid entity definition
+Thrown when table or entity configuration is invalid (e.g. missing sort key when required, or an unknown GSI name).
 
 **Example:**
 ```typescript
@@ -180,7 +145,7 @@ import { ConfigurationError } from 'dyno-table';
 
 try {
   await table.query({ pk: "USER#123" })
-    .index("nonexistent-gsi")
+    .useIndex("nonexistent-gsi")
     .execute();
 } catch (error) {
   if (error instanceof ConfigurationError) {
@@ -191,7 +156,7 @@ try {
 }
 ```
 
-#### 7. Entity-Specific Errors
+#### 7. Entity-specific errors
 
 ##### EntityError
 General entity-related errors.
@@ -268,9 +233,9 @@ try {
 }
 ```
 
-## Error Codes
+## Error codes
 
-All errors include a `code` property for programmatic handling. Use the `ErrorCodes` constant for type-safe error code checking:
+Every error includes a `code` property. Use the `ErrorCodes` constant to check codes without hardcoding strings:
 
 ```typescript
 import { ErrorCodes } from 'dyno-table';
@@ -314,9 +279,9 @@ ErrorCodes.INDEX_UNDEFINED_VALUES
 ErrorCodes.INDEX_NOT_FOUND
 ```
 
-## Type Guards
+## Type guards
 
-Use type guards to check error types:
+Use these to narrow an unknown `catch` error to a specific dyno-table error type:
 
 ```typescript
 import {
@@ -331,7 +296,7 @@ import {
   isKeyGenerationError,
   isIndexGenerationError,
   isEntityValidationError
-} from 'dyno-table/utils/error-utils';
+} from 'dyno-table';
 
 try {
   await someOperation();
@@ -352,9 +317,9 @@ try {
 }
 ```
 
-## Common Error Handling Patterns
+## Common error handling patterns
 
-### 1. Conditional Check Failures
+### 1. Conditional check failures
 
 ```typescript
 import { OperationError, ErrorCodes, isConditionalCheckFailed } from 'dyno-table';
@@ -373,23 +338,27 @@ try {
 }
 ```
 
-### 2. Transaction Cancellations
+### 2. Transaction cancellations
+
+Transaction failures are wrapped in a `TransactionError`, with the original AWS SDK error preserved as `.cause`. `isTransactionCanceled()` checks an error's `name`, so pass it the `.cause`. dyno-table doesn't parse cancellation reasons itself, but the AWS SDK's `TransactionCanceledException` carries a `CancellationReasons` array:
 
 ```typescript
 import { TransactionError, isTransactionCanceled } from 'dyno-table';
 
 try {
-  await transaction.execute();
+  await table.transaction(async (tx) => {
+    // ...operations...
+  });
 } catch (error) {
-  if (isTransactionCanceled(error)) {
+  if (error instanceof TransactionError && isTransactionCanceled(error.cause)) {
     console.log('Transaction was cancelled');
-    console.log('Cancellation reasons:', error.context.cancellationReasons);
+    console.log('Cancellation reasons:', (error.cause as { CancellationReasons?: unknown }).CancellationReasons);
     // Handle transaction conflicts
   }
 }
 ```
 
-### 3. Validation Errors with Schema Details
+### 3. Validation errors with schema details
 
 ```typescript
 import { EntityValidationError } from 'dyno-table';
@@ -410,7 +379,7 @@ try {
 }
 ```
 
-### 4. Key Generation Errors with Missing Attributes
+### 4. Key generation errors with missing attributes
 
 ```typescript
 import { KeyGenerationError } from 'dyno-table';
@@ -431,47 +400,43 @@ try {
 }
 ```
 
-### 5. Batch Operations with Partial Failures
+### 5. Batch operations with partial failures
+
+`table.batchWrite()` doesn't throw for ordinary partial failures. It returns any `unprocessedItems` for you to retry:
 
 ```typescript
-import { BatchError } from 'dyno-table';
-
-async function batchWriteWithRetry(items: any[], maxRetries = 3) {
+async function batchWriteWithRetry(
+  operations: Array<{ type: "put"; item: Record<string, unknown> } | { type: "delete"; key: { pk: string; sk?: string } }>,
+  maxRetries = 3,
+) {
   let attempt = 0;
-  let itemsToWrite = items;
+  let remaining = operations;
 
-  while (attempt < maxRetries) {
-    try {
-      const batch = table.batchWrite();
-      for (const item of itemsToWrite) {
-        batch.put(item);
-      }
-      await batch.execute();
+  while (attempt < maxRetries && remaining.length > 0) {
+    const { unprocessedItems } = await table.batchWrite(remaining);
+    remaining = unprocessedItems;
+
+    if (remaining.length === 0) {
       return { success: true };
-    } catch (error) {
-      if (error instanceof BatchError) {
-        console.log(`Attempt ${attempt + 1}: ${error.unprocessedItems.length} unprocessed items`);
-        itemsToWrite = error.unprocessedItems;
-        attempt++;
-
-        // Exponential backoff
-        await new Promise(resolve =>
-          setTimeout(resolve, Math.pow(2, attempt) * 1000)
-        );
-      } else {
-        throw error;
-      }
     }
+
+    console.log(`Attempt ${attempt + 1}: ${remaining.length} unprocessed items`);
+    attempt++;
+
+    // Exponential backoff
+    await new Promise(resolve =>
+      setTimeout(resolve, Math.pow(2, attempt) * 1000)
+    );
   }
 
   return {
-    success: false,
-    unprocessedCount: itemsToWrite.length
+    success: remaining.length === 0,
+    unprocessedCount: remaining.length
   };
 }
 ```
 
-### 6. Expression Building Errors
+### 6. Expression building errors
 
 ```typescript
 import { ExpressionError } from 'dyno-table';
@@ -498,7 +463,7 @@ try {
 }
 ```
 
-### 7. Index Generation Failures During Updates
+### 7. Index generation failures during updates
 
 ```typescript
 import { IndexGenerationError, ErrorCodes } from 'dyno-table';
@@ -530,9 +495,9 @@ try {
 }
 ```
 
-## Debugging with Error Context
+## Debugging with error context
 
-Every error includes a `context` object with relevant debugging information:
+Every error includes a `context` object with details about what failed:
 
 ```typescript
 try {
@@ -549,20 +514,19 @@ try {
     // - tableName: "Users"
     // - operation: "update"
     // - key: { pk: "USER#123", sk: "PROFILE" }
-    // - updateExpression: "SET #0 = :0"
-    // - conditionExpression: "#1 = :1"
-    // - awsErrorCode: "ConditionalCheckFailedException"
-    // - awsErrorMessage: "The conditional request failed"
+
+    // The underlying AWS SDK error is preserved as `.cause`. See
+    // "AWS SDK error wrapping" below to pull its code/message out of it.
   }
 }
 ```
 
-## AWS SDK Error Wrapping
+## AWS SDK error wrapping
 
 dyno-table wraps AWS SDK errors and preserves the original error in the `cause` property:
 
 ```typescript
-import { getAwsErrorCode, getAwsErrorMessage } from 'dyno-table/utils/error-utils';
+import { getAwsErrorCode, getAwsErrorMessage } from 'dyno-table';
 
 try {
   await table.query({ pk: "USER#123" }).execute();
@@ -581,12 +545,12 @@ try {
 }
 ```
 
-## Retryable Errors
+## Retryable errors
 
 Some errors are retryable (e.g., throughput exceeded). Use the `isRetryableError` helper:
 
 ```typescript
-import { isRetryableError } from 'dyno-table/utils/error-utils';
+import { isRetryableError } from 'dyno-table';
 
 async function executeWithRetry(operation: () => Promise<any>, maxRetries = 3) {
   let attempt = 0;
@@ -618,40 +582,39 @@ const result = await executeWithRetry(() =>
 );
 ```
 
-## Best Practices
+## Best practices
 
-1. **Always check error types**: Use `instanceof` or type guards to handle specific error types
-2. **Log error context**: Include `error.context` in logs for debugging
-3. **Handle validation errors gracefully**: Show user-friendly messages from validation errors
-4. **Preserve error causes**: Don't lose the original AWS SDK error information
-5. **Use error codes for logic**: Use `error.code` for programmatic error handling instead of parsing messages
-6. **Implement retry logic**: Use `isRetryableError()` to implement smart retry strategies
-7. **Handle partial failures**: Always handle `BatchError` and retry unprocessed items
-8. **Provide missing fields**: For `KeyGenerationError`, prompt users for required attributes
+- **Branch on `error.code`, not `error.message`.** Messages aren't a stable API across versions.
+- **Most type guards expect the raw AWS error, not the dyno-table wrapper.** `isTransactionCanceled()` and `isRetryableError()` check `error.name`, but transaction and operation failures wrap the AWS error as `.cause`. Pass `error.cause` in most cases. `isConditionalCheckFailed()` is the exception. It checks both.
+- **Batch retries have two different shapes.** `table.batchWrite()` returns `unprocessedItems` for you to retry, and that isn't an exception. `BatchError.unprocessedItems` only shows up if the whole batch call throws (see [BatchError](#4-batcherror)).
 
-## Error Summary Helper
+## Error summary helper
 
-Get a formatted error summary for logging:
+`getErrorSummary()` takes a `DynoTableError` and returns a formatted multi-line string for logging (not a structured object), so narrow to a `DynoTableError` first:
 
 ```typescript
-import { getErrorSummary } from 'dyno-table/utils/error-utils';
+import { getErrorSummary, isDynoTableError } from 'dyno-table';
 
 try {
   await someOperation();
 } catch (error) {
-  const summary = getErrorSummary(error);
-  logger.error('Operation failed', summary);
+  if (isDynoTableError(error)) {
+    logger.error(getErrorSummary(error));
 
-  // Summary includes:
-  // - errorType: "KeyGenerationError"
-  // - code: "KEY_GENERATION_FAILED"
-  // - message: "Failed to generate primary key..."
-  // - context: { entityName, operation, requiredAttributes }
-  // - awsError: { code, message } (if applicable)
+    // Produces something like:
+    // Error: KeyGenerationError
+    // Code: KEY_GENERATION_FAILED
+    // Message: Failed to generate primary key for entity "User"
+    // Context:
+    //   entityName: "User"
+    //   operation: "create"
+    //   requiredAttributes: ["email"]
+    // Caused by: ValidationException: One or more parameter values were invalid
+  }
 }
 ```
 
-## Next Steps
+## Next steps
 
 - See [Entities](./entities.md) for entity-specific error handling
 - See [Transactions](./transactions.md) for transaction error handling

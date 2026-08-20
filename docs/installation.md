@@ -1,14 +1,14 @@
-# Installation Guide
+# Installation guide
 
 Get dyno-table up and running in your project.
 
 ## Prerequisites
 
-- **Node.js** 16.0 or higher
-- **TypeScript** 4.0 or higher (recommended)
-- **AWS Account** with DynamoDB access (or local DynamoDB)
+- Node.js 16.0 or higher
+- TypeScript 4.0 or higher (recommended)
+- An AWS account with DynamoDB access, or a local DynamoDB instance
 
-## Basic Installation
+## Basic installation
 
 ### Install dyno-table
 
@@ -23,9 +23,9 @@ yarn add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 pnpm add dyno-table @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
-### Add Schema Validation
+### Add schema validation
 
-Choose your preferred validation library, this is required if you want to use the Entity based approach
+Pick a validation library. You only need one, and only if you're using the entity-based approach.
 
 ```bash
 # Zod (most popular, included in examples)
@@ -38,7 +38,7 @@ npm install arktype
 npm install valibot
 ```
 
-## Framework Integration
+## Framework integration
 
 ### Next.js
 
@@ -106,7 +106,7 @@ export class DinosaurService {
 
 ## Troubleshooting
 
-### Common Installation Issues
+### Common installation issues
 
 **TypeScript errors?**
 ```bash
@@ -149,20 +149,15 @@ docker run -p 8000:8000 amazon/dynamodb-local
 }
 ```
 
-### Getting Help
+### Getting help
 
 - **[Quick Start Guide →](quick-start.md)** - Get running quickly
 - **[Error Handling →](error-handling.md)** - Common errors and fixes
 - **[GitHub Discussions](https://github.com/Kysumi/dyno-table/discussions)** - Ask questions
 - **[GitHub Issues](https://github.com/Kysumi/dyno-table/issues)** - Report bugs
 
-## You're All Set!
+## Next steps
 
-Your dyno-table installation is complete! Ready to start building with type-safe DynamoDB operations?
-
-**Next steps:**
 - **[Quick Start Tutorial →](quick-start.md)** - Build your first application
 - **[Your First Entity →](first-entity.md)** - Learn the entity pattern
 - **[Table Operations →](table-query-builder.md)** - Indexes, scans, and parallel scan segments
-
-*Welcome to modern, type-safe DynamoDB development!*

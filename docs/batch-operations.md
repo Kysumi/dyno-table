@@ -1,31 +1,25 @@
-# ⚡ Batch Operations Guide
+# Batch operations guide
 
-Efficiently handle multiple dinosaur records with dyno-table's powerful batch operations.
+Read or write multiple dinosaur records in a single batch call instead of issuing one request per item.
 
-## 🦕 Why Use Batch Operations?
+## Why use batch operations?
 
-Batch operations let you:
-- **Process multiple items** in a single API call
-- **Reduce latency** compared to individual operations
-- **Handle bulk operations** efficiently
-- **Maintain consistency** across related items
+A batch call processes multiple items per API request, which cuts round trips compared to looping over individual `.execute()` calls. DynamoDB still enforces per-item limits (see [Performance considerations](#performance-considerations)), but the batch APIs handle chunking for you.
 
-Perfect for scenarios like importing fossil discoveries or updating museum collections!
+## Table of contents
 
-## 📖 Table of Contents
+- [Batch get operations](#batch-get-operations)
+- [Batch write operations](#batch-write-operations)
+- [Entity batch operations](#entity-batch-operations)
+- [Performance considerations](#performance-considerations)
+- [Error handling](#error-handling)
+- [Advanced patterns](#advanced-patterns)
 
-- [Batch Get Operations](#-batch-get-operations)
-- [Batch Write Operations](#-batch-write-operations)
-- [Entity Batch Operations](#-entity-batch-operations)
-- [Performance Considerations](#-performance-considerations)
-- [Error Handling](#-error-handling)
-- [Advanced Patterns](#-advanced-patterns)
+## Batch get operations
 
-## 🔍 Batch Get Operations
+### Basic batch get
 
-### Basic Batch Get
-
-Get multiple dinosaurs efficiently:
+Get multiple dinosaurs in one call:
 
 ```ts
 // Get several dinosaurs at once
@@ -41,9 +35,9 @@ for (const dino of dinosaurs) {
 }
 ```
 
-### Entity Batch Get
+### Entity batch get
 
-Entity repositories don't have their own `batchGet` — queue individual `.get()` calls on a shared batch instead, which keeps the automatic key generation and schema typing:
+Entity repositories don't have their own `batchGet`. Queue individual `.get()` calls on a shared batch instead; that keeps the automatic key generation and schema typing:
 
 ```ts
 // Batch get with entities (automatic key generation)
@@ -64,7 +58,7 @@ const expeditionReport = expeditionDinosaurs.map(dino => ({
 }));
 ```
 
-### Cross-Collection Batch Get
+### Cross-collection batch get
 
 Get items from different collections:
 
@@ -78,9 +72,9 @@ const { items: expeditionData } = await table.batchGet([
 ]);
 ```
 
-## 📝 Batch Write Operations
+## Batch write operations
 
-### Batch Create Multiple Items
+### Batch create multiple items
 
 ```ts
 // Batch create new dinosaur discoveries
@@ -134,7 +128,7 @@ newDiscoveries.forEach(dino => {
 await batch.execute();
 ```
 
-### Entity Batch Write
+### Entity batch write
 
 ```ts
 // Batch write with entities (automatic validation!)
@@ -147,7 +141,7 @@ newDiscoveries.forEach(dino => {
 await batch.execute();
 ```
 
-### Mixed Batch Operations
+### Mixed batch operations
 
 ```ts
 // Mix puts and deletes in one batch
@@ -166,9 +160,9 @@ outdatedClassifications.forEach(({ id }) => {
 await batch.execute();
 ```
 
-## 🦴 Entity Batch Operations
+## Entity batch operations
 
-### Repository Batch Methods
+### Repository batch methods
 
 ```ts
 // Batch get with type safety
@@ -198,7 +192,7 @@ discoveryUpdates.forEach(({ id, updates }) => {
 await batch.execute();
 ```
 
-### Batch with Different Entities
+### Batch with different entities
 
 ```ts
 // Coordinate operations across multiple entities
@@ -224,9 +218,9 @@ discoveryRepo.create({
 await batch.execute();
 ```
 
-## ⚡ Performance Considerations
+## Performance considerations
 
-### Batch Size Limits
+### Batch size limits
 
 DynamoDB has built-in limits that dyno-table handles automatically:
 
@@ -254,7 +248,7 @@ await batch.execute();
 - **Item Size**: 400KB max per item
 - **Total Size**: 16MB max per batch
 
-### Conditional Failures
+### Conditional failures
 
 ```ts
 // Batch with conditional operations
@@ -269,9 +263,9 @@ discoveries.forEach(dino => {
 await batch.execute();
 ```
 
-## 🎯 Advanced Patterns
+## Advanced patterns
 
-### Batch with Transactions
+### Batch with transactions
 
 For ACID compliance across batches:
 
@@ -284,7 +278,7 @@ await table.transaction(async (tx) => {
 });
 ```
 
-### Batch Data Migration
+### Batch data migration
 
 ```ts
 // Migrate data between schemas
@@ -324,7 +318,7 @@ async function migrateDinosaurData(oldRecords: OldDinosaurFormat[]) {
 }
 ```
 
-### Batch Analytics
+### Batch analytics
 
 ```ts
 // Batch operations for analytics
@@ -366,13 +360,9 @@ async function generateExpeditionReport(expeditionId: string) {
 }
 ```
 
-## 🧭 Related Guides
+## Related guides
 
 - **[Transactions →](transactions.md)** - ACID operations for consistency
 - **[Table Operations →](table-query-builder.md)** - Indexes, scans, and parallel scan segments
 - **[Error Handling →](error-handling.md)** - Handle batch failures gracefully
 - **[Entity Pattern →](entities.md)** - Type-safe entity operations
-
----
-
-*Batch operations: Because even paleontologists need to process multiple fossil discoveries efficiently! 🦕⚡*
