@@ -1,8 +1,8 @@
-# dyno-table Table Query Builder Guide
+# dyno-table table query builder guide
 
 The dyno-table Table Query Builder provides direct access to DynamoDB operations with a type-safe, fluent API. This approach gives you full control over partition keys, sort keys, indexes, and query expressions while maintaining TypeScript safety.
 
-## Table of Contents
+## Table of contents
 
 - [Getting Started](#getting-started)
 - [Query Operations](#query-operations)
@@ -15,9 +15,9 @@ The dyno-table Table Query Builder provides direct access to DynamoDB operations
 - [Global Secondary Indexes](#global-secondary-indexes)
 - [Advanced Examples](#advanced-examples)
 
-## Getting Started
+## Getting started
 
-### Basic Table Setup
+### Basic table setup
 
 ```ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -47,7 +47,7 @@ const table = new Table({
 });
 ```
 
-### Type Definitions
+### Type definitions
 
 Define your item types for full type safety:
 
@@ -77,9 +77,9 @@ interface Order {
 }
 ```
 
-## Query Operations
+## Query operations
 
-### Query - Fast Partition Key Retrieval
+### Query - fast partition key retrieval
 
 ```ts
 // Get all orders for a specific user
@@ -98,7 +98,7 @@ const specificOrder = await table
   .execute();
 ```
 
-### Scan - Full Table Examination
+### Scan - full table examination
 
 ```ts
 // Find all active users (less efficient - scans entire table)
@@ -118,7 +118,7 @@ const userProfiles = await table
   .execute();
 ```
 
-#### Parallel Scan
+#### Parallel scan
 
 Use `.segments(n)` for full-table jobs where one sequential scan is the bottleneck. `n` must be an integer from 1 to
 1,000,000. The method returns an async iterable directly:
@@ -154,10 +154,10 @@ while (paginator.hasNextPage()) {
 }
 ```
 
-Parallel pagination state is held in memory because DynamoDB returns one continuation key per segment, not one key for the
-merged scan.
+DynamoDB returns one continuation key per segment, not one key for the merged scan, so dyno-table holds parallel
+pagination state in memory.
 
-### Batch Get - Multiple Items by Key
+### Batch get - multiple items by key
 
 ```ts
 // Get multiple user profiles
@@ -175,9 +175,9 @@ const { items: specificOrders } = await table.batchGet<Order>([
 ]);
 ```
 
-## Key Conditions
+## Key conditions
 
-### Sort Key Operators
+### Sort key operators
 
 ```ts
 // Exact match - get user profile
@@ -218,7 +218,7 @@ const allUserOrders = await table
   .execute();
 ```
 
-### DynamoDB Lexical Sorting Best Practices
+### DynamoDB lexical sorting best practices
 
 ```ts
 // ❌ Wrong: Numbers don't sort correctly
@@ -254,13 +254,13 @@ const timeBasedQuery = await table
   .execute();
 ```
 
-## Filter Conditions
+## Filter conditions
 
-Filters control which items are returned from queries and scans. They're applied **after** items are retrieved from DynamoDB but **before** being returned to your application.
+Filters control which items queries and scans return. dyno-table applies them **after** DynamoDB retrieves the items, but **before** returning them to your application.
 
-**→ For comprehensive condition patterns including conditional writes and duplicate prevention, see [Conditions Guide](./conditions.md)**
+See the [Conditions Guide](./conditions.md) for condition patterns, including conditional writes and duplicate prevention.
 
-### Comparison Operators
+### Comparison operators
 
 ```ts
 // Equal to - active users only
@@ -294,7 +294,7 @@ const processingOrders = await table
   .execute();
 ```
 
-### String and Set Operations
+### String and set operations
 
 ```ts
 // String begins with - find users by name prefix
@@ -319,7 +319,7 @@ const ordersWithProduct = await table
   .execute();
 ```
 
-### Attribute Existence
+### Attribute existence
 
 ```ts
 // Must have email - verified users
@@ -335,7 +335,7 @@ const activeRecords = await table
   .execute();
 ```
 
-### Complex Logical Operations
+### Complex logical operations
 
 ```ts
 // AND conditions - premium active users
@@ -380,12 +380,12 @@ const targetUsers = await table
   .execute();
 ```
 
-### Advanced AND/OR Query Patterns
+### Advanced AND/OR query patterns
 
-Here are comprehensive examples of complex logical operations for real-world scenarios:
+Nested `and`/`or` groups combine to express multi-factor conditions:
 
 ```ts
-// Find VIP customers
+// Find VIP customers: high spend or order count, and active + verified
 const vipCustomers = await table
   .scan<User>()
   .filter(op => op.and(
@@ -398,79 +398,7 @@ const vipCustomers = await table
   ))
   .execute();
 
-// Find products that need attention
-const productsNeedingAttention = await table
-  .scan<Product>()
-  .filter(op => op.and(
-    op.or(
-      op.lt("stock", 10),
-      op.gt("returnRate", 0.15)
-    ),
-    op.ne("status", "discontinued")
-  ))
-  .execute();
-
-// Find content requiring review
-const contentForReview = await table
-  .scan<Content>()
-  .filter(op => op.and(
-    op.or(
-      op.gt("flagCount", 0),
-      op.contains("text", "sensitive"),
-      op.contains("tags", "needs-review")
-    ),
-    op.ne("moderationStatus", "reviewed")
-  ))
-  .execute();
-
-// Find engaged users with specific patterns
-const engagedUsers = await table
-  .scan<User>()
-  .filter(op => op.and(
-    op.or(
-      op.gte("lastLoginAt", "2024-01-01"),
-      op.eq("hasActiveSession", true)
-    ),
-    op.or(
-      op.eq("plan", "premium"),
-      op.eq("plan", "trial")
-    ),
-    op.or(
-      op.attributeExists("mobileAppVersion"),
-      op.attributeExists("webAppLastUsed")
-    )
-  ))
-  .execute();
-
-// High risk account assessment
-const highRiskAccounts = await table
-  .scan<Account>()
-  .filter(op => op.and(
-    op.or(
-      op.gt("failedPayments", 2),
-      op.eq("suspiciousActivityFlag", true)
-    ),
-    op.or(
-      op.gt("monthlyTransactionVolume", 50000),
-      op.lt("accountAgeInDays", 30)
-    )
-  ))
-  .execute();
-
-// Find organizations with usage anomalies
-const organizationsWithAnomalies = await table
-  .scan<Organization>()
-  .filter(op => op.and(
-    op.or(
-      op.gt("dailyApiCalls", 100000),
-      op.gt("storageUsedGB", 1000)
-    ),
-    op.ne("plan", "enterprise"),
-    op.eq("subscriptionStatus", "active")
-  ))
-  .execute();
-
-// Find players for matchmaking
+// Find players for matchmaking on a queried partition
 const potentialMatches = await table
   .query<Player>({ pk: "SKILL_TIER#gold" })
   .filter(op => op.and(
@@ -485,60 +413,9 @@ const potentialMatches = await table
     )
   ))
   .execute();
-
-// Patient priority screening
-const highPriorityPatients = await table
-  .scan<Patient>()
-  .filter(op => op.and(
-    op.or(
-      op.contains("symptoms", "chest pain"),
-      op.contains("symptoms", "difficulty breathing"),
-      op.eq("emergencyContact", true)
-    ),
-    op.ne("visitStatus", "completed"),
-    op.or(
-      op.eq("insuranceVerified", true),
-      op.eq("emergencyCase", true)
-    )
-  ))
-  .execute();
-
-// Property search with complex criteria
-const matchingProperties = await table
-  .scan<Property>()
-  .filter(op => op.and(
-    op.or(
-      op.between("price", 300000, 500000),
-      op.eq("negotiable", true)
-    ),
-    op.or(
-      op.gte("bedrooms", 3),
-      op.eq("flexibleLayout", true)
-    ),
-    op.or(
-      op.eq("neighborhood", "downtown"),
-      op.eq("neighborhood", "westside"),
-      op.lt("commuteTimeMinutes", 30)
-    )
-  ))
-  .execute();
-
-// System health monitoring
-const systemsNeedingAttention = await table
-  .scan<Service>()
-  .filter(op => op.and(
-    op.or(
-      op.gt("errorRate", 0.05),
-      op.lt("responseTimeMs", 2000),
-      op.gt("cpuUsage", 0.8)
-    ),
-    op.eq("environment", "production"),
-    op.ne("maintenanceMode", true)
-  ))
-  .execute();
 ```
 
-### Chaining Multiple Filter Conditions
+### Chaining multiple filter conditions
 
 You can also chain multiple `.filter()` calls, which creates an implicit AND between them:
 
@@ -575,7 +452,7 @@ const results3 = await table
   .execute();
 ```
 
-### Performance Considerations for Complex Filters
+### Performance considerations for complex filters
 
 ```ts
 // ❌ Inefficient: Complex scan with many OR conditions
@@ -603,9 +480,9 @@ const optimizedQuery = await table
   .execute();
 ```
 
-## Query Constraints
+## Query constraints
 
-### Limiting Results
+### Limiting results
 
 ```ts
 // Get first 10 orders
@@ -624,7 +501,7 @@ const recentOrders = await table
   .execute();
 ```
 
-### Consistency Control
+### Consistency control
 
 ```ts
 // Eventual consistency (default, cheaper)
@@ -639,7 +516,7 @@ const criticalUserData = await table
   .execute();
 ```
 
-### Sort Direction
+### Sort direction
 
 ```ts
 // Ascending (default) - oldest first
@@ -657,7 +534,7 @@ const newestFirst = await table
   .execute();
 ```
 
-### Field Selection (Projection)
+### Field selection (projection)
 
 ```ts
 // Select specific fields - reduce bandwidth
@@ -673,7 +550,7 @@ const userPreferences = await table
   .execute();
 ```
 
-### Pagination Control
+### Pagination control
 
 ```ts
 // Manual pagination
@@ -694,14 +571,14 @@ do {
 } while (lastKey);
 ```
 
-## Transaction Operations
+## Transaction operations
 
-### Conditional Checks
+### Conditional checks
 
 ```ts
 // Ensure inventory before purchase
 await table.transaction(async (tx) => {
-  // Reduce inventory — fails the whole transaction if stock is out
+  // Reduce inventory. Fails the whole transaction if stock is out
   table.update({ pk: "PRODUCT#123", sk: "INVENTORY" })
     .condition(op => op.gt("quantity", 0))
     .add("quantity", -1)
@@ -720,7 +597,7 @@ await table.transaction(async (tx) => {
 });
 ```
 
-### Conditional Put Operations
+### Conditional put operations
 
 ```ts
 // Create user only if doesn't exist
@@ -738,9 +615,9 @@ await table
   .execute();
 ```
 
-**→ For comprehensive condition examples and patterns, see [Conditions Guide](./conditions.md)**
+See the [Conditions Guide](./conditions.md) for more condition examples.
 
-### Conditional Updates
+### Conditional updates
 
 ```ts
 // Update user credits only if active
@@ -765,7 +642,7 @@ await table
   .execute();
 ```
 
-### Conditional Deletes
+### Conditional deletes
 
 ```ts
 // Delete only inactive users
@@ -775,11 +652,11 @@ await table
   .execute();
 ```
 
-**→ For detailed conditional operations and duplicate prevention patterns, see [Conditions Guide](./conditions.md)**
+See the [Conditions Guide](./conditions.md) for conditional-operation and duplicate-prevention patterns.
 
-## Pagination & Results
+## Pagination & results
 
-### Automatic Pagination with Paginator
+### Automatic pagination with Paginator
 
 ```ts
 // Create paginator
@@ -801,7 +678,7 @@ while (paginator.hasNextPage()) {
 }
 ```
 
-### Load All Pages at Once
+### Load all pages at once
 
 ```ts
 // Get all matching items (use carefully with large datasets)
@@ -814,7 +691,7 @@ const allUserOrders = await table
 console.log(`Total orders: ${allUserOrders.length}`);
 ```
 
-### ResultIterator - Memory Efficient Streaming
+### ResultIterator - memory efficient streaming
 
 ```ts
 // Process one item at a time (memory efficient)
@@ -840,7 +717,7 @@ for await (const order of orderIterator) {
 console.log(`Processed ${orderCount} orders, total: $${totalAmount}`);
 ```
 
-### Find One Item
+### Find one item
 
 ```ts
 // Get the latest order without manual paging
@@ -855,7 +732,7 @@ if (latestOrder) {
 }
 ```
 
-### Array Loading
+### Array loading
 
 ```ts
 // Load all results into memory (for small datasets)
@@ -869,9 +746,9 @@ const orders = await results.toArray();
 console.log(`Found ${orders.length} orders`);
 ```
 
-## Type Safety
+## Type safety
 
-### Generic Type Parameters
+### Generic type parameters
 
 ```ts
 // Strongly typed queries
@@ -897,7 +774,7 @@ for await (const profile of profiles) {
 }
 ```
 
-### Field Selection Type Safety
+### Field selection type safety
 
 ```ts
 // Selected fields are automatically typed
@@ -925,7 +802,7 @@ for await (const user of themes) {
 }
 ```
 
-### Union Type Support
+### Union type support
 
 ```ts
 interface Order {
@@ -943,9 +820,9 @@ const highPriorityOrders = await table
   .execute();
 ```
 
-## Global Secondary Indexes
+## Global secondary indexes
 
-### Using GSI with Type Safety
+### Using GSI with type safety
 
 ```ts
 // Query by user status (using status-index GSI)
@@ -972,7 +849,7 @@ const recentActiveUsers = await table
   .execute();
 ```
 
-### Complex GSI Queries
+### Complex GSI queries
 
 ```ts
 // Find high-value recent orders
@@ -987,9 +864,9 @@ const highValueRecentOrders = await table
   .execute();
 ```
 
-## Advanced Examples
+## Advanced examples
 
-### E-commerce Order Processing
+### E-commerce order processing
 
 ```ts
 // Get customer order history with analytics
@@ -1020,13 +897,13 @@ async function getCustomerOrderSummary(userId: string) {
 }
 ```
 
-### Conditional Inventory Management
+### Conditional inventory management
 
 ```ts
 async function processOrder(userId: string, orderId: string, items: Array<{productId: string, quantity: number}>) {
   // Execute transaction with all operations
   await table.transaction(async (tx) => {
-    // Reduce inventory for each item — fails the whole transaction if any item is short of stock
+    // Reduce inventory for each item. Fails the whole transaction if any item is short of stock
     for (const item of items) {
       table.update({ pk: `PRODUCT#${item.productId}`, sk: "INVENTORY" })
         .condition(op => op.gte("quantity", item.quantity))
@@ -1047,7 +924,7 @@ async function processOrder(userId: string, orderId: string, items: Array<{produ
 }
 ```
 
-### Efficient Pagination Pattern
+### Efficient pagination pattern
 
 ```ts
 async function getAllUserData(userId: string) {
@@ -1081,35 +958,24 @@ async function getAllUserData(userId: string) {
 }
 ```
 
-### Error Handling
+### Error handling
+
+dyno-table wraps query and scan failures in an `OperationError` and preserves the original AWS SDK error on `.cause`. See [Error Handling](./error-handling.md) for the full guide, including the `isConditionalCheckFailed`/`getAwsErrorCode` helpers in `src/utils/error-utils.ts`.
 
 ```ts
-async function safeQuery(userId: string) {
-  try {
-    const results = await table
-      .query<User>({ pk: `USER#${userId}` })
-      .filter(op => op.eq("status", "active"))
-      .execute();
+try {
+  const results = await table
+    .query<User>({ pk: `USER#${userId}` })
+    .filter(op => op.eq("status", "active"))
+    .execute();
 
-    const users = await results.toArray();
-    return users;
-
-  } catch (error) {
-    if (error.name === "ValidationException") {
-      console.error("Invalid query parameters:", error.message);
-    } else if (error.name === "ResourceNotFoundException") {
-      console.error("Table not found:", error.message);
-    } else if (error.name === "ProvisionedThroughputExceededException") {
-      console.error("Rate limit exceeded - implement exponential backoff");
-    } else if (error.name === "ConditionalCheckFailedException") {
-      console.error("Condition failed - item state changed");
-    } else {
-      console.error("Unexpected error:", error);
-    }
-
-    throw error;
+  return await results.toArray();
+} catch (error) {
+  if (error instanceof Error && error.cause instanceof Error) {
+    console.error("AWS error:", error.cause.name, error.cause.message);
   }
+  throw error;
 }
 ```
 
-This comprehensive guide covers all aspects of using dyno-table's Table Query Builder, providing direct control over DynamoDB operations while maintaining type safety and performance best practices.
+For higher-level schema validation and semantic query methods, see the [Entity Query Builder](./entity-query-builder.md) instead.

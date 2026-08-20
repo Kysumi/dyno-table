@@ -1,40 +1,40 @@
-# Entity vs Table: Choose Your Approach
+# Entity vs Table
 
-Understand when to use entities vs direct table access in your applications.
+Compares dyno-table's two access patterns and when to reach for each.
 
-## Quick Decision Guide
+## Quick decision guide
 
-### Use **Entity Pattern** When:
-- 🏢 Building applications for users
-- ✅ You want schema validation
-- 🎯 You prefer semantic method names (`getDinosaursByDiet()`)
-- 👥 Working with a team
-- 🛡️ Type safety is important
-- 📈 You're building for the long term
+### Use the Entity Pattern when:
+- Building applications for users
+- Wanting schema validation
+- Preferring semantic method names (`getDinosaursByDiet()`) over raw index references
+- Working with a team
+- Needing compile-time type safety
+- Building for the long term
 
-### Use **Direct Table Access** When:
-- 🔧 Building tooling or utilities
-- 🎛️ You need granular control over queries
-- 📊 Building data pipelines or ETL processes
+### Use direct Table access when:
+- Building tooling or utilities
+- Needing granular control over queries
+- Building data pipelines or ETL processes
 
-## 📊 Side-by-Side Comparison
+## Side-by-side comparison
 
 | Feature | Entity Pattern | Direct Table |
 |---------|----------------|--------------|
-| **Learning Curve** | 🟢 Easy | 🟡 Moderate |
-| **Type Safety** | 🟢 Automatic | 🟡 Manual |
-| **Schema Validation** | 🟢 Built-in | 🔴 None |
-| **Query Builders** | 🟢 Full Support | 🟢 Full Support |
-| **Query Syntax** | 🟢 Semantic | 🟡 DynamoDB-native |
-| **Performance** | 🟡 Very Good | 🟢 Maximum |
-| **Team Productivity** | 🟢 High | 🟡 Depends on expertise |
-| **Maintenance** | 🟢 Easy | 🟡 Requires DynamoDB knowledge |
+| **Learning Curve** | Lower: schema and keys are defined once | Higher: requires DynamoDB key design knowledge |
+| **Type Safety** | Automatic, inferred from schema | Manual: you supply generics yourself |
+| **Schema Validation** | Built-in via Standard Schema (Zod, ArkType, Valibot) | None |
+| **Query Builders** | Full support | Full support |
+| **Query Syntax** | Semantic methods (e.g. `getDinosaursByDiet()`) | Raw DynamoDB-native key/filter expressions |
+| **Performance** | Same DynamoDB calls, plus validation overhead on writes | No validation overhead |
+| **Team Productivity** | Higher: self-documenting method names | Depends on the team's DynamoDB expertise |
+| **Maintenance** | Key logic centralized in the entity definition | Requires DynamoDB knowledge to maintain queries |
 
-> **Important:** Both entity pattern and direct table access support the same powerful query builder functionality. The difference is in how you access and structure your queries, not in the capabilities available.
+> **Important:** Both patterns use the same query builder underneath. The difference is how you access and structure queries, not what capabilities are available.
 
-## 🦴 Entity Pattern Deep Dive
+## Entity Pattern deep dive
 
-### What You Get
+### What you get
 
 ```ts
 import { createIndex, createQueries, defineEntity } from "dyno-table/entity";
@@ -120,9 +120,9 @@ const AdvancedDinosaurEntity = defineEntity({
 const advancedDinoRepo = AdvancedDinosaurEntity.createRepository(table);
 ```
 
-### Perfect For
+### Typical use cases
 
-**Application Development:**
+#### Application development
 ```ts
 // E-commerce dinosaur store
 const DinosaurStore = {
@@ -141,7 +141,7 @@ const DinosaurStore = {
 };
 ```
 
-**Team Collaboration:**
+#### Team collaboration
 ```ts
 // Clear, self-documenting code
 class PaleontologyService {
@@ -160,9 +160,9 @@ class PaleontologyService {
 }
 ```
 
-## 🏗️ Direct Table Deep Dive
+## Direct Table deep dive
 
-### What You Get
+### What you get
 
 ```ts
 import { partitionKey, sortKey } from 'dyno-table/utils';
@@ -222,9 +222,9 @@ const dinosBySpecies = await table
   .execute();
 ```
 
-### Perfect For
+### Typical use cases
 
-**Data Pipelines:**
+#### Data pipelines
 ```ts
 // ETL process for dinosaur data
 async function migrateDiscoveryData() {
@@ -245,11 +245,9 @@ async function migrateDiscoveryData() {
 }
 ```
 
-## 🧭 Next Steps
+## Next steps
 
 - **New to DynamoDB?** → Start with [Entity Pattern →](entities.md)
 - **DynamoDB expert?** → Try [Direct Table Access →](table-query-builder.md)
 - **Building apps?** → Check out [Key Design Patterns →](key-patterns.md)
 - **Need validation?** → Learn about [Standard Schema Support →](entities.md#standard-schema-support)
-
-*Choose your adventure, but remember: there's no wrong choice with dyno-table! 🦕*

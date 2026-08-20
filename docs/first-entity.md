@@ -1,15 +1,15 @@
-# Your First Entity
+# Your first entity
 
-Create your first dyno-table entity step-by-step! We'll build a complete data management system that showcases the power of the entity pattern with schema validation, indexes, and semantic queries.
+Create your first dyno-table entity step by step: schema validation, indexes, and semantic queries, all wired to the entity pattern.
 
-## What You'll Build
+## What you'll build
 
 By the end of this tutorial, you'll have:
 - A fully typed Dinosaur entity with Zod validation
 - Multiple indexes for efficient querying
 - Semantic query methods for business logic
 
-## Step 1: Install Dependencies
+## Step 1: Install dependencies
 
 ```bash
 npm install dyno-table zod
@@ -19,9 +19,9 @@ pnpm add dyno-table zod
 yarn add dyno-table zod
 ```
 
-## Step 2: Define Your Schema
+## Step 2: Define your schema
 
-Start with a comprehensive schema for your data:
+Start with a schema for your data:
 
 ```typescript
 // schemas/dinosaur.ts
@@ -69,7 +69,7 @@ export const dinosaurSchema = z.object({
 export type Dinosaur = z.infer<typeof dinosaurSchema>;
 ```
 
-## Step 3: Create Your Entity
+## Step 3: Create your entity
 
 Define your entity with indexes and queries:
 
@@ -172,7 +172,7 @@ export const DinosaurEntity = defineEntity({
 });
 ```
 
-## Step 4: Initialize Your Setup
+## Step 4: Initialize your setup
 
 Create your table and repository:
 
@@ -200,7 +200,7 @@ const table = new Table({
     partitionKey: "pk",
     sortKey: "sk",
     // GSI names must match the entity's own index names exactly (byExpedition,
-    // bySpecies, ...) — dyno-table looks up the physical GSI by that name when
+    // bySpecies, ...). dyno-table looks up the physical GSI by that name when
     // generating and querying index attributes.
     gsis: {
       byExpedition: {
@@ -227,9 +227,9 @@ const table = new Table({
 export const dinosaurRepo = DinosaurEntity.createRepository(table);
 ```
 
-## Next Steps
+## Next steps
 
-Now that you have your first entity working, explore these advanced topics:
+With your first entity working, a few places to go deeper:
 
 - **[Standard Schema Support](./entities.md#standard-schema-support)** - Deep dive into validation patterns
 - **[Key Design Patterns](./key-patterns.md)** - Advanced multi-entity key patterns

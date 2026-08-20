@@ -1,8 +1,8 @@
-# 🔑 Key Design Patterns
+# Key design patterns
 
-Master DynamoDB key design with dyno-table! Learn proven patterns for partition keys, sort keys, and indexes that make your dinosaur research database lightning fast and cost-effective.
+Patterns for partition keys, sort keys, and indexes when designing entities with dyno-table.
 
-## 📋 Quick Reference
+## Quick reference
 
 ```typescript
 // Good key design principles
@@ -21,9 +21,9 @@ const DinosaurEntity = defineEntity({
 });
 ```
 
-## ✨ Partition Key Patterns
+## Partition key patterns
 
-### Entity Prefixing
+### Entity prefixing
 Use prefixes to namespace different entity types:
 
 ```typescript
@@ -43,7 +43,7 @@ const badPatterns = {
 };
 ```
 
-### Access Pattern Grouping
+### Access pattern grouping
 Design partition keys around how you query data:
 
 ```typescript
@@ -66,7 +66,7 @@ const byDietIndex = createIndex()
   .sortKey(({ period, species }) => `${period}#${species}`); // Secondary grouping
 ```
 
-### Distribution Strategies
+### Distribution strategies
 Avoid hot partitions by distributing load:
 
 ```typescript
@@ -89,9 +89,9 @@ const byRegionIndex = createIndex()
   .sortKey(({ species, discoveredAt }) => `${species}#${discoveredAt.toISOString()}`);
 ```
 
-## 🎯 Sort Key Patterns
+## Sort key patterns
 
-### Hierarchical Sorting
+### Hierarchical sorting
 Create sort keys that enable range queries:
 
 ```typescript
@@ -120,7 +120,7 @@ const categoricalSort = createIndex()
 // - Large Jurassic carnivores: PK = "DIET#carnivore", SK begins_with "jurassic#large"
 ```
 
-### Lexical Sorting Considerations
+### Lexical sorting considerations
 Remember that DynamoDB sorts lexically (as strings):
 
 ```typescript
@@ -143,8 +143,8 @@ const goodDateSort = createIndex()
   .sortKey(({ discoveredAt }) => discoveredAt.toISOString()); // Naturally sorts chronologically
 ```
 
-### Reverse Sorting Patterns
-Get newest items first with clever key design:
+### Reverse sorting patterns
+Get newest items first by designing the sort key to invert chronological order:
 
 ```typescript
 // ✅ Reverse chronological order (newest first)
@@ -163,12 +163,12 @@ const newestFirst = createIndex()
   .sortKey(({ discoveredAt, id }) => `${discoveredAt.toISOString()}#${id}`);
 
 // Query with scanIndexForward: false for newest first
-// const newest = await repo.query(...).sort("desc").limit(10);
+// const newest = await repo.query.getByExpedition({ expeditionId }).sortDescending().limit(10).execute();
 ```
 
-## 🎨 Advanced Key Patterns
+## Advanced key patterns
 
-### Composite Key Strategies
+### Composite key strategies
 Combine multiple attributes for complex access patterns:
 
 ```typescript
@@ -192,7 +192,7 @@ const spatioTemporalIndex = createIndex()
   );
 ```
 
-### Overloaded Indexes
+### Overloaded indexes
 Use one index for multiple access patterns:
 
 ```typescript
@@ -227,7 +227,7 @@ const overloadedIndex = createIndex()
 
 When an overloaded partition contains multiple entity types, [entity collections](collections.md) can return each query page grouped by entity.
 
-### Sparse Index Patterns
+### Sparse index patterns
 Create indexes only for items that have certain attributes:
 
 ```typescript
@@ -243,9 +243,9 @@ const publishedDinosaurIndex = createIndex()
 // Creates a sparse index containing only published dinosaurs
 ```
 
-## ⚡ Performance Optimization
+## Performance optimization
 
-### Hot Partition Detection
+### Hot partition detection
 Identify and fix hot partitions:
 
 ```typescript
@@ -266,7 +266,7 @@ class PartitionMonitor {
       .map(([key]) => key);
   }
 
-  suggest Improvements(hotPartitions: string[]) {
+  suggestImprovements(hotPartitions: string[]) {
     return hotPartitions.map(partition => {
       if (partition.includes("TIMELINE")) {
         return `Consider time-based sharding for ${partition}`;
@@ -280,7 +280,7 @@ class PartitionMonitor {
 }
 ```
 
-### Capacity Planning
+### Capacity planning
 Design keys that distribute load evenly:
 
 ```typescript
@@ -303,9 +303,9 @@ const distributionStrategies = {
 };
 ```
 
-## 🚨 Common Anti-Patterns
+## Common anti-patterns
 
-### Avoid These Patterns
+### Avoid these patterns
 
 ```typescript
 // ❌ Sequential IDs as partition keys (creates hot spots)
@@ -329,9 +329,9 @@ const badSort = createIndex()
   .sortKey(({ randomData }) => Math.random().toString()); // No meaningful order
 ```
 
-## 🔧 Testing Key Designs
+## Testing key designs
 
-### Validate Your Key Patterns
+### Validate your key patterns
 
 ```typescript
 // Test key distribution
@@ -373,19 +373,8 @@ function testSortKeyRangeQueries(items: any[], sortKeyFunction: (item: any) => s
 }
 ```
 
-## 📚 Related Guides
+## Related guides
 
 - [Table Operations](./table-query-builder.md) - Indexes, scans, and parallel scan segments
 - [First Entity](./first-entity.md) - Basic key design tutorial
 - [Entity vs Table](./entity-vs-table.md) - When to use different patterns
-
-## 🎓 Best Practices
-
-1. **Prefix for namespacing** - Always use entity prefixes in partition keys
-2. **Design for access patterns** - Create keys based on how you query data
-3. **Avoid hot partitions** - Distribute load across multiple partitions
-4. **Use hierarchical sort keys** - Enable range queries with structured sort keys
-5. **Consider lexical sorting** - Remember DynamoDB sorts as strings
-6. **Test your distributions** - Validate that keys distribute load evenly
-7. **Plan for growth** - Design keys that scale with your data volume
-8. **Document your patterns** - Maintain clear documentation of key designs

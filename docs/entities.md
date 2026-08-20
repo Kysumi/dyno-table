@@ -1,21 +1,21 @@
-# dyno-table Entity Pattern Guide
+# dyno-table entity pattern guide
 
-The Entity Pattern in dyno-table provides a high-level abstraction over DynamoDB operations with schema validation, type safety, and semantic query methods. This guide covers everything you need to know about using entities effectively in your applications.
+The Entity Pattern adds a layer over raw DynamoDB operations: schema validation, type safety, and semantic query methods instead of hand-built keys and cryptic index names.
 
-## Table of Contents
+## Table of contents
 
 - [Overview](#overview)
-- [Getting Started](#getting-started)
-- [Schema Definition](#schema-definition)
-- [Index Configuration](#index-configuration)
-- [Entity Configuration](#entity-configuration)
-- [Repository Operations](#repository-operations)
-- [Custom Queries](#custom-queries)
-- [Timestamps and Metadata](#timestamps-and-metadata)
-- [Advanced Features](#advanced-features)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
-- [Migration Guide](#migration-guide)
+- [Getting started](#getting-started)
+- [Schema definition](#schema-definition)
+- [Index configuration](#index-configuration)
+- [Entity configuration](#entity-configuration)
+- [Repository operations](#repository-operations)
+- [Custom queries](#custom-queries)
+- [Timestamps and metadata](#timestamps-and-metadata)
+- [Advanced features](#advanced-features)
+- [Error handling](#error-handling)
+- [Best practices](#best-practices)
+- [Migration guide](#migration-guide)
 
 ## Overview
 
@@ -29,7 +29,7 @@ The Entity Pattern provides:
 - **Timestamp Management**: Automatic `createdAt` and `updatedAt` handling
 - **Repository Pattern**: Clean separation between data access and business logic
 
-### Why Use the Entity Pattern?
+### Why use the entity pattern?
 
 ```ts
 // ❌ Without entities: Cryptic, error-prone, no validation
@@ -44,9 +44,9 @@ const activeUsers = await userRepo.query
   .execute();
 ```
 
-## Getting Started
+## Getting started
 
-### Basic Entity Setup
+### Basic entity setup
 
 ```ts
 import { z } from "zod";
@@ -83,7 +83,7 @@ const UserEntity = defineEntity({
 const userRepo = UserEntity.createRepository(table);
 ```
 
-### Standard Schema Support
+### Standard schema support
 
 dyno-table works with any library that implements the Standard Schema interface:
 
@@ -108,9 +108,9 @@ const Entity = defineEntity({
 });
 ```
 
-## Schema Definition
+## Schema definition
 
-### Input vs Output Types
+### Input vs output types
 
 Schemas can define different input and output types, useful for defaults and transformations:
 
@@ -149,7 +149,7 @@ const { item: dinosaur } = await repo.get({ id: "dino-001" }).execute();
 console.log(dinosaur.weight); // number (required in output type)
 ```
 
-### Schema Validation Features
+### Schema validation features
 
 ```ts
 const productSchema = z.object({
@@ -178,11 +178,11 @@ const ProductEntity = defineEntity({
 });
 ```
 
-## Index Configuration
+## Index configuration
 
 When multiple entity types share one physical index and partition, use [entity collections](collections.md) to query and group them page by page.
 
-### Primary Key Configuration
+### Primary key configuration
 
 ```ts
 // Simple primary key (partition key only)
@@ -209,7 +209,7 @@ const orderKey = createIndex()
   .sortKey(({ orderId, createdAt }) => orderSK({ orderId, createdAt }));
 ```
 
-### Global Secondary Index (GSI) Configuration
+### Global secondary index (GSI) configuration
 
 ```ts
 const UserEntity = defineEntity({
@@ -246,7 +246,7 @@ const UserEntity = defineEntity({
 });
 ```
 
-### Index Design Patterns
+### Index design patterns
 
 ```ts
 // Pattern 1: Hierarchical Access
@@ -279,9 +279,9 @@ const multiTenantIndex = createIndex()
   .sortKey(({ priority }) => priority.toString().padStart(3, '0')); // Zero-pad for lexical sorting
 ```
 
-## Entity Configuration
+## Entity configuration
 
-### Complete Entity Configuration
+### Complete entity configuration
 
 ```ts
 const UserEntity = defineEntity({
@@ -321,9 +321,9 @@ const UserEntity = defineEntity({
 });
 ```
 
-### Settings Configuration
+### Settings configuration
 
-#### Entity Type Attribute
+#### Entity type attribute
 
 ```ts
 const settings = {
@@ -334,7 +334,7 @@ const settings = {
 // { pk: "USER#123", sk: "PROFILE", type: "User", name: "John" }
 ```
 
-#### Timestamp Configuration
+#### Timestamp configuration
 
 ```ts
 const settings = {
@@ -351,9 +351,9 @@ const settings = {
 };
 ```
 
-## Repository Operations
+## Repository operations
 
-### Create Operations
+### Create operations
 
 ```ts
 // Create with automatic key generation and validation
@@ -379,7 +379,7 @@ userRepo.create(user2).withBatch(batch);
 await batch.execute();
 ```
 
-### Upsert Operations
+### Upsert operations
 
 ```ts
 // Upsert (create or replace) - requires full key
@@ -392,7 +392,7 @@ const updatedUser = await userRepo.upsert({
 }).execute();
 ```
 
-### Get Operations
+### Get operations
 
 ```ts
 // Get by primary key
@@ -409,7 +409,7 @@ const { item: userProfile } = await userRepo.get({ id: "user-123" })
   .execute();
 ```
 
-### Update Operations
+### Update operations
 
 ```ts
 // Basic update
@@ -444,7 +444,7 @@ await userRepo.update(
 ).execute(); // updatedAt automatically updated
 ```
 
-### Delete Operations
+### Delete operations
 
 ```ts
 // Simple delete
@@ -461,7 +461,7 @@ await table.transaction((tx) => {
 });
 ```
 
-### Scan Operations
+### Scan operations
 
 ```ts
 // Scan all entities of this type
@@ -483,9 +483,9 @@ while (paginator.hasNextPage()) {
 }
 ```
 
-## Custom Queries
+## Custom queries
 
-### Defining Custom Queries
+### Defining custom queries
 
 ```ts
 const createQuery = createQueries<User>();
@@ -531,11 +531,12 @@ const queries = {
       entity.scan().filter((op) => op.beginsWith("name", input.namePrefix))
     ),
 
-  // Get operation
+  // Query by index (GetItem can only target the base table's primary
+  // key, so looking up by email requires querying the byEmail GSI)
   getUserByEmail: createQuery
     .input(z.object({ email: z.string().email() }))
     .query(({ input, entity }) =>
-      entity.get({ email: input.email }) // Uses byEmail index
+      entity.query({ pk: `EMAIL#${input.email}` }).useIndex("byEmail")
     ),
 };
 
@@ -548,7 +549,7 @@ const UserEntity = defineEntity({
 });
 ```
 
-### Using Custom Queries
+### Using custom queries
 
 ```ts
 const userRepo = UserEntity.createRepository(table);
@@ -577,9 +578,9 @@ const engineerNames = await userRepo.query
   .execute();
 ```
 
-### Query Validation
+### Query validation
 
-Input parameters are automatically validated based on the schema:
+The schema validates input parameters automatically:
 
 ```ts
 // ✅ Valid input
@@ -598,9 +599,9 @@ await userRepo.query.getUsersByDepartment({
 // Error: department must be a string
 ```
 
-## Timestamps and Metadata
+## Timestamps and metadata
 
-### Automatic Timestamps
+### Automatic timestamps
 
 ```ts
 const UserEntity = defineEntity({
@@ -639,7 +640,7 @@ await userRepo.update(
 // Results in: { ..., createdAt: "2024-01-15T10:30:00.000Z", modifiedAt: 1705312250 }
 ```
 
-### Custom Metadata
+### Custom metadata
 
 ```ts
 const UserEntity = defineEntity({
@@ -655,7 +656,7 @@ const UserEntity = defineEntity({
 // All items will include: { type: "User", ... }
 ```
 
-### TTL Integration
+### TTL integration
 
 ```ts
 // Schema with TTL field
@@ -692,9 +693,9 @@ await sessionRepo.create({
 }).execute();
 ```
 
-## Advanced Features
+## Advanced features
 
-### Conditional Operations
+### Conditional operations
 
 ```ts
 // Conditional create (fail if exists)
@@ -716,7 +717,7 @@ await userRepo.delete({ id: "user-123" })
   .execute();
 ```
 
-### Transactions with Entities
+### Transactions with entities
 
 ```ts
 // Multi-entity transaction
@@ -744,7 +745,7 @@ await table.transaction((tx) => {
 });
 ```
 
-### Batch Operations with Entities
+### Batch operations with entities
 
 ```ts
 // Batch write operations
@@ -766,7 +767,7 @@ profileRepo.create(newProfile).withBatch(mixedBatch);
 await mixedBatch.execute();
 ```
 
-### Index Updates
+### Index updates
 
 ```ts
 // Updates automatically maintain GSI consistency
@@ -793,57 +794,63 @@ const UserEntityWithReadOnlyIndex = defineEntity({
 });
 ```
 
-## Error Handling
+## Error handling
 
-### Entity-Specific Errors
+### Entity-specific errors
 
 ```ts
+import { EntityValidationError, KeyGenerationError } from "dyno-table";
+
 try {
   await userRepo.create(invalidUserData).execute();
 } catch (error) {
-  if (error.name === "ValidationError") {
+  if (error instanceof EntityValidationError) {
     console.error("Schema validation failed:", error.message);
-    console.error("Validation issues:", error.details.issues);
+    console.error("Validation issues:", error.context.validationIssues);
   } else if (error.name === "ConditionalCheckFailedException") {
     console.error("Conditional check failed - item might already exist");
-  } else if (error.name === "EntityError") {
-    console.error("Entity-specific error:", error.message);
-    console.error("Entity type:", error.entityType);
+  } else if (error instanceof KeyGenerationError) {
+    console.error("Key generation failed:", error.message);
+    console.error("Entity:", error.context.entityName);
   }
 }
 ```
 
-### Query Validation Errors
+### Query validation errors
 
 ```ts
+import { EntityValidationError } from "dyno-table";
+
 try {
   await userRepo.query.getUsersByDepartment({
     department: 123 // Invalid type
   });
 } catch (error) {
-  if (error.name === "ValidationError") {
+  if (error instanceof EntityValidationError) {
     console.error("Query input validation failed:", error.message);
+    console.error("Validation issues:", error.context.validationIssues);
   }
 }
 ```
 
-### Index Generation Errors
+### Index generation errors
 
 ```ts
+import { IndexGenerationError } from "dyno-table";
+
 try {
   await userRepo.create(userData).execute();
 } catch (error) {
-  if (error.name === "IndexingError") {
+  if (error instanceof IndexGenerationError) {
     console.error("Failed to generate index keys:", error.message);
-    console.error("Index name:", error.indexName);
-    console.error("Entity type:", error.entityType);
+    console.error("Index name:", error.context.indexName);
   }
 }
 ```
 
-## Best Practices
+## Best practices
 
-### Schema Design
+### Schema design
 
 ```ts
 // ✅ Good: Use specific, validated types
@@ -869,7 +876,7 @@ const badSchema = z.object({
 });
 ```
 
-### Index Design
+### Index design
 
 ```ts
 // ✅ Good: Design indexes for your access patterns
@@ -899,7 +906,7 @@ const badIndexes = {
 };
 ```
 
-### Query Design
+### Query design
 
 ```ts
 // ✅ Good: Semantic, reusable queries
@@ -937,7 +944,7 @@ const badQueries = {
 };
 ```
 
-### Performance Optimization
+### Performance optimization
 
 ```ts
 // ✅ Good: Use field selection for large items
@@ -966,7 +973,7 @@ const allUsers = await userRepo.scan()
   .then(iterator => iterator.toArray()); // Memory issue with large datasets
 ```
 
-### Error Handling
+### Error handling
 
 ```ts
 // ✅ Good: Comprehensive error handling
@@ -991,9 +998,9 @@ async function createUser(userData: UserInput): Promise<User> {
 }
 ```
 
-## Migration Guide
+## Migration guide
 
-### From Table Operations to Entities
+### From table operations to entities
 
 ```ts
 // Before: Direct table operations
@@ -1015,7 +1022,7 @@ const engineers = await userRepo.query
 // - Automatic entity type filtering
 ```
 
-### Adding Entities to Existing Tables
+### Adding entities to existing tables
 
 ```ts
 // 1. Define entity for existing data structure
@@ -1057,7 +1064,7 @@ const queries = {
 };
 ```
 
-### Schema Evolution
+### Schema evolution
 
 ```ts
 // Version 1: Initial schema
@@ -1096,5 +1103,3 @@ const userSchemaV3 = z.object({
   }),
 });
 ```
-
-This comprehensive guide covers all aspects of the dyno-table Entity Pattern. The combination of schema validation, type safety, semantic queries, and automatic key management makes it the recommended approach for production applications using dyno-table.
