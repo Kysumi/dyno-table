@@ -127,6 +127,46 @@ export const ValidationErrors = {
       suggestion:
         "DynamoDB does not support undefined values. Use remove() to delete an attribute, or provide a valid value (null, string, number, etc.)",
     }),
+
+  vectorValueInvalid: (indexName: string, vectorAttribute: string, expectedDimensions: number, reason: string) =>
+    new ValidationError(`Invalid vector value for attribute "${vectorAttribute}"`, ErrorCodes.VECTOR_VALUE_INVALID, {
+      indexName,
+      vectorAttribute,
+      expectedDimensions,
+      reason,
+    }),
+
+  vectorTopKInvalid: (topK: unknown) =>
+    new ValidationError("TopK must be an integer between 1 and 100", ErrorCodes.VECTOR_TOP_K_INVALID, { topK }),
+
+  vectorPartitionInvalid: (indexName: string, expected: "required" | "absent") =>
+    new ValidationError(
+      expected === "required"
+        ? `Vector index "${indexName}" requires a partition value`
+        : `Vector index "${indexName}" does not accept a partition value`,
+      ErrorCodes.VECTOR_PARTITION_INVALID,
+      { indexName, expected },
+    ),
+
+  vectorConditionInvalid: (indexName: string, reason: string, attribute?: string) =>
+    new ValidationError("Invalid vector search condition", ErrorCodes.VECTOR_CONDITION_INVALID, {
+      indexName,
+      attribute,
+      reason,
+    }),
+
+  vectorProjectionInvalid: (indexName: string, attribute: string) =>
+    new ValidationError(
+      `Attribute "${attribute}" is not projected into vector index "${indexName}"`,
+      ErrorCodes.VECTOR_PROJECTION_INVALID,
+      { indexName, attribute },
+    ),
+
+  vectorResponseInvalid: (indexName: string, resultIndex: number) =>
+    new ValidationError("DynamoDB returned a malformed vector search result", ErrorCodes.VECTOR_RESPONSE_INVALID, {
+      indexName,
+      resultIndex,
+    }),
 };
 
 /**
@@ -189,12 +229,50 @@ export const ConfigurationErrors = {
       condition,
       suggestion: suggestion || "Check that the condition is properly formed",
     }),
+
+  vectorIndexInvalid: (indexName: string, reason: string) =>
+    new ConfigurationError(`Invalid vector index configuration for "${indexName}"`, ErrorCodes.VECTOR_INDEX_INVALID, {
+      indexName,
+      reason,
+    }),
+
+  vectorIndexNotFound: (indexName: string, tableName: string, availableIndexes: string[]) =>
+    new ConfigurationError(
+      `Vector index "${indexName}" not found in table configuration`,
+      ErrorCodes.VECTOR_INDEX_NOT_FOUND,
+      { indexName, tableName, availableIndexes },
+    ),
+
+  vectorEntityScopeInvalid: (entityName: string, attribute: string, indexName: string) =>
+    new ConfigurationError(
+      `Vector index "${indexName}" cannot safely scope entity "${entityName}"`,
+      ErrorCodes.VECTOR_ENTITY_SCOPE_INVALID,
+      { entityName, attribute, indexName },
+    ),
+
+  collectionEntityTypeMismatch: (attribute: string, conflicts: string[]) =>
+    new ConfigurationError(
+      "Collection entity discriminator configuration does not match",
+      ErrorCodes.VECTOR_COLLECTION_CONFIG_MISMATCH,
+      {
+        attribute,
+        conflicts,
+      },
+    ),
 };
 
 /**
  * Factory functions for Operation errors
  */
 export const OperationErrors = {
+  searchVectorsFailed: (tableName: string, indexName: string, cause?: Error) =>
+    new OperationError(
+      `Vector search operation failed on table "${tableName}"`,
+      ErrorCodes.SEARCH_VECTORS_FAILED,
+      { tableName, indexName, operation: "searchVectors" },
+      cause,
+    ),
+
   queryFailed: (tableName: string, context: Record<string, unknown>, cause?: Error) =>
     new OperationError(
       `Query operation failed on table "${tableName}"`,

@@ -20,12 +20,13 @@ import { prepareExpressionParams } from "../expression.js";
 import type { DynamoItem } from "../types.js";
 import { debugCommand } from "../utils/debug-expression.js";
 import type { BatchBuilder } from "./batch-builder.js";
-import type { DeleteCommandParams } from "./builder-types.js";
+import type { DeleteCommandParams, WriteExecutionMetadata, WriteExecutionState } from "./builder-types.js";
 import type { TransactionBuilder } from "./transaction-builder.js";
 
 export interface DeleteOptions {
   condition?: Condition;
   returnValues?: "ALL_OLD";
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: DynamoItem }>;
@@ -60,7 +61,12 @@ export class DeleteBuilder {
   private readonly tableName: string;
   private readonly key: PrimaryKeyWithoutExpression;
 
-  constructor(executor: DeleteExecutor, tableName: string, key: PrimaryKeyWithoutExpression) {
+  constructor(
+    executor: DeleteExecutor,
+    tableName: string,
+    key: PrimaryKeyWithoutExpression,
+    private readonly executionState: WriteExecutionState = {},
+  ) {
     this.executor = executor;
     this.tableName = tableName;
     this.key = key;
@@ -148,6 +154,11 @@ export class DeleteBuilder {
     return this;
   }
 
+  public returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this {
+    this.options.returnConsumedCapacity = value;
+    return this;
+  }
+
   /**
    * Generate the DynamoDB command parameters
    */
@@ -161,6 +172,7 @@ export class DeleteBuilder {
       expressionAttributeNames: names,
       expressionAttributeValues: values,
       returnValues: this.options.returnValues,
+      ...(this.options.returnConsumedCapacity ? { returnConsumedCapacity: this.options.returnConsumedCapacity } : {}),
     };
   }
 
@@ -256,6 +268,11 @@ export class DeleteBuilder {
   public async execute(): Promise<{ item?: DynamoItem }> {
     const params = this.toDynamoCommand();
     return this.executor(params);
+  }
+
+  public async executeWithMetadata(): Promise<{ item?: DynamoItem } & WriteExecutionMetadata> {
+    const result = await this.execute();
+    return { ...result, consumedCapacity: this.executionState.consumedCapacity };
   }
 
   /**

@@ -87,6 +87,7 @@
     "test": "vitest run",
     "test:w": "vitest watch",
     "test:int": "vitest run --config vitest.integration.ts",
+    "test:vector:aws": "vitest run src/__tests__/vector-search.aws.test.ts",
     "local:setup": "npx tsx -e 'import(\"./tests/setup-test-table.ts\").then(m => m.createTestTable())'",
     "local:teardown": "npx tsx -e 'import(\"./tests/setup-test-table.ts\").then(m => m.deleteTestTable())'",
     "lint": "biome lint",
@@ -123,8 +124,11 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0"
+    "@aws-sdk/client-dynamodb": "^3.1103.0",
+    "@aws-sdk/lib-dynamodb": "^3.1103.0"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "files": [
     "dist"

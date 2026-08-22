@@ -7,6 +7,7 @@ export interface DynamoCommandWithExpressions {
   filterExpression?: string;
   keyConditionExpression?: string;
   projectionExpression?: string;
+  searchConditionExpression?: string;
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: Record<string, unknown>;
   [key: string]: unknown;
@@ -18,6 +19,7 @@ type ReadableDynamoCommand = {
   filterExpression?: string;
   keyConditionExpression?: string;
   projectionExpression?: string;
+  searchConditionExpression?: string;
 };
 
 /**
@@ -42,15 +44,19 @@ export function debugCommand<T extends DynamoCommandWithExpressions>(
     }
 
     let replacedString = expressionString;
-    for (const alias in command.expressionAttributeNames) {
-      const attributeName = command.expressionAttributeNames[alias];
+    const attributeNames =
+      command.expressionAttributeNames ?? (command.ExpressionAttributeNames as Record<string, string> | undefined);
+    const attributeValues =
+      command.expressionAttributeValues ?? (command.ExpressionAttributeValues as Record<string, unknown> | undefined);
+    for (const alias in attributeNames) {
+      const attributeName = attributeNames?.[alias];
       const regex = new RegExp(alias, "g");
 
       replacedString = replacedString.replace(regex, attributeName as string);
     }
 
-    for (const alias in command.expressionAttributeValues) {
-      let attributeValue = command.expressionAttributeValues[alias];
+    for (const alias in attributeValues) {
+      let attributeValue = attributeValues?.[alias];
 
       // Handle Set objects for better readability
       if (attributeValue instanceof Set) {
@@ -82,6 +88,15 @@ export function debugCommand<T extends DynamoCommandWithExpressions>(
   }
   if (command.projectionExpression) {
     result.projectionExpression = replaceAliases(command.projectionExpression);
+  }
+  const searchConditionExpression =
+    command.searchConditionExpression ?? (command.SearchConditionExpression as string | undefined);
+  if (searchConditionExpression) {
+    result.searchConditionExpression = replaceAliases(searchConditionExpression);
+  }
+  const projectionExpression = command.projectionExpression ?? (command.ProjectionExpression as string | undefined);
+  if (!command.projectionExpression && projectionExpression) {
+    result.projectionExpression = replaceAliases(projectionExpression);
   }
 
   return {

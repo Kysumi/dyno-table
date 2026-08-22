@@ -20,7 +20,7 @@ import { buildExpression, generateAttributeName, generateValueName } from "../ex
 import type { DynamoItem } from "../types.js";
 import { debugCommand } from "../utils/debug-expression.js";
 import { ValidationErrors } from "../utils/error-factory.js";
-import type { UpdateCommandParams } from "./builder-types.js";
+import type { UpdateCommandParams, WriteExecutionMetadata, WriteExecutionState } from "./builder-types.js";
 import type { TransactionBuilder } from "./transaction-builder.js";
 import type { Path, PathType } from "./types.js";
 
@@ -32,6 +32,7 @@ export interface UpdateOptions {
   condition?: Condition;
   /** Determines which item attributes to include in the response */
   returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 /**
@@ -114,7 +115,13 @@ export class UpdateBuilder<T extends DynamoItem> {
   protected readonly tableName: string;
   protected readonly key: PrimaryKeyWithoutExpression;
 
-  constructor(executor: UpdateExecutor<T>, tableName: string, key: PrimaryKeyWithoutExpression) {
+  constructor(
+    executor: UpdateExecutor<T>,
+    tableName: string,
+    key: PrimaryKeyWithoutExpression,
+    private readonly validateUpdates?: (updates: readonly UpdateAction[]) => void,
+    private readonly executionState: WriteExecutionState = {},
+  ) {
     this.executor = executor;
     this.tableName = tableName;
     this.key = key;
@@ -410,6 +417,11 @@ export class UpdateBuilder<T extends DynamoItem> {
     return this;
   }
 
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this {
+    this.options.returnConsumedCapacity = value;
+    return this;
+  }
+
   /**
    * Generate the DynamoDB command parameters
    */
@@ -417,6 +429,7 @@ export class UpdateBuilder<T extends DynamoItem> {
     if (this.updates.length === 0) {
       throw ValidationErrors.noUpdateActions(this.tableName, this.key);
     }
+    this.validateUpdates?.(this.updates);
 
     const expressionParams: {
       expressionAttributeNames: Record<string, string>;
@@ -530,6 +543,7 @@ export class UpdateBuilder<T extends DynamoItem> {
       expressionAttributeValues:
         Object.keys(expressionAttributeValues).length > 0 ? expressionAttributeValues : undefined,
       returnValues: this.options.returnValues,
+      ...(this.options.returnConsumedCapacity ? { returnConsumedCapacity: this.options.returnConsumedCapacity } : {}),
     };
   }
 
@@ -633,5 +647,10 @@ export class UpdateBuilder<T extends DynamoItem> {
   async execute(): Promise<{ item?: T }> {
     const params = this.toDynamoCommand();
     return this.executor(params);
+  }
+
+  async executeWithMetadata(): Promise<{ item?: T } & WriteExecutionMetadata> {
+    const result = await this.execute();
+    return { ...result, consumedCapacity: this.executionState.consumedCapacity };
   }
 }

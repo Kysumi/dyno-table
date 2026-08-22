@@ -1,17 +1,24 @@
 import type { Paginator } from "../builders/paginator.js";
 import type { QueryBuilder } from "../builders/query-builder.js";
 import type { ResultIterator } from "../builders/result-iterator.js";
+import type { Path } from "../builders/types.js";
+import type {
+  VectorCapacity,
+  VectorConditionOperator,
+  VectorSearchBuilder,
+} from "../builders/vector-search-builder.js";
 import type { PrimaryKey } from "../conditions.js";
 import type { Table } from "../table.js";
-import type { DynamoItem, TableConfig } from "../types.js";
-import type { EntityDefinition } from "./entity.js";
+import type { DynamoItem, TableConfig, VectorIndexNames } from "../types.js";
+import { ConfigurationErrors } from "../utils/error-factory.js";
+import type { EntityDefinition, EntityVectorSearchInput } from "./entity.js";
 
 const DEFAULT_PAGE_SIZE = 25;
 
 // biome-ignore lint/suspicious/noExplicitAny: entity maps are heterogeneous by design
-type AnyEntityDefinition = EntityDefinition<any, any, any, any>;
+type AnyEntityDefinition = EntityDefinition<any, any, any, any, any>;
 // biome-ignore lint/suspicious/noExplicitAny: only the inferred output type is relevant
-type InferEntityItem<E> = E extends EntityDefinition<infer T, any, any, any> ? T : never;
+type InferEntityItem<E> = E extends EntityDefinition<infer T, any, any, any, any> ? T : never;
 type GroupedResult<E extends Record<string, AnyEntityDefinition>> = {
   [K in keyof E]: InferEntityItem<E[K]>[];
 };
@@ -44,20 +51,149 @@ export function groupByEntityType<E extends Record<string, AnyEntityDefinition>>
   return result;
 }
 
-export interface CollectionConfig<E extends Record<string, AnyEntityDefinition>> {
+export interface CollectionConfig<
+  E extends Record<string, AnyEntityDefinition>,
+  TEntityTypeAttribute extends string = "entityType",
+> {
   entities: E;
   /** GSI name if the collection lives on a secondary index; omit for the base table. */
   indexName?: string;
-  entityTypeAttributeName?: string;
+  entityTypeAttributeName?: TEntityTypeAttribute;
 }
 
-export interface CollectionDefinition<E extends Record<string, AnyEntityDefinition>> {
+export interface CollectionDefinition<
+  E extends Record<string, AnyEntityDefinition>,
+  TEntityTypeAttribute extends string = "entityType",
+> {
   entities: E;
-  createReader: (table: Table) => CollectionReader<E>;
+  createReader: <TConfig extends TableConfig>(
+    table: Table<TConfig>,
+  ) => CollectionReader<E, TConfig, TEntityTypeAttribute>;
 }
 
-export interface CollectionReader<E extends Record<string, AnyEntityDefinition>> {
+export interface CollectionReader<
+  E extends Record<string, AnyEntityDefinition>,
+  TConfig extends TableConfig = TableConfig,
+  TEntityTypeAttribute extends string = "entityType",
+> {
   query: (keyCondition: PrimaryKey) => CollectionQueryBuilder<E>;
+  searchVectors: <TIndexName extends VectorIndexNames<TConfig>>(
+    indexName: TIndexName,
+    input: EntityVectorSearchInput<TConfig, TIndexName, TEntityTypeAttribute>,
+  ) => CollectionVectorSearchBuilder<E, TConfig, TIndexName, TEntityTypeAttribute>;
+}
+
+export type CollectionVectorSearchMatch<E extends Record<string, AnyEntityDefinition>> = {
+  [K in keyof E]: { entity: K; item: InferEntityItem<E[K]>; score: number };
+}[keyof E];
+
+export interface CollectionVectorSearchResult<E extends Record<string, AnyEntityDefinition>> {
+  matches: CollectionVectorSearchMatch<E>[];
+  consumedCapacity?: VectorCapacity;
+  requestCount: number;
+}
+
+export class CollectionVectorSearchBuilder<
+  E extends Record<string, AnyEntityDefinition>,
+  TConfig extends TableConfig,
+  TIndexName extends VectorIndexNames<TConfig>,
+  TEntityTypeAttribute extends string,
+> {
+  private readonly members: Array<{ entity: keyof E; builder: VectorSearchBuilder<DynamoItem, TConfig, TIndexName> }>;
+
+  constructor(
+    private readonly table: Table<TConfig>,
+    private readonly indexName: TIndexName,
+    private readonly input: EntityVectorSearchInput<TConfig, TIndexName, TEntityTypeAttribute>,
+    private readonly entities: E,
+    private readonly entityTypeAttributeName: TEntityTypeAttribute,
+    members?: Array<{ entity: keyof E; builder: VectorSearchBuilder<DynamoItem, TConfig, TIndexName> }>,
+  ) {
+    this.members =
+      members ??
+      Object.entries(entities).map(([entity, definition]) => ({
+        entity,
+        builder: definition.createRepository(table).searchVectors(indexName, input) as VectorSearchBuilder<
+          DynamoItem,
+          TConfig,
+          TIndexName
+        >,
+      }));
+  }
+
+  filter(
+    callback: (operator: VectorConditionOperator<CollectionItem<E>, string>) => import("../conditions.js").Condition,
+  ): this {
+    for (const { builder } of this.members) builder.filter(callback as never);
+    return this;
+  }
+
+  select<K extends Path<CollectionItem<E>>>(fields: K | readonly K[]): this {
+    for (const { builder } of this.members) builder.select(fields as never);
+    return this;
+  }
+
+  includeIndexes(): this {
+    for (const { builder } of this.members) builder.includeIndexes();
+    return this;
+  }
+
+  returnConsumedCapacity(value: "NONE" | "TOTAL" | "INDEXES"): this {
+    for (const { builder } of this.members) builder.returnConsumedCapacity(value);
+    return this;
+  }
+
+  clone(): CollectionVectorSearchBuilder<E, TConfig, TIndexName, TEntityTypeAttribute> {
+    return new CollectionVectorSearchBuilder(
+      this.table,
+      this.indexName,
+      this.input,
+      this.entities,
+      this.entityTypeAttributeName,
+      this.members.map(({ entity, builder }) => ({ entity, builder: builder.clone() })),
+    );
+  }
+
+  debug() {
+    return this.members.map(({ entity, builder }) => ({ entity, ...builder.debug() }));
+  }
+
+  async execute(): Promise<CollectionVectorSearchResult<E>> {
+    const results = await Promise.all(this.members.map(({ builder }) => builder.execute()));
+    const ranked = results.flatMap((result, memberIndex) =>
+      result.matches.map((match, matchIndex) => ({
+        entity: this.members[memberIndex]?.entity as keyof E,
+        ...match,
+        order: memberIndex * 100 + matchIndex,
+      })),
+    );
+    const descending = this.table.vectorIndexes[String(this.indexName)]?.distanceFunction === "DOT_PRODUCT";
+    ranked.sort(
+      (left, right) => (descending ? right.score - left.score : left.score - right.score) || left.order - right.order,
+    );
+
+    let consumedCapacity: VectorCapacity | undefined;
+    for (const result of results) {
+      if (!result.consumedCapacity) continue;
+      consumedCapacity ??= {};
+      const searchBytes = result.consumedCapacity.VectorSearchRequestBytes;
+      const writeBytes = result.consumedCapacity.VectorWriteRequestBytes;
+      if (searchBytes !== undefined) {
+        consumedCapacity.VectorSearchRequestBytes = (consumedCapacity.VectorSearchRequestBytes ?? 0) + searchBytes;
+      }
+      if (writeBytes !== undefined) {
+        consumedCapacity.VectorWriteRequestBytes = (consumedCapacity.VectorWriteRequestBytes ?? 0) + writeBytes;
+      }
+    }
+
+    return {
+      matches: ranked
+        .slice(0, this.input.topK)
+        .map(({ order: _order, ...match }) => match) as CollectionVectorSearchMatch<E>[],
+      consumedCapacity,
+      requestCount: this.members.length,
+    };
+  }
 }
 
 /** A QueryBuilder whose chainable methods retain a grouped paginator. */
@@ -136,11 +272,19 @@ export class CollectionResultIterator<E extends Record<string, AnyEntityDefiniti
   }
 }
 
-export function defineCollection<E extends Record<string, AnyEntityDefinition>>(
-  config: CollectionConfig<E>,
-): CollectionDefinition<E> {
+export function defineCollection<
+  E extends Record<string, AnyEntityDefinition>,
+  const TEntityTypeAttribute extends string = "entityType",
+>(config: CollectionConfig<E, TEntityTypeAttribute>): CollectionDefinition<E, TEntityTypeAttribute> {
   assertNoDuplicateEntityNames(config.entities);
-  const entityTypeAttributeName = config.entityTypeAttributeName ?? "entityType";
+  const entityTypeAttributeName = (config.entityTypeAttributeName ?? "entityType") as TEntityTypeAttribute;
+  const conflicts = Object.values(config.entities)
+    .filter(
+      (entity) =>
+        entity.entityTypeAttributeName !== undefined && entity.entityTypeAttributeName !== entityTypeAttributeName,
+    )
+    .map((entity) => entity.name);
+  if (conflicts.length > 0) throw ConfigurationErrors.collectionEntityTypeMismatch(entityTypeAttributeName, conflicts);
 
   return {
     entities: config.entities,
@@ -161,6 +305,8 @@ export function defineCollection<E extends Record<string, AnyEntityDefinition>>(
           execute: async () => new CollectionResultIterator(await execute(), config.entities, entityTypeAttributeName),
         }) as CollectionQueryBuilder<E>;
       },
+      searchVectors: (indexName, input) =>
+        new CollectionVectorSearchBuilder(table, indexName, input, config.entities, entityTypeAttributeName),
     }),
   };
 }

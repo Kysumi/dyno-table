@@ -9,10 +9,10 @@ importers:
   .:
     dependencies:
       '@aws-sdk/client-dynamodb':
-        specifier: ^3.0.0
+        specifier: ^3.1103.0
         version: 3.1107.0
       '@aws-sdk/lib-dynamodb':
-        specifier: ^3.0.0
+        specifier: ^3.1103.0
         version: 3.1107.0(@aws-sdk/client-dynamodb@3.1107.0)
     devDependencies:
       '@biomejs/biome':

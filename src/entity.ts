@@ -3,10 +3,13 @@ export type {
   CollectionDefinition,
   CollectionQueryBuilder,
   CollectionReader,
+  CollectionVectorSearchMatch,
+  CollectionVectorSearchResult,
 } from "./entity/collection.js";
 export {
   CollectionPageIterator,
   CollectionResultIterator,
+  CollectionVectorSearchBuilder,
   defineCollection,
   groupByEntityType,
 } from "./entity/collection.js";
@@ -20,6 +23,7 @@ export type {
   EntityPutBuilder,
   EntityRepository,
   EntityUpdateBuilder,
+  EntityVectorSearchInput,
   IndexBuilder,
   IndexDefinition,
   MappedQueries,

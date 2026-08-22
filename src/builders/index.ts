@@ -13,3 +13,5 @@ export { ScanBuilder } from "./scan-builder.js";
 export { TransactionBuilder } from "./transaction-builder.js";
 export type * from "./types.js";
 export { UpdateBuilder } from "./update-builder.js";
+export type * from "./vector-search-builder.js";
+export { VectorSearchBuilder } from "./vector-search-builder.js";

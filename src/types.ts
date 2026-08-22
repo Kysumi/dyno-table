@@ -16,6 +16,7 @@ export interface IndexConfig {
   sortKey?: string;
 
   gsis?: Record<string, Index>;
+  vectorIndexes?: Record<string, VectorIndexConfig>;
 }
 
 export interface TableConfig {
@@ -25,3 +26,36 @@ export interface TableConfig {
 }
 
 export type GSINames<T extends TableConfig> = keyof NonNullable<T["indexes"]["gsis"]>;
+
+export type VectorDistanceFunction = "COSINE" | "DOT_PRODUCT" | "EUCLIDEAN";
+
+export type VectorProjection =
+  | { type: "ALL" }
+  | { type: "KEYS_ONLY" }
+  | { type: "INCLUDE"; attributes: readonly string[] };
+
+export interface VectorIndexConfig {
+  vectorAttribute: string;
+  dimensions: number;
+  distanceFunction: VectorDistanceFunction;
+  partitionKey?: string;
+  inlineFilters?: readonly string[];
+  projection: VectorProjection;
+}
+
+export type VectorIndexNames<T extends TableConfig> = T["indexes"] extends {
+  vectorIndexes: infer TVectorIndexes extends Record<string, VectorIndexConfig>;
+}
+  ? Extract<keyof TVectorIndexes, string>
+  : string;
+
+export type VectorIndexFor<
+  TConfig extends TableConfig,
+  TIndexName extends VectorIndexNames<TConfig>,
+> = TConfig["indexes"] extends {
+  vectorIndexes: infer TVectorIndexes extends Record<string, VectorIndexConfig>;
+}
+  ? TIndexName extends keyof TVectorIndexes
+    ? TVectorIndexes[TIndexName]
+    : VectorIndexConfig
+  : VectorIndexConfig;

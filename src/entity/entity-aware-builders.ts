@@ -1,5 +1,5 @@
 import type { BatchBuilder } from "../builders/batch-builder.js";
-import type { UpdateCommandParams } from "../builders/builder-types.js";
+import type { UpdateCommandParams, WriteExecutionMetadata } from "../builders/builder-types.js";
 import type { DeleteBuilder } from "../builders/delete-builder.js";
 import type { GetBuilder } from "../builders/get-builder.js";
 import type { PutBuilder } from "../builders/put-builder.js";
@@ -26,6 +26,8 @@ export interface EntityPutBuilder<T extends DynamoItem> {
 
   returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT"): this;
 
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this;
+
   withTransaction(transaction: TransactionBuilder): PutBuilder<T>;
 
   withBatch<
@@ -36,6 +38,7 @@ export interface EntityPutBuilder<T extends DynamoItem> {
   debug(): ReturnType<PutBuilder<T>["debug"]>;
 
   execute(): Promise<T | undefined>;
+  executeWithMetadata(): Promise<{ item: T | undefined } & WriteExecutionMetadata>;
 }
 
 export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBuilder<T> {
@@ -81,6 +84,11 @@ export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBui
     return this;
   }
 
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this {
+    this.builder.returnConsumedCapacity(value);
+    return this;
+  }
+
   withTransaction(transaction: TransactionBuilder): PutBuilder<T> {
     this.applySync();
     return this.builder.withTransaction(transaction);
@@ -103,6 +111,15 @@ export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBui
     await this.applyAsync();
     const result = await this.builder.execute();
     return this.onExecuteResult ? this.onExecuteResult(this.item as T, result) : result;
+  }
+
+  async executeWithMetadata(): Promise<{ item: T | undefined } & WriteExecutionMetadata> {
+    await this.applyAsync();
+    const result = await this.builder.executeWithMetadata();
+    return {
+      item: this.onExecuteResult ? this.onExecuteResult(this.item as T, result.item) : result.item,
+      consumedCapacity: result.consumedCapacity,
+    };
   }
 }
 
@@ -163,6 +180,8 @@ export interface EntityDeleteBuilder {
 
   returnValues(returnValues: "ALL_OLD"): this;
 
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this;
+
   withTransaction(transaction: TransactionBuilder): void;
 
   withBatch<
@@ -171,6 +190,7 @@ export interface EntityDeleteBuilder {
   >(batch: BatchBuilder<TEntities>, entityType?: K): void;
 
   execute(): Promise<{ item?: DynamoItem }>;
+  executeWithMetadata(): Promise<{ item?: DynamoItem } & WriteExecutionMetadata>;
 
   debug(): ReturnType<DeleteBuilder["debug"]>;
 }
@@ -191,6 +211,11 @@ export class EntityAwareDeleteBuilder implements EntityDeleteBuilder {
     return this;
   }
 
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this {
+    this.builder.returnConsumedCapacity(value);
+    return this;
+  }
+
   withTransaction(transaction: TransactionBuilder): void {
     this.builder.withTransaction(transaction);
   }
@@ -204,6 +229,10 @@ export class EntityAwareDeleteBuilder implements EntityDeleteBuilder {
 
   execute(): Promise<{ item?: DynamoItem }> {
     return this.builder.execute();
+  }
+
+  executeWithMetadata(): Promise<{ item?: DynamoItem } & WriteExecutionMetadata> {
+    return this.builder.executeWithMetadata();
   }
 
   debug(): ReturnType<DeleteBuilder["debug"]> {
@@ -354,6 +383,11 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     return this;
   }
 
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this {
+    this.builder.returnConsumedCapacity(value);
+    return this;
+  }
+
   toDynamoCommand(): UpdateCommandParams {
     this.updateDataApplied = false;
     this.applyEntityUpdates();
@@ -377,6 +411,12 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     this.updateDataApplied = false;
     this.applyEntityUpdates();
     return this.builder.execute();
+  }
+
+  async executeWithMetadata(): Promise<{ item?: T } & WriteExecutionMetadata> {
+    this.updateDataApplied = false;
+    this.applyEntityUpdates();
+    return this.builder.executeWithMetadata();
   }
 }
 

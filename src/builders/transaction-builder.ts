@@ -1,4 +1,4 @@
-import type { TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
+import type { TransactWriteCommandInput, TransactWriteCommandOutput } from "@aws-sdk/lib-dynamodb";
 import type { Condition, PrimaryKeyWithoutExpression } from "../conditions.js";
 import { prepareExpressionParams } from "../expression.js";
 import type { DynamoItem } from "../types.js";
@@ -40,7 +40,9 @@ interface IndexConfig {
  * @param params - The complete transaction command input
  * @returns A promise that resolves when the transaction completes
  */
-export type TransactionExecutor = (params: TransactWriteCommandInput) => Promise<void>;
+export type TransactionExecutor = (
+  params: TransactWriteCommandInput,
+) => Promise<TransactWriteCommandOutput | undefined>;
 
 /**
  * Builder for creating and executing DynamoDB transactions.
@@ -95,8 +97,13 @@ export class TransactionBuilder {
   private options: TransactionOptions = {};
   private indexConfig: IndexConfig;
   private readonly executor: TransactionExecutor;
+  private consumedCapacity?: TransactWriteCommandOutput["ConsumedCapacity"];
 
-  constructor(executor: TransactionExecutor, indexConfig: IndexConfig) {
+  constructor(
+    executor: TransactionExecutor,
+    indexConfig: IndexConfig,
+    private readonly validateCommand?: (params: TransactWriteCommandInput) => void,
+  ) {
     this.executor = executor;
     this.indexConfig = indexConfig;
   }
@@ -837,10 +844,18 @@ export class TransactionBuilder {
       ReturnItemCollectionMetrics: this.options.returnItemCollectionMetrics,
     };
 
+    this.validateCommand?.(params);
+
     try {
-      await this.executor(params);
+      const result = await this.executor(params);
+      this.consumedCapacity = result?.ConsumedCapacity;
     } catch (error) {
       throw TransactionErrors.transactionFailed(this.items.length, {}, error instanceof Error ? error : undefined);
     }
+  }
+
+  async executeWithMetadata(): Promise<{ consumedCapacity?: TransactWriteCommandOutput["ConsumedCapacity"] }> {
+    await this.execute();
+    return { consumedCapacity: this.consumedCapacity };
   }
 }

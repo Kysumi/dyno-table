@@ -1,3 +1,4 @@
+import type { ConsumedCapacity } from "@aws-sdk/client-dynamodb";
 import type { DynamoItem, TableConfig } from "../types.js";
 import type { DynamoCommandWithExpressions } from "../utils/debug-expression.js";
 import type { ParallelScanIterator } from "./parallel-scan-iterator.js";
@@ -9,6 +10,13 @@ export interface BuilderContext {
   readonly beforeExecute?: BeforeExecute;
 }
 
+export interface WriteExecutionMetadata {
+  consumedCapacity?: ConsumedCapacity;
+}
+
+/** Mutable per-builder state populated by the table executor. */
+export interface WriteExecutionState extends WriteExecutionMetadata {}
+
 export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   tableName: string;
   key: Record<string, unknown>;
@@ -16,6 +24,7 @@ export interface DeleteCommandParams extends DynamoCommandWithExpressions {
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: DynamoItem;
   returnValues?: "ALL_OLD";
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 /**
@@ -36,6 +45,7 @@ export interface PutCommandParams extends DynamoCommandWithExpressions {
   expressionAttributeNames?: Record<string, string>;
   expressionAttributeValues?: Record<string, unknown>;
   returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT";
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 /**
@@ -57,6 +67,7 @@ export interface UpdateCommandParams extends DynamoCommandWithExpressions {
   expressionAttributeValues?: DynamoItem;
   /** Which item attributes to include in the response */
   returnValues?: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE";
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 export interface ConditionCheckCommandParams extends DynamoCommandWithExpressions {
