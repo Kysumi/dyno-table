@@ -147,6 +147,20 @@ const carnivoresInCretaceous = await table
 ```
 **[Table Operations Guide →](docs/table-query-builder.md)**
 
+### Vector search
+
+Use a configured DynamoDB vector index without dropping to raw SDK expressions. Results retain service rank and score; entity and collection searches scope candidates before TopK.
+
+```ts
+const result = await table
+  .searchVectors<Product>("ProductEmbedding", { vector: embedding, topK: 10, partition: "Electronics" })
+  .filter(op => op.eq("status", "ACTIVE"))
+  .select(["productId", "title"])
+  .execute();
+```
+
+**[Vector Search Guide →](docs/vector-search.md)**
+
 ### Advanced querying & filtering
 Use `.filter()` for business logic DynamoDB's key conditions can't express. It's applied after the read, so it narrows what's *returned*, not what's read. It doesn't reduce RCU cost the way a tighter key condition or index would.
 

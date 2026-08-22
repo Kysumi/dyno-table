@@ -8,6 +8,8 @@ import type {
   TransactionBuilder,
   UpdateBuilder,
   UpdateCommandParams,
+  VectorSearchBuilder,
+  VectorSearchInput,
 } from "../builders.js";
 import {
   type Condition,
@@ -18,8 +20,8 @@ import {
 } from "../conditions.js";
 import type { StandardSchemaV1 } from "../standard-schema.js";
 import type { Table } from "../table.js";
-import type { DynamoItem, TableConfig } from "../types.js";
-import { EntityErrors } from "../utils/error-factory.js";
+import type { DynamoItem, TableConfig, VectorIndexFor, VectorIndexNames } from "../types.js";
+import { ConfigurationErrors, EntityErrors } from "../utils/error-factory.js";
 import type { IndexDefinition } from "./create-index.js";
 import {
   createEntityAwareUpdateBuilder,
@@ -59,11 +61,28 @@ export type MappedQueries<T extends DynamoItem, Q extends QueryRecord<T>> = {
 };
 
 // Define a type for entity with only scan, get and query methods
-export type QueryEntity<T extends DynamoItem> = {
-  scan: () => ScanBuilder<T>;
+export type QueryEntity<
+  T extends DynamoItem,
+  TConfig extends TableConfig = TableConfig,
+  TEntityTypeAttribute extends string = "entityType",
+> = {
+  scan: () => ScanBuilder<T, TConfig>;
   get: (key: PrimaryKeyWithoutExpression) => EntityGetBuilder<T>;
-  query: (keyCondition: PrimaryKey) => QueryBuilder<T, TableConfig>;
+  query: (keyCondition: PrimaryKey) => QueryBuilder<T, TConfig>;
+  searchVectors: <TIndexName extends VectorIndexNames<TConfig>>(
+    indexName: TIndexName,
+    input: EntityVectorSearchInput<TConfig, TIndexName, TEntityTypeAttribute>,
+  ) => VectorSearchBuilder<T, TConfig, TIndexName>;
 };
+
+export type EntityVectorSearchInput<
+  TConfig extends TableConfig,
+  TIndexName extends VectorIndexNames<TConfig>,
+  TEntityTypeAttribute extends string,
+> =
+  VectorIndexFor<TConfig, TIndexName> extends { readonly partitionKey: TEntityTypeAttribute }
+    ? Omit<VectorSearchInput<TConfig, TIndexName>, "partition"> & { partition?: never }
+    : VectorSearchInput<TConfig, TIndexName>;
 
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
@@ -82,19 +101,21 @@ export type EntityUpdateBuilder<T extends DynamoItem> = {
   ): EntityUpdateBuilder<T>;
   condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): EntityUpdateBuilder<T>;
   returnValues(returnValues: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE"): EntityUpdateBuilder<T>;
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): EntityUpdateBuilder<T>;
   toDynamoCommand(): UpdateCommandParams;
   withTransaction(transaction: TransactionBuilder): void;
   debug(): ReturnType<UpdateBuilder<T>["debug"]>;
   execute(): Promise<{ item?: T }>;
+  executeWithMetadata(): ReturnType<UpdateBuilder<T>["executeWithMetadata"]>;
   forceIndexRebuild(indexes: string | string[]): EntityUpdateBuilder<T>;
   getForceRebuildIndexes(): string[];
 };
 
-interface Settings {
+interface Settings<TEntityTypeAttribute extends string = string> {
   /**
    * Defaults to "entityType"
    */
-  entityTypeAttributeName?: string;
+  entityTypeAttributeName?: TEntityTypeAttribute;
   timestamps?: {
     createdAt?: {
       /**
@@ -144,13 +165,14 @@ export interface EntityConfig<
   TInput extends DynamoItem = T,
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
+  TEntityTypeAttribute extends string = "entityType",
 > {
   name: string;
   schema: StandardSchemaV1<TInput, T>;
   primaryKey: IndexDefinition<I>;
   indexes?: Record<string, IndexDefinition<T>>;
   queries: Q;
-  settings?: Settings;
+  settings?: Settings<TEntityTypeAttribute>;
 }
 
 export interface EntityRepository<
@@ -170,6 +192,8 @@ export interface EntityRepository<
    * The Queries object
    */
   Q extends QueryRecord<T> = QueryRecord<T>,
+  TConfig extends TableConfig = TableConfig,
+  TEntityTypeAttribute extends string = "entityType",
 > {
   create: (data: TInput) => EntityPutBuilder<T>;
   upsert: (data: TInput & I) => EntityPutBuilder<T>;
@@ -177,7 +201,11 @@ export interface EntityRepository<
   update: (key: I, data: Partial<T>) => EntityUpdateBuilder<T>;
   delete: (key: I) => EntityDeleteBuilder;
   query: MappedQueries<T, Q>;
-  scan: () => ScanBuilder<T>;
+  scan: () => ScanBuilder<T, TConfig>;
+  searchVectors: <TIndexName extends VectorIndexNames<TConfig>>(
+    indexName: TIndexName,
+    input: EntityVectorSearchInput<TConfig, TIndexName, TEntityTypeAttribute>,
+  ) => VectorSearchBuilder<T, TConfig, TIndexName>;
 }
 
 export interface EntityDefinition<
@@ -185,18 +213,26 @@ export interface EntityDefinition<
   TInput extends DynamoItem = T,
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
+  TEntityTypeAttribute extends string = "entityType",
 > {
   name: string;
-  createRepository: (table: Table) => EntityRepository<T, TInput, I, Q>;
+  entityTypeAttributeName: TEntityTypeAttribute;
+  createRepository: <TConfig extends TableConfig>(
+    table: Table<TConfig>,
+  ) => EntityRepository<T, TInput, I, Q, TConfig, TEntityTypeAttribute>;
 }
 
-function createScopedQueryEntity<T extends DynamoItem>(
-  table: Table,
-  entityTypeAttributeName: string,
+function createScopedQueryEntity<
+  T extends DynamoItem,
+  TConfig extends TableConfig,
+  TEntityTypeAttribute extends string,
+>(
+  table: Table<TConfig>,
+  entityTypeAttributeName: TEntityTypeAttribute,
   entityName: string,
   context: BuilderContext,
   scopedBuilders: WeakSet<object>,
-): QueryEntity<T> {
+): QueryEntity<T, TConfig, TEntityTypeAttribute> {
   const track = <R extends object>(builder: R): R => {
     scopedBuilders.add(builder);
     return builder;
@@ -207,7 +243,45 @@ function createScopedQueryEntity<T extends DynamoItem>(
     get: (key) => track(new EntityAwareGetBuilder(table.get<T>(key, context), entityName)),
     query: (keyCondition) =>
       track(table.query<T>(keyCondition, context).filter(eq(entityTypeAttributeName, entityName))),
+    searchVectors: (indexName, input) =>
+      track(scopedVectorSearch(table, indexName, input, entityTypeAttributeName, entityName, context)),
   };
+}
+
+function scopedVectorSearch<
+  T extends DynamoItem,
+  TConfig extends TableConfig,
+  TIndexName extends VectorIndexNames<TConfig>,
+  TEntityTypeAttribute extends string,
+>(
+  table: Table<TConfig>,
+  indexName: TIndexName,
+  input: EntityVectorSearchInput<TConfig, TIndexName, TEntityTypeAttribute>,
+  entityTypeAttributeName: TEntityTypeAttribute,
+  entityName: string,
+  context: BuilderContext = {},
+): VectorSearchBuilder<T, TConfig, TIndexName> {
+  const index = table.vectorIndexes[String(indexName)];
+  if (!index) {
+    throw ConfigurationErrors.vectorIndexNotFound(String(indexName), table.tableName, Object.keys(table.vectorIndexes));
+  }
+  if (index.partitionKey === entityTypeAttributeName) {
+    return table.searchVectors<T, TIndexName>(
+      indexName,
+      { ...input, partition: entityName } as unknown as VectorSearchInput<TConfig, TIndexName>,
+      context,
+    );
+  }
+  if (!(index.inlineFilters ?? []).includes(entityTypeAttributeName)) {
+    throw ConfigurationErrors.vectorEntityScopeInvalid(entityName, entityTypeAttributeName, String(indexName));
+  }
+  const builder = table.searchVectors<T, TIndexName>(
+    indexName,
+    input as VectorSearchInput<TConfig, TIndexName>,
+    context,
+  );
+  builder.filter((operator) => operator.eq(entityTypeAttributeName as never, entityName as never));
+  return builder;
 }
 
 function createQueryInputValidator(
@@ -247,8 +321,11 @@ export function defineEntity<
   TInput extends DynamoItem = T,
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
->(config: EntityConfig<T, TInput, I, Q>): EntityDefinition<T, TInput, I, Q> {
-  const entityTypeAttributeName = config.settings?.entityTypeAttributeName ?? "entityType";
+  const TEntityTypeAttribute extends string = "entityType",
+>(
+  config: EntityConfig<T, TInput, I, Q, TEntityTypeAttribute>,
+): EntityDefinition<T, TInput, I, Q, TEntityTypeAttribute> {
+  const entityTypeAttributeName = (config.settings?.entityTypeAttributeName ?? "entityType") as TEntityTypeAttribute;
 
   /**
    * Generates an object containing timestamp attributes based on the given configuration settings.
@@ -300,7 +377,10 @@ export function defineEntity<
 
   return {
     name: config.name,
-    createRepository: (table: Table): EntityRepository<T, TInput, I, Q> => {
+    entityTypeAttributeName,
+    createRepository: <TConfig extends TableConfig>(
+      table: Table<TConfig>,
+    ): EntityRepository<T, TInput, I, Q, TConfig, TEntityTypeAttribute> => {
       return {
         create: (data: TInput) => {
           const builder = table.create<T>({} as T);
@@ -375,6 +455,9 @@ export function defineEntity<
           builder.filter(eq(entityTypeAttributeName, config.name));
           return builder;
         },
+
+        searchVectors: (indexName, input) =>
+          scopedVectorSearch(table, indexName, input, entityTypeAttributeName, config.name),
       };
     },
   };
@@ -383,7 +466,14 @@ export function defineEntity<
 export function createQueries<T extends DynamoItem>() {
   return {
     input: <I>(schema: StandardSchemaV1<I>) => ({
-      query: <R extends ScanBuilder<T> | QueryBuilder<T, TableConfig> | GetBuilder<T> | EntityGetBuilder<T>>(
+      query: <
+        R extends
+          | ScanBuilder<T>
+          | QueryBuilder<T, TableConfig>
+          | GetBuilder<T>
+          | EntityGetBuilder<T>
+          | VectorSearchBuilder<T>,
+      >(
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
         const queryFn = (input: I) => (entity: QueryEntity<T>) => handler({ input, entity });

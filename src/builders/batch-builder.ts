@@ -1,3 +1,4 @@
+import type { ConsumedCapacity } from "@aws-sdk/client-dynamodb";
 import type { PrimaryKeyWithoutExpression } from "../conditions.js";
 import { BatchError, ErrorCodes } from "../errors.js";
 import type { BatchExecutionOptions, BatchWriteOperation } from "../operation-types.js";
@@ -78,9 +79,12 @@ function throwIfAborted(signal?: AbortSignal): void {
  */
 type BatchWriteExecutor = (
   operations: Array<BatchWriteOperation<DynamoItem>>,
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE",
   options?: BatchExecutionOptions,
 ) => Promise<{
   unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
+  consumedCapacity?: ConsumedCapacity[];
+  options?: BatchExecutionOptions,
 }>;
 
 /**
@@ -106,6 +110,7 @@ export interface BatchResult {
     processed: number;
     /** Write operations that were not processed and may need retry */
     unprocessed: Array<BatchWriteOperation<DynamoItem>>;
+    consumedCapacity?: ConsumedCapacity[];
   };
 
   /** Read operation results */
@@ -138,6 +143,7 @@ export interface TypedBatchResult<TEntities extends Record<string, DynamoItem> =
     processed: number;
     /** Write operations that were not processed and may need retry */
     unprocessed: Array<BatchWriteOperation<DynamoItem>>;
+    consumedCapacity?: ConsumedCapacity[];
   };
 
   /** Read operation results with typed items */
@@ -208,6 +214,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
   private writeItems: Array<TypedBatchItem<DynamoItem>> = [];
   private getItems: Array<TypedBatchItem<DynamoItem>> = [];
   private beforeGetExecute: BeforeExecute[] = [];
+  private returnCapacity?: "INDEXES" | "TOTAL" | "NONE";
 
   constructor(
     private batchWriteExecutor: BatchWriteExecutor,
@@ -234,6 +241,11 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
       writes: this.writeItems.length,
       reads: this.getItems.length,
     };
+  }
+
+  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this {
+    this.returnCapacity = value;
+    return this;
   }
 
   /**
@@ -317,7 +329,10 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    */
   private async executeWrites(
     options: BatchExecutionOptions,
-  ): Promise<{ unprocessedItems: Array<BatchWriteOperation<DynamoItem>> }> {
+  ): Promise<{
+    unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
+    consumedCapacity?: ConsumedCapacity[];
+  }> {
     if (this.writeItems.length === 0) {
       return { unprocessedItems: [] };
     }
@@ -355,7 +370,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
         throw BatchErrors.unsupportedType("write", item);
       });
 
-      return await this.batchWriteExecutor(operations, options);
+      return await this.batchWriteExecutor(operations, this.returnCapacity, options);
     } catch (error) {
       if (isAbortError(error, options.abortSignal)) throw options.abortSignal?.reason ?? error;
       if (isConfigurationError(error)) throw error;
@@ -450,7 +465,10 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
     await Promise.all(this.beforeGetExecute.map((beforeExecute) => beforeExecute()));
 
     const errors: BatchError[] = [];
-    let writeResults: { unprocessedItems: Array<BatchWriteOperation<DynamoItem>> } = { unprocessedItems: [] };
+    let writeResults: {
+      unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
+      consumedCapacity?: ConsumedCapacity[];
+    } = { unprocessedItems: [] };
     let getResults: BatchGetExecutorResult = {
       items: [],
       unprocessedKeys: [],
@@ -523,6 +541,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
       writes: {
         processed: this.writeItems.length - writeResults.unprocessedItems.length,
         unprocessed: writeResults.unprocessedItems,
+        ...(writeResults.consumedCapacity ? { consumedCapacity: writeResults.consumedCapacity } : {}),
       },
       reads: {
         itemsByType: this.groupItemsByType(getResults.items, getResults.itemEntityTypes),

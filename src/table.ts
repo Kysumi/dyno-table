@@ -1,7 +1,10 @@
+import type { ConsumedCapacity } from "@aws-sdk/client-dynamodb";
 import type {
   DynamoDBDocument,
   QueryCommandInput,
   ScanCommandInput,
+  SearchVectorsCommandInput,
+  SearchVectorsCommandOutput,
   TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
 import { BatchExecutor } from "./batch-executor.js";
@@ -11,6 +14,7 @@ import type {
   DeleteCommandParams,
   PutCommandParams,
   UpdateCommandParams,
+  WriteExecutionState,
 } from "./builders/builder-types.js";
 import { ConditionCheckBuilder } from "./builders/condition-check-builder.js";
 import { DeleteBuilder } from "./builders/delete-builder.js";
@@ -22,6 +26,12 @@ import { ScanBuilder } from "./builders/scan-builder.js";
 import { TransactionBuilder, type TransactionOptions } from "./builders/transaction-builder.js";
 import type { Path } from "./builders/types.js";
 import { UpdateBuilder } from "./builders/update-builder.js";
+import {
+  VectorSearchBuilder,
+  type VectorSearchInput,
+  type VectorSearchOptions,
+  type VectorSearchResult,
+} from "./builders/vector-search-builder.js";
 import {
   and,
   beginsWith,
@@ -40,8 +50,15 @@ import {
 } from "./conditions.js";
 import { buildExpression, generateAttributeName } from "./expression.js";
 import type { BatchExecutionOptions, BatchWriteOperation } from "./operation-types.js";
-import type { DynamoItem, Index, TableConfig } from "./types.js";
-import { ConfigurationErrors, OperationErrors } from "./utils/error-factory.js";
+import type { DynamoItem, Index, TableConfig, VectorIndexConfig, VectorIndexNames } from "./types.js";
+import { ConfigurationErrors, OperationErrors, ValidationErrors } from "./utils/error-factory.js";
+import {
+  redactItemVectors,
+  validateItemVectors,
+  validateTransactWriteVectors,
+  validateVectorIndexes,
+  validateVectorUpdates,
+} from "./vector.js";
 
 const _DDB_TRANSACT_GET_LIMIT = 100;
 const _DDB_TRANSACT_WRITE_LIMIT = 100;
@@ -62,6 +79,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * The Global Secondary Indexes that are configured on this table
    */
   readonly gsis: Record<string, Index>;
+  /** Vector indexes configured on this table. Configuration mirrors deployed infrastructure. */
+  readonly vectorIndexes: Record<string, VectorIndexConfig>;
 
   constructor(config: TConfig) {
     this.dynamoClient = config.client;
@@ -71,6 +90,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     this.sortKey = config.indexes.sortKey;
 
     this.gsis = config.indexes.gsis || {};
+    this.vectorIndexes = config.indexes.vectorIndexes || {};
+    validateVectorIndexes(this.vectorIndexes);
     this.batchExecutor = new BatchExecutor(this.dynamoClient, this.tableName, this.partitionKey, this.sortKey, (key) =>
       this.createKeyForPrimaryIndex(key),
     );
@@ -171,6 +192,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @returns A PutBuilder instance for chaining conditions and executing the put operation
    */
   put<T extends DynamoItem>(item: T): PutBuilder<T> {
+    const executionState: WriteExecutionState = {};
     // Define the executor function that will be called when execute() is called on the builder
     const executor = async (params: PutCommandParams): Promise<T> => {
       try {
@@ -184,7 +206,9 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           // response and will be handling these cases separately
           ReturnValues:
             params.returnValues === "CONSISTENT" || params.returnValues === "INPUT" ? "NONE" : params.returnValues,
+          ReturnConsumedCapacity: params.returnConsumedCapacity,
         });
+        executionState.consumedCapacity = result.ConsumedCapacity;
 
         // Handle different return value options
         if (params.returnValues === "INPUT") {
@@ -209,11 +233,21 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
         return result.Attributes as T;
       } catch (error) {
-        throw OperationErrors.putFailed(params.tableName, params.item, error instanceof Error ? error : undefined);
+        throw OperationErrors.putFailed(
+          params.tableName,
+          redactItemVectors(params.item, this.vectorIndexes),
+          error instanceof Error ? error : undefined,
+        );
       }
     };
 
-    return new PutBuilder<T>(executor, item, this.tableName);
+    return new PutBuilder<T>(
+      executor,
+      item,
+      this.tableName,
+      (candidate) => validateItemVectors(candidate, this.vectorIndexes),
+      executionState,
+    );
   }
 
   /**
@@ -448,7 +482,93 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     return new ScanBuilder<T, TConfig>(executor, context);
   }
 
+  searchVectors<T extends DynamoItem, TIndexName extends VectorIndexNames<TConfig> = VectorIndexNames<TConfig>>(
+    indexName: TIndexName,
+    input: VectorSearchInput<TConfig, TIndexName>,
+    context: BuilderContext = {},
+  ): VectorSearchBuilder<T, TConfig, TIndexName> {
+    const index = this.vectorIndexes[String(indexName)];
+    if (!index) {
+      throw ConfigurationErrors.vectorIndexNotFound(String(indexName), this.tableName, Object.keys(this.vectorIndexes));
+    }
+
+    const buildCommand = (options: VectorSearchOptions): SearchVectorsCommandInput => {
+      const expressionParams: ExpressionParams = {
+        expressionAttributeNames: {},
+        expressionAttributeValues: {},
+        valueCounter: { count: 0 },
+      };
+      const conditions: Condition[] = [];
+      if (index.partitionKey) conditions.push(eq(index.partitionKey, options.partition));
+      if (options.filter) conditions.push(options.filter);
+
+      const searchConditionExpression =
+        conditions.length === 0
+          ? undefined
+          : buildExpression(
+              conditions.length === 1 ? (conditions[0] as Condition) : and(...conditions),
+              expressionParams,
+            );
+      const projectionExpression = options.projection
+        ?.map((path) => generateAttributeName(expressionParams, path))
+        .join(", ");
+
+      return {
+        TableName: this.tableName,
+        IndexName: String(indexName),
+        SearchVector: [...options.vector],
+        TopK: options.topK,
+        SearchConditionExpression: searchConditionExpression,
+        ProjectionExpression: projectionExpression,
+        ExpressionAttributeNames:
+          Object.keys(expressionParams.expressionAttributeNames).length > 0
+            ? expressionParams.expressionAttributeNames
+            : undefined,
+        ExpressionAttributeValues:
+          Object.keys(expressionParams.expressionAttributeValues).length > 0
+            ? expressionParams.expressionAttributeValues
+            : undefined,
+        ReturnConsumedCapacity: options.returnConsumedCapacity,
+      };
+    };
+
+    const executor = async (options: VectorSearchOptions): Promise<VectorSearchResult<T>> => {
+      let result: SearchVectorsCommandOutput;
+      try {
+        result = await this.dynamoClient.searchVectors(buildCommand(options));
+      } catch (error) {
+        throw OperationErrors.searchVectorsFailed(
+          this.tableName,
+          String(indexName),
+          error instanceof Error ? error : undefined,
+        );
+      }
+
+      const matches = (result.SearchResults ?? []).map((match, resultIndex) => {
+        if (!match.Item || typeof match.Score !== "number" || !Number.isFinite(match.Score)) {
+          throw ValidationErrors.vectorResponseInvalid(String(indexName), resultIndex);
+        }
+        return { item: match.Item as T, score: match.Score };
+      });
+
+      return { matches, consumedCapacity: result.ConsumedCapacity };
+    };
+
+    return new VectorSearchBuilder<T, TConfig, TIndexName>(
+      executor,
+      buildCommand,
+      input,
+      indexName,
+      index as never,
+      this.partitionKey,
+      this.sortKey,
+      this.getIndexAttributeNames(),
+      context,
+    );
+  }
+
   delete(keyCondition: PrimaryKeyWithoutExpression): DeleteBuilder {
+    const executionState: WriteExecutionState = {};
     const executor = async (params: DeleteCommandParams) => {
       try {
         const result = await this.dynamoClient.delete({
@@ -458,7 +578,9 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
           ReturnValues: params.returnValues,
+          ReturnConsumedCapacity: params.returnConsumedCapacity,
         });
+        executionState.consumedCapacity = result.ConsumedCapacity;
         return {
           item: result.Attributes as DynamoItem,
         };
@@ -467,7 +589,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       }
     };
 
-    return new DeleteBuilder(executor, this.tableName, keyCondition);
+    return new DeleteBuilder(executor, this.tableName, keyCondition, executionState);
   }
 
   /**
@@ -477,6 +599,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * @returns An UpdateBuilder instance for chaining update operations and conditions
    */
   update<T extends DynamoItem>(keyCondition: PrimaryKeyWithoutExpression): UpdateBuilder<T> {
+    const executionState: WriteExecutionState = {};
     const executor = async (params: UpdateCommandParams) => {
       try {
         const result = await this.dynamoClient.update({
@@ -487,7 +610,9 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ExpressionAttributeNames: params.expressionAttributeNames,
           ExpressionAttributeValues: params.expressionAttributeValues,
           ReturnValues: params.returnValues,
+          ReturnConsumedCapacity: params.returnConsumedCapacity,
         });
+        executionState.consumedCapacity = result.ConsumedCapacity;
         return {
           item: result.Attributes as T,
         };
@@ -496,7 +621,13 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       }
     };
 
-    return new UpdateBuilder<T>(executor, this.tableName, keyCondition);
+    return new UpdateBuilder<T>(
+      executor,
+      this.tableName,
+      keyCondition,
+      (updates) => validateVectorUpdates(updates, this.vectorIndexes),
+      executionState,
+    );
   }
 
   /**
@@ -504,15 +635,14 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    */
   transactionBuilder(): TransactionBuilder {
     // Create an executor function for the transaction
-    const executor = async (params: TransactWriteCommandInput): Promise<void> => {
-      await this.dynamoClient.transactWrite(params);
+    const executor = async (params: TransactWriteCommandInput) => {
+      return this.dynamoClient.transactWrite(params);
     };
 
     // Create a transaction builder with the executor and table's index configuration
-    return new TransactionBuilder(executor, {
-      partitionKey: this.partitionKey,
-      sortKey: this.sortKey,
-    });
+    return new TransactionBuilder(executor, { partitionKey: this.partitionKey, sortKey: this.sortKey }, (params) =>
+      validateTransactWriteVectors(params, this.tableName, this.vectorIndexes),
+    );
   }
 
   /**
@@ -573,15 +703,16 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     options?: TransactionOptions,
   ): Promise<void> {
     // Create an executor function for the transaction
-    const transactionExecutor = async (params: TransactWriteCommandInput): Promise<void> => {
-      await this.dynamoClient.transactWrite(params);
+    const transactionExecutor = async (params: TransactWriteCommandInput) => {
+      return this.dynamoClient.transactWrite(params);
     };
 
     // Create a transaction builder with the executor and table's index configuration
-    const transaction = new TransactionBuilder(transactionExecutor, {
-      partitionKey: this.partitionKey,
-      sortKey: this.sortKey,
-    });
+    const transaction = new TransactionBuilder(
+      transactionExecutor,
+      { partitionKey: this.partitionKey, sortKey: this.sortKey },
+      (params) => validateTransactWriteVectors(params, this.tableName, this.vectorIndexes),
+    );
 
     if (options) {
       transaction.withOptions(options);

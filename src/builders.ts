@@ -10,6 +10,7 @@ export type {
   ScanBuilderInterface,
   TransactionItem,
   UpdateCommandParams,
+  WriteExecutionMetadata,
 } from "./builders/builder-types.js";
 export { ConditionCheckBuilder } from "./builders/condition-check-builder.js";
 export { DeleteBuilder } from "./builders/delete-builder.js";
@@ -24,4 +25,12 @@ export { ScanBuilder } from "./builders/scan-builder.js";
 export { TransactionBuilder } from "./builders/transaction-builder.js";
 export type { Path, PathType } from "./builders/types.js";
 export { UpdateBuilder } from "./builders/update-builder.js";
+export type {
+  VectorCapacity,
+  VectorConditionOperator,
+  VectorSearchInput,
+  VectorSearchMatch,
+  VectorSearchResult,
+} from "./builders/vector-search-builder.js";
+export { VectorSearchBuilder } from "./builders/vector-search-builder.js";
 export type { BatchExecutionOptions } from "./operation-types.js";

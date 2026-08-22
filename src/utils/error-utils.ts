@@ -68,6 +68,17 @@ export function isValidationException(error: unknown): boolean {
   return false;
 }
 
+/** True only for the temporary vector-index readiness ValidationException, including wrapped operation errors. */
+export function isVectorIndexNotReady(error: unknown): boolean {
+  const candidate = error instanceof Error && error.cause !== undefined ? error.cause : error;
+  if (!hasErrorName(candidate, "ValidationException")) return false;
+  const message = getAwsErrorMessage(candidate)?.toLowerCase() ?? "";
+  return (
+    message.includes("vector") &&
+    (message.includes("not ready") || message.includes("backfill") || message.includes("not active"))
+  );
+}
+
 /**
  * Checks if an error is a DynamoDB provisioned throughput exceeded exception
  *

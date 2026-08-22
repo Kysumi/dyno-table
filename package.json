@@ -1,6 +1,6 @@
 {
   "name": "dyno-table",
-  "version": "2.11.2",
+  "version": "2.12.0",
   "description": "A TypeScript library to simplify working with DynamoDB",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -87,6 +87,7 @@
     "test": "vitest run",
     "test:w": "vitest watch",
     "test:int": "vitest run --config vitest.integration.ts",
+    "test:vector:aws": "vitest run src/__tests__/vector-search.aws.test.ts",
     "local:setup": "npx tsx -e 'import(\"./tests/setup-test-table.ts\").then(m => m.createTestTable())'",
     "local:teardown": "npx tsx -e 'import(\"./tests/setup-test-table.ts\").then(m => m.deleteTestTable())'",
     "lint": "biome lint",
@@ -111,8 +112,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",
-    "@semantic-release/changelog": "^7.0.0",
-    "@semantic-release/git": "^11.0.1",
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.10",
     "husky": "^9.1.7",
@@ -123,8 +122,11 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0"
+    "@aws-sdk/client-dynamodb": "^3.1103.0",
+    "@aws-sdk/lib-dynamodb": "^3.1103.0"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "files": [
     "dist"

@@ -19,5 +19,6 @@ Documentation for the dyno-table library.
 - **`batch-operations.md`** - Batch get/write operations, including entity batches
 - **`transactions.md`** - ACID transactions across multiple operations
 - **`migration.md`** - Backfill and data-movement scripts using entity repositories
+- **`vector-search.md`** - Native DynamoDB vector indexes, search, writes, entities, collections, and operations
 - **`error-handling.md`** - Error classes, error codes, and handling patterns
 - **`images/`**, **`geoff-the-dyno.png`** - Documentation images and library mascot

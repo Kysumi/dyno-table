@@ -30,4 +30,4 @@ This directory contains the core source code for the dyno-table library. The lib
 - Table Layer: Direct DynamoDB operations with fluent builders for granular control
 - Entity Layer: Higher-level abstraction with schema validation and business logic
 
-**AWS SDK Compatibility**: Built on AWS SDK v3 with full feature parity to native DynamoDB operations while providing a more ergonomic interface.
+**AWS SDK Compatibility**: Built on AWS SDK v3 with typed builders for the library's supported DynamoDB data operations, including native vector search. Administrative provisioning and unsupported service surfaces remain available through the AWS SDK directly.

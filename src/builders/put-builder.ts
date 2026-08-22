@@ -20,7 +20,7 @@ import { prepareExpressionParams } from "../expression.js";
 import type { DynamoItem } from "../types.js";
 import { debugCommand } from "../utils/debug-expression.js";
 import type { BatchBuilder } from "./batch-builder.js";
-import type { PutCommandParams } from "./builder-types.js";
+import type { PutCommandParams, WriteExecutionMetadata, WriteExecutionState } from "./builder-types.js";
 import type { TransactionBuilder } from "./transaction-builder.js";
 import type { Path, PathType } from "./types.js";
 
@@ -38,6 +38,7 @@ export interface PutOptions {
    *  - INPUT: Returns the input values that were passed to the operation
    */
   returnValues?: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT";
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T>;
@@ -79,7 +80,13 @@ export class PutBuilder<T extends DynamoItem> {
   private readonly executor: PutExecutor<T>;
   private readonly tableName: string;
 
-  constructor(executor: PutExecutor<T>, item: T, tableName: string) {
+  constructor(
+    executor: PutExecutor<T>,
+    item: T,
+    tableName: string,
+    private readonly validateItem?: (item: T) => void,
+    private readonly executionState: WriteExecutionState = {},
+  ) {
     this.executor = executor;
     this.item = item;
     this.tableName = tableName;
@@ -251,10 +258,16 @@ export class PutBuilder<T extends DynamoItem> {
     return this;
   }
 
+  public returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this {
+    this.options.returnConsumedCapacity = value;
+    return this;
+  }
+
   /**
    * Generate the DynamoDB command parameters
    */
   private toDynamoCommand(): PutCommandParams {
+    this.validateItem?.(this.item);
     const { expression, names, values } = prepareExpressionParams(this.options.condition);
 
     return {
@@ -264,6 +277,7 @@ export class PutBuilder<T extends DynamoItem> {
       expressionAttributeNames: names,
       expressionAttributeValues: values,
       returnValues: this.options.returnValues,
+      ...(this.options.returnConsumedCapacity ? { returnConsumedCapacity: this.options.returnConsumedCapacity } : {}),
     };
   }
 
@@ -371,6 +385,11 @@ export class PutBuilder<T extends DynamoItem> {
   public async execute(): Promise<T | undefined> {
     const params = this.toDynamoCommand();
     return this.executor(params);
+  }
+
+  public async executeWithMetadata(): Promise<{ item: T | undefined } & WriteExecutionMetadata> {
+    const item = await this.execute();
+    return { item, consumedCapacity: this.executionState.consumedCapacity };
   }
 
   /**
