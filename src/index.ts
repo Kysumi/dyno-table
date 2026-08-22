@@ -93,6 +93,7 @@ export {
   TransactionError,
   ValidationError,
 } from "./errors.js";
+export type { BatchExecutionOptions } from "./operation-types.js";
 export { Table } from "./table.js";
 export type {
   VectorDistanceFunction,
@@ -117,6 +118,7 @@ export {
   getAwsErrorCode,
   getAwsErrorMessage,
   getErrorSummary,
+  isAbortError,
   isBatchError,
   isConditionalCheckFailed,
   isConfigurationError,

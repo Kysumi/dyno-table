@@ -23,6 +23,11 @@ function hasErrorName(error: unknown, name: string): boolean {
   return typeof error === "object" && error !== null && "name" in error && error.name === name;
 }
 
+/** Checks whether an error was caused by an aborted operation. */
+export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  return hasErrorName(error, "AbortError") || (signal?.aborted === true && error === signal.reason);
+}
+
 /**
  * Checks if an error is a DynamoDB conditional check failure.
  *
