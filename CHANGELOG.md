@@ -1,3 +1,10 @@
+# [2.12.0](https://github.com/Kysumi/dyno-table/compare/v2.11.2...v2.12.0) (2026-08-22)
+
+
+### Features
+
+* **vector:** add native DynamoDB vector search support ([fd068a0](https://github.com/Kysumi/dyno-table/commit/fd068a0ac7e14a76459cf9fb85f4b52dc4ad036b))
+
 ## [2.11.2](https://github.com/Kysumi/dyno-table/compare/v2.11.1...v2.11.2) (2026-08-20)
 
 ## [2.11.1](https://github.com/Kysumi/dyno-table/compare/v2.11.0...v2.11.1) (2026-08-19)
