@@ -7,6 +7,8 @@ export interface BatchExecutionOptions {
   baseDelayMs?: number;
   /** Cancels backoff and in-flight DynamoDB requests. */
   abortSignal?: AbortSignal;
+  /** Requests DynamoDB consumed capacity metrics for the batch write. */
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 export type BatchWriteOperation<T extends Record<string, unknown>> =

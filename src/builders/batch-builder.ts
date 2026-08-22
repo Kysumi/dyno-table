@@ -54,6 +54,7 @@ export interface ResolvedBatchExecutionOptions {
   maxAttempts: number;
   baseDelayMs: number;
   abortSignal?: AbortSignal;
+  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
 }
 
 export function resolveBatchExecutionOptions(options: BatchExecutionOptions = {}): ResolvedBatchExecutionOptions {
@@ -67,7 +68,12 @@ export function resolveBatchExecutionOptions(options: BatchExecutionOptions = {}
     throw ConfigurationErrors.invalidBaseDelayMs(baseDelayMs);
   }
 
-  return { maxAttempts, baseDelayMs, abortSignal: options.abortSignal };
+  return {
+    maxAttempts,
+    baseDelayMs,
+    abortSignal: options.abortSignal,
+    returnConsumedCapacity: options.returnConsumedCapacity,
+  };
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -79,12 +85,10 @@ function throwIfAborted(signal?: AbortSignal): void {
  */
 type BatchWriteExecutor = (
   operations: Array<BatchWriteOperation<DynamoItem>>,
-  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE",
   options?: BatchExecutionOptions,
 ) => Promise<{
   unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
   consumedCapacity?: ConsumedCapacity[];
-  options?: BatchExecutionOptions,
 }>;
 
 /**
@@ -327,9 +331,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * @returns A promise that resolves to any unprocessed operations
    * @private
    */
-  private async executeWrites(
-    options: BatchExecutionOptions,
-  ): Promise<{
+  private async executeWrites(options: BatchExecutionOptions): Promise<{
     unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
     consumedCapacity?: ConsumedCapacity[];
   }> {
@@ -370,7 +372,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
         throw BatchErrors.unsupportedType("write", item);
       });
 
-      return await this.batchWriteExecutor(operations, this.returnCapacity, options);
+      return await this.batchWriteExecutor(operations, { ...options, returnConsumedCapacity: this.returnCapacity });
     } catch (error) {
       if (isAbortError(error, options.abortSignal)) throw options.abortSignal?.reason ?? error;
       if (isConfigurationError(error)) throw error;

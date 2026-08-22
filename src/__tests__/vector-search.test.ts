@@ -249,7 +249,7 @@ describe("vector search", () => {
 
     const put = await table.put(item).returnConsumedCapacity("INDEXES").executeWithMetadata();
     await expect(table.put(item).execute()).resolves.toBeUndefined();
-    const batch = await table.batchWrite([{ type: "put", item }], "INDEXES");
+    const batch = await table.batchWrite([{ type: "put", item }], { returnConsumedCapacity: "INDEXES" });
     const transaction = await table
       .transactionBuilder()
       .put("Products", item)
@@ -394,7 +394,11 @@ describe("vector search", () => {
       }),
     ).toThrowError(expect.objectContaining({ code: ErrorCodes.VECTOR_VALUE_INVALID }));
 
-    const builder = table.searchVectors<Product>("ProductEmbedding", { vector: [1, 2, 3], topK: 1, partition: "Shoes" });
+    const builder = table.searchVectors<Product>("ProductEmbedding", {
+      vector: [1, 2, 3],
+      topK: 1,
+      partition: "Shoes",
+    });
     const invalidCondition = expect.objectContaining({ code: ErrorCodes.VECTOR_CONDITION_INVALID });
     const unsupported: Condition[] = [
       { type: "or", conditions: [{ type: "eq", attr: "brand", value: "Acme" }] },
@@ -482,16 +486,20 @@ describe("vector search", () => {
       queries: {
         byEmbedding: createQueries<Product>()
           .input(inputSchema)
-          .query(({ input, entity: scoped }) => scoped.searchVectors("GlobalEmbedding", { vector: input.vector, topK: 1 })),
+          .query(({ input, entity: scoped }) =>
+            scoped.searchVectors("GlobalEmbedding", { vector: input.vector, topK: 1 }),
+          ),
       },
       settings: { entityTypeAttributeName: "brand" },
     });
     const repository = entity.createRepository(table);
 
-    await expect(repository.query.byEmbedding({ vector: [1, 2, 3], category: "Shoes" }).execute()).resolves.toBeDefined();
     await expect(
-      repository.query.byEmbedding({ vector: [1, 2, 3], category: "" }).execute(),
-    ).rejects.toThrowError(expect.objectContaining({ code: ErrorCodes.QUERY_INPUT_VALIDATION_FAILED }));
+      repository.query.byEmbedding({ vector: [1, 2, 3], category: "Shoes" }).execute(),
+    ).resolves.toBeDefined();
+    await expect(repository.query.byEmbedding({ vector: [1, 2, 3], category: "" }).execute()).rejects.toThrowError(
+      expect.objectContaining({ code: ErrorCodes.QUERY_INPUT_VALIDATION_FAILED }),
+    );
   });
 
   it("throws before the request when the discriminator attribute is absent from the vector index schema", () => {

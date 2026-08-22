@@ -1,3 +1,4 @@
+import type { ConsumedCapacity } from "@aws-sdk/client-dynamodb";
 import type { BatchGetCommandInput, BatchWriteCommandInput, DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import {
   type BatchGetCommand,
@@ -8,10 +9,11 @@ import {
 import type { ExpressionParams, PrimaryKeyWithoutExpression } from "./conditions.js";
 import { generateAttributeName } from "./expression.js";
 import type { BatchExecutionOptions, BatchWriteOperation } from "./operation-types.js";
-import type { DynamoItem } from "./types.js";
+import type { DynamoItem, VectorIndexConfig } from "./types.js";
 import { chunkArray } from "./utils/chunk-array.js";
 import { OperationErrors } from "./utils/error-factory.js";
 import { isAbortError } from "./utils/error-utils.js";
+import { validateItemVectors } from "./vector.js";
 
 const DDB_BATCH_WRITE_LIMIT = 25;
 const DDB_BATCH_GET_LIMIT = 100;
@@ -25,6 +27,7 @@ export class BatchExecutor {
     private readonly partitionKey: string,
     private readonly sortKey: string | undefined,
     private readonly createKey: (key: PrimaryKeyWithoutExpression) => Record<string, unknown>,
+    private readonly vectorIndexes: Record<string, VectorIndexConfig>,
   ) {}
 
   async batchGet<T extends DynamoItem>(
@@ -44,9 +47,14 @@ export class BatchExecutor {
   async batchWrite<T extends DynamoItem>(
     operations: Array<BatchWriteOperation<T>>,
     options?: BatchExecutionOptions,
-  ): Promise<{ unprocessedItems: Array<BatchWriteOperation<T>> }> {
+  ): Promise<{ unprocessedItems: Array<BatchWriteOperation<T>>; consumedCapacity?: ConsumedCapacity[] }> {
+    for (const operation of operations) {
+      if (operation.type === "put") validateItemVectors(operation.item, this.vectorIndexes);
+    }
+
     const retryOptions = resolveBatchExecutionOptions(options);
     const allUnprocessedItems: Array<BatchWriteOperation<T>> = [];
+    const consumedCapacity: ConsumedCapacity[] = [];
 
     try {
       for (const chunk of chunkArray(operations, DDB_BATCH_WRITE_LIMIT)) {
@@ -60,9 +68,15 @@ export class BatchExecutor {
 
         const { unprocessed } = await this.retryBatch(writeRequests, retryOptions, async (requests) => {
           const result = await this.dynamoClient.batchWrite(
-            { RequestItems: { [this.tableName]: requests } },
+            {
+              RequestItems: { [this.tableName]: requests },
+              ...(retryOptions.returnConsumedCapacity
+                ? { ReturnConsumedCapacity: retryOptions.returnConsumedCapacity }
+                : {}),
+            },
             { abortSignal: retryOptions.abortSignal },
           );
+          if (result.ConsumedCapacity) consumedCapacity.push(...result.ConsumedCapacity);
           return {
             processed: [],
             unprocessed: result.UnprocessedItems?.[this.tableName] ?? [],
@@ -94,7 +108,10 @@ export class BatchExecutor {
       );
     }
 
-    return { unprocessedItems: allUnprocessedItems };
+    return {
+      unprocessedItems: allUnprocessedItems,
+      ...(consumedCapacity.length > 0 ? { consumedCapacity } : {}),
+    };
   }
 
   async batchGetCommands(

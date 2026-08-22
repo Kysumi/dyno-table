@@ -92,8 +92,13 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     this.gsis = config.indexes.gsis || {};
     this.vectorIndexes = config.indexes.vectorIndexes || {};
     validateVectorIndexes(this.vectorIndexes);
-    this.batchExecutor = new BatchExecutor(this.dynamoClient, this.tableName, this.partitionKey, this.sortKey, (key) =>
-      this.createKeyForPrimaryIndex(key),
+    this.batchExecutor = new BatchExecutor(
+      this.dynamoClient,
+      this.tableName,
+      this.partitionKey,
+      this.sortKey,
+      (key) => this.createKeyForPrimaryIndex(key),
+      this.vectorIndexes,
     );
   }
 
@@ -758,7 +763,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
   async batchWrite<T extends DynamoItem>(
     operations: Array<BatchWriteOperation<T>>,
     options?: BatchExecutionOptions,
-  ): Promise<{ unprocessedItems: Array<BatchWriteOperation<T>> }> {
+  ): Promise<{ unprocessedItems: Array<BatchWriteOperation<T>>; consumedCapacity?: ConsumedCapacity[] }> {
     return this.batchExecutor.batchWrite(operations, options);
   }
 }
