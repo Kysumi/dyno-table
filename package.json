@@ -105,7 +105,7 @@
     "database"
   ],
   "author": "Maunder",
-  "license": "ISC",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Kysumi/dyno-table.git"
