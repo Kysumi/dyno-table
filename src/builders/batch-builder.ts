@@ -1,9 +1,14 @@
 import type { ConsumedCapacity } from "@aws-sdk/client-dynamodb";
 import type { PrimaryKeyWithoutExpression } from "../conditions.js";
 import { BatchError, ErrorCodes } from "../errors.js";
-import type { BatchWriteOperation } from "../operation-types.js";
+import {
+  type BatchExecutionOptions,
+  type BatchWriteOperation,
+  resolveBatchExecutionOptions,
+} from "../operation-types.js";
 import type { DynamoItem } from "../types.js";
 import { BatchErrors } from "../utils/error-factory.js";
+import { isAbortError, isConfigurationError } from "../utils/error-utils.js";
 import type { BeforeExecute, DeleteCommandParams, PutCommandParams } from "./builder-types.js";
 import type { GetCommandParams } from "./get-builder.js";
 
@@ -39,12 +44,26 @@ export interface BatchConfig {
   sortKey?: string;
 }
 
+export interface BatchGetCommand extends GetCommandParams {
+  entityType?: string;
+}
+
+export interface BatchGetExecutorResult {
+  items: DynamoItem[];
+  unprocessedKeys: PrimaryKeyWithoutExpression[];
+  itemEntityTypes: Array<string | undefined>;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw signal.reason;
+}
+
 /**
  * Executor function for batch write operations
  */
 type BatchWriteExecutor = (
   operations: Array<BatchWriteOperation<DynamoItem>>,
-  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE",
+  options?: BatchExecutionOptions,
 ) => Promise<{
   unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
   consumedCapacity?: ConsumedCapacity[];
@@ -53,10 +72,10 @@ type BatchWriteExecutor = (
 /**
  * Executor function for batch get operations
  */
-type BatchGetExecutor = (keys: Array<PrimaryKeyWithoutExpression>) => Promise<{
-  items: DynamoItem[];
-  unprocessedKeys: PrimaryKeyWithoutExpression[];
-}>;
+type BatchGetExecutor = (
+  commands: BatchGetCommand[],
+  options?: BatchExecutionOptions,
+) => Promise<BatchGetExecutorResult>;
 
 // BatchError is now imported from errors.ts
 
@@ -290,7 +309,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * @returns A promise that resolves to any unprocessed operations
    * @private
    */
-  private async executeWrites(): Promise<{
+  private async executeWrites(options: BatchExecutionOptions): Promise<{
     unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
     consumedCapacity?: ConsumedCapacity[];
   }> {
@@ -331,8 +350,10 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
         throw BatchErrors.unsupportedType("write", item);
       });
 
-      return await this.batchWriteExecutor(operations, this.returnCapacity);
+      return await this.batchWriteExecutor(operations, { ...options, returnConsumedCapacity: this.returnCapacity });
     } catch (error) {
+      if (isAbortError(error, options.abortSignal)) throw options.abortSignal?.reason ?? error;
+      if (isConfigurationError(error)) throw error;
       if (error instanceof BatchError) throw error;
 
       throw BatchErrors.batchWriteFailed(
@@ -349,33 +370,27 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * @returns A promise that resolves to the retrieved items
    * @private
    */
-  private async executeGets(): Promise<{ items: DynamoItem[]; unprocessedKeys: PrimaryKeyWithoutExpression[] }> {
+  private async executeGets(options: BatchExecutionOptions): Promise<BatchGetExecutorResult> {
     if (this.getItems.length === 0) {
-      return { items: [], unprocessedKeys: [] };
+      return { items: [], unprocessedKeys: [], itemEntityTypes: [] };
     }
 
     try {
-      // Convert batch items to keys for batch get
-      const keys: Array<PrimaryKeyWithoutExpression> = this.getItems.map((item) => {
+      const commands: BatchGetCommand[] = this.getItems.map((item) => {
         if (item.type === "Get") {
-          // Convert key to PrimaryKeyWithoutExpression format if needed
-          if (typeof item.params.key === "object" && item.params.key !== null && "pk" in item.params.key) {
-            return item.params.key as PrimaryKeyWithoutExpression;
-          }
-
-          // Convert from table key format to PrimaryKeyWithoutExpression
-          const tableKey = item.params.key as Record<string, unknown>;
           return {
-            pk: tableKey[this.config.partitionKey] as string,
-            sk: this.config.sortKey ? (tableKey[this.config.sortKey] as string) : undefined,
+            ...item.params,
+            entityType: item.entityType,
           };
         }
 
         throw BatchErrors.unsupportedType("read", item);
       });
 
-      return await this.batchGetExecutor(keys);
+      return await this.batchGetExecutor(commands, options);
     } catch (error) {
+      if (isAbortError(error, options.abortSignal)) throw options.abortSignal?.reason ?? error;
+      if (isConfigurationError(error)) throw error;
       if (error instanceof BatchError) throw error;
 
       throw BatchErrors.batchGetFailed(
@@ -390,7 +405,10 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * Groups retrieved items by their entity type.
    * @private
    */
-  private groupItemsByType(items: DynamoItem[]): { [K in keyof TEntities]: TEntities[K][] } {
+  private groupItemsByType(
+    items: DynamoItem[],
+    itemEntityTypes: Array<string | undefined>,
+  ): { [K in keyof TEntities]: TEntities[K][] } {
     const grouped = {} as { [K in keyof TEntities]: TEntities[K][] };
 
     // Initialize all entity types with empty arrays
@@ -403,9 +421,8 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
       }
     }
 
-    // Group items by their entityType attribute
-    for (const item of items) {
-      const entityType = item.entityType as keyof TEntities;
+    for (const [index, item] of items.entries()) {
+      const entityType = itemEntityTypes[index] as keyof TEntities | undefined;
       if (entityType && grouped[entityType]) {
         grouped[entityType].push(item as TEntities[keyof TEntities]);
       }
@@ -421,8 +438,10 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * @returns A promise that resolves to a TypedBatchResult with entity type information
    * @throws {BatchError} If the batch is empty or if operations fail
    */
-  async execute(): Promise<TypedBatchResult<TEntities>> {
+  async execute(options: BatchExecutionOptions = {}): Promise<TypedBatchResult<TEntities>> {
     this.validateNotEmpty();
+    resolveBatchExecutionOptions(options);
+    throwIfAborted(options.abortSignal);
     await Promise.all(this.beforeGetExecute.map((beforeExecute) => beforeExecute()));
 
     const errors: BatchError[] = [];
@@ -430,16 +449,19 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
       unprocessedItems: Array<BatchWriteOperation<DynamoItem>>;
       consumedCapacity?: ConsumedCapacity[];
     } = { unprocessedItems: [] };
-    let getResults: { items: DynamoItem[]; unprocessedKeys: PrimaryKeyWithoutExpression[] } = {
+    let getResults: BatchGetExecutorResult = {
       items: [],
       unprocessedKeys: [],
+      itemEntityTypes: [],
     };
 
     // Execute writes if any
     if (this.writeItems.length > 0) {
       try {
-        writeResults = await this.executeWrites();
+        writeResults = await this.executeWrites(options);
       } catch (error) {
+        if (isAbortError(error, options.abortSignal)) throw options.abortSignal?.reason ?? error;
+        if (isConfigurationError(error)) throw error;
         if (error instanceof BatchError) {
           errors.push(error);
         } else {
@@ -459,9 +481,12 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
 
     // Execute gets if any
     if (this.getItems.length > 0) {
+      throwIfAborted(options.abortSignal);
       try {
-        getResults = await this.executeGets();
+        getResults = await this.executeGets(options);
       } catch (error) {
+        if (isAbortError(error, options.abortSignal)) throw options.abortSignal?.reason ?? error;
+        if (isConfigurationError(error)) throw error;
         if (error instanceof BatchError) {
           errors.push(error);
         } else {
@@ -500,7 +525,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
         ...(writeResults.consumedCapacity ? { consumedCapacity: writeResults.consumedCapacity } : {}),
       },
       reads: {
-        itemsByType: this.groupItemsByType(getResults.items),
+        itemsByType: this.groupItemsByType(getResults.items, getResults.itemEntityTypes),
         items: getResults.items as TEntities[keyof TEntities][],
         found: getResults.items.length,
         unprocessed: getResults.unprocessedKeys,

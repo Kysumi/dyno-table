@@ -7,6 +7,7 @@ import type {
   SearchVectorsCommandOutput,
   TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
+import { BatchExecutor } from "./batch-executor.js";
 import { BatchBuilder } from "./builders/batch-builder.js";
 import type {
   BuilderContext,
@@ -48,9 +49,8 @@ import {
   type PrimaryKeyWithoutExpression,
 } from "./conditions.js";
 import { buildExpression, generateAttributeName } from "./expression.js";
-import type { BatchWriteOperation } from "./operation-types.js";
+import type { BatchExecutionOptions, BatchWriteOperation } from "./operation-types.js";
 import type { DynamoItem, Index, TableConfig, VectorIndexConfig, VectorIndexNames } from "./types.js";
-import { chunkArray } from "./utils/chunk-array.js";
 import { ConfigurationErrors, OperationErrors, ValidationErrors } from "./utils/error-factory.js";
 import {
   redactItemVectors,
@@ -60,13 +60,12 @@ import {
   validateVectorUpdates,
 } from "./vector.js";
 
-const DDB_BATCH_WRITE_LIMIT = 25;
-const DDB_BATCH_GET_LIMIT = 100;
 const _DDB_TRANSACT_GET_LIMIT = 100;
 const _DDB_TRANSACT_WRITE_LIMIT = 100;
 
 export class Table<TConfig extends TableConfig = TableConfig> {
   private readonly dynamoClient: DynamoDBDocument;
+  private readonly batchExecutor: BatchExecutor;
   readonly tableName: string;
   /**
    * The column name of the partitionKey for the Table
@@ -93,6 +92,14 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     this.gsis = config.indexes.gsis || {};
     this.vectorIndexes = config.indexes.vectorIndexes || {};
     validateVectorIndexes(this.vectorIndexes);
+    this.batchExecutor = new BatchExecutor(
+      this.dynamoClient,
+      this.tableName,
+      this.partitionKey,
+      this.sortKey,
+      (key) => this.createKeyForPrimaryIndex(key),
+      this.vectorIndexes,
+    );
   }
 
   private getIndexAttributeNames(): string[] {
@@ -679,23 +686,14 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * ```
    */
   batchBuilder<TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>>(): BatchBuilder<TEntities> {
-    // Create executor functions for batch operations
-    const batchWriteExecutor = async (
-      operations: Array<BatchWriteOperation<DynamoItem>>,
-      returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE",
-    ) => {
-      return this.batchWrite(operations, returnConsumedCapacity);
-    };
-
-    const batchGetExecutor = async (keys: Array<PrimaryKeyWithoutExpression>) => {
-      return this.batchGet(keys);
-    };
-
-    // Create a batch builder with the executors and table's index configuration
-    return new BatchBuilder<TEntities>(batchWriteExecutor, batchGetExecutor, {
-      partitionKey: this.partitionKey,
-      sortKey: this.sortKey,
-    });
+    return new BatchBuilder<TEntities>(
+      (operations, options) => this.batchExecutor.batchWrite(operations, options),
+      (commands, options) => this.batchExecutor.batchGetCommands(commands, options),
+      {
+        partitionKey: this.partitionKey,
+        sortKey: this.sortKey,
+      },
+    );
   }
 
   /**
@@ -751,56 +749,9 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    */
   async batchGet<T extends DynamoItem>(
     keys: Array<PrimaryKeyWithoutExpression>,
+    options?: BatchExecutionOptions,
   ): Promise<{ items: T[]; unprocessedKeys: PrimaryKeyWithoutExpression[] }> {
-    const allItems: T[] = [];
-    const allUnprocessedKeys: PrimaryKeyWithoutExpression[] = [];
-
-    // Process each chunk from the generator
-    for (const chunk of chunkArray(keys, DDB_BATCH_GET_LIMIT)) {
-      const formattedKeys = chunk.map((key) => ({
-        [this.partitionKey]: key.pk,
-        ...(this.sortKey ? { [this.sortKey]: key.sk } : {}),
-      }));
-
-      const params = {
-        RequestItems: {
-          [this.tableName]: {
-            Keys: formattedKeys,
-          },
-        },
-      };
-
-      try {
-        const result = await this.dynamoClient.batchGet(params);
-
-        // Add the retrieved items to our result
-        if (result.Responses?.[this.tableName]) {
-          allItems.push(...(result.Responses[this.tableName] as T[]));
-        }
-
-        // Track any unprocessed keys
-        const unprocessedKeysArray = result.UnprocessedKeys?.[this.tableName]?.Keys || [];
-        const unprocessedKeys = unprocessedKeysArray.map((key) => ({
-          pk: key[this.partitionKey] as string,
-          sk: this.sortKey ? (key[this.sortKey] as string) : undefined,
-        }));
-
-        if (unprocessedKeys.length > 0) {
-          allUnprocessedKeys.push(...unprocessedKeys);
-        }
-      } catch (error) {
-        throw OperationErrors.batchGetFailed(
-          this.tableName,
-          { requestedKeys: keys.length },
-          error instanceof Error ? error : undefined,
-        );
-      }
-    }
-
-    return {
-      items: allItems,
-      unprocessedKeys: allUnprocessedKeys,
-    };
+    return this.batchExecutor.batchGet<T>(keys, options);
   }
 
   /**
@@ -811,83 +762,8 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    */
   async batchWrite<T extends DynamoItem>(
     operations: Array<BatchWriteOperation<T>>,
-    returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE",
+    options?: BatchExecutionOptions,
   ): Promise<{ unprocessedItems: Array<BatchWriteOperation<T>>; consumedCapacity?: ConsumedCapacity[] }> {
-    for (const operation of operations) {
-      if (operation.type === "put") validateItemVectors(operation.item, this.vectorIndexes);
-    }
-    const allUnprocessedItems: Array<BatchWriteOperation<T>> = [];
-    const consumedCapacity: ConsumedCapacity[] = [];
-
-    // Process each chunk from the generator
-    for (const chunk of chunkArray(operations, DDB_BATCH_WRITE_LIMIT)) {
-      const writeRequests = chunk.map((operation) => {
-        if (operation.type === "put") {
-          return {
-            PutRequest: {
-              Item: operation.item,
-            },
-          };
-        }
-
-        return {
-          DeleteRequest: {
-            Key: this.createKeyForPrimaryIndex(operation.key),
-          },
-        };
-      });
-
-      const params = {
-        RequestItems: {
-          [this.tableName]: writeRequests,
-        },
-        ...(returnConsumedCapacity ? { ReturnConsumedCapacity: returnConsumedCapacity } : {}),
-      };
-
-      try {
-        const result = await this.dynamoClient.batchWrite(params);
-        if (result.ConsumedCapacity) consumedCapacity.push(...result.ConsumedCapacity);
-
-        // Track any unprocessed items
-        const unprocessedRequestsArray = result.UnprocessedItems?.[this.tableName] || [];
-
-        if (unprocessedRequestsArray.length > 0) {
-          const unprocessedItems = unprocessedRequestsArray.map((request) => {
-            if (request?.PutRequest?.Item) {
-              return {
-                type: "put" as const,
-                item: request.PutRequest.Item as T,
-              };
-            }
-
-            if (request?.DeleteRequest?.Key) {
-              return {
-                type: "delete" as const,
-                key: {
-                  pk: request.DeleteRequest.Key[this.partitionKey] as string,
-                  sk: this.sortKey ? (request.DeleteRequest.Key[this.sortKey] as string) : undefined,
-                },
-              };
-            }
-
-            // This should never happen, but TypeScript needs a fallback
-            throw new Error("Invalid unprocessed item format returned from DynamoDB");
-          });
-
-          allUnprocessedItems.push(...unprocessedItems);
-        }
-      } catch (error) {
-        throw OperationErrors.batchWriteFailed(
-          this.tableName,
-          { requestedOperations: operations.length },
-          error instanceof Error ? error : undefined,
-        );
-      }
-    }
-
-    return {
-      unprocessedItems: allUnprocessedItems,
-      ...(consumedCapacity.length > 0 ? { consumedCapacity } : {}),
-    };
+    return this.batchExecutor.batchWrite(operations, options);
   }
 }

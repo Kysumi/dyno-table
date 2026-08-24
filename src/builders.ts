@@ -33,3 +33,4 @@ export type {
   VectorSearchResult,
 } from "./builders/vector-search-builder.js";
 export { VectorSearchBuilder } from "./builders/vector-search-builder.js";
+export type { BatchExecutionOptions } from "./operation-types.js";

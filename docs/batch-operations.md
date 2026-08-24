@@ -58,6 +58,21 @@ const expeditionReport = expeditionDinosaurs.map(dino => ({
 }));
 ```
 
+Projection and consistency settings are preserved when a get is queued:
+
+```ts
+const batch = table.batchBuilder();
+
+dinoRepo
+  .get({ id: "t-rex-001" })
+  .select("name")
+  .consistentRead()
+  .withBatch(batch);
+
+const { reads } = await batch.execute();
+// reads.items contains only the selected name field
+```
+
 ### Cross-collection batch get
 
 Get items from different collections:
@@ -262,6 +277,24 @@ discoveries.forEach(dino => {
 
 await batch.execute();
 ```
+
+## Error handling
+
+Batch gets and writes automatically retry DynamoDB's unprocessed remainder. The default is five total attempts with full-jitter exponential backoff starting at a 25 ms ceiling. After the attempt budget is exhausted, only the final remainder is returned in `unprocessedKeys`, `unprocessedItems`, or the builder result's `unprocessed` fields.
+
+```ts
+const result = await batch.execute({
+  maxAttempts: 5,
+  baseDelayMs: 25,
+  abortSignal,
+});
+
+if (!result.success) {
+  console.warn("Batch work remains unprocessed", result.writes.unprocessed, result.reads.unprocessed);
+}
+```
+
+Use `{ maxAttempts: 1 }` for the former single-request behavior. Aborting rejects with the signal's reason instead of returning a partial result.
 
 ## Advanced patterns
 

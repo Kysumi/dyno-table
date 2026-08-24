@@ -179,6 +179,18 @@ export const ConfigurationErrors = {
       suggestion: "Provide a chunk size greater than 0",
     }),
 
+  invalidMaxAttempts: (maxAttempts: number) =>
+    new ConfigurationError("Maximum batch attempts must be a positive integer", ErrorCodes.INVALID_MAX_ATTEMPTS, {
+      maxAttempts,
+      suggestion: "Provide a positive integer for maxAttempts",
+    }),
+
+  invalidBaseDelayMs: (baseDelayMs: number) =>
+    new ConfigurationError("Batch retry base delay must be finite and non-negative", ErrorCodes.INVALID_BASE_DELAY_MS, {
+      baseDelayMs,
+      suggestion: "Provide a finite, non-negative number for baseDelayMs",
+    }),
+
   sortKeyRequired: (tableName: string, partitionKey: string, sortKey?: string) =>
     new ConfigurationError("Sort key is required for this operation", ErrorCodes.SORT_KEY_REQUIRED, {
       tableName,
