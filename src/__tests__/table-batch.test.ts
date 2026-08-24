@@ -83,6 +83,22 @@ describe("Table batch operations", () => {
     expect(batchGet.mock.calls[0]?.[0].RequestItems.Dinosaurs).not.toHaveProperty("ConsistentRead");
   });
 
+  it("deduplicates repeated keys within a batch get request", async () => {
+    batchGet.mockResolvedValue({
+      Responses: { Dinosaurs: [{ ...key(1), name: "Rex" }] },
+      UnprocessedKeys: {},
+    });
+    const batch = table.batchBuilder();
+
+    table.get<{ name: string }>(key(1)).withBatch(batch);
+    table.get<{ name: string }>(key(1)).withBatch(batch);
+    const result = await batch.execute();
+
+    expect(batchGet).toHaveBeenCalledOnce();
+    expect(batchGet.mock.calls[0]?.[0].RequestItems.Dinosaurs.Keys).toEqual([key(1)]);
+    expect(result.reads.items).toEqual([{ ...key(1), name: "Rex" }]);
+  });
+
   it("separates conflicting projections and consistency settings", async () => {
     batchGet.mockResolvedValue({ Responses: { Dinosaurs: [] }, UnprocessedKeys: {} });
     const batch = table.batchBuilder();

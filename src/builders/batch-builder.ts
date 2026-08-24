@@ -1,9 +1,13 @@
 import type { ConsumedCapacity } from "@aws-sdk/client-dynamodb";
 import type { PrimaryKeyWithoutExpression } from "../conditions.js";
 import { BatchError, ErrorCodes } from "../errors.js";
-import type { BatchExecutionOptions, BatchWriteOperation } from "../operation-types.js";
+import {
+  type BatchExecutionOptions,
+  type BatchWriteOperation,
+  resolveBatchExecutionOptions,
+} from "../operation-types.js";
 import type { DynamoItem } from "../types.js";
-import { BatchErrors, ConfigurationErrors } from "../utils/error-factory.js";
+import { BatchErrors } from "../utils/error-factory.js";
 import { isAbortError, isConfigurationError } from "../utils/error-utils.js";
 import type { BeforeExecute, DeleteCommandParams, PutCommandParams } from "./builder-types.js";
 import type { GetCommandParams } from "./get-builder.js";
@@ -47,33 +51,7 @@ export interface BatchGetCommand extends GetCommandParams {
 export interface BatchGetExecutorResult {
   items: DynamoItem[];
   unprocessedKeys: PrimaryKeyWithoutExpression[];
-  itemEntityTypes?: Array<string | undefined>;
-}
-
-export interface ResolvedBatchExecutionOptions {
-  maxAttempts: number;
-  baseDelayMs: number;
-  abortSignal?: AbortSignal;
-  returnConsumedCapacity?: "INDEXES" | "TOTAL" | "NONE";
-}
-
-export function resolveBatchExecutionOptions(options: BatchExecutionOptions = {}): ResolvedBatchExecutionOptions {
-  const maxAttempts = options.maxAttempts ?? 5;
-  const baseDelayMs = options.baseDelayMs ?? 25;
-
-  if (!Number.isInteger(maxAttempts) || maxAttempts <= 0) {
-    throw ConfigurationErrors.invalidMaxAttempts(maxAttempts);
-  }
-  if (!Number.isFinite(baseDelayMs) || baseDelayMs < 0) {
-    throw ConfigurationErrors.invalidBaseDelayMs(baseDelayMs);
-  }
-
-  return {
-    maxAttempts,
-    baseDelayMs,
-    abortSignal: options.abortSignal,
-    returnConsumedCapacity: options.returnConsumedCapacity,
-  };
+  itemEntityTypes: Array<string | undefined>;
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -394,7 +372,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    */
   private async executeGets(options: BatchExecutionOptions): Promise<BatchGetExecutorResult> {
     if (this.getItems.length === 0) {
-      return { items: [], unprocessedKeys: [] };
+      return { items: [], unprocessedKeys: [], itemEntityTypes: [] };
     }
 
     try {
@@ -429,7 +407,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    */
   private groupItemsByType(
     items: DynamoItem[],
-    itemEntityTypes: Array<string | undefined> = [],
+    itemEntityTypes: Array<string | undefined>,
   ): { [K in keyof TEntities]: TEntities[K][] } {
     const grouped = {} as { [K in keyof TEntities]: TEntities[K][] };
 
@@ -474,6 +452,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
     let getResults: BatchGetExecutorResult = {
       items: [],
       unprocessedKeys: [],
+      itemEntityTypes: [],
     };
 
     // Execute writes if any

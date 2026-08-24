@@ -67,7 +67,7 @@ Rules:
    - Preserve the current flat item result and DynamoDB response ordering.
    - Share one low-level chunk/send/collect-unprocessed implementation between this grouped/projected path and the existing plain-key `Table.batchGet(keys, options)`/`batchWrite(operations, options)` entry points. Parameterize only how each request is built (plain `Keys` vs. group-with-projection/consistency); do not grow two independent `BatchGetItem`-issuing code paths.
 
-4. Add one private retry mechanism in `table.ts`, shared by batch reads and writes:
+4. Add one private retry mechanism in `BatchExecutor`, shared by batch reads and writes:
 
    - Its attempt budget applies independently to each original chunk or compatible read group.
    - Attempt 1 sends the original request immediately.

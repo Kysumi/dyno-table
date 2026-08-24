@@ -1,14 +1,14 @@
 import type { ConsumedCapacity } from "@aws-sdk/client-dynamodb";
 import type { BatchGetCommandInput, BatchWriteCommandInput, DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import {
-  type BatchGetCommand,
-  type BatchGetExecutorResult,
-  type ResolvedBatchExecutionOptions,
-  resolveBatchExecutionOptions,
-} from "./builders/batch-builder.js";
+import type { BatchGetCommand, BatchGetExecutorResult } from "./builders/batch-builder.js";
 import type { ExpressionParams, PrimaryKeyWithoutExpression } from "./conditions.js";
 import { generateAttributeName } from "./expression.js";
-import type { BatchExecutionOptions, BatchWriteOperation } from "./operation-types.js";
+import {
+  type BatchExecutionOptions,
+  type BatchWriteOperation,
+  type ResolvedBatchExecutionOptions,
+  resolveBatchExecutionOptions,
+} from "./operation-types.js";
 import type { DynamoItem, VectorIndexConfig } from "./types.js";
 import { chunkArray } from "./utils/chunk-array.js";
 import { OperationErrors } from "./utils/error-factory.js";
@@ -17,6 +17,7 @@ import { validateItemVectors } from "./vector.js";
 
 const DDB_BATCH_WRITE_LIMIT = 25;
 const DDB_BATCH_GET_LIMIT = 100;
+const MAX_BATCH_RETRY_DELAY_MS = 20_000;
 
 type BatchWriteRequest = NonNullable<BatchWriteCommandInput["RequestItems"]>[string][number];
 
@@ -138,8 +139,8 @@ export class BatchExecutor {
     try {
       for (const group of groups.values()) {
         for (const chunk of chunkArray(group.commands, DDB_BATCH_GET_LIMIT)) {
-          const keys = chunk.map((command) => this.createKey(command.key));
           const commandsByKey = new Map(chunk.map((command) => [this.batchKey(this.createKey(command.key)), command]));
+          const keys = [...commandsByKey.values()].map((command) => this.createKey(command.key));
           const requestOptions = this.createBatchGetRequestOptions(group.projection, group.consistentRead);
           const { processed, unprocessed } = await this.retryBatch(keys, retryOptions, async (remainingKeys) => {
             const params: BatchGetCommandInput = {
@@ -230,7 +231,8 @@ export class BatchExecutor {
 
     for (let attempt = 1; attempt <= options.maxAttempts && unprocessed.length > 0; attempt++) {
       if (attempt > 1) {
-        const delay = Math.random() * options.baseDelayMs * 2 ** (attempt - 2);
+        const ceiling = Math.min(options.baseDelayMs * 2 ** (attempt - 2), MAX_BATCH_RETRY_DELAY_MS);
+        const delay = Math.random() * ceiling;
         await this.waitForBatchRetry(delay, options.abortSignal);
       }
 
