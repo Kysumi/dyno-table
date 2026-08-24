@@ -5,8 +5,9 @@ import { Table } from "../table";
 
 const batchGet = vi.fn();
 const batchWrite = vi.fn();
+const dynamoClient: Pick<DynamoDBDocument, "batchGet" | "batchWrite"> = { batchGet, batchWrite };
 const table = new Table({
-  client: { batchGet, batchWrite } as unknown as DynamoDBDocument,
+  client: dynamoClient as DynamoDBDocument,
   tableName: "Dinosaurs",
   indexes: { partitionKey: "pk", sortKey: "sk" },
 });
@@ -307,6 +308,24 @@ describe("Table batch operations", () => {
     await promise;
 
     expect(timeout.mock.calls.map((call) => call[1])).toEqual([10, 20]);
+  });
+
+  it("caps retry delay ceilings at 20 seconds", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const timeout = vi.spyOn(globalThis, "setTimeout");
+    batchGet
+      .mockResolvedValueOnce({
+        Responses: { Dinosaurs: [] },
+        UnprocessedKeys: { Dinosaurs: { Keys: [key(1)] } },
+      })
+      .mockResolvedValueOnce({ Responses: { Dinosaurs: [] }, UnprocessedKeys: {} });
+
+    const promise = table.batchGet([key(1)], { maxAttempts: 2, baseDelayMs: 100_000 });
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(timeout.mock.calls.map((call) => call[1])).toEqual([10_000]);
   });
 
   it("keeps chunk boundaries and gives each chunk its own retry budget", async () => {
