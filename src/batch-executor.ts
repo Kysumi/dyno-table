@@ -3,7 +3,7 @@ import type { BatchGetCommandInput, BatchWriteCommandInput, DynamoDBDocument } f
 import type { BatchGetCommand, BatchGetExecutorResult } from "./builders/batch-builder.js";
 import type { ExpressionParams, PrimaryKeyWithoutExpression } from "./conditions.js";
 import { generateAttributeName } from "./expression.js";
-import { distinctEntityNames, instrumentRequest, type TableHooks } from "./hooks.js";
+import { distinctEntityNames, instrumentRequest, type TablePlugin } from "./plugins.js";
 import {
   type BatchExecutionOptions,
   type BatchWriteOperation,
@@ -30,7 +30,7 @@ export class BatchExecutor {
     private readonly sortKey: string | undefined,
     private readonly createKey: (key: PrimaryKeyWithoutExpression) => Record<string, unknown>,
     private readonly vectorIndexes: Record<string, VectorIndexConfig>,
-    private readonly hooks?: TableHooks,
+    private readonly plugins?: readonly TablePlugin[],
   ) {}
 
   async batchGet<T extends DynamoItem>(
@@ -78,7 +78,7 @@ export class BatchExecutor {
               : {}),
           };
           const result = await instrumentRequest(
-            this.hooks,
+            this.plugins,
             { operation: "batchWrite", tableName: this.tableName, entityNames, params: batchParams },
             () => this.dynamoClient.batchWrite(batchParams, { abortSignal: retryOptions.abortSignal }),
           );
@@ -158,7 +158,7 @@ export class BatchExecutor {
               },
             };
             const result = await instrumentRequest(
-              this.hooks,
+              this.plugins,
               { operation: "batchGet", tableName: this.tableName, entityNames, params },
               () => this.dynamoClient.batchGet(params, { abortSignal: retryOptions.abortSignal }),
             );

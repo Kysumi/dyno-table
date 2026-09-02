@@ -49,7 +49,7 @@ import {
   type PrimaryKeyWithoutExpression,
 } from "./conditions.js";
 import { buildExpression, generateAttributeName } from "./expression.js";
-import { entityNamesOf, instrumentRequest, type TableHooks } from "./hooks.js";
+import { entityNamesOf, instrumentRequest, type TablePlugin } from "./plugins.js";
 import type { BatchExecutionOptions, BatchWriteOperation } from "./operation-types.js";
 import type { DynamoItem, Index, TableConfig, VectorIndexConfig, VectorIndexNames } from "./types.js";
 import { ConfigurationErrors, OperationErrors, ValidationErrors } from "./utils/error-factory.js";
@@ -67,7 +67,7 @@ const _DDB_TRANSACT_WRITE_LIMIT = 100;
 export class Table<TConfig extends TableConfig = TableConfig> {
   private readonly dynamoClient: DynamoDBDocument;
   private readonly batchExecutor: BatchExecutor;
-  private readonly hooks: TableHooks | undefined;
+  private readonly plugins: readonly TablePlugin[] | undefined;
   readonly tableName: string;
   /**
    * The column name of the partitionKey for the Table
@@ -94,7 +94,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     this.gsis = config.indexes.gsis || {};
     this.vectorIndexes = config.indexes.vectorIndexes || {};
     validateVectorIndexes(this.vectorIndexes);
-    this.hooks = config.hooks;
+    this.plugins = config.plugins;
     this.batchExecutor = new BatchExecutor(
       this.dynamoClient,
       this.tableName,
@@ -102,7 +102,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       this.sortKey,
       (key) => this.createKeyForPrimaryIndex(key),
       this.vectorIndexes,
-      this.hooks,
+      this.plugins,
     );
   }
 
@@ -183,7 +183,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ConsistentRead: params.consistentRead,
         };
         const result = await instrumentRequest(
-          this.hooks,
+          this.plugins,
           {
             operation: "get",
             tableName: params.tableName,
@@ -228,7 +228,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ReturnConsumedCapacity: params.returnConsumedCapacity,
         };
         const result = await instrumentRequest(
-          this.hooks,
+          this.plugins,
           {
             operation: "put",
             tableName: params.tableName,
@@ -257,7 +257,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
             ConsistentRead: true,
           };
           const getResult = await instrumentRequest(
-            this.hooks,
+            this.plugins,
             {
               operation: "get",
               tableName: params.tableName,
@@ -441,7 +441,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
       try {
         const result = await instrumentRequest(
-          this.hooks,
+          this.plugins,
           { operation: "query", tableName: this.tableName, params, entityNames: entityNamesOf(context.entityName) },
           () => this.dynamoClient.query(params),
         );
@@ -509,7 +509,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
 
       try {
         const result = await instrumentRequest(
-          this.hooks,
+          this.plugins,
           { operation: "scan", tableName: this.tableName, params, entityNames: entityNamesOf(context.entityName) },
           () => this.dynamoClient.scan(params),
         );
@@ -584,7 +584,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       const searchParams = buildCommand(options);
       try {
         result = await instrumentRequest(
-          this.hooks,
+          this.plugins,
           {
             operation: "searchVectors",
             tableName: this.tableName,
@@ -638,7 +638,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ReturnConsumedCapacity: params.returnConsumedCapacity,
         };
         const result = await instrumentRequest(
-          this.hooks,
+          this.plugins,
           {
             operation: "delete",
             tableName: params.tableName,
@@ -683,7 +683,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           ReturnConsumedCapacity: params.returnConsumedCapacity,
         };
         const result = await instrumentRequest(
-          this.hooks,
+          this.plugins,
           {
             operation: "update",
             tableName: params.tableName,
@@ -717,7 +717,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     // Create an executor function for the transaction
     const executor = async (params: TransactWriteCommandInput, entityNames: readonly string[]) => {
       return instrumentRequest(
-        this.hooks,
+        this.plugins,
         { operation: "transactWrite", tableName: this.tableName, entityNames, params },
         () => this.dynamoClient.transactWrite(params),
       );
@@ -789,7 +789,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
     // Create an executor function for the transaction
     const transactionExecutor = async (params: TransactWriteCommandInput, entityNames: readonly string[]) => {
       return instrumentRequest(
-        this.hooks,
+        this.plugins,
         { operation: "transactWrite", tableName: this.tableName, entityNames, params },
         () => this.dynamoClient.transactWrite(params),
       );

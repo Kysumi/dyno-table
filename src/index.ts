@@ -93,7 +93,7 @@ export {
   TransactionError,
   ValidationError,
 } from "./errors.js";
-export type { DynamoOperation, RequestHookEvent, RequestHookResult, TableHooks } from "./hooks.js";
+export type { DynamoOperation, RequestEvent, RequestResult, TablePlugin } from "./plugins.js";
 export type { BatchExecutionOptions } from "./operation-types.js";
 export { Table } from "./table.js";
 export type {

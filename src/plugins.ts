@@ -22,9 +22,10 @@ import type {
 } from "@aws-sdk/lib-dynamodb";
 
 /**
- * Request-level hooks for tracing/logging every physical DynamoDB request
- * (query, put, scan, batch chunk, etc.) — for wiring into APM tools like
- * Sentry/New Relic or a simple query logger.
+ * Plugins observe every physical DynamoDB request (query, put, scan, batch chunk, etc.)
+ * — the seam for wiring in APM tools like Sentry/New Relic, a query logger, or a metrics
+ * collector. `Table` accepts a list of plugins, so independent concerns (logging, tracing,
+ * metrics) can be registered side by side without composing them into one object yourself.
  */
 
 export type DynamoOperation =
@@ -70,7 +71,7 @@ interface OperationResultMap {
  * narrow on `operation` (e.g. `event.operation === "query"`) to get the matching
  * `*CommandInput` shape from `@aws-sdk/lib-dynamodb`.
  */
-export type RequestHookEvent = {
+export type RequestEvent = {
   [K in DynamoOperation]: {
     operation: K;
     tableName: string;
@@ -86,7 +87,7 @@ export type RequestHookEvent = {
 }[DynamoOperation];
 
 /** Fired after a physical DynamoDB request settles, successfully or not. */
-export type RequestHookResult = {
+export type RequestResult = {
   [K in DynamoOperation]: {
     operation: K;
     tableName: string;
@@ -100,9 +101,11 @@ export type RequestHookResult = {
   };
 }[DynamoOperation];
 
-export interface TableHooks {
-  onRequestStart?(event: RequestHookEvent): void;
-  onRequestEnd?(event: RequestHookResult): void;
+export interface TablePlugin {
+  /** Identifies this plugin in the `plugins` list; purely for the plugin author's own reference. */
+  name?: string;
+  onRequestStart?(event: RequestEvent): void;
+  onRequestEnd?(event: RequestResult): void;
 }
 
 function shallowCloneParams<T>(params: T): T {
@@ -113,23 +116,25 @@ function shallowCloneParams<T>(params: T): T {
 }
 
 export async function instrumentRequest<Op extends DynamoOperation, T>(
-  hooks: TableHooks | undefined,
+  plugins: readonly TablePlugin[] | undefined,
   event: { operation: Op; tableName: string; entityNames: readonly string[]; params: OperationParamsMap[Op] },
   fn: () => Promise<T>,
 ): Promise<T> {
-  if (!hooks?.onRequestStart && !hooks?.onRequestEnd) return fn();
+  if (!plugins?.length) return fn();
 
-  // Hooks are observers, not interceptors: they receive a shallow copy of `params` so
+  // Plugins are observers, not interceptors: they receive a shallow copy of `params` so
   // that mutating it in onRequestStart can never leak into the request actually sent.
-  const safeEvent = { ...event, params: shallowCloneParams(event.params) } as RequestHookEvent;
-  hooks.onRequestStart?.(safeEvent);
+  const safeEvent = { ...event, params: shallowCloneParams(event.params) } as RequestEvent;
+  for (const plugin of plugins) plugin.onRequestStart?.(safeEvent);
   const start = performance.now();
   try {
     const result = await fn();
-    hooks.onRequestEnd?.({ ...safeEvent, durationMs: performance.now() - start, result } as RequestHookResult);
+    const endEvent = { ...safeEvent, durationMs: performance.now() - start, result } as RequestResult;
+    for (const plugin of plugins) plugin.onRequestEnd?.(endEvent);
     return result;
   } catch (error) {
-    hooks.onRequestEnd?.({ ...safeEvent, durationMs: performance.now() - start, error } as RequestHookResult);
+    const endEvent = { ...safeEvent, durationMs: performance.now() - start, error } as RequestResult;
+    for (const plugin of plugins) plugin.onRequestEnd?.(endEvent);
     throw error;
   }
 }

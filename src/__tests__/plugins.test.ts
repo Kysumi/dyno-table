@@ -1,7 +1,7 @@
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createIndex, defineEntity } from "../entity/entity";
-import type { RequestHookEvent, RequestHookResult, TableHooks } from "../hooks";
+import type { RequestEvent, RequestResult, TablePlugin } from "../plugins";
 import type { StandardSchemaV1 } from "../standard-schema";
 import { Table } from "../table";
 import type { DynamoItem, VectorIndexConfig } from "../types";
@@ -46,13 +46,13 @@ const vectorIndexes: Record<string, VectorIndexConfig> = {
 
 const onRequestStart = vi.fn();
 const onRequestEnd = vi.fn();
-const hooks: TableHooks = { onRequestStart, onRequestEnd };
+const plugin: TablePlugin = { name: "test", onRequestStart, onRequestEnd };
 
 const table = new Table({
   client: dynamoClient as unknown as DynamoDBDocument,
   tableName: "Dinosaurs",
   indexes: { partitionKey: "pk", sortKey: "sk", vectorIndexes },
-  hooks,
+  plugins: [plugin],
 });
 
 interface DinoInput extends DynamoItem {
@@ -113,13 +113,13 @@ function expectHookFiredOnce(operation: string) {
   expect(onRequestStart).toHaveBeenCalledOnce();
   expect(onRequestStart.mock.calls[0]?.[0]).toMatchObject({ operation, tableName: "Dinosaurs" });
   expect(onRequestEnd).toHaveBeenCalledOnce();
-  const endEvent = onRequestEnd.mock.calls[0]?.[0] as RequestHookResult;
+  const endEvent = onRequestEnd.mock.calls[0]?.[0] as RequestResult;
   expect(endEvent).toMatchObject({ operation, tableName: "Dinosaurs" });
   expect(endEvent.durationMs).toBeGreaterThanOrEqual(0);
   return endEvent;
 }
 
-describe("request hooks", () => {
+describe("request plugins", () => {
   it("fires start/end around a get", async () => {
     get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
 
@@ -185,7 +185,7 @@ describe("request hooks", () => {
     await expect(table.get({ pk: "a", sk: "b" }).execute()).rejects.toThrow();
 
     expect(onRequestEnd).toHaveBeenCalledOnce();
-    const endEvent = onRequestEnd.mock.calls[0]?.[0] as RequestHookResult;
+    const endEvent = onRequestEnd.mock.calls[0]?.[0] as RequestResult;
     expect(endEvent.error).toBe(failure);
     expect(endEvent.result).toBeUndefined();
   });
@@ -233,7 +233,7 @@ describe("request hooks", () => {
 
   it("does not leak mutations of onRequestStart's params into the real request", async () => {
     get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
-    onRequestStart.mockImplementation((event: RequestHookEvent) => {
+    onRequestStart.mockImplementation((event: RequestEvent) => {
       (event.params as Record<string, unknown>).ConsistentRead = true;
     });
 
@@ -242,7 +242,7 @@ describe("request hooks", () => {
     expect(get).toHaveBeenCalledWith(expect.objectContaining({ ConsistentRead: undefined }));
   });
 
-  it("does not instrument when no hooks are configured", async () => {
+  it("does not instrument when no plugins are configured", async () => {
     const plainTable = new Table({
       client: dynamoClient as unknown as DynamoDBDocument,
       tableName: "Dinosaurs",
@@ -253,6 +253,23 @@ describe("request hooks", () => {
     await expect(plainTable.get({ pk: "a", sk: "b" }).execute()).resolves.toBeDefined();
     expect(onRequestStart).not.toHaveBeenCalled();
     expect(onRequestEnd).not.toHaveBeenCalled();
+  });
+
+  it("fires every plugin in the list for the same request", async () => {
+    const second = { onRequestStart: vi.fn(), onRequestEnd: vi.fn() };
+    const multiPluginTable = new Table({
+      client: dynamoClient as unknown as DynamoDBDocument,
+      tableName: "Dinosaurs",
+      indexes: { partitionKey: "pk", sortKey: "sk" },
+      plugins: [plugin, second],
+    });
+    get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
+
+    await multiPluginTable.get({ pk: "a", sk: "b" }).execute();
+
+    expect(onRequestStart).toHaveBeenCalledOnce();
+    expect(second.onRequestStart).toHaveBeenCalledOnce();
+    expect(second.onRequestEnd).toHaveBeenCalledOnce();
   });
 
   it("leaves entityName undefined for calls made directly against Table", async () => {

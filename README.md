@@ -302,15 +302,16 @@ const allDinos = await table.scan().segments(4).toArray();
 **[Table Operations Guide →](docs/table-query-builder.md)**
 
 ### Observability
-Pass `hooks` to `Table` to get a `onRequestStart`/`onRequestEnd` callback around every physical DynamoDB request — for logging, APM spans, or counting request volume, the same way SQL libraries expose query logging.
+Pass `plugins` to `Table` to get an `onRequestStart`/`onRequestEnd` callback around every physical DynamoDB request — for logging, APM spans, or counting request volume, the same way SQL libraries expose query logging. Each plugin is independent, so logging, tracing, and metrics can be registered side by side.
 
 ```ts
 const table = new Table({
   client, tableName: "Dinosaurs", indexes: { partitionKey: "pk", sortKey: "sk" },
-  hooks: {
+  plugins: [{
+    name: "logger",
     onRequestStart: (e) => console.log(`→ ${e.operation} [${e.entityNames.join(", ") || "table"}]`, e.params),
     onRequestEnd: (e) => console.log(`← ${e.operation} in ${e.durationMs}ms`),
-  },
+  }],
 });
 ```
 **[Observability Guide →](docs/observability.md)**

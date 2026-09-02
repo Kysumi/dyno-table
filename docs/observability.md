@@ -1,11 +1,12 @@
 # Observability
 
-Configure `hooks` on `Table` to observe every physical DynamoDB request it sends — the same seam a SQL library gives you for logging or spanning every query. Because the Entity layer always delegates to `Table`, hooks configured once cover entity repositories too, with no extra wiring.
+Configure `plugins` on `Table` to observe every physical DynamoDB request it sends — the same seam a SQL library gives you for logging or spanning every query. Because the Entity layer always delegates to `Table`, plugins configured once cover entity repositories too, with no extra wiring.
 
 ```typescript
-import { Table, type TableHooks } from 'dyno-table';
+import { Table, type TablePlugin } from 'dyno-table';
 
-const hooks: TableHooks = {
+const logger: TablePlugin = {
+  name: 'logger',
   onRequestStart(event) {
     console.log(`[dynamo] → ${event.operation} ${event.tableName}`, event.params);
   },
@@ -16,15 +17,24 @@ const hooks: TableHooks = {
   },
 };
 
-const table = new Table({ client, tableName: 'Dinosaurs', indexes: { partitionKey: 'pk', sortKey: 'sk' }, hooks });
+const table = new Table({ client, tableName: 'Dinosaurs', indexes: { partitionKey: 'pk', sortKey: 'sk' }, plugins: [logger] });
+```
+
+`plugins` is a list, not a single object — register several independent plugins (logging, tracing, metrics) side by side without composing them into one object yourself:
+
+```typescript
+const table = new Table({
+  client, tableName: 'Dinosaurs', indexes: { partitionKey: 'pk', sortKey: 'sk' },
+  plugins: [logger, tracingPlugin, metricsPlugin],
+});
 ```
 
 ## What fires, and when
 
-`onRequestStart`/`onRequestEnd` fire once per **physical** request sent to DynamoDB — not once per builder call. A single `table.query(...)` that pages through multiple `LastEvaluatedKey`s fires a pair per page, and `table.batchWrite(...)`/`table.batchGet(...)` fire a pair per 25/100-item chunk (including retried chunks). This is what lets you count real DynamoDB request volume, the same way a PDO/SQL query logger counts real queries rather than app-level calls.
+`onRequestStart`/`onRequestEnd` fire once per **physical** request sent to DynamoDB — not once per builder call — on every plugin in the list, in order. A single `table.query(...)` that pages through multiple `LastEvaluatedKey`s fires a pair per page, and `table.batchWrite(...)`/`table.batchGet(...)` fire a pair per 25/100-item chunk (including retried chunks). This is what lets you count real DynamoDB request volume, the same way a PDO/SQL query logger counts real queries rather than app-level calls.
 
-- `RequestHookEvent` (passed to `onRequestStart`, and as the base of the `onRequestEnd` payload): `operation`, `tableName`, `entityNames`, `params` — a copy of the command input sent to the AWS SDK Document Client, already resolved (no `#alias`/`:alias` placeholders to decode).
-- `RequestHookResult` (passed to `onRequestEnd`): adds `durationMs`, plus `result` on success or `error` on failure (the original error, before it's wrapped in a `DynoTableError` subclass).
+- `RequestEvent` (passed to `onRequestStart`, and as the base of the `onRequestEnd` payload): `operation`, `tableName`, `entityNames`, `params` — a copy of the command input sent to the AWS SDK Document Client, already resolved (no `#alias`/`:alias` placeholders to decode).
+- `RequestResult` (passed to `onRequestEnd`): adds `durationMs`, plus `result` on success or `error` on failure (the original error, before it's wrapped in a `DynoTableError` subclass).
 
 `params` and `result` are typed per `operation` — narrow on it and TypeScript gives you the matching `@aws-sdk/lib-dynamodb` `*CommandInput`/`*CommandOutput` shape, not `unknown`:
 
@@ -48,14 +58,15 @@ onRequestStart(event) {
 
 It's an array, not a single name, because a `transactWrite` or `batchWrite`/`batchGet` can bundle operations from more than one entity into a single physical request — a checkout transaction touching `Order`, `Inventory`, and `Payment` reports `entityNames: ["Inventory", "Order", "Payment"]` on that one event. It's `[]` when the call was made directly against `Table` rather than through a repository, or when nothing could be attributed (e.g. collection queries via `defineCollection`, which span entity types by design).
 
-Hooks are observers, not interceptors: `params` is a shallow copy, so mutating it inside `onRequestStart` has no effect on the request actually sent. There is no supported way to rewrite, cancel, or short-circuit a request from a hook.
+Plugins are observers, not interceptors: `params` is a shallow copy, so mutating it inside `onRequestStart` has no effect on the request actually sent. There is no supported way to rewrite, cancel, or short-circuit a request from a plugin.
 
 ## Wiring into an APM span
 
 ```typescript
 import * as Sentry from '@sentry/node';
 
-const hooks: TableHooks = {
+const sentryPlugin: TablePlugin = {
+  name: 'sentry',
   onRequestEnd(event) {
     Sentry.startInactiveSpan({ name: `dynamodb.${event.operation}` }, (span) => {
       span.setAttribute("db.dynamodb.table", event.tableName);
@@ -75,7 +86,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 const requestCount = new AsyncLocalStorage<{ count: number }>();
 
-const hooks: TableHooks = {
+const countingPlugin: TablePlugin = {
+  name: 'request-counter',
   onRequestEnd() {
     const store = requestCount.getStore();
     if (store) store.count++;
