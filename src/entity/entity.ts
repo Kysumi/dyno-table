@@ -383,7 +383,7 @@ export function defineEntity<
     ): EntityRepository<T, TInput, I, Q, TConfig, TEntityTypeAttribute> => {
       return {
         create: (data: TInput) => {
-          const builder = table.create<T>({} as T);
+          const builder = table.create<T>({} as T, { entityName: config.name });
           return new EntityAwarePutBuilder(
             builder,
             config.name,
@@ -393,7 +393,7 @@ export function defineEntity<
         },
 
         upsert: (data: TInput & I) => {
-          const builder = table.put<T>({} as T);
+          const builder = table.put<T>({} as T, { entityName: config.name });
           return new EntityAwarePutBuilder(
             builder,
             config.name,
@@ -404,12 +404,15 @@ export function defineEntity<
         },
 
         get: <K extends I>(key: K) => {
-          return new EntityAwareGetBuilder(table.get<T>(config.primaryKey.generateKey(key)), config.name);
+          return new EntityAwareGetBuilder(
+            table.get<T>(config.primaryKey.generateKey(key), { entityName: config.name }),
+            config.name,
+          );
         },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
-          const builder = table.update<T>(primaryKeyObj);
+          const builder = table.update<T>(primaryKeyObj, { entityName: config.name });
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
@@ -423,7 +426,10 @@ export function defineEntity<
         },
 
         delete: <K extends I>(key: K) => {
-          const builder = new EntityAwareDeleteBuilder(table.delete(config.primaryKey.generateKey(key)), config.name);
+          const builder = new EntityAwareDeleteBuilder(
+            table.delete(config.primaryKey.generateKey(key), { entityName: config.name }),
+            config.name,
+          );
           builder.condition(eq(entityTypeAttributeName, config.name));
           return builder;
         },
@@ -436,7 +442,13 @@ export function defineEntity<
               // Only builders created through the scoped entity carry its filter and input-validation guard.
               const scopedBuilders = new WeakSet<object>();
               const builder = inputCallback(input)(
-                createScopedQueryEntity(table, entityTypeAttributeName, config.name, { beforeExecute }, scopedBuilders),
+                createScopedQueryEntity(
+                  table,
+                  entityTypeAttributeName,
+                  config.name,
+                  { beforeExecute, entityName: config.name },
+                  scopedBuilders,
+                ),
               );
               const clonedFromScopedBuilder =
                 typeof builder === "object" &&
@@ -451,13 +463,15 @@ export function defineEntity<
         ) as MappedQueries<T, Q>,
 
         scan: () => {
-          const builder = table.scan<T>();
+          const builder = table.scan<T>({ entityName: config.name });
           builder.filter(eq(entityTypeAttributeName, config.name));
           return builder;
         },
 
         searchVectors: (indexName, input) =>
-          scopedVectorSearch(table, indexName, input, entityTypeAttributeName, config.name),
+          scopedVectorSearch(table, indexName, input, entityTypeAttributeName, config.name, {
+            entityName: config.name,
+          }),
       };
     },
   };

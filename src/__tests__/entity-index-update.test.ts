@@ -117,10 +117,13 @@ describe("Dinosaur Index Update Operations", () => {
       await repository.update(fossilKey, updateData).execute();
 
       // Verify that the update was called with the correct primary key
-      expect(mockTable.update).toHaveBeenCalledWith({
-        pk: "DINOSAUR#t-rex-123",
-        sk: "FOSSIL",
-      });
+      expect(mockTable.update).toHaveBeenCalledWith(
+        {
+          pk: "DINOSAUR#t-rex-123",
+          sk: "FOSSIL",
+        },
+        { entityName: "Dinosaur" },
+      );
 
       // Verify that the entity type condition was added
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "Dinosaur"));
@@ -352,10 +355,13 @@ describe("Dinosaur Index Update Operations", () => {
       await repository.update(fossilKey, updateData).execute();
 
       // Verify that the update was called with the correct primary key (generated from input key)
-      expect(mockTable.update).toHaveBeenCalledWith({
-        pk: "DINOSAUR#diplodocus-555",
-        sk: "FOSSIL",
-      });
+      expect(mockTable.update).toHaveBeenCalledWith(
+        {
+          pk: "DINOSAUR#diplodocus-555",
+          sk: "FOSSIL",
+        },
+        { entityName: "Dinosaur" },
+      );
 
       // Verify that the set method was called with update data and GSI regenerations
       expect(mockBuilder.set).toHaveBeenCalledWith(

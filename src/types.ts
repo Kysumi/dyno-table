@@ -1,4 +1,5 @@
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import type { TableHooks } from "./hooks.js";
 
 export type DynamoItem = { [key: string]: unknown };
 
@@ -23,6 +24,8 @@ export interface TableConfig {
   client: DynamoDBDocument;
   tableName: string;
   indexes: IndexConfig;
+  /** Observability hooks fired around every physical DynamoDB request. */
+  hooks?: TableHooks;
 }
 
 export type GSINames<T extends TableConfig> = keyof NonNullable<T["indexes"]["gsis"]>;

@@ -3,6 +3,7 @@ import type { BatchGetCommandInput, BatchWriteCommandInput, DynamoDBDocument } f
 import type { BatchGetCommand, BatchGetExecutorResult } from "./builders/batch-builder.js";
 import type { ExpressionParams, PrimaryKeyWithoutExpression } from "./conditions.js";
 import { generateAttributeName } from "./expression.js";
+import { distinctEntityNames, instrumentRequest, type TableHooks } from "./hooks.js";
 import {
   type BatchExecutionOptions,
   type BatchWriteOperation,
@@ -29,6 +30,7 @@ export class BatchExecutor {
     private readonly sortKey: string | undefined,
     private readonly createKey: (key: PrimaryKeyWithoutExpression) => Record<string, unknown>,
     private readonly vectorIndexes: Record<string, VectorIndexConfig>,
+    private readonly hooks?: TableHooks,
   ) {}
 
   async batchGet<T extends DynamoItem>(
@@ -59,6 +61,7 @@ export class BatchExecutor {
 
     try {
       for (const chunk of chunkArray(operations, DDB_BATCH_WRITE_LIMIT)) {
+        const entityNames = distinctEntityNames(chunk.map((operation) => operation.entityType));
         const writeRequests: BatchWriteRequest[] = chunk.map((operation) => {
           if (operation.type === "put") {
             return { PutRequest: { Item: operation.item } };
@@ -68,14 +71,16 @@ export class BatchExecutor {
         });
 
         const { unprocessed } = await this.retryBatch(writeRequests, retryOptions, async (requests) => {
-          const result = await this.dynamoClient.batchWrite(
-            {
-              RequestItems: { [this.tableName]: requests },
-              ...(retryOptions.returnConsumedCapacity
-                ? { ReturnConsumedCapacity: retryOptions.returnConsumedCapacity }
-                : {}),
-            },
-            { abortSignal: retryOptions.abortSignal },
+          const batchParams = {
+            RequestItems: { [this.tableName]: requests },
+            ...(retryOptions.returnConsumedCapacity
+              ? { ReturnConsumedCapacity: retryOptions.returnConsumedCapacity }
+              : {}),
+          };
+          const result = await instrumentRequest(
+            this.hooks,
+            { operation: "batchWrite", tableName: this.tableName, entityNames, params: batchParams },
+            () => this.dynamoClient.batchWrite(batchParams, { abortSignal: retryOptions.abortSignal }),
           );
           if (result.ConsumedCapacity) consumedCapacity.push(...result.ConsumedCapacity);
           return {
@@ -139,6 +144,7 @@ export class BatchExecutor {
     try {
       for (const group of groups.values()) {
         for (const chunk of chunkArray(group.commands, DDB_BATCH_GET_LIMIT)) {
+          const entityNames = distinctEntityNames(chunk.map((command) => command.entityType));
           const commandsByKey = new Map(chunk.map((command) => [this.batchKey(this.createKey(command.key)), command]));
           const keys = [...commandsByKey.values()].map((command) => this.createKey(command.key));
           const requestOptions = this.createBatchGetRequestOptions(group.projection, group.consistentRead);
@@ -151,7 +157,11 @@ export class BatchExecutor {
                 },
               },
             };
-            const result = await this.dynamoClient.batchGet(params, { abortSignal: retryOptions.abortSignal });
+            const result = await instrumentRequest(
+              this.hooks,
+              { operation: "batchGet", tableName: this.tableName, entityNames, params },
+              () => this.dynamoClient.batchGet(params, { abortSignal: retryOptions.abortSignal }),
+            );
             return {
               processed: (result.Responses?.[this.tableName] ?? []) as DynamoItem[],
               unprocessed: (result.UnprocessedKeys?.[this.tableName]?.Keys ?? []) as Array<Record<string, unknown>>,

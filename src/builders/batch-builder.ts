@@ -324,6 +324,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
           return {
             type: "put" as const,
             item: item.params.item,
+            entityType: item.entityType,
           };
         }
 
@@ -344,6 +345,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
           return {
             type: "delete" as const,
             key,
+            entityType: item.entityType,
           };
         }
 

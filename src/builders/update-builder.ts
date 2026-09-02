@@ -572,9 +572,9 @@ export class UpdateBuilder<T extends DynamoItem> {
    * @param transaction - The transaction builder to add this operation to
    * @returns The builder instance for method chaining
    */
-  withTransaction(transaction: TransactionBuilder) {
+  withTransaction(transaction: TransactionBuilder, entityName?: string) {
     const command = this.toDynamoCommand();
-    transaction.updateWithCommand(command);
+    transaction.updateWithCommand(command, entityName);
   }
 
   /**

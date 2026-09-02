@@ -78,6 +78,7 @@ export type {
 } from "./entity/entity.js";
 export { createIndex, createQueries, defineEntity } from "./entity/entity.js";
 export type { ErrorCode } from "./errors.js";
+export type { DynamoOperation, RequestHookEvent, RequestHookResult, TableHooks } from "./hooks.js";
 // Error classes and utilities
 export {
   BatchError,

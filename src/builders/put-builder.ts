@@ -310,9 +310,9 @@ export class PutBuilder<T extends DynamoItem> {
    * @param transaction - The transaction builder to add this operation to
    * @returns The builder instance for method chaining
    */
-  public withTransaction(transaction: TransactionBuilder): this {
+  public withTransaction(transaction: TransactionBuilder, entityName?: string): this {
     const command = this.toDynamoCommand();
-    transaction.putWithCommand(command);
+    transaction.putWithCommand(command, entityName);
 
     return this;
   }

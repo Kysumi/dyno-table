@@ -301,6 +301,20 @@ const allDinos = await table.scan().segments(4).toArray();
 ```
 **[Table Operations Guide →](docs/table-query-builder.md)**
 
+### Observability
+Pass `hooks` to `Table` to get a `onRequestStart`/`onRequestEnd` callback around every physical DynamoDB request — for logging, APM spans, or counting request volume, the same way SQL libraries expose query logging.
+
+```ts
+const table = new Table({
+  client, tableName: "Dinosaurs", indexes: { partitionKey: "pk", sortKey: "sk" },
+  hooks: {
+    onRequestStart: (e) => console.log(`→ ${e.operation} [${e.entityNames.join(", ") || "table"}]`, e.params),
+    onRequestEnd: (e) => console.log(`← ${e.operation} in ${e.durationMs}ms`),
+  },
+});
+```
+**[Observability Guide →](docs/observability.md)**
+
 ---
 
 ## Documentation
@@ -322,6 +336,7 @@ const allDinos = await table.scan().segments(4).toArray();
 - **[Pagination →](docs/pagination.md)** - Streaming, page-based, and cursor-based result handling
 - **[Entity Collections →](docs/collections.md)** - Group shared-index query pages by entity type
 - **[Table Operations →](docs/table-query-builder.md)** - Direct table access, scans, parallel scan segments
+- **[Observability →](docs/observability.md)** - Hook every request for logging, tracing, and APM spans
 
 ### Advanced topics
 - **[Error Handling →](docs/error-handling.md)** - Error classes, type guards, and AWS error unwrapping
