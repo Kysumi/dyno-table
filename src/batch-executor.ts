@@ -3,13 +3,13 @@ import type { BatchGetCommandInput, BatchWriteCommandInput, DynamoDBDocument } f
 import type { BatchGetCommand, BatchGetExecutorResult } from "./builders/batch-builder.js";
 import type { ExpressionParams, PrimaryKeyWithoutExpression } from "./conditions.js";
 import { generateAttributeName } from "./expression.js";
-import { distinctEntityNames, instrumentRequest, type TablePlugin } from "./plugins.js";
 import {
   type BatchExecutionOptions,
   type BatchWriteOperation,
   type ResolvedBatchExecutionOptions,
   resolveBatchExecutionOptions,
 } from "./operation-types.js";
+import { distinctEntityNames, instrumentRequest, type TablePlugin } from "./plugins.js";
 import type { DynamoItem, VectorIndexConfig } from "./types.js";
 import { chunkArray } from "./utils/chunk-array.js";
 import { OperationErrors } from "./utils/error-factory.js";

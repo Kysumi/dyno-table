@@ -49,8 +49,8 @@ import {
   type PrimaryKeyWithoutExpression,
 } from "./conditions.js";
 import { buildExpression, generateAttributeName } from "./expression.js";
-import { entityNamesOf, instrumentRequest, type TablePlugin } from "./plugins.js";
 import type { BatchExecutionOptions, BatchWriteOperation } from "./operation-types.js";
+import { entityNamesOf, instrumentRequest, type TablePlugin } from "./plugins.js";
 import type { DynamoItem, Index, TableConfig, VectorIndexConfig, VectorIndexNames } from "./types.js";
 import { ConfigurationErrors, OperationErrors, ValidationErrors } from "./utils/error-factory.js";
 import {
