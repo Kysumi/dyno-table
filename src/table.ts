@@ -184,7 +184,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         };
         const result = await instrumentRequest(
           this.hooks,
-          { operation: "get", tableName: params.tableName, params: getParams, entityNames: entityNamesOf(context.entityName) },
+          {
+            operation: "get",
+            tableName: params.tableName,
+            params: getParams,
+            entityNames: entityNamesOf(context.entityName),
+          },
           () => this.dynamoClient.get(getParams),
         );
 
@@ -224,7 +229,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         };
         const result = await instrumentRequest(
           this.hooks,
-          { operation: "put", tableName: params.tableName, params: putParams, entityNames: entityNamesOf(context.entityName) },
+          {
+            operation: "put",
+            tableName: params.tableName,
+            params: putParams,
+            entityNames: entityNamesOf(context.entityName),
+          },
           () => this.dynamoClient.put(putParams),
         );
         executionState.consumedCapacity = result.ConsumedCapacity;
@@ -248,7 +258,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
           };
           const getResult = await instrumentRequest(
             this.hooks,
-            { operation: "get", tableName: params.tableName, params: getParams, entityNames: entityNamesOf(context.entityName) },
+            {
+              operation: "get",
+              tableName: params.tableName,
+              params: getParams,
+              entityNames: entityNamesOf(context.entityName),
+            },
             () => this.dynamoClient.get(getParams),
           );
 
@@ -570,7 +585,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       try {
         result = await instrumentRequest(
           this.hooks,
-          { operation: "searchVectors", tableName: this.tableName, params: searchParams, entityNames: entityNamesOf(context.entityName) },
+          {
+            operation: "searchVectors",
+            tableName: this.tableName,
+            params: searchParams,
+            entityNames: entityNamesOf(context.entityName),
+          },
           () => this.dynamoClient.searchVectors(searchParams),
         );
       } catch (error) {
@@ -619,7 +639,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         };
         const result = await instrumentRequest(
           this.hooks,
-          { operation: "delete", tableName: params.tableName, params: deleteParams, entityNames: entityNamesOf(context.entityName) },
+          {
+            operation: "delete",
+            tableName: params.tableName,
+            params: deleteParams,
+            entityNames: entityNamesOf(context.entityName),
+          },
           () => this.dynamoClient.delete(deleteParams),
         );
         executionState.consumedCapacity = result.ConsumedCapacity;
@@ -659,7 +684,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
         };
         const result = await instrumentRequest(
           this.hooks,
-          { operation: "update", tableName: params.tableName, params: updateParams, entityNames: entityNamesOf(context.entityName) },
+          {
+            operation: "update",
+            tableName: params.tableName,
+            params: updateParams,
+            entityNames: entityNamesOf(context.entityName),
+          },
           () => this.dynamoClient.update(updateParams),
         );
         executionState.consumedCapacity = result.ConsumedCapacity;
