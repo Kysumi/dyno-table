@@ -8,6 +8,8 @@ export type BeforeExecute = () => void | Promise<void>;
 
 export interface BuilderContext {
   readonly beforeExecute?: BeforeExecute;
+  /** Name of the entity this call originated from, if any. Surfaced on request hook events. */
+  readonly entityName?: string;
 }
 
 export interface WriteExecutionMetadata {
@@ -139,7 +141,7 @@ export interface PaginationResult<T> {
  * - ConditionCheck: Verify item state without modification
  */
 export type TransactionItem =
-  | { type: "Put"; params: PutCommandParams }
-  | { type: "Update"; params: UpdateCommandParams }
-  | { type: "Delete"; params: DeleteCommandParams }
-  | { type: "ConditionCheck"; params: ConditionCheckCommandParams };
+  | { type: "Put"; params: PutCommandParams; entityName?: string }
+  | { type: "Update"; params: UpdateCommandParams; entityName?: string }
+  | { type: "Delete"; params: DeleteCommandParams; entityName?: string }
+  | { type: "ConditionCheck"; params: ConditionCheckCommandParams; entityName?: string };
