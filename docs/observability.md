@@ -1,6 +1,6 @@
 # Observability
 
-Configure `plugins` on `Table` to observe every physical DynamoDB request it sends — the same seam a SQL library gives you for logging or spanning every query. Because the Entity layer always delegates to `Table`, plugins configured once cover entity repositories too, with no extra wiring.
+Configure `plugins` on `Table` to observe every physical DynamoDB request it sends. Because the Entity layer always delegates to `Table`, plugins configured once cover entity repositories too.
 
 ```typescript
 import { Table, type TablePlugin } from 'dyno-table';
@@ -8,11 +8,11 @@ import { Table, type TablePlugin } from 'dyno-table';
 const logger: TablePlugin = {
   name: 'logger',
   onRequestStart(event) {
-    console.log(`[dynamo] → ${event.operation} ${event.tableName}`, event.params);
+    console.log(`[dynamo] → ${event.operation} ${event.tableName}`);
   },
   onRequestEnd(event) {
     console.log(`[dynamo] ← ${event.operation} ${event.tableName} in ${event.durationMs.toFixed(1)}ms`, {
-      error: event.error,
+      error: 'error' in event ? event.error : undefined,
     });
   },
 };
@@ -20,7 +20,7 @@ const logger: TablePlugin = {
 const table = new Table({ client, tableName: 'Dinosaurs', indexes: { partitionKey: 'pk', sortKey: 'sk' }, plugins: [logger] });
 ```
 
-`plugins` is a list, not a single object — register several independent plugins (logging, tracing, metrics) side by side without composing them into one object yourself:
+`plugins` is a list, so logging, tracing, and metrics can remain separate:
 
 ```typescript
 const table = new Table({
@@ -31,9 +31,11 @@ const table = new Table({
 
 ## What fires, and when
 
-`onRequestStart`/`onRequestEnd` fire once per **physical** request sent to DynamoDB — not once per builder call — on every plugin in the list, in order. A single `table.query(...)` that pages through multiple `LastEvaluatedKey`s fires a pair per page, and `table.batchWrite(...)`/`table.batchGet(...)` fire a pair per 25/100-item chunk (including retried chunks). This is what lets you count real DynamoDB request volume, the same way a PDO/SQL query logger counts real queries rather than app-level calls.
+`onRequestStart` and `onRequestEnd` fire once per **physical** request sent to DynamoDB, not once per builder call. A query fires a pair per page. Batch writes and gets fire a pair per 25/100-item chunk, including retries.
 
-- `RequestEvent` (passed to `onRequestStart`, and as the base of the `onRequestEnd` payload): `operation`, `tableName`, `entityNames`, `params` — a copy of the command input sent to the AWS SDK Document Client, already resolved (no `#alias`/`:alias` placeholders to decode).
+Hooks may be synchronous or asynchronous. dyno-table awaits them in plugin registration order. A plugin can return state from `onRequestStart`; its `onRequestEnd` receives that state for the same physical request. State is kept separate across plugins and concurrent requests. Every eligible end hook runs even if an earlier end hook fails.
+
+- `RequestEvent` (passed to `onRequestStart`, and as the base of the `onRequestEnd` payload): `operation`, `tableName`, `entityNames`, `params`, a snapshot of the command input sent to the AWS SDK Document Client, already resolved with no `#alias` or `:alias` placeholders to decode.
 - `RequestResult` (passed to `onRequestEnd`): adds `durationMs`, plus `result` on success or `error` on failure (the original error, before it's wrapped in a `DynoTableError` subclass).
 
 `params` and `result` are typed per `operation` — narrow on it and TypeScript gives you the matching `@aws-sdk/lib-dynamodb` `*CommandInput`/`*CommandOutput` shape, not `unknown`:
@@ -48,7 +50,7 @@ onRequestStart(event) {
 
 ## Which entities fired a request
 
-`entityNames` tells you which `defineEntity` repositories a request came from — so you can log or group by entity instead of just by table:
+`entityNames` tells you which `defineEntity` repositories a request came from, so you can log or group by entity instead of just by table:
 
 ```typescript
 onRequestStart(event) {
@@ -56,23 +58,41 @@ onRequestStart(event) {
 },
 ```
 
-It's an array, not a single name, because a `transactWrite` or `batchWrite`/`batchGet` can bundle operations from more than one entity into a single physical request — a checkout transaction touching `Order`, `Inventory`, and `Payment` reports `entityNames: ["Inventory", "Order", "Payment"]` on that one event. It's `[]` when the call was made directly against `Table` rather than through a repository, or when nothing could be attributed (e.g. collection queries via `defineCollection`, which span entity types by design).
+It's an array because a transaction or batch can bundle operations from more than one entity. A request touching `Order`, `Inventory`, and `Payment` reports `entityNames: ["Inventory", "Order", "Payment"]`. Direct `Table` calls and requests that cannot be attributed report `[]`.
 
-Plugins are observers, not interceptors: `params` is a shallow copy, so mutating it inside `onRequestStart` has no effect on the request actually sent. There is no supported way to rewrite, cancel, or short-circuit a request from a plugin.
+Plugins receive snapshots of `params` and successful `result` values. Plain objects, arrays, maps, sets, and binary values are copied recursively, so mutations to those copied containers cannot affect the AWS request or the value returned to the caller. Class instances, including custom `wrapNumbers` results, are retained by identity to preserve their prototypes and behavior. These instances are shared with the request or returned result, so treat them as read-only. Mutating one from a hook changes the original instance.
+
+Snapshotting costs CPU and memory for large payloads. With no plugins, dyno-table skips all hook and snapshot work; start-only plugins do not cause successful results to be copied.
+
+Plugin failures follow the request lifecycle:
+
+- A start-hook failure stops the request before DynamoDB is called. Plugins whose start hooks already completed receive an end event with that error so they can clean up their state. Cleanup failures do not replace the start error.
+- After a successful DynamoDB call, every end hook runs. The first end-hook failure rejects the public operation after the remaining hooks finish.
+- If DynamoDB fails, all end hooks still run. Their failures are ignored so the original DynamoDB error remains the operation's cause.
+
+Plugins are observers. They cannot rewrite, cancel, or short-circuit a request except by failing a start hook.
 
 ## Wiring into an APM span
 
 ```typescript
 import * as Sentry from '@sentry/node';
+import type { TablePlugin } from 'dyno-table';
 
-const sentryPlugin: TablePlugin = {
+const sentryPlugin: TablePlugin<ReturnType<typeof Sentry.startInactiveSpan>> = {
   name: 'sentry',
-  onRequestEnd(event) {
-    Sentry.startInactiveSpan({ name: `dynamodb.${event.operation}` }, (span) => {
-      span.setAttribute("db.dynamodb.table", event.tableName);
-      span.setAttribute("dyno_table.entities", event.entityNames.join(","));
-      if (event.error) span.setStatus({ code: 2 /* ERROR */ });
+  onRequestStart(event) {
+    return Sentry.startInactiveSpan({
+      name: `dynamodb.${event.operation}`,
+      attributes: {
+        'db.dynamodb.table': event.tableName,
+        'dyno_table.entities': event.entityNames.join(','),
+      },
     });
+  },
+  onRequestEnd(event, span) {
+    if (!span) return;
+    if ('error' in event) span.setStatus({ code: 2 });
+    span.end();
   },
 };
 ```

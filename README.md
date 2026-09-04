@@ -309,12 +309,13 @@ const table = new Table({
   client, tableName: "Dinosaurs", indexes: { partitionKey: "pk", sortKey: "sk" },
   plugins: [{
     name: "logger",
-    onRequestStart: (e) => console.log(`→ ${e.operation} [${e.entityNames.join(", ") || "table"}]`, e.params),
+    onRequestStart: (e) => console.log(`→ ${e.operation} [${e.entityNames.join(", ") || "table"}]`),
     onRequestEnd: (e) => console.log(`← ${e.operation} in ${e.durationMs}ms`),
   }],
 });
 ```
-**[Observability Guide →](docs/observability.md)**
+
+Hooks may be async and are awaited. For request-local tracing state, snapshots, and failure behavior, see the **[Observability Guide →](docs/observability.md)**.
 
 ---
 

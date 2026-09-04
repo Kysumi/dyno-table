@@ -94,25 +94,67 @@ export type RequestResult = {
     entityNames: readonly string[];
     params: OperationParamsMap[K];
     durationMs: number;
-    /** The raw Document Client response. Present only on success. */
-    result?: OperationResultMap[K];
-    /** The original error. Present only on failure. */
-    error?: unknown;
-  };
+  } & (
+    | {
+        /** The raw Document Client response. */
+        result: OperationResultMap[K];
+        error?: never;
+      }
+    | {
+        /** The original error. */
+        error: unknown;
+        result?: never;
+      }
+  );
 }[DynamoOperation];
 
-export interface TablePlugin {
+export interface TablePlugin<RequestState = unknown> {
   /** Identifies this plugin in the `plugins` list; purely for the plugin author's own reference. */
   name?: string;
-  onRequestStart?(event: RequestEvent): void;
-  onRequestEnd?(event: RequestResult): void;
+  // biome-ignore lint/suspicious/noConfusingVoidType: hooks may return request state or nothing, synchronously or asynchronously.
+  onRequestStart?(event: RequestEvent): RequestState | void | Promise<RequestState | void>;
+  /** The return value is ignored; promises and other thenables are awaited. */
+  onRequestEnd?(event: RequestResult, state: RequestState | undefined): unknown;
 }
 
-function shallowCloneParams<T>(params: T): T {
-  if (params && typeof params === "object" && !Array.isArray(params)) {
-    return { ...(params as object) } as T;
+function snapshotDocumentValue<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(snapshotDocumentValue) as T;
+  if (value instanceof Map) return new Map([...value].map(([key, item]) => [key, snapshotDocumentValue(item)])) as T;
+  if (value instanceof Set) return new Set([...value].map(snapshotDocumentValue)) as T;
+  if (Buffer.isBuffer(value)) return Buffer.from(value) as T;
+  if (value instanceof ArrayBuffer) return value.slice(0) as T;
+  if (ArrayBuffer.isView(value)) return structuredClone(value);
+  if (!value || typeof value !== "object") return value;
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+
+  const snapshot = Object.create(prototype) as Record<PropertyKey, unknown>;
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor) continue;
+    if ("value" in descriptor) descriptor.value = snapshotDocumentValue(descriptor.value);
+    Object.defineProperty(snapshot, key, descriptor);
   }
-  return params;
+  return snapshot as T;
+}
+
+async function runEndHooks(
+  plugins: readonly TablePlugin[],
+  states: readonly unknown[],
+  event: RequestResult,
+  started?: readonly boolean[],
+): Promise<{ error: unknown } | undefined> {
+  let firstFailure: { error: unknown } | undefined;
+  for (const [index, plugin] of plugins.entries()) {
+    if (started && !started[index]) continue;
+    try {
+      await plugin.onRequestEnd?.(event, states[index]);
+    } catch (error) {
+      firstFailure ??= { error };
+    }
+  }
+  return firstFailure;
 }
 
 export async function instrumentRequest<Op extends DynamoOperation, T>(
@@ -122,21 +164,43 @@ export async function instrumentRequest<Op extends DynamoOperation, T>(
 ): Promise<T> {
   if (!plugins?.length) return fn();
 
-  // Plugins are observers, not interceptors: they receive a shallow copy of `params` so
-  // that mutating it in onRequestStart can never leak into the request actually sent.
-  const safeEvent = { ...event, params: shallowCloneParams(event.params) } as RequestEvent;
-  for (const plugin of plugins) plugin.onRequestStart?.(safeEvent);
+  const safeEvent = { ...event, params: snapshotDocumentValue(event.params) } as RequestEvent;
+  const states: unknown[] = [];
+  const started: boolean[] = [];
+  const lifecycleStart = performance.now();
+  for (const [index, plugin] of plugins.entries()) {
+    if (!plugin.onRequestStart) continue;
+    try {
+      states[index] = await plugin.onRequestStart(safeEvent);
+      started[index] = true;
+    } catch (error) {
+      const endEvent = { ...safeEvent, durationMs: performance.now() - lifecycleStart, error } as RequestResult;
+      await runEndHooks(plugins, states, endEvent, started);
+      throw error;
+    }
+  }
   const start = performance.now();
+  let result: T;
   try {
-    const result = await fn();
-    const endEvent = { ...safeEvent, durationMs: performance.now() - start, result } as RequestResult;
-    for (const plugin of plugins) plugin.onRequestEnd?.(endEvent);
-    return result;
+    result = await fn();
   } catch (error) {
     const endEvent = { ...safeEvent, durationMs: performance.now() - start, error } as RequestResult;
-    for (const plugin of plugins) plugin.onRequestEnd?.(endEvent);
+    await runEndHooks(plugins, states, endEvent);
     throw error;
   }
+
+  const endEvent = plugins.some((plugin) => plugin.onRequestEnd)
+    ? ({
+        ...safeEvent,
+        durationMs: performance.now() - start,
+        result: snapshotDocumentValue(result),
+      } as RequestResult)
+    : undefined;
+  if (endEvent) {
+    const hookFailure = await runEndHooks(plugins, states, endEvent);
+    if (hookFailure) throw hookFailure.error;
+  }
+  return result;
 }
 
 export function entityNamesOf(entityName: string | undefined): readonly string[] {
