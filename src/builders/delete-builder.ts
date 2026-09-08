@@ -199,10 +199,10 @@ export class DeleteBuilder {
    *
    * @param transaction - The transaction builder to add this operation to
    */
-  public withTransaction(transaction: TransactionBuilder) {
+  public withTransaction(transaction: TransactionBuilder, entityName?: string) {
     const command = this.toDynamoCommand();
 
-    transaction.deleteWithCommand(command);
+    transaction.deleteWithCommand(command, entityName);
   }
 
   /**

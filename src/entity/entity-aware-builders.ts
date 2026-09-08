@@ -91,7 +91,7 @@ export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBui
 
   withTransaction(transaction: TransactionBuilder): PutBuilder<T> {
     this.applySync();
-    return this.builder.withTransaction(transaction);
+    return this.builder.withTransaction(transaction, this.entityName);
   }
 
   withBatch<
@@ -217,7 +217,7 @@ export class EntityAwareDeleteBuilder implements EntityDeleteBuilder {
   }
 
   withTransaction(transaction: TransactionBuilder): void {
-    this.builder.withTransaction(transaction);
+    this.builder.withTransaction(transaction, this.entityName);
   }
 
   withBatch<
@@ -397,7 +397,7 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   withTransaction(transaction: TransactionBuilder): void {
     this.updateDataApplied = false;
     this.applyEntityUpdates();
-    this.builder.withTransaction(transaction);
+    this.builder.withTransaction(transaction, this.entityName);
   }
 
   debug(): ReturnType<UpdateBuilder<T>["debug"]> {

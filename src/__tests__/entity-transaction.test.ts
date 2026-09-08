@@ -109,7 +109,7 @@ describe("Entity Transaction Support", () => {
       });
 
       // Verify that withTransaction was called
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
     });
 
     it("should include timestamps in transaction when configured", () => {
@@ -169,7 +169,7 @@ describe("Entity Transaction Support", () => {
       });
 
       // Verify that withTransaction was called
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntityWithTimestamps");
     });
 
     it("should generate keys when withTransaction is called", () => {
@@ -219,7 +219,7 @@ describe("Entity Transaction Support", () => {
       });
 
       // Verify that withTransaction was called successfully
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
     });
 
     it("should work with complex primary keys", () => {
@@ -265,7 +265,7 @@ describe("Entity Transaction Support", () => {
         sk: "premium#active",
       });
 
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "ComplexEntity");
     });
 
     it("should handle entities without sort key", () => {
@@ -310,7 +310,7 @@ describe("Entity Transaction Support", () => {
         pk: "SIMPLE#999",
       });
 
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "SimpleEntity");
     });
 
     it("rejects a missing generated sort key for tables that require one", () => {
@@ -407,7 +407,7 @@ describe("Entity Transaction Support", () => {
         gsi2pk: "TYPE#premium",
       });
 
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "EntityWithGSI");
     });
 
     it("should validate data during execute but not during withTransaction", async () => {
@@ -442,7 +442,7 @@ describe("Entity Transaction Support", () => {
       await expect(builder.execute()).rejects.toThrow(EntityValidationError);
 
       // Verify that withTransaction was called successfully despite later validation failure
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
     });
 
     it("should preserve builder chaining with transactions", () => {
@@ -469,7 +469,7 @@ describe("Entity Transaction Support", () => {
 
       // Should be able to continue chaining after withTransaction
       expect(builder).toBe(mockBuilder);
-      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
     });
   });
 
@@ -524,8 +524,8 @@ describe("Entity Transaction Support", () => {
       });
 
       // Both should successfully call withTransaction
-      expect(mockCreateBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
-      expect(mockUpsertBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockCreateBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
+      expect(mockUpsertBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
     });
 
     it("should demonstrate the fix - create now works like upsert for transactions", () => {
@@ -598,8 +598,8 @@ describe("Entity Transaction Support", () => {
       );
 
       // Both withTransaction calls should succeed
-      expect(mockCreateBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
-      expect(mockUpsertBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction);
+      expect(mockCreateBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
+      expect(mockUpsertBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
     });
   });
 });

@@ -42,6 +42,7 @@ interface IndexConfig {
  */
 export type TransactionExecutor = (
   params: TransactWriteCommandInput,
+  entityNames: readonly string[],
 ) => Promise<TransactWriteCommandOutput | undefined>;
 
 /**
@@ -271,13 +272,14 @@ export class TransactionBuilder {
    * @throws {Error} If a duplicate item is detected in the transaction
    * @see PutBuilder for creating put commands
    */
-  putWithCommand(command: PutCommandParams): TransactionBuilder {
+  putWithCommand(command: PutCommandParams, entityName?: string): TransactionBuilder {
     // Check for duplicate item
     this.checkForDuplicateItem(command.tableName, command.item);
 
     const transactionItem: TransactionItem = {
       type: "Put",
       params: command,
+      entityName,
     };
 
     this.items.push(transactionItem);
@@ -372,7 +374,7 @@ export class TransactionBuilder {
    * @throws {Error} If a duplicate item is detected in the transaction
    * @see DeleteBuilder for creating delete commands
    */
-  deleteWithCommand(command: DeleteCommandParams): this {
+  deleteWithCommand(command: DeleteCommandParams, entityName?: string): this {
     // The command.key from DeleteBuilder.toDynamoCommand() is in PrimaryKeyWithoutExpression format
     // but DeleteCommandParams expects it to be in the table's actual key format
     // We need to check if it's already converted or needs conversion
@@ -399,6 +401,7 @@ export class TransactionBuilder {
         ...command,
         key: keyForTransaction,
       },
+      entityName,
     };
     this.items.push(transactionItem);
     return this;
@@ -525,7 +528,7 @@ export class TransactionBuilder {
    * @throws {Error} If a duplicate item is detected in the transaction
    * @see UpdateBuilder for creating update commands
    */
-  updateWithCommand(command: UpdateCommandParams): TransactionBuilder {
+  updateWithCommand(command: UpdateCommandParams, entityName?: string): TransactionBuilder {
     // The command.key from UpdateBuilder.toDynamoCommand() is in PrimaryKeyWithoutExpression format
     // but UpdateCommandParams expects it to be in the table's actual key format
     // We need to check if it's already converted or needs conversion
@@ -552,6 +555,7 @@ export class TransactionBuilder {
         ...command,
         key: keyForTransaction,
       },
+      entityName,
     };
 
     this.items.push(transactionItem);
@@ -846,8 +850,12 @@ export class TransactionBuilder {
 
     this.validateCommand?.(params);
 
+    const entityNames = [
+      ...new Set(this.items.map((item) => item.entityName).filter((name): name is string => Boolean(name))),
+    ].sort();
+
     try {
-      const result = await this.executor(params);
+      const result = await this.executor(params, entityNames);
       this.consumedCapacity = result?.ConsumedCapacity;
     } catch (error) {
       throw TransactionErrors.transactionFailed(this.items.length, {}, error instanceof Error ? error : undefined);

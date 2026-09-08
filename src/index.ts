@@ -94,6 +94,7 @@ export {
   ValidationError,
 } from "./errors.js";
 export type { BatchExecutionOptions } from "./operation-types.js";
+export type { DynamoOperation, RequestEvent, RequestResult, TablePlugin } from "./plugins.js";
 export { Table } from "./table.js";
 export type {
   VectorDistanceFunction,

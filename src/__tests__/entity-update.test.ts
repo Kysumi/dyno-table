@@ -94,10 +94,13 @@ describe("Entity Update Operations", () => {
       await repository.update(key, updateData).execute();
 
       // Verify that the update was called with the correct primary key structure
-      expect(mockTable.update).toHaveBeenCalledWith({
-        pk: "thisIsMyPK#123",
-        sk: "wowSearching#METADATA",
-      });
+      expect(mockTable.update).toHaveBeenCalledWith(
+        {
+          pk: "thisIsMyPK#123",
+          sk: "wowSearching#METADATA",
+        },
+        { entityName: "TestEntity" },
+      );
 
       // Verify that the entity type condition was added
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
@@ -148,10 +151,13 @@ describe("Entity Update Operations", () => {
       await updateBuilder.execute();
 
       // Verify the update was called with the correct primary key
-      expect(mockTable.update).toHaveBeenCalledWith({
-        pk: "thisIsMyPK#456",
-        sk: "wowSearching#METADATA",
-      });
+      expect(mockTable.update).toHaveBeenCalledWith(
+        {
+          pk: "thisIsMyPK#456",
+          sk: "wowSearching#METADATA",
+        },
+        { entityName: "TestEntity" },
+      );
 
       // Verify that both conditions were applied (the entity type and our custom one)
       // Note: In a real scenario, the conditions would be combined with AND, but in our mock
@@ -237,10 +243,13 @@ describe("Entity Update Operations", () => {
       await repoWithTimestamps.update(key, updateData).execute();
 
       // Verify that the update was called with the correct primary key
-      expect(mockTable.update).toHaveBeenCalledWith({
-        pk: "thisIsMyPK#789",
-        sk: "wowSearching#METADATA",
-      });
+      expect(mockTable.update).toHaveBeenCalledWith(
+        {
+          pk: "thisIsMyPK#789",
+          sk: "wowSearching#METADATA",
+        },
+        { entityName: "TestEntityWithTimestamps" },
+      );
 
       // Verify that the entity type condition was added
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntityWithTimestamps"));

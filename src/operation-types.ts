@@ -13,8 +13,8 @@ export interface BatchExecutionOptions {
 }
 
 export type BatchWriteOperation<T extends Record<string, unknown>> =
-  | { type: "put"; item: T }
-  | { type: "delete"; key: PrimaryKeyWithoutExpression };
+  | { type: "put"; item: T; entityType?: string }
+  | { type: "delete"; key: PrimaryKeyWithoutExpression; entityType?: string };
 
 export interface ResolvedBatchExecutionOptions {
   maxAttempts: number;
