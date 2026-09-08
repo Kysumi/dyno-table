@@ -61,16 +61,26 @@ export class BatchExecutor {
 
     try {
       for (const chunk of chunkArray(operations, DDB_BATCH_WRITE_LIMIT)) {
-        const entityNames = distinctEntityNames(chunk.map((operation) => operation.entityType));
+        const entityTypesByKey = new Map<string, string | undefined>();
         const writeRequests: BatchWriteRequest[] = chunk.map((operation) => {
-          if (operation.type === "put") {
-            return { PutRequest: { Item: operation.item } };
-          }
+          const request: BatchWriteRequest =
+            operation.type === "put"
+              ? { PutRequest: { Item: operation.item } }
+              : { DeleteRequest: { Key: this.createKey(operation.key) } };
 
-          return { DeleteRequest: { Key: this.createKey(operation.key) } };
+          entityTypesByKey.set(
+            this.batchKey(request.PutRequest?.Item ?? request.DeleteRequest?.Key ?? {}),
+            operation.entityType,
+          );
+          return request;
         });
 
         const { unprocessed } = await this.retryBatch(writeRequests, retryOptions, async (requests) => {
+          const entityNames = distinctEntityNames(
+            requests.map((request) =>
+              entityTypesByKey.get(this.batchKey(request.PutRequest?.Item ?? request.DeleteRequest?.Key ?? {})),
+            ),
+          );
           const batchParams = {
             RequestItems: { [this.tableName]: requests },
             ...(retryOptions.returnConsumedCapacity
@@ -144,11 +154,13 @@ export class BatchExecutor {
     try {
       for (const group of groups.values()) {
         for (const chunk of chunkArray(group.commands, DDB_BATCH_GET_LIMIT)) {
-          const entityNames = distinctEntityNames(chunk.map((command) => command.entityType));
           const commandsByKey = new Map(chunk.map((command) => [this.batchKey(this.createKey(command.key)), command]));
           const keys = [...commandsByKey.values()].map((command) => this.createKey(command.key));
           const requestOptions = this.createBatchGetRequestOptions(group.projection, group.consistentRead);
           const { processed, unprocessed } = await this.retryBatch(keys, retryOptions, async (remainingKeys) => {
+            const entityNames = distinctEntityNames(
+              remainingKeys.map((key) => commandsByKey.get(this.batchKey(key))?.entityType),
+            );
             const params: BatchGetCommandInput = {
               RequestItems: {
                 [this.tableName]: {
