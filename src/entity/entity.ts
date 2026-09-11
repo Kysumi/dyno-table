@@ -383,7 +383,7 @@ export function defineEntity<
     ): EntityRepository<T, TInput, I, Q, TConfig, TEntityTypeAttribute> => {
       return {
         create: (data: TInput) => {
-          const builder = table.create<T>({} as T, { entityName: config.name });
+          const builder = table.create<T>({} as T, { entityNames: [config.name] });
           return new EntityAwarePutBuilder(
             builder,
             config.name,
@@ -393,7 +393,7 @@ export function defineEntity<
         },
 
         upsert: (data: TInput & I) => {
-          const builder = table.put<T>({} as T, { entityName: config.name });
+          const builder = table.put<T>({} as T, { entityNames: [config.name] });
           return new EntityAwarePutBuilder(
             builder,
             config.name,
@@ -405,14 +405,14 @@ export function defineEntity<
 
         get: <K extends I>(key: K) => {
           return new EntityAwareGetBuilder(
-            table.get<T>(config.primaryKey.generateKey(key), { entityName: config.name }),
+            table.get<T>(config.primaryKey.generateKey(key), { entityNames: [config.name] }),
             config.name,
           );
         },
 
         update: <K extends I>(key: K, data: Partial<T>) => {
           const primaryKeyObj = config.primaryKey.generateKey(key);
-          const builder = table.update<T>(primaryKeyObj, { entityName: config.name });
+          const builder = table.update<T>(primaryKeyObj, { entityNames: [config.name] });
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
@@ -427,7 +427,7 @@ export function defineEntity<
 
         delete: <K extends I>(key: K) => {
           const builder = new EntityAwareDeleteBuilder(
-            table.delete(config.primaryKey.generateKey(key), { entityName: config.name }),
+            table.delete(config.primaryKey.generateKey(key), { entityNames: [config.name] }),
             config.name,
           );
           builder.condition(eq(entityTypeAttributeName, config.name));
@@ -446,7 +446,7 @@ export function defineEntity<
                   table,
                   entityTypeAttributeName,
                   config.name,
-                  { beforeExecute, entityName: config.name },
+                  { beforeExecute, entityNames: [config.name] },
                   scopedBuilders,
                 ),
               );
@@ -463,14 +463,14 @@ export function defineEntity<
         ) as MappedQueries<T, Q>,
 
         scan: () => {
-          const builder = table.scan<T>({ entityName: config.name });
+          const builder = table.scan<T>({ entityNames: [config.name] });
           builder.filter(eq(entityTypeAttributeName, config.name));
           return builder;
         },
 
         searchVectors: (indexName, input) =>
           scopedVectorSearch(table, indexName, input, entityTypeAttributeName, config.name, {
-            entityName: config.name,
+            entityNames: [config.name],
           }),
       };
     },

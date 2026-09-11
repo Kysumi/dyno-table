@@ -8,8 +8,8 @@ export type BeforeExecute = () => void | Promise<void>;
 
 export interface BuilderContext {
   readonly beforeExecute?: BeforeExecute;
-  /** Name of the entity this call originated from, if any. Surfaced on request hook events. */
-  readonly entityName?: string;
+  /** Names of the entities this call originated from, if any. Surfaced on request hook events. */
+  readonly entityNames?: readonly string[];
 }
 
 export interface WriteExecutionMetadata {

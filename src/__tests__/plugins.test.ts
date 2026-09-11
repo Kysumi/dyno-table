@@ -1,5 +1,6 @@
 import type { DynamoDBDocument, GetCommandOutput } from "@aws-sdk/lib-dynamodb";
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { defineCollection } from "../entity/collection";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { RequestEvent, RequestResult, TablePlugin } from "../plugins";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -449,33 +450,36 @@ describe("request plugins", () => {
     expect(events[1]).not.toHaveProperty("result");
   });
 
-  it("does not call DynamoDB when a start hook fails", async () => {
+  it("continues to DynamoDB and reports when a start hook fails", async () => {
     const failure = new Error("start failed");
+    const onError = vi.fn();
     const failingTable = new Table({
       client: dynamoClient as unknown as DynamoDBDocument,
       tableName: "Dinosaurs",
       indexes: { partitionKey: "pk", sortKey: "sk" },
-      plugins: [{ onRequestStart: () => Promise.reject(failure) }],
+      plugins: [{ onRequestStart: () => Promise.reject(failure), onError }],
     });
+    get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
 
-    await expect(failingTable.get({ pk: "a", sk: "b" }).execute()).rejects.toMatchObject({ cause: failure });
-    expect(get).not.toHaveBeenCalled();
+    await expect(failingTable.get({ pk: "a", sk: "b" }).execute()).resolves.toEqual({
+      item: { pk: "a", sk: "b" },
+    });
+    expect(get).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ hook: "onRequestStart", error: failure }));
   });
 
-  it("unwinds completed plugins when a later start hook fails", async () => {
+  it("skips the failed plugin's end hook while completing other plugin lifecycles", async () => {
     const startFailure = new Error("start failed");
-    const cleanupFailure = new Error("cleanup failed");
     const span = { end: vi.fn() };
     const first: TablePlugin<typeof span> = {
       onRequestStart: () => span,
-      onRequestEnd(event, state) {
-        expect(event.error).toBe(startFailure);
+      onRequestEnd(_event, state) {
         expect(state).toBe(span);
         state?.end();
-        throw cleanupFailure;
       },
     };
     const secondEnd = vi.fn();
+    const secondError = vi.fn();
     const thirdStart = vi.fn();
     const thirdEnd = vi.fn();
     const failingTable = new Table({
@@ -484,33 +488,61 @@ describe("request plugins", () => {
       indexes: { partitionKey: "pk", sortKey: "sk" },
       plugins: [
         first,
-        { onRequestStart: () => Promise.reject(startFailure), onRequestEnd: secondEnd },
+        { onRequestStart: () => Promise.reject(startFailure), onRequestEnd: secondEnd, onError: secondError },
         { onRequestStart: thirdStart, onRequestEnd: thirdEnd },
       ],
     });
+    get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
 
-    await expect(failingTable.get({ pk: "a", sk: "b" }).execute()).rejects.toMatchObject({ cause: startFailure });
+    await expect(failingTable.get({ pk: "a", sk: "b" }).execute()).resolves.toBeDefined();
     expect(span.end).toHaveBeenCalledOnce();
     expect(secondEnd).not.toHaveBeenCalled();
-    expect(thirdStart).not.toHaveBeenCalled();
-    expect(thirdEnd).not.toHaveBeenCalled();
-    expect(get).not.toHaveBeenCalled();
+    expect(secondError).toHaveBeenCalledWith(expect.objectContaining({ hook: "onRequestStart", error: startFailure }));
+    expect(thirdStart).toHaveBeenCalledOnce();
+    expect(thirdEnd).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledOnce();
   });
 
-  it("reports an end-hook failure after a successful request", async () => {
+  it("isolates and reports end-hook failures after a successful request", async () => {
     const firstFailure = new Error("first end failed");
     const laterFailure = new Error("later end failed");
     const laterEnd = vi.fn(() => Promise.reject(laterFailure));
+    const firstError = vi.fn();
+    const laterError = vi.fn();
     const failingTable = new Table({
       client: dynamoClient as unknown as DynamoDBDocument,
       tableName: "Dinosaurs",
       indexes: { partitionKey: "pk", sortKey: "sk" },
-      plugins: [{ onRequestEnd: () => Promise.reject(firstFailure) }, { onRequestEnd: laterEnd }],
+      plugins: [
+        { onRequestEnd: () => Promise.reject(firstFailure), onError: firstError },
+        { onRequestEnd: laterEnd, onError: laterError },
+      ],
     });
     get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
 
-    await expect(failingTable.get({ pk: "a", sk: "b" }).execute()).rejects.toMatchObject({ cause: firstFailure });
+    await expect(failingTable.get({ pk: "a", sk: "b" }).execute()).resolves.toBeDefined();
     expect(laterEnd).toHaveBeenCalledOnce();
+    expect(firstError).toHaveBeenCalledWith(expect.objectContaining({ hook: "onRequestEnd", error: firstFailure }));
+    expect(laterError).toHaveBeenCalledWith(expect.objectContaining({ hook: "onRequestEnd", error: laterFailure }));
+  });
+
+  it("isolates failures from a plugin error callback", async () => {
+    const failingTable = new Table({
+      client: dynamoClient as unknown as DynamoDBDocument,
+      tableName: "Dinosaurs",
+      indexes: { partitionKey: "pk", sortKey: "sk" },
+      plugins: [
+        {
+          onRequestEnd: () => Promise.reject(new Error("end failed")),
+          onError: () => Promise.reject(new Error("reporting failed")),
+        },
+      ],
+    });
+    get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
+
+    await expect(failingTable.get({ pk: "a", sk: "b" }).execute()).resolves.toEqual({
+      item: { pk: "a", sk: "b" },
+    });
   });
 
   it("keeps the DynamoDB failure when an end hook also fails", async () => {
@@ -529,7 +561,7 @@ describe("request plugins", () => {
     });
   });
 
-  it("leaves entityName undefined for calls made directly against Table", async () => {
+  it("uses no entity names for calls made directly against Table", async () => {
     get.mockResolvedValue({ Item: { pk: "a", sk: "b" } });
 
     await table.get({ pk: "a", sk: "b" }).execute();
@@ -589,6 +621,20 @@ describe("request plugins", () => {
 
       expect(onRequestStart.mock.calls[0]?.[0]).toMatchObject({
         operation: "transactWrite",
+        entityNames: ["Dino", "Other"],
+      });
+    });
+
+    it("attributes a collection query to every configured entity", async () => {
+      query.mockResolvedValue({ Items: [] });
+      const collection = defineCollection({
+        entities: { Dino: DinoEntity, Other: OtherEntity },
+      }).createReader(table);
+
+      await (await collection.query({ pk: "habitat#1" }).execute()).toArray();
+
+      expect(onRequestStart.mock.calls[0]?.[0]).toMatchObject({
+        operation: "query",
         entityNames: ["Dino", "Other"],
       });
     });

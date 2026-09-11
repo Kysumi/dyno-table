@@ -108,6 +108,22 @@ export type RequestResult = {
   );
 }[DynamoOperation];
 
+export type PluginErrorEvent =
+  | {
+      hook: "onRequestStart";
+      /** The original hook error. */
+      error: unknown;
+      /** The request event passed to the failed hook. */
+      event: RequestEvent;
+    }
+  | {
+      hook: "onRequestEnd";
+      /** The original hook error. */
+      error: unknown;
+      /** The request result passed to the failed hook. */
+      event: RequestResult;
+    };
+
 export interface TablePlugin<RequestState = unknown> {
   /** Identifies this plugin in the `plugins` list; purely for the plugin author's own reference. */
   name?: string;
@@ -115,6 +131,11 @@ export interface TablePlugin<RequestState = unknown> {
   onRequestStart?(event: RequestEvent): RequestState | void | Promise<RequestState | void>;
   /** The return value is ignored; promises and other thenables are awaited. */
   onRequestEnd?(event: RequestResult, state: RequestState | undefined): unknown;
+  /**
+   * Called when one of this plugin's request hooks fails. Plugin failures never change the
+   * DynamoDB operation's outcome. Errors thrown by this callback are also isolated.
+   */
+  onError?(event: PluginErrorEvent): unknown;
 }
 
 function snapshotDocumentValue<T>(value: T): T {
@@ -139,22 +160,28 @@ function snapshotDocumentValue<T>(value: T): T {
   return snapshot as T;
 }
 
+async function reportPluginError(plugin: TablePlugin, event: PluginErrorEvent): Promise<void> {
+  try {
+    await plugin.onError?.(event);
+  } catch {
+    // Observer error reporting must not change the DynamoDB operation's outcome.
+  }
+}
+
 async function runEndHooks(
   plugins: readonly TablePlugin[],
   states: readonly unknown[],
+  active: readonly boolean[],
   event: RequestResult,
-  started?: readonly boolean[],
-): Promise<{ error: unknown } | undefined> {
-  let firstFailure: { error: unknown } | undefined;
+): Promise<void> {
   for (const [index, plugin] of plugins.entries()) {
-    if (started && !started[index]) continue;
+    if (!active[index]) continue;
     try {
       await plugin.onRequestEnd?.(event, states[index]);
     } catch (error) {
-      firstFailure ??= { error };
+      await reportPluginError(plugin, { hook: "onRequestEnd", error, event });
     }
   }
-  return firstFailure;
 }
 
 export async function instrumentRequest<Op extends DynamoOperation, T>(
@@ -166,17 +193,14 @@ export async function instrumentRequest<Op extends DynamoOperation, T>(
 
   const safeEvent = { ...event, params: snapshotDocumentValue(event.params) } as RequestEvent;
   const states: unknown[] = [];
-  const started: boolean[] = [];
-  const lifecycleStart = performance.now();
+  const active = plugins.map((plugin) => !plugin.onRequestStart);
   for (const [index, plugin] of plugins.entries()) {
     if (!plugin.onRequestStart) continue;
     try {
       states[index] = await plugin.onRequestStart(safeEvent);
-      started[index] = true;
+      active[index] = true;
     } catch (error) {
-      const endEvent = { ...safeEvent, durationMs: performance.now() - lifecycleStart, error } as RequestResult;
-      await runEndHooks(plugins, states, endEvent, started);
-      throw error;
+      await reportPluginError(plugin, { hook: "onRequestStart", error, event: safeEvent });
     }
   }
   const start = performance.now();
@@ -185,11 +209,11 @@ export async function instrumentRequest<Op extends DynamoOperation, T>(
     result = await fn();
   } catch (error) {
     const endEvent = { ...safeEvent, durationMs: performance.now() - start, error } as RequestResult;
-    await runEndHooks(plugins, states, endEvent);
+    await runEndHooks(plugins, states, active, endEvent);
     throw error;
   }
 
-  const endEvent = plugins.some((plugin) => plugin.onRequestEnd)
+  const endEvent = plugins.some((plugin, index) => active[index] && plugin.onRequestEnd)
     ? ({
         ...safeEvent,
         durationMs: performance.now() - start,
@@ -197,14 +221,13 @@ export async function instrumentRequest<Op extends DynamoOperation, T>(
       } as RequestResult)
     : undefined;
   if (endEvent) {
-    const hookFailure = await runEndHooks(plugins, states, endEvent);
-    if (hookFailure) throw hookFailure.error;
+    await runEndHooks(plugins, states, active, endEvent);
   }
   return result;
 }
 
-export function entityNamesOf(entityName: string | undefined): readonly string[] {
-  return entityName ? [entityName] : [];
+export function entityNamesOf(entityNames: readonly string[] | undefined): readonly string[] {
+  return distinctEntityNames(entityNames ?? []);
 }
 
 export function distinctEntityNames(entityNames: ReadonlyArray<string | undefined>): readonly string[] {
