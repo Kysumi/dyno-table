@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { BatchBuilder, GetBuilder, QueryBuilder, ScanBuilder } from "../builders";
+import { QueryBuilder, ScanBuilder } from "../builders";
 import type { BuilderContext } from "../builders/builder-types";
 import { eq } from "../conditions";
 import { createIndex, createQueries, defineEntity } from "../entity/entity";
@@ -27,17 +27,7 @@ const testSchema: StandardSchemaV1<TestEntity> = {
   },
 };
 
-const byIdInputSchema: StandardSchemaV1<{ id: string; test: string }> = {
-  "~standard": {
-    version: 1,
-    vendor: "test",
-    validate: vi.fn().mockImplementation((data) => ({
-      value: data,
-    })) as unknown as (
-      value: unknown,
-    ) => { value: { id: string; test: string } } | { issues: Array<{ message: string }> },
-  },
-};
+type ByIdInput = { id: string; test: string };
 
 const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
   "~standard": {
@@ -49,17 +39,7 @@ const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
   },
 };
 
-const byStatusInputSchema: StandardSchemaV1<{ status: string; id: string; test: string }> = {
-  "~standard": {
-    version: 1,
-    vendor: "test",
-    validate: vi.fn().mockImplementation((data) => ({
-      value: data,
-    })) as unknown as (
-      value: unknown,
-    ) => { value: { status: string; id: string; test: string } } | { issues: Array<{ message: string }> },
-  },
-};
+type ByStatusInput = { status: string; id: string; test: string };
 
 // Create a mock table
 const mockTable = {
@@ -76,6 +56,14 @@ const mockTable = {
 };
 
 const queryBuilder = createQueries<TestEntity>();
+
+createQueries<TestEntity>()
+  .input()
+  .query(({ input, entity }) => {
+    // @ts-expect-error Query input type information must be provided explicitly.
+    void input.id;
+    return entity.scan();
+  });
 
 function useRealQueryBuilders(): void {
   mockTable.scan.mockImplementation((context: BuilderContext = {}) => {
@@ -99,22 +87,22 @@ describe("Entity Repository", () => {
       .partitionKey((item) => `TEST#${item.id}`)
       .sortKey(() => "METADATA#"),
     queries: {
-      byId: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
+      byId: queryBuilder.input<ByIdInput>().query(({ input, entity }) => {
         return entity.query({
           pk: `TEST#${input.id}`,
           sk: (op) => op.beginsWith("METADATA#"),
         });
       }),
-      byStatus: queryBuilder.input(byStatusInputSchema).query(({ input, entity }) => {
+      byStatus: queryBuilder.input<ByStatusInput>().query(({ input, entity }) => {
         return entity.scan().filter(eq("status", input.status));
       }),
-      getById: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
+      getById: queryBuilder.input<ByIdInput>().query(({ input, entity }) => {
         return entity.get({ pk: `TEST#${input.id}`, sk: "METADATA#" });
       }),
-      byIdClone: queryBuilder.input(byIdInputSchema).query(({ input, entity }) => {
+      byIdClone: queryBuilder.input<ByIdInput>().query(({ input, entity }) => {
         return entity.query({ pk: `TEST#${input.id}` }).clone();
       }),
-      byStatusClone: queryBuilder.input(byStatusInputSchema).query(({ entity }) => {
+      byStatusClone: queryBuilder.input<ByStatusInput>().query(({ entity }) => {
         return entity.scan().clone();
       }),
     },
@@ -566,7 +554,7 @@ describe("Entity Repository", () => {
           pk: "TEST#123",
           sk: "METADATA#",
         },
-        { entityName: "TestEntity" },
+        expect.objectContaining({ entityName: "TestEntity" }),
       );
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
     });
@@ -589,7 +577,7 @@ describe("Entity Repository", () => {
   });
 
   describe("custom queries", () => {
-    it("should execute custom query with input validation", async () => {
+    it("should execute a custom query with typed input", async () => {
       const input = {
         id: "123",
         test: "test-value",
@@ -603,52 +591,9 @@ describe("Entity Repository", () => {
           pk: "TEST#123",
           sk: expect.any(Function),
         },
-        expect.objectContaining({ beforeExecute: expect.any(Function) }),
+        expect.objectContaining({ entityName: "TestEntity" }),
       );
       expect(builder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
-      expect(byIdInputSchema["~standard"].validate).toHaveBeenCalledWith(input);
-    });
-
-    it("should throw error on query input validation failure", async () => {
-      const input = {
-        id: "123",
-        test: "test-value",
-        name: "Test Item",
-        type: "test",
-        status: "active",
-        createdAt: "2024-01-01",
-      };
-
-      // Mock the validation function for byIdInputSchema
-      (byIdInputSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
-        issues: [{ message: "Validation failed" }],
-      }));
-
-      if (!repository.query.byId) {
-        throw new Error("Query byId is not defined");
-      }
-
-      await expect(repository.query.byId(input).execute()).rejects.toThrow(EntityValidationError);
-    });
-
-    it("validates scoped gets when their batch executes", async () => {
-      const getExecutor = vi.fn().mockResolvedValue({ item: undefined });
-      const batchGetExecutor = vi.fn().mockResolvedValue({ items: [], unprocessedKeys: [] });
-      mockTable.get.mockImplementation(
-        (key, context: BuilderContext = {}) => new GetBuilder(getExecutor, key, "TestTable", [], context),
-      );
-      (byIdInputSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
-        issues: [{ message: "Invalid id" }],
-      }));
-      const batch = new BatchBuilder(vi.fn().mockResolvedValue({ unprocessedItems: [] }), batchGetExecutor, {
-        partitionKey: "pk",
-        sortKey: "sk",
-      });
-
-      repository.query.getById({ id: "bad", test: "test" }).withBatch(batch);
-
-      await expect(batch.execute()).rejects.toThrow(EntityValidationError);
-      expect(batchGetExecutor).not.toHaveBeenCalled();
     });
 
     it("accepts query and scan clones created from the scoped entity", async () => {
@@ -659,13 +604,6 @@ describe("Entity Repository", () => {
     });
 
     it("rejects a handler that returns an external builder", () => {
-      const inputSchema: StandardSchemaV1<{ status: string }> = {
-        "~standard": {
-          version: 1,
-          vendor: "test",
-          validate: () => ({ issues: [{ message: "Invalid status" }] }),
-        },
-      };
       const externalExecutor = vi.fn(async () => ({ items: [] }));
       const externalBuilder = new ScanBuilder<TestEntity>(externalExecutor);
       const externalRepository = defineEntity({
@@ -677,7 +615,7 @@ describe("Entity Repository", () => {
           .sortKey(() => "METADATA#"),
         queries: {
           byStatus: createQueries<TestEntity>()
-            .input(inputSchema)
+            .input<{ status: string }>()
             .query(() => externalBuilder),
         },
       }).createRepository(mockTable as unknown as Table);
@@ -938,12 +876,12 @@ describe("createQuery with chained filters", () => {
       .sortKey(() => "METADATA#"),
     queries: {
       byStatusAndType: createQueries<TestEntity>()
-        .input(byStatusInputSchema)
+        .input<ByStatusInput>()
         .query(({ input, entity }) => {
           return entity.scan().filter(eq("status", input.status)).filter(eq("type", "test"));
         }),
       byComplexFilters: createQueries<TestEntity>()
-        .input(byStatusInputSchema)
+        .input<ByStatusInput>()
         .query(({ input, entity }) => {
           return entity
             .scan()
@@ -952,7 +890,7 @@ describe("createQuery with chained filters", () => {
             .filter((op) => op.gt("createdAt", "2023-01-01"));
         }),
       byQueryWithMultipleFilters: createQueries<TestEntity>()
-        .input(byStatusInputSchema)
+        .input<ByStatusInput>()
         .query(({ input, entity }) => {
           return entity
             .query({
@@ -1003,7 +941,7 @@ describe("createQuery with chained filters", () => {
         pk: "TEST#123",
         sk: expect.any(Function),
       },
-      expect.objectContaining({ beforeExecute: expect.any(Function) }),
+      expect.objectContaining({ entityName: "TestEntity" }),
     );
 
     expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
@@ -1021,7 +959,7 @@ describe("createQuery with chained filters", () => {
         .sortKey(() => "METADATA#"),
       queries: {
         byStatus: createQueries<TestEntity>()
-          .input(byStatusInputSchema)
+          .input<ByStatusInput>()
           .query(({ input, entity }) => {
             return entity.scan().filter(eq("status", input.status));
           }),
@@ -1048,7 +986,7 @@ describe("createQuery with chained filters", () => {
         .sortKey(() => "METADATA#"),
       queries: {
         activeItems: createQueries<TestEntity>()
-          .input(byStatusInputSchema)
+          .input<ByStatusInput>()
           .query(({ input, entity }) => {
             // Apply a filter in the query definition
             return entity.scan().filter(eq("status", input.status)); // This is "active" from the input
@@ -1078,7 +1016,7 @@ describe("createQuery with chained filters", () => {
         .sortKey(() => "METADATA#"),
       queries: {
         itemsByStatus: createQueries<TestEntity>()
-          .input(byStatusInputSchema)
+          .input<ByStatusInput>()
           .query(({ input, entity }) => {
             // Apply a filter in the query definition
             return entity.query({ pk: `TEST#${input.id}` }).filter(eq("status", input.status)); // This is "active" from the input
@@ -1096,7 +1034,7 @@ describe("createQuery with chained filters", () => {
       {
         pk: "TEST#123",
       },
-      expect.objectContaining({ beforeExecute: expect.any(Function) }),
+      expect.objectContaining({ entityName: "TestEntityWithQueryFilters" }),
     );
 
     expect(builder.filter).toHaveBeenCalledTimes(3);

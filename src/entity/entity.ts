@@ -1,4 +1,4 @@
-import type { BeforeExecute, BuilderContext } from "../builders/builder-types.js";
+import type { BuilderContext } from "../builders/builder-types.js";
 import type {
   GetBuilder,
   Path,
@@ -46,18 +46,16 @@ export {
 // Define the QueryFunction type with a generic return type
 export type QueryFunction<_T extends DynamoItem, I, R> = (input: I) => R;
 
-// Define a type for the query record that preserves the input type for each query function
-export type QueryFunctionWithSchema<T extends DynamoItem, I, R> = QueryFunction<T, I, R> & {
-  schema?: StandardSchemaV1<I>;
-};
+/** @deprecated Use QueryFunction instead. */
+export type QueryFunctionWithSchema<T extends DynamoItem, I, R> = QueryFunction<T, I, R>;
 
 export type QueryRecord<T extends DynamoItem> = {
   // biome-ignore lint/suspicious/noExplicitAny: This is for flexibility
-  [K: string]: QueryFunctionWithSchema<T, any, any>;
+  [K: string]: QueryFunction<T, any, any>;
 };
 
 export type MappedQueries<T extends DynamoItem, Q extends QueryRecord<T>> = {
-  [K in keyof Q]: Q[K] extends QueryFunctionWithSchema<T, infer I, infer R> ? (input: I) => R : never;
+  [K in keyof Q]: Q[K] extends QueryFunction<T, infer I, infer R> ? (input: I) => R : never;
 };
 
 // Define a type for entity with only scan, get and query methods
@@ -284,21 +282,6 @@ function scopedVectorSearch<
   return builder;
 }
 
-function createQueryInputValidator(
-  schema: StandardSchemaV1<unknown> | undefined,
-  entityName: string,
-  queryName: string,
-  input: unknown,
-): BeforeExecute {
-  return async () => {
-    if (!schema) return;
-    const validationResult = await schema["~standard"].validate(input);
-    if (validationResult.issues) {
-      throw EntityErrors.queryInputValidationFailed(entityName, queryName, validationResult.issues, input);
-    }
-  };
-}
-
 /**
  * Creates an entity definition with type-safe operations
  *
@@ -438,22 +421,22 @@ export function defineEntity<
           Object.entries(config.queries || {}).map(([key, inputCallback]) => [
             key,
             (input: unknown) => {
-              const beforeExecute = createQueryInputValidator(inputCallback.schema, config.name, key, input);
-              // Only builders created through the scoped entity carry its filter and input-validation guard.
+              // Only builders created through the scoped entity carry its entity filter.
+              const entityQueryScope = {};
               const scopedBuilders = new WeakSet<object>();
               const builder = inputCallback(input)(
                 createScopedQueryEntity(
                   table,
                   entityTypeAttributeName,
                   config.name,
-                  { beforeExecute, entityName: config.name },
+                  { entityName: config.name, entityQueryScope },
                   scopedBuilders,
                 ),
               );
               const clonedFromScopedBuilder =
                 typeof builder === "object" &&
                 builder !== null &&
-                (builder as unknown as { context?: BuilderContext }).context?.beforeExecute === beforeExecute;
+                (builder as unknown as { context?: BuilderContext }).context?.entityQueryScope === entityQueryScope;
               if (!scopedBuilders.has(builder) && !clonedFromScopedBuilder) {
                 throw EntityErrors.invalidQueryBuilder(config.name, key);
               }
@@ -477,9 +460,14 @@ export function defineEntity<
   };
 }
 
+/**
+ * Creates type-safe custom entity queries.
+ *
+ * Query input declarations are compile-time only and do not perform runtime validation.
+ */
 export function createQueries<T extends DynamoItem>() {
   return {
-    input: <I>(schema: StandardSchemaV1<I>) => ({
+    input: <I = never>() => ({
       query: <
         R extends
           | ScanBuilder<T>
@@ -491,8 +479,7 @@ export function createQueries<T extends DynamoItem>() {
         handler: (params: { input: I; entity: QueryEntity<T> }) => R,
       ) => {
         const queryFn = (input: I) => (entity: QueryEntity<T>) => handler({ input, entity });
-        queryFn.schema = schema;
-        return queryFn as unknown as QueryFunctionWithSchema<T, I, R>;
+        return queryFn as unknown as QueryFunction<T, I, R>;
       },
     }),
   };

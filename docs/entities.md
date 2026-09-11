@@ -294,13 +294,13 @@ const UserEntity = defineEntity({
   },
   queries: {
     getActiveUsers: createQuery
-      .input(z.object({}))
+      .input<void>()
       .query(({ entity }) =>
         entity.query({ pk: "STATUS#active" }).useIndex("byStatus")
       ),
 
     getUsersByDepartment: createQuery
-      .input(z.object({ department: z.string() }))
+      .input<{ department: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: `DEPT#${input.department}` }).useIndex("byDepartment")
       ),
@@ -493,24 +493,24 @@ const createQuery = createQueries<User>();
 const queries = {
   // Simple query
   getActiveUsers: createQuery
-    .input(z.object({}))
+    .input<void>()
     .query(({ entity }) =>
       entity.query({ pk: "STATUS#active" }).useIndex("byStatus")
     ),
 
   // Parameterized query
   getUsersByDepartment: createQuery
-    .input(z.object({ department: z.string() }))
+    .input<{ department: string }>()
     .query(({ input, entity }) =>
       entity.query({ pk: `DEPT#${input.department}` }).useIndex("byDepartment")
     ),
 
   // Complex query with multiple conditions
   getActiveUsersInDepartment: createQuery
-    .input(z.object({
-      department: z.string(),
-      minCreatedDate: z.string().optional()
-    }))
+    .input<{
+      department: string;
+      minCreatedDate?: string;
+    }>()
     .query(({ input, entity }) => {
       let query = entity
         .query({ pk: `DEPT#${input.department}` })
@@ -526,7 +526,7 @@ const queries = {
 
   // Scan-based query
   searchByName: createQuery
-    .input(z.object({ namePrefix: z.string() }))
+    .input<{ namePrefix: string }>()
     .query(({ input, entity }) =>
       entity.scan().filter((op) => op.beginsWith("name", input.namePrefix))
     ),
@@ -534,7 +534,7 @@ const queries = {
   // Query by index (GetItem can only target the base table's primary
   // key, so looking up by email requires querying the byEmail GSI)
   getUserByEmail: createQuery
-    .input(z.object({ email: z.string().email() }))
+    .input<{ email: string }>()
     .query(({ input, entity }) =>
       entity.query({ pk: `EMAIL#${input.email}` }).useIndex("byEmail")
     ),
@@ -578,9 +578,9 @@ const engineerNames = await userRepo.query
   .execute();
 ```
 
-### Query validation
+### Query input type checking
 
-The schema validates input parameters automatically:
+Query input types are checked at compile time:
 
 ```ts
 // ✅ Valid input
@@ -588,15 +588,13 @@ await userRepo.query.getUsersByDepartment({
   department: "engineering"
 });
 
-// ❌ Validation error - missing required field
+// ❌ Type error - missing required field
 await userRepo.query.getUsersByDepartment({});
-// Error: department is required
 
-// ❌ Validation error - wrong type
+// ❌ Type error - wrong type
 await userRepo.query.getUsersByDepartment({
   department: 123
 });
-// Error: department must be a string
 ```
 
 ## Timestamps and metadata
@@ -816,23 +814,6 @@ try {
 }
 ```
 
-### Query validation errors
-
-```ts
-import { EntityValidationError } from "dyno-table";
-
-try {
-  await userRepo.query.getUsersByDepartment({
-    department: 123 // Invalid type
-  });
-} catch (error) {
-  if (error instanceof EntityValidationError) {
-    console.error("Query input validation failed:", error.message);
-    console.error("Validation issues:", error.context.validationIssues);
-  }
-}
-```
-
 ### Index generation errors
 
 ```ts
@@ -912,16 +893,16 @@ const badIndexes = {
 // ✅ Good: Semantic, reusable queries
 const queries = {
   getActiveUsers: createQuery
-    .input(z.object({}))
+    .input<void>()
     .query(({ entity }) =>
       entity.query({ pk: "STATUS#active" }).useIndex("byStatus")
     ),
 
   getUsersByDepartmentAndRole: createQuery
-    .input(z.object({
-      department: z.string(),
-      role: z.string().optional()
-    }))
+    .input<{
+      department: string;
+      role?: string;
+    }>()
     .query(({ input, entity }) => {
       const pk = `DEPT#${input.department}`;
       const query = entity.query({ pk }).useIndex("byDepartmentAndRole");
@@ -937,7 +918,7 @@ const queries = {
 // ❌ Avoid: Generic, unclear queries
 const badQueries = {
   query1: createQuery
-    .input(z.any()) // No validation
+    .input<{ value: unknown }>()
     .query(({ input, entity }) =>
       entity.scan().filter((op) => op.eq("field1", input.value)) // Inefficient scan
     ),
@@ -1016,7 +997,7 @@ const engineers = await userRepo.query
   .execute();
 
 // The entity query provides:
-// - Input validation
+// - Input type checking
 // - Clear semantic meaning
 // - Type safety
 // - Automatic entity type filtering
@@ -1050,14 +1031,14 @@ const LegacyUserEntity = defineEntity({
 const queries = {
   // Start with direct translations
   getUsersByStatus: createQuery
-    .input(z.object({ status: z.string() }))
+    .input<{ status: string }>()
     .query(({ input, entity }) =>
       entity.scan().filter((op) => op.eq("userStatus", input.status))
     ),
 
   // Evolve to better patterns over time
   getActiveUsers: createQuery
-    .input(z.object({}))
+    .input<void>()
     .query(({ entity }) =>
       entity.scan().filter((op) => op.eq("userStatus", "ACTIVE"))
     ),

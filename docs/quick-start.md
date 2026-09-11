@@ -90,13 +90,13 @@ const DinosaurEntity = defineEntity({
 
   queries: {
     getDinosaursByDiet: createQuery
-      .input(z.object({ diet: z.enum(["herbivore", "carnivore", "omnivore"]) }))
+      .input<{ diet: Dinosaur["diet"] }>()
       .query(({ input, entity }) =>
         entity.query({ pk: `DIET#${input.diet}` }).useIndex("byDiet")
       ),
 
     getDiscoveriesAfterYear: createQuery
-      .input(z.object({ year: z.number() }))
+      .input<{ year: number }>()
       .query(({ input, entity }) =>
         entity.query({ pk: "DIET#carnivore" })
           .useIndex("byDiet")

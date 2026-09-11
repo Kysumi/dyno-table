@@ -64,17 +64,17 @@ const DinosaurEntity = defineEntity({
   // ✅ Define semantic query methods using reusable templates
   queries: {
     getDinosaursByDiet: createQuery
-      .input(z.object({ diet: z.string() }))
+      .input<{ diet: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: DIET_PK(input) }).useIndex("byDiet")
       ),
     getDinosaursByPeriod: createQuery
-      .input(z.object({ period: z.string() }))
+      .input<{ period: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: PERIOD_PK(input) }).useIndex("byPeriod")
       ),
     getFeaturedDinosaurs: createQuery
-      .input(z.object({}))
+      .input<void>()
       .query(({ entity }) =>
         entity.query({ pk: "FEATURED#true" }).useIndex("byFeatured")
       ),
