@@ -187,7 +187,7 @@ export const MigrationCheckpointEntity = defineEntity({
     .input(z.object({ name: z.string() }))
     .partitionKey(({ name }) => `MIGRATION#${name}`)
     .sortKey(() => "CHECKPOINT"),
-  queries: createQueries<typeof checkpointSchema._type>(),
+  queries: {},
 });
 ```
 

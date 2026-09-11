@@ -99,6 +99,9 @@ describe("Entity Repository", () => {
       getById: queryBuilder.input<ByIdInput>().query(({ input, entity }) => {
         return entity.get({ pk: `TEST#${input.id}`, sk: "METADATA#" });
       }),
+      all: queryBuilder.input<void>().query(({ entity }) => {
+        return entity.scan();
+      }),
       byIdClone: queryBuilder.input<ByIdInput>().query(({ input, entity }) => {
         return entity.query({ pk: `TEST#${input.id}` }).clone();
       }),
@@ -554,7 +557,7 @@ describe("Entity Repository", () => {
           pk: "TEST#123",
           sk: "METADATA#",
         },
-        expect.objectContaining({ entityName: "TestEntity" }),
+        { entityName: "TestEntity" },
       );
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
     });
@@ -594,6 +597,25 @@ describe("Entity Repository", () => {
         expect.objectContaining({ entityName: "TestEntity" }),
       );
       expect(builder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
+    });
+
+    it("supports queries without input", async () => {
+      await expect(repository.query.all().execute()).resolves.toBeDefined();
+    });
+
+    it("accepts scoped entity get builders", async () => {
+      const getBuilder = {
+        execute: vi.fn().mockResolvedValue({ item: undefined }),
+      };
+      mockTable.get.mockReturnValue(getBuilder);
+
+      await expect(repository.query.getById({ id: "123", test: "test" }).execute()).resolves.toEqual({
+        item: undefined,
+      });
+      expect(mockTable.get).toHaveBeenCalledWith(
+        { pk: "TEST#123", sk: "METADATA#" },
+        expect.objectContaining({ entityName: "TestEntity" }),
+      );
     });
 
     it("accepts query and scan clones created from the scoped entity", async () => {

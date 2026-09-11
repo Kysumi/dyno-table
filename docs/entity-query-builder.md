@@ -1,6 +1,6 @@
 # dyno-table entity query builder guide
 
-The Entity Query Builder replaces raw partition keys, sort keys, and index names with named query methods, validated against your schema.
+The Entity Query Builder replaces raw partition keys, sort keys, and index names with named, type-safe query methods.
 
 ## Table of contents
 
@@ -57,7 +57,8 @@ Declare each custom query's input with `.input<InputType>()`. Query inputs are
 compile-time types; unlike `createIndex().input(schema)`, this method does not
 accept or run a Standard Schema.
 
-If you already have a query input schema, infer its type during migration:
+If an existing query schema has identical input and output types, wrap it with
+`z.infer` during migration:
 
 ```ts
 const getUserByEmailInput = z.object({ email: z.string().email() });
@@ -68,6 +69,10 @@ createQuery
     entity.query({ pk: `EMAIL#${input.email}` })
   );
 ```
+
+Prefer `z.input<typeof schema>` when a schema uses coercion, transforms, or
+defaults. Query schemas no longer run at runtime, so move any defaulting or
+transformation required by the handler into the handler itself.
 
 ### User entity with schema validation
 

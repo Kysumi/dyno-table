@@ -10,8 +10,6 @@ export interface BuilderContext {
   readonly beforeExecute?: BeforeExecute;
   /** Name of the entity this call originated from, if any. Surfaced on request hook events. */
   readonly entityName?: string;
-  /** @internal Identifies builders created by a custom entity query, including their clones. */
-  readonly entityQueryScope?: object;
 }
 
 export interface WriteExecutionMetadata {

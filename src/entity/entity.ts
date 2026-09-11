@@ -422,21 +422,15 @@ export function defineEntity<
             key,
             (input: unknown) => {
               // Only builders created through the scoped entity carry its entity filter.
-              const entityQueryScope = {};
+              const scopedContext: BuilderContext = { entityName: config.name };
               const scopedBuilders = new WeakSet<object>();
               const builder = inputCallback(input)(
-                createScopedQueryEntity(
-                  table,
-                  entityTypeAttributeName,
-                  config.name,
-                  { entityName: config.name, entityQueryScope },
-                  scopedBuilders,
-                ),
+                createScopedQueryEntity(table, entityTypeAttributeName, config.name, scopedContext, scopedBuilders),
               );
               const clonedFromScopedBuilder =
                 typeof builder === "object" &&
                 builder !== null &&
-                (builder as unknown as { context?: BuilderContext }).context?.entityQueryScope === entityQueryScope;
+                (builder as unknown as { context?: BuilderContext }).context === scopedContext;
               if (!scopedBuilders.has(builder) && !clonedFromScopedBuilder) {
                 throw EntityErrors.invalidQueryBuilder(config.name, key);
               }
