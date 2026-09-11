@@ -1,6 +1,6 @@
 # dyno-table entity query builder guide
 
-The Entity Query Builder replaces raw partition keys, sort keys, and index names with named query methods, validated against your schema.
+The Entity Query Builder replaces raw partition keys, sort keys, and index names with named, type-safe query methods.
 
 ## Table of contents
 
@@ -52,6 +52,28 @@ const table = new Table({
 ```
 
 ## Entity definition
+
+Declare each custom query's input with `.input<InputType>()`. Query inputs are
+compile-time types; unlike `createIndex().input(schema)`, this method does not
+accept or run a Standard Schema. Use `.input()` without a type argument for a
+query that takes no input.
+
+If an existing query schema has identical input and output types, wrap it with
+`z.infer` during migration:
+
+```ts
+const getUserByEmailInput = z.object({ email: z.string().email() });
+
+createQuery
+  .input<z.infer<typeof getUserByEmailInput>>()
+  .query(({ input, entity }) =>
+    entity.query({ pk: `EMAIL#${input.email}` })
+  );
+```
+
+Prefer `z.input<typeof schema>` when a schema uses coercion, transforms, or
+defaults. Query schemas no longer run at runtime, so move any defaulting or
+transformation required by the handler into the handler itself.
 
 ### User entity with schema validation
 
@@ -108,19 +130,19 @@ const UserEntity = defineEntity({
   // Custom semantic query methods
   queries: {
     getActiveUsers: createQuery
-      .input(z.object({}))
+      .input()
       .query(({ entity }) =>
         entity.query({ pk: statusPK({ status: "active" }) }).useIndex("statusIndex")
       ),
 
     getUserByEmail: createQuery
-      .input(z.object({ email: z.string().email() }))
+      .input<{ email: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: emailPK({ email: input.email }) }).useIndex("emailIndex")
       ),
 
     getRecentUsers: createQuery
-      .input(z.object({ since: z.string() }))
+      .input<{ since: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: statusPK({ status: "active" }) })
           .useIndex("statusIndex")
@@ -174,20 +196,20 @@ const OrderEntity = defineEntity({
 
   queries: {
     getUserOrders: createQuery
-      .input(z.object({ userId: z.string() }))
+      .input<{ userId: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: orderUserPK({ userId: input.userId }) })
           .filter(op => op.beginsWith("sk", "ORDER#"))
       ),
 
     getOrdersByStatus: createQuery
-      .input(z.object({ status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]) }))
+      .input<{ status: Order["status"] }>()
       .query(({ input, entity }) =>
         entity.query({ pk: orderStatusPK({ status: input.status }) }).useIndex("statusIndex")
       ),
 
     getRecentOrdersForUser: createQuery
-      .input(z.object({ userId: z.string(), since: z.string() }))
+      .input<{ userId: string; since: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: orderUserPK({ userId: input.userId }) })
           .filter(op => op.and(
@@ -842,21 +864,12 @@ try {
 }
 ```
 
-### Input validation for queries
+### Type checking for query inputs
 
 ```ts
-// Query inputs are also validated
-try {
-  await userRepo.query.getUserByEmail({
-    email: "not-an-email"  // ❌ Fails email validation
-  }).execute();
-} catch (error) {
-  console.error("Query input validation failed:", error);
-}
-
-// Correct usage
+// Query inputs are checked at compile time
 const user = await userRepo.query.getUserByEmail({
-  email: "john@example.com"  // ✅ Valid email
+  email: "john@example.com"
 }).execute();
 ```
 
@@ -884,14 +897,14 @@ const UserEntityExtended = defineEntity({
   queries: {
     // Get premium users (high credit balance)
     getPremiumUsers: createQuery
-      .input(z.object({}))
+      .input()
       .query(({ entity }) =>
         entity.scan().filter(op => op.gt("credits", 1000))
       ),
 
     // Get users who joined after a date
     getUsersJoinedAfter: createQuery
-      .input(z.object({ date: z.string() }))
+      .input<{ date: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: statusPK({ status: "active" }) })
           .useIndex("statusIndex")
@@ -900,7 +913,7 @@ const UserEntityExtended = defineEntity({
 
     // Get users with specific settings
     getUsersWithDarkTheme: createQuery
-      .input(z.object({}))
+      .input()
       .query(({ entity }) =>
         entity.scan()
           .filter(op => op.eq("settings.theme", "dark"))
@@ -908,11 +921,11 @@ const UserEntityExtended = defineEntity({
 
     // Complex business query - engaged users
     getEngagedUsers: createQuery
-      .input(z.object({ minCredits: z.number().optional().default(100) }))
+      .input<{ minCredits?: number }>()
       .query(({ input, entity }) =>
         entity.scan().filter(op => op.and(
           op.eq("status", "active"),
-          op.gt("credits", input.minCredits),
+          op.gt("credits", input.minCredits ?? 100),
           op.attributeExists("settings"),
           op.eq("settings.notifications", true)
         ))

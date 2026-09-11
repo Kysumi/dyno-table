@@ -122,45 +122,45 @@ export const DinosaurEntity = defineEntity({
   queries: {
     // Get all dinosaurs from an expedition
     getExpeditionDinosaurs: createQuery
-      .input(z.object({ expeditionId: z.string() }))
+      .input<{ expeditionId: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: `EXP#${input.expeditionId}` }).useIndex("byExpedition")
       ),
 
     // Find dinosaurs by species
     getBySpecies: createQuery
-      .input(z.object({ species: z.string() }))
+      .input<{ species: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: `SPECIES#${input.species}` }).useIndex("bySpecies")
       ),
 
     // Get large carnivores from a specific period
     getLargeCarnivores: createQuery
-      .input(z.object({
-        period: z.enum(["triassic", "jurassic", "cretaceous"]),
-        minWeight: z.number().default(1000)
-      }))
+      .input<{
+        period: "triassic" | "jurassic" | "cretaceous";
+        minWeight?: number;
+      }>()
       .query(({ input, entity }) =>
         entity.query({ pk: "DIET#carnivore" })
           .useIndex("byDietPeriod")
           .filter(op =>
             op.and(
               op.eq("period", input.period),
-              op.gte("estimatedWeight", input.minWeight)
+              op.gte("estimatedWeight", input.minWeight ?? 1000)
             )
           )
       ),
 
     // Find dinosaurs discovered in a specific country
     getByCountry: createQuery
-      .input(z.object({ country: z.string() }))
+      .input<{ country: string }>()
       .query(({ input, entity }) =>
         entity.query({ pk: `LOC#${input.country}` }).useIndex("byLocation")
       ),
 
     // Get recent discoveries (last 30 days)
     getRecentDiscoveries: createQuery
-      .input(z.object({}))
+      .input()
       .query(({ entity }) => {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

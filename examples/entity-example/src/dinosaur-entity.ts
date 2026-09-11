@@ -1,7 +1,6 @@
-import { z } from "zod";
-import { sortKey } from "dyno-table/utils";
-import { partitionKey } from "dyno-table/utils";
 import { createIndex, createQueries, defineEntity } from "dyno-table/entity";
+import { partitionKey, sortKey } from "dyno-table/utils";
+import { z } from "zod";
 
 const dinosaurSchema = z.object({
   id: z.string(),
@@ -37,21 +36,15 @@ const createQuery = createQueries<Dinosaur>();
 
 // Define queries
 const queries = {
-  byDiet: createQuery.input(z.object({ diet: z.string() })).query(({ input, entity }) => {
+  byDiet: createQuery.input<{ diet: string }>().query(({ input, entity }) => {
     return entity.query({ pk: dinosaurPK({ diet: input.diet }) });
   }),
   /**
    * Scan query
    */
-  bySpecies: createQuery
-    .input(
-      z.object({
-        species: z.string(),
-      }),
-    )
-    .query(({ input, entity }) => {
-      return entity.scan().filter((op) => op.eq("species", input.species));
-    }),
+  bySpecies: createQuery.input<{ species: string }>().query(({ input, entity }) => {
+    return entity.scan().filter((op) => op.eq("species", input.species));
+  }),
 };
 
 // Define the Dinosaur entity - now automatically handles schemas with defaults!

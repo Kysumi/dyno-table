@@ -461,18 +461,8 @@ describe("vector search", () => {
     );
   });
 
-  it("propagates custom-query input validation (beforeExecute) to entity vector search", async () => {
+  it("supports typed custom-query input for entity vector search", async () => {
     const { table } = setup();
-    const inputSchema: StandardSchemaV1<{ vector: number[]; category: string }> = {
-      "~standard": {
-        version: 1,
-        vendor: "test",
-        validate: (value) => {
-          const input = value as { vector: number[]; category: string };
-          return input.category.length > 0 ? { value: input } : { issues: [{ message: "category is required" }] };
-        },
-      },
-    };
     const entity = defineEntity({
       name: "Product",
       schema: productSchema,
@@ -485,7 +475,7 @@ describe("vector search", () => {
       },
       queries: {
         byEmbedding: createQueries<Product>()
-          .input(inputSchema)
+          .input<{ vector: number[]; category: string }>()
           .query(({ input, entity: scoped }) =>
             scoped.searchVectors("GlobalEmbedding", { vector: input.vector, topK: 1 }),
           ),
@@ -497,9 +487,6 @@ describe("vector search", () => {
     await expect(
       repository.query.byEmbedding({ vector: [1, 2, 3], category: "Shoes" }).execute(),
     ).resolves.toBeDefined();
-    await expect(repository.query.byEmbedding({ vector: [1, 2, 3], category: "" }).execute()).rejects.toThrowError(
-      expect.objectContaining({ code: ErrorCodes.QUERY_INPUT_VALIDATION_FAILED }),
-    );
   });
 
   it("throws before the request when the discriminator attribute is absent from the vector index schema", () => {
