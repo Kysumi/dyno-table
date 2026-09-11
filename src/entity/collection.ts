@@ -290,7 +290,8 @@ export function defineCollection<
     entities: config.entities,
     createReader: (table) => ({
       query: (keyCondition) => {
-        let builder = table.query<DynamoItem>(keyCondition);
+        const entityNames = Object.values(config.entities).map((entity) => entity.name);
+        let builder = table.query<DynamoItem>(keyCondition, { entityNames });
         if (config.indexName !== undefined) builder = builder.useIndex(config.indexName as never);
 
         const paginate = builder.paginate.bind(builder);

@@ -188,7 +188,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
             operation: "get",
             tableName: params.tableName,
             params: getParams,
-            entityNames: entityNamesOf(context.entityName),
+            entityNames: entityNamesOf(context.entityNames),
           },
           () => this.dynamoClient.get(getParams),
         );
@@ -233,7 +233,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
             operation: "put",
             tableName: params.tableName,
             params: putParams,
-            entityNames: entityNamesOf(context.entityName),
+            entityNames: entityNamesOf(context.entityNames),
           },
           () => this.dynamoClient.put(putParams),
         );
@@ -262,7 +262,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
               operation: "get",
               tableName: params.tableName,
               params: getParams,
-              entityNames: entityNamesOf(context.entityName),
+              entityNames: entityNamesOf(context.entityNames),
             },
             () => this.dynamoClient.get(getParams),
           );
@@ -442,7 +442,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       try {
         const result = await instrumentRequest(
           this.plugins,
-          { operation: "query", tableName: this.tableName, params, entityNames: entityNamesOf(context.entityName) },
+          {
+            operation: "query",
+            tableName: this.tableName,
+            params,
+            entityNames: entityNamesOf(context.entityNames),
+          },
           () => this.dynamoClient.query(params),
         );
         return {
@@ -510,7 +515,12 @@ export class Table<TConfig extends TableConfig = TableConfig> {
       try {
         const result = await instrumentRequest(
           this.plugins,
-          { operation: "scan", tableName: this.tableName, params, entityNames: entityNamesOf(context.entityName) },
+          {
+            operation: "scan",
+            tableName: this.tableName,
+            params,
+            entityNames: entityNamesOf(context.entityNames),
+          },
           () => this.dynamoClient.scan(params),
         );
         return {
@@ -589,7 +599,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
             operation: "searchVectors",
             tableName: this.tableName,
             params: searchParams,
-            entityNames: entityNamesOf(context.entityName),
+            entityNames: entityNamesOf(context.entityNames),
           },
           () => this.dynamoClient.searchVectors(searchParams),
         );
@@ -643,7 +653,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
             operation: "delete",
             tableName: params.tableName,
             params: deleteParams,
-            entityNames: entityNamesOf(context.entityName),
+            entityNames: entityNamesOf(context.entityNames),
           },
           () => this.dynamoClient.delete(deleteParams),
         );
@@ -688,7 +698,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
             operation: "update",
             tableName: params.tableName,
             params: updateParams,
-            entityNames: entityNamesOf(context.entityName),
+            entityNames: entityNamesOf(context.entityNames),
           },
           () => this.dynamoClient.update(updateParams),
         );

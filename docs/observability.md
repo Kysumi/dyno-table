@@ -58,19 +58,32 @@ onRequestStart(event) {
 },
 ```
 
-It's an array because a transaction or batch can bundle operations from more than one entity. A request touching `Order`, `Inventory`, and `Payment` reports `entityNames: ["Inventory", "Order", "Payment"]`. Direct `Table` calls and requests that cannot be attributed report `[]`.
+It's an array because a transaction, batch, or collection query can involve more than one entity. A request touching `Order`, `Inventory`, and `Payment` reports `entityNames: ["Inventory", "Order", "Payment"]`. Direct `Table` calls and requests that cannot be attributed report `[]`.
 
 Plugins receive snapshots of `params` and successful `result` values. Plain objects, arrays, maps, sets, and binary values are copied recursively, so mutations to those copied containers cannot affect the AWS request or the value returned to the caller. Class instances, including custom `wrapNumbers` results, are retained by identity to preserve their prototypes and behavior. These instances are shared with the request or returned result, so treat them as read-only. Mutating one from a hook changes the original instance.
 
 Snapshotting costs CPU and memory for large payloads. With no plugins, dyno-table skips all hook and snapshot work; start-only plugins do not cause successful results to be copied.
 
-Plugin failures follow the request lifecycle:
+Plugin failures are isolated from the database operation:
 
-- A start-hook failure stops the request before DynamoDB is called. Plugins whose start hooks already completed receive an end event with that error so they can clean up their state. Cleanup failures do not replace the start error.
-- After a successful DynamoDB call, every end hook runs. The first end-hook failure rejects the public operation after the remaining hooks finish.
-- If DynamoDB fails, all end hooks still run. Their failures are ignored so the original DynamoDB error remains the operation's cause.
+- A start-hook failure is reported to that plugin's optional `onError` callback. The plugin is skipped for the rest of this request, remaining plugins start normally, and the DynamoDB request continues.
+- An end-hook failure is reported to that plugin's optional `onError` callback. Remaining end hooks still run.
+- Errors from `onError` itself are ignored.
+- The DynamoDB operation resolves or rejects based only on its own outcome, so an unavailable telemetry backend cannot make a successful write appear to fail.
 
-Plugins are observers. They cannot rewrite, cancel, or short-circuit a request except by failing a start hook.
+Plugins are observers. They cannot rewrite, cancel, or short-circuit a request.
+
+```typescript
+const plugin: TablePlugin = {
+  name: 'metrics',
+  onRequestEnd(event) {
+    metrics.record(event);
+  },
+  onError({ hook, error }) {
+    console.warn(`metrics plugin ${hook} failed`, error);
+  },
+};
+```
 
 ## Wiring into an APM span
 

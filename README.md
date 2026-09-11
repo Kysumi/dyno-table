@@ -315,7 +315,7 @@ const table = new Table({
 });
 ```
 
-Hooks may be async and are awaited. For request-local tracing state, snapshots, and failure behavior, see the **[Observability Guide →](docs/observability.md)**.
+Hooks may be async and are awaited. Hook failures are isolated from the DynamoDB operation and can be reported through the plugin's `onError` callback. For request-local tracing state, snapshots, and full lifecycle behavior, see the **[Observability Guide →](docs/observability.md)**.
 
 ---
 

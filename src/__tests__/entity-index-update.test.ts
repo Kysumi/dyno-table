@@ -122,7 +122,7 @@ describe("Dinosaur Index Update Operations", () => {
           pk: "DINOSAUR#t-rex-123",
           sk: "FOSSIL",
         },
-        { entityName: "Dinosaur" },
+        { entityNames: ["Dinosaur"] },
       );
 
       // Verify that the entity type condition was added
@@ -360,7 +360,7 @@ describe("Dinosaur Index Update Operations", () => {
           pk: "DINOSAUR#diplodocus-555",
           sk: "FOSSIL",
         },
-        { entityName: "Dinosaur" },
+        { entityNames: ["Dinosaur"] },
       );
 
       // Verify that the set method was called with update data and GSI regenerations
