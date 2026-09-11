@@ -24,6 +24,7 @@
           { "type": "ci", "release": false },
           { "type": "chore", "release": "patch" },
           { "type": "revert", "release": "patch" },
+          { "type": "BREAKING", "release": "major" },
           { "breaking": true, "release": "major" },
           { "type": "feat", "scope": "api", "release": "minor" },
           { "type": "fix", "scope": "deps", "release": "patch" }
