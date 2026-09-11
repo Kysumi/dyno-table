@@ -57,14 +57,6 @@ const mockTable = {
 
 const queryBuilder = createQueries<TestEntity>();
 
-createQueries<TestEntity>()
-  .input()
-  .query(({ input, entity }) => {
-    // @ts-expect-error Query input type information must be provided explicitly.
-    void input.id;
-    return entity.scan();
-  });
-
 function useRealQueryBuilders(): void {
   mockTable.scan.mockImplementation((context: BuilderContext = {}) => {
     const builder = new ScanBuilder<TestEntity>(async () => ({ items: [] }), context);
@@ -99,7 +91,7 @@ describe("Entity Repository", () => {
       getById: queryBuilder.input<ByIdInput>().query(({ input, entity }) => {
         return entity.get({ pk: `TEST#${input.id}`, sk: "METADATA#" });
       }),
-      all: queryBuilder.input<void>().query(({ entity }) => {
+      all: queryBuilder.input().query(({ entity }) => {
         return entity.scan();
       }),
       byIdClone: queryBuilder.input<ByIdInput>().query(({ input, entity }) => {

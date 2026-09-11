@@ -160,7 +160,7 @@ export const DinosaurEntity = defineEntity({
 
     // Get recent discoveries (last 30 days)
     getRecentDiscoveries: createQuery
-      .input<void>()
+      .input()
       .query(({ entity }) => {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

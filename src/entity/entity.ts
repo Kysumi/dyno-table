@@ -461,7 +461,7 @@ export function defineEntity<
  */
 export function createQueries<T extends DynamoItem>() {
   return {
-    input: <I = never>() => ({
+    input: <I = void>() => ({
       query: <
         R extends
           | ScanBuilder<T>

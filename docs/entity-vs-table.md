@@ -74,7 +74,7 @@ const DinosaurEntity = defineEntity({
         entity.query({ pk: PERIOD_PK(input) }).useIndex("byPeriod")
       ),
     getFeaturedDinosaurs: createQuery
-      .input<void>()
+      .input()
       .query(({ entity }) =>
         entity.query({ pk: "FEATURED#true" }).useIndex("byFeatured")
       ),

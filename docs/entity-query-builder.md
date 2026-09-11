@@ -55,7 +55,8 @@ const table = new Table({
 
 Declare each custom query's input with `.input<InputType>()`. Query inputs are
 compile-time types; unlike `createIndex().input(schema)`, this method does not
-accept or run a Standard Schema.
+accept or run a Standard Schema. Use `.input()` without a type argument for a
+query that takes no input.
 
 If an existing query schema has identical input and output types, wrap it with
 `z.infer` during migration:
@@ -129,7 +130,7 @@ const UserEntity = defineEntity({
   // Custom semantic query methods
   queries: {
     getActiveUsers: createQuery
-      .input<void>()
+      .input()
       .query(({ entity }) =>
         entity.query({ pk: statusPK({ status: "active" }) }).useIndex("statusIndex")
       ),
@@ -896,7 +897,7 @@ const UserEntityExtended = defineEntity({
   queries: {
     // Get premium users (high credit balance)
     getPremiumUsers: createQuery
-      .input<void>()
+      .input()
       .query(({ entity }) =>
         entity.scan().filter(op => op.gt("credits", 1000))
       ),
@@ -912,7 +913,7 @@ const UserEntityExtended = defineEntity({
 
     // Get users with specific settings
     getUsersWithDarkTheme: createQuery
-      .input<void>()
+      .input()
       .query(({ entity }) =>
         entity.scan()
           .filter(op => op.eq("settings.theme", "dark"))

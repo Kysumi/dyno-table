@@ -294,7 +294,7 @@ const UserEntity = defineEntity({
   },
   queries: {
     getActiveUsers: createQuery
-      .input<void>()
+      .input()
       .query(({ entity }) =>
         entity.query({ pk: "STATUS#active" }).useIndex("byStatus")
       ),
@@ -493,7 +493,7 @@ const createQuery = createQueries<User>();
 const queries = {
   // Simple query
   getActiveUsers: createQuery
-    .input<void>()
+    .input()
     .query(({ entity }) =>
       entity.query({ pk: "STATUS#active" }).useIndex("byStatus")
     ),
@@ -893,7 +893,7 @@ const badIndexes = {
 // ✅ Good: Semantic, reusable queries
 const queries = {
   getActiveUsers: createQuery
-    .input<void>()
+    .input()
     .query(({ entity }) =>
       entity.query({ pk: "STATUS#active" }).useIndex("byStatus")
     ),
@@ -1038,7 +1038,7 @@ const queries = {
 
   // Evolve to better patterns over time
   getActiveUsers: createQuery
-    .input<void>()
+    .input()
     .query(({ entity }) =>
       entity.scan().filter((op) => op.eq("userStatus", "ACTIVE"))
     ),
