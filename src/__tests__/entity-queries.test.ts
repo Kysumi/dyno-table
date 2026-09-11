@@ -134,7 +134,7 @@ describe("Entity Repository", () => {
       const result = await repository.create(testData).execute();
 
       // With deferred validation, create() is called with empty object initially
-      expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+      expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
       expect(result).toEqual(testData);
     });
 
@@ -181,7 +181,7 @@ describe("Entity Repository", () => {
 
       // With deferred validation, create() is called with empty object initially
       // Timestamps are added during execute(), not during create()
-      expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntityWithTimestamps" });
+      expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntityWithTimestamps"] });
     });
 
     it("should throw error on validation failure during execute", async () => {
@@ -206,7 +206,7 @@ describe("Entity Repository", () => {
 
       // With deferred validation, create() should not throw
       const builder = repository.create(testData);
-      expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+      expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
 
       // Validation error should happen during execute()
       await expect(builder.execute()).rejects.toThrow(EntityValidationError);
@@ -240,7 +240,7 @@ describe("Entity Repository", () => {
       expect(testSchema["~standard"].validate).not.toHaveBeenCalled();
 
       // Table.create should be called with empty object
-      expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+      expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
 
       // Execute should trigger validation and processing
       const result = await builder.execute();
@@ -270,7 +270,7 @@ describe("Entity Repository", () => {
       const builder = repository.create(testData);
 
       // Should initially be called with empty object
-      expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+      expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
 
       // Now mock validation failure
       (testSchema["~standard"].validate as Mock).mockImplementationOnce(() => ({
@@ -323,7 +323,7 @@ describe("Entity Repository", () => {
       const builder = repoWithTimestamps.create(testData);
 
       // Should initially be called with empty object
-      expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntityWithTimestamps" });
+      expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntityWithTimestamps"] });
 
       await builder.execute();
 
@@ -355,7 +355,7 @@ describe("Entity Repository", () => {
       expect(testSchema["~standard"].validate).not.toHaveBeenCalled();
 
       // Table.put should be called with empty object
-      expect(mockTable.put).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+      expect(mockTable.put).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
 
       // Execute should trigger validation and processing
       const result = await builder.execute();
@@ -408,7 +408,7 @@ describe("Entity Repository", () => {
       const builder = repoWithTimestamps.upsert(testData);
 
       // Should initially be called with empty object
-      expect(mockTable.put).toHaveBeenCalledWith({}, { entityName: "TestEntityWithTimestamps" });
+      expect(mockTable.put).toHaveBeenCalledWith({}, { entityNames: ["TestEntityWithTimestamps"] });
 
       await builder.execute();
 
@@ -437,7 +437,7 @@ describe("Entity Repository", () => {
           pk: "TEST#123",
           sk: "METADATA#",
         },
-        { entityName: "TestEntity" },
+        { entityNames: ["TestEntity"] },
       );
     });
   });
@@ -468,7 +468,7 @@ describe("Entity Repository", () => {
           pk: "TEST#123",
           sk: "METADATA#",
         },
-        { entityName: "TestEntity" },
+        { entityNames: ["TestEntity"] },
       );
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
       expect(mockBuilder.set).toHaveBeenCalledWith(updateData);
@@ -549,7 +549,7 @@ describe("Entity Repository", () => {
           pk: "TEST#123",
           sk: "METADATA#",
         },
-        { entityName: "TestEntity" },
+        { entityNames: ["TestEntity"] },
       );
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
     });
@@ -586,7 +586,7 @@ describe("Entity Repository", () => {
           pk: "TEST#123",
           sk: expect.any(Function),
         },
-        expect.objectContaining({ entityName: "TestEntity" }),
+        expect.objectContaining({ entityNames: ["TestEntity"] }),
       );
       expect(builder.filter).toHaveBeenCalledWith(eq("entityType", "TestEntity"));
     });
@@ -606,7 +606,7 @@ describe("Entity Repository", () => {
       });
       expect(mockTable.get).toHaveBeenCalledWith(
         { pk: "TEST#123", sk: "METADATA#" },
-        expect.objectContaining({ entityName: "TestEntity" }),
+        expect.objectContaining({ entityNames: ["TestEntity"] }),
       );
     });
 
@@ -712,7 +712,7 @@ describe("Entity Repository", () => {
       const result = await repository.upsert(testData).execute();
 
       // With deferred validation, put() is called with empty object initially
-      expect(mockTable.put).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+      expect(mockTable.put).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
       // Result is the enriched item (includes generated keys and entityType), not just the raw input
       expect(result).toMatchObject(testData);
     });
@@ -760,7 +760,7 @@ describe("Entity Repository", () => {
 
       // With deferred validation, put() is called with empty object initially
       // Timestamps are added during execute(), not during put()
-      expect(mockTable.put).toHaveBeenCalledWith({}, { entityName: "TestEntityWithTimestamps" });
+      expect(mockTable.put).toHaveBeenCalledWith({}, { entityNames: ["TestEntityWithTimestamps"] });
     });
   });
 });
@@ -804,7 +804,7 @@ describe("Entity Repository - Deferred Validation", () => {
     const result = await repository.create(testData).execute();
 
     // With deferred validation, create() is called with empty object initially
-    expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+    expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
     expect(result).toEqual(testData);
   });
 
@@ -827,7 +827,7 @@ describe("Entity Repository - Deferred Validation", () => {
     await repository.create(testData).withTransaction({} as any);
 
     // With deferred validation, create() is called with empty object initially
-    expect(mockTable.create).toHaveBeenCalledWith({}, { entityName: "TestEntity" });
+    expect(mockTable.create).toHaveBeenCalledWith({}, { entityNames: ["TestEntity"] });
   });
 
   it("should throw validation errors when execute() is called", async () => {
@@ -955,7 +955,7 @@ describe("createQuery with chained filters", () => {
         pk: "TEST#123",
         sk: expect.any(Function),
       },
-      expect.objectContaining({ entityName: "TestEntity" }),
+      expect.objectContaining({ entityNames: ["TestEntity"] }),
     );
 
     expect(builder.filter).toHaveBeenNthCalledWith(1, eq("entityType", "TestEntity"));
@@ -1048,7 +1048,7 @@ describe("createQuery with chained filters", () => {
       {
         pk: "TEST#123",
       },
-      expect.objectContaining({ entityName: "TestEntityWithQueryFilters" }),
+      expect.objectContaining({ entityNames: ["TestEntityWithQueryFilters"] }),
     );
 
     expect(builder.filter).toHaveBeenCalledTimes(3);

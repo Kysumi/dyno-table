@@ -99,7 +99,7 @@ describe("Entity Update Operations", () => {
           pk: "thisIsMyPK#123",
           sk: "wowSearching#METADATA",
         },
-        { entityName: "TestEntity" },
+        { entityNames: ["TestEntity"] },
       );
 
       // Verify that the entity type condition was added
@@ -156,7 +156,7 @@ describe("Entity Update Operations", () => {
           pk: "thisIsMyPK#456",
           sk: "wowSearching#METADATA",
         },
-        { entityName: "TestEntity" },
+        { entityNames: ["TestEntity"] },
       );
 
       // Verify that both conditions were applied (the entity type and our custom one)
@@ -248,7 +248,7 @@ describe("Entity Update Operations", () => {
           pk: "thisIsMyPK#789",
           sk: "wowSearching#METADATA",
         },
-        { entityName: "TestEntityWithTimestamps" },
+        { entityNames: ["TestEntityWithTimestamps"] },
       );
 
       // Verify that the entity type condition was added
