@@ -124,9 +124,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that both timestamps were added
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
     });
 
@@ -156,8 +154,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that only updatedAt was included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
+      const setCall = Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data));
       expect(setCall).toHaveProperty("name", "Updated Name");
       expect(setCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
       expect(setCall).not.toHaveProperty("createdAt");
@@ -187,9 +184,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that both timestamps were added
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
     });
   });
@@ -244,9 +239,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that only createdAt was added
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("createdAt", mockDate.toISOString());
-      // @ts-expect-error
       expect(builder.item).not.toHaveProperty("updatedAt");
     });
 
@@ -271,8 +264,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that no timestamps were included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
+      const setCall = Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data));
       expect(setCall).toEqual(updateData);
       expect(setCall).not.toHaveProperty("createdAt");
       expect(setCall).not.toHaveProperty("updatedAt");
@@ -329,9 +321,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that only updatedAt was added
-      // @ts-expect-error
       expect(builder.item).not.toHaveProperty("createdAt");
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
     });
 
@@ -361,8 +351,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that updatedAt was included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
+      const setCall = Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data));
       expect(setCall).toHaveProperty("name", "Updated Name");
       expect(setCall).toHaveProperty("updatedAt", Math.floor(mockDate.getTime() / 1000));
     });
@@ -423,13 +412,9 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that custom attribute names were used
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("dateCreated", mockDate.toISOString());
-      // @ts-expect-error
       expect(builder.item).toHaveProperty("dateModified", Math.floor(mockDate.getTime() / 1000));
-      // @ts-expect-error
       expect(builder.item).not.toHaveProperty("createdAt");
-      // @ts-expect-error
       expect(builder.item).not.toHaveProperty("updatedAt");
     });
   });
@@ -473,9 +458,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that no timestamps were added
-      // @ts-expect-error
       expect(builder.item).not.toHaveProperty("createdAt");
-      // @ts-expect-error
       expect(builder.item).not.toHaveProperty("updatedAt");
     });
 
@@ -500,8 +483,7 @@ describe("Entity Timestamp Operations", () => {
       await builder.execute();
 
       // Verify that no timestamps were included in the update
-      // @ts-expect-error - ignore the type error
-      const setCall = mockBuilder.set.mock.calls[0][0];
+      const setCall = Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data));
       expect(setCall).toEqual(updateData);
       expect(setCall).not.toHaveProperty("createdAt");
       expect(setCall).not.toHaveProperty("updatedAt");

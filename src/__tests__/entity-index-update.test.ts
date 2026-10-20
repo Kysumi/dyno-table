@@ -129,8 +129,8 @@ describe("Dinosaur Index Update Operations", () => {
       expect(mockBuilder.condition).toHaveBeenCalledWith(eq("entityType", "Dinosaur"));
 
       // Verify that the set method was called with both the update data and regenerated indexes
-      expect(mockBuilder.set).toHaveBeenCalledOnce();
-      expect(mockBuilder.set).toHaveBeenCalledWith(
+      expect(mockBuilder.set).toHaveBeenCalledTimes(2);
+      expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
         expect.objectContaining({
           name: "Tyrannosaurus Regina",
           paleontologistId: "dr-grant-456",
@@ -166,7 +166,7 @@ describe("Dinosaur Index Update Operations", () => {
       await repository.update(fossilKey, updateData).execute();
 
       // Verify that the set method was called
-      expect(mockBuilder.set).toHaveBeenCalledWith(
+      expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
         expect.objectContaining({
           name: "Triceratops Maximus",
           excavationSiteId: "badlands-site-001",
@@ -229,7 +229,7 @@ describe("Dinosaur Index Update Operations", () => {
       await repository.update(fossilKey, updateData).execute();
 
       // Should include regenerated index keys
-      expect(mockBuilder.set).toHaveBeenCalledWith(
+      expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
         expect.objectContaining({
           species: "Stegosaurus stenops",
           diet: "herbivore",
@@ -287,7 +287,7 @@ describe("Dinosaur Index Update Operations", () => {
       await repoWithTimestamps.update(fossilKey, updateData).execute();
 
       // Should include the original update data, timestamp, and regenerated index keys
-      expect(mockBuilder.set).toHaveBeenCalledWith(
+      expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
         expect.objectContaining({
           paleontologistId: "dr-grant-456",
           name: "Allosaurus fragilis - Updated specimen",
@@ -315,7 +315,7 @@ describe("Dinosaur Index Update Operations", () => {
       await repository.update(fossilKey, updateData).execute();
 
       // Should only include the original update data
-      expect(mockBuilder.set).toHaveBeenCalledWith(
+      expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
         expect.objectContaining({
           name: "Brachiosaurus altithorax - Just updating specimen name",
         }),
@@ -364,7 +364,7 @@ describe("Dinosaur Index Update Operations", () => {
       );
 
       // Verify that the set method was called with update data and GSI regenerations
-      expect(mockBuilder.set).toHaveBeenCalledWith(
+      expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
         expect.objectContaining({
           name: "Diplodocus carnegii - Updated specimen",
           species: "Diplodocus carnegii",
@@ -415,7 +415,7 @@ describe("Dinosaur Index Update Operations", () => {
 
         // Verify that the set method was called with the readOnly index keys included
         // The entity-aware builder should have added the readonly index keys when execute was called
-        expect(mockBuilder.set).toHaveBeenCalledWith(
+        expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
           expect.objectContaining({
             name: "Triceratops Maximus Updated",
             excavationSiteId: "badlands-site-002",
@@ -449,7 +449,7 @@ describe("Dinosaur Index Update Operations", () => {
         await updateBuilder.execute();
 
         // Verify that the set method includes all indexes (regular + forced readonly)
-        expect(mockBuilder.set).toHaveBeenCalledWith(
+        expect(Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data))).toEqual(
           expect.objectContaining({
             name: "Allosaurus Updated",
             excavationSiteId: "site-001",

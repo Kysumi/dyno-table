@@ -373,8 +373,8 @@ await table.transaction((tx) => {
 // Create with batch
 const batch = table.batchBuilder();
 
-userRepo.create(user1).withBatch(batch);
-userRepo.create(user2).withBatch(batch);
+userRepo.upsert(user1).withBatch(batch);
+userRepo.upsert(user2).withBatch(batch);
 
 await batch.execute();
 ```
@@ -389,7 +389,7 @@ const updatedUser = await userRepo.upsert({
   email: "johnsmith@example.com",
   status: "active",
   // All required fields must be provided
-}).execute();
+}).returnValues("INPUT").execute();
 ```
 
 ### Get operations
@@ -750,7 +750,7 @@ await table.transaction((tx) => {
 const batch = table.batchBuilder();
 
 users.forEach(userData => {
-  userRepo.create(userData).withBatch(batch);
+  userRepo.upsert(userData).withBatch(batch);
 });
 
 await batch.execute();
@@ -758,9 +758,10 @@ await batch.execute();
 // Mixed batch operations
 const mixedBatch = table.batchBuilder();
 
-userRepo.create(newUser).withBatch(mixedBatch);
-userRepo.delete({ id: "old-user" }).withBatch(mixedBatch);
-profileRepo.create(newProfile).withBatch(mixedBatch);
+userRepo.upsert(newUser).withBatch(mixedBatch);
+// Conditional deletes use a transaction or a direct execution.
+await userRepo.delete({ id: "old-user" }).execute();
+profileRepo.upsert(newProfile).withBatch(mixedBatch);
 
 await mixedBatch.execute();
 ```
@@ -1084,3 +1085,13 @@ const userSchemaV3 = z.object({
   }),
 });
 ```
+
+## Builder API migration
+
+- `upsert()` accepts the schema input type, like `create()`. Its default result now matches `table.put()` (`undefined`). Add `.returnValues("INPUT")` where a caller needs the prepared item. Explicit `ALL_OLD`, `NONE`, and `CONSISTENT` modes now retain the table result, including in `executeWithMetadata()`.
+- Put `.set()` accepts schema input fields. Setters run before schema validation, transforms, timestamps, and key generation. Nested paths update nested values rather than writing literal dotted attribute names.
+- Repeated write `.condition()` calls combine with `AND` across table and entity builders. Build a fresh builder to replace a condition; use `op.or(...)` inside a condition for alternatives.
+- Entity `create()` and `delete()` carry conditions. Use transactions for these operations; batching now rejects conditions instead of discarding them. Use entity `upsert()` for unconditional batch replacement.
+- Put `.withTransaction()` retains the entity builder when chained. It still queues a snapshot at the time it is called.
+- Fluent update `.set()` values take precedence over the initial update object and participate in index generation. Supply the fields required by each writable index. Atomic changes to indexed fields that lack enough information to regenerate the index must use an explicit replacement value instead.
+- Collection `.clone()` now returns a collection builder, preserving grouping. Collection `.select()` retains the discriminator needed for grouping.

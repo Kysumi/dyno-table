@@ -9,68 +9,43 @@ import type { UpdateBuilder } from "../builders/update-builder.js";
 import type { Condition, ConditionOperator } from "../conditions.js";
 import type { Table } from "../table.js";
 import type { DynamoItem } from "../types.js";
+import { setItemValues } from "../utils/item-values.js";
 import type { IndexDefinition } from "./create-index.js";
 import { GsiKeyBuilder } from "./ddb-indexing.js";
 
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
-export interface EntityPutBuilder<T extends DynamoItem> {
-  readonly entityName: string;
+export type EntityPutBuilder<T extends DynamoItem, TInput extends DynamoItem = T> = EntityAwarePutBuilder<T, TInput>;
 
-  set(values: Partial<T>): this;
-
-  set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
-
-  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this;
-
-  returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT"): this;
-
-  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this;
-
-  withTransaction(transaction: TransactionBuilder): PutBuilder<T>;
-
-  withBatch<
-    TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
-    K extends keyof TEntities = keyof TEntities,
-  >(batch: BatchBuilder<TEntities>, entityType?: K): void;
-
-  debug(): ReturnType<PutBuilder<T>["debug"]>;
-
-  execute(): Promise<T | undefined>;
-  executeWithMetadata(): Promise<{ item: T | undefined } & WriteExecutionMetadata>;
-}
-
-export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBuilder<T> {
+export class EntityAwarePutBuilder<T extends DynamoItem, TInput extends DynamoItem = T> {
   public item?: T;
-  private readonly overrides: Partial<T> = {};
 
   constructor(
     private readonly builder: PutBuilder<T>,
     public readonly entityName: string,
-    private readonly prepareSync: () => T,
-    private readonly prepareAsync: () => Promise<T>,
-    private readonly onExecuteResult?: (item: T, executorResult: T | undefined) => T | undefined,
+    private data: TInput,
+    private readonly prepareSync: (data: TInput) => T,
+    private readonly prepareAsync: (data: TInput) => Promise<T>,
   ) {}
 
   private applyPrepared(item: T): void {
-    this.item = { ...item, ...this.overrides };
+    this.item = item;
     this.builder.set(this.item);
   }
 
   private applySync(): void {
-    this.applyPrepared(this.prepareSync());
+    this.applyPrepared(this.prepareSync(this.data));
   }
 
   private async applyAsync(): Promise<void> {
-    this.applyPrepared(await this.prepareAsync());
+    this.applyPrepared(await this.prepareAsync(this.data));
   }
 
-  set(values: Partial<T>): this;
-  set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
-  set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
-    if (typeof valuesOrPath === "object") Object.assign(this.overrides, valuesOrPath);
-    else Object.assign(this.overrides, { [valuesOrPath]: value });
+  set(values: Partial<TInput>): this;
+  set<K extends Path<TInput>>(path: K, value: PathType<TInput, K>): this;
+  set<K extends Path<TInput>>(valuesOrPath: K | Partial<TInput>, value?: PathType<TInput, K>): this {
+    this.data = setItemValues(this.data, valuesOrPath, value);
     return this;
   }
 
@@ -89,9 +64,10 @@ export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBui
     return this;
   }
 
-  withTransaction(transaction: TransactionBuilder): PutBuilder<T> {
+  withTransaction(transaction: TransactionBuilder): this {
     this.applySync();
-    return this.builder.withTransaction(transaction, this.entityName);
+    this.builder.withTransaction(transaction, this.entityName);
+    return this;
   }
 
   withBatch<
@@ -109,38 +85,18 @@ export class EntityAwarePutBuilder<T extends DynamoItem> implements EntityPutBui
 
   async execute(): Promise<T | undefined> {
     await this.applyAsync();
-    const result = await this.builder.execute();
-    return this.onExecuteResult ? this.onExecuteResult(this.item as T, result) : result;
+    return this.builder.execute();
   }
 
   async executeWithMetadata(): Promise<{ item: T | undefined } & WriteExecutionMetadata> {
     await this.applyAsync();
-    const result = await this.builder.executeWithMetadata();
-    return {
-      item: this.onExecuteResult ? this.onExecuteResult(this.item as T, result.item) : result.item,
-      consumedCapacity: result.consumedCapacity,
-    };
+    return this.builder.executeWithMetadata();
   }
 }
 
-export interface EntityGetBuilder<T extends DynamoItem> {
-  readonly entityName: string;
+export type EntityGetBuilder<T extends DynamoItem> = EntityAwareGetBuilder<T>;
 
-  select<K extends Path<T>>(fields: K | K[]): this;
-
-  includeIndexes(): this;
-
-  consistentRead(consistentRead?: boolean): this;
-
-  withBatch<
-    TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
-    K extends keyof TEntities = keyof TEntities,
-  >(batch: BatchBuilder<TEntities>, entityType?: K): void;
-
-  execute(): Promise<{ item: T | undefined }>;
-}
-
-export class EntityAwareGetBuilder<T extends DynamoItem> implements EntityGetBuilder<T> {
+export class EntityAwareGetBuilder<T extends DynamoItem> {
   constructor(
     private readonly builder: GetBuilder<T>,
     public readonly entityName: string,
@@ -173,29 +129,9 @@ export class EntityAwareGetBuilder<T extends DynamoItem> implements EntityGetBui
   }
 }
 
-export interface EntityDeleteBuilder {
-  readonly entityName: string;
+export type EntityDeleteBuilder = EntityAwareDeleteBuilder;
 
-  condition<T extends DynamoItem>(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this;
-
-  returnValues(returnValues: "ALL_OLD"): this;
-
-  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): this;
-
-  withTransaction(transaction: TransactionBuilder): void;
-
-  withBatch<
-    TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
-    K extends keyof TEntities = keyof TEntities,
-  >(batch: BatchBuilder<TEntities>, entityType?: K): void;
-
-  execute(): Promise<{ item?: DynamoItem }>;
-  executeWithMetadata(): Promise<{ item?: DynamoItem } & WriteExecutionMetadata>;
-
-  debug(): ReturnType<DeleteBuilder["debug"]>;
-}
-
-export class EntityAwareDeleteBuilder implements EntityDeleteBuilder {
+export class EntityAwareDeleteBuilder {
   constructor(
     private readonly builder: DeleteBuilder,
     public readonly entityName: string,
@@ -240,37 +176,30 @@ export class EntityAwareDeleteBuilder implements EntityDeleteBuilder {
   }
 }
 
+interface EntityUpdateConfig<T extends DynamoItem> {
+  data: Partial<T>;
+  key: T;
+  table: Table;
+  indexes: Record<string, IndexDefinition<T>> | undefined;
+  generateTimestamps: (data: Partial<T>) => Record<string, string | number>;
+}
+
 /**
  * Entity-aware wrapper for UpdateBuilder that adds forceIndexRebuild functionality
- * and automatically provides entity name to batch operations
+ * and automatically provides the entity name to transactions
  */
 export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   private forceRebuildIndexes: string[] = [];
+  private readonly rebuiltIndexes = new Set<string>();
   public readonly entityName: string;
   private builder: UpdateBuilder<T>;
-  private readonly entityConfig: {
-    data: Partial<T>;
-    key: T;
-    table: Table;
-    indexes: Record<string, IndexDefinition<T>> | undefined;
-    generateTimestamps: () => Record<string, string | number>;
-  };
-  private updateDataApplied = false;
+  private readonly entityConfig: EntityUpdateConfig<T>;
 
-  constructor(
-    builder: UpdateBuilder<T>,
-    entityName: string,
-    entityConfig: {
-      data: Partial<T>;
-      key: T;
-      table: Table;
-      indexes: Record<string, IndexDefinition<T>> | undefined;
-      generateTimestamps: () => Record<string, string | number>;
-    },
-  ) {
+  constructor(builder: UpdateBuilder<T>, entityName: string, entityConfig: EntityUpdateConfig<T>) {
     this.builder = builder;
     this.entityName = entityName;
-    this.entityConfig = entityConfig;
+    this.entityConfig = { ...entityConfig, data: { ...entityConfig.data } };
+    this.builder.set(this.entityConfig.data);
   }
 
   /**
@@ -325,22 +254,27 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
    * This is called automatically when needed
    */
   private applyEntityUpdates(): void {
-    if (this.updateDataApplied) return;
-
     // Generate timestamps at the time this is called
-    const timestamps = this.entityConfig.generateTimestamps();
+    const timestamps = this.entityConfig.generateTimestamps(this.entityConfig.data);
 
     // Build index updates with force rebuild support
     const updates = { ...this.entityConfig.data, ...timestamps };
     const indexUpdates = new GsiKeyBuilder(this.entityConfig.table, this.entityConfig.indexes).buildForUpdate(
       this.entityConfig.key,
       updates,
-      { forceRebuildIndexes: this.forceRebuildIndexes },
+      { forceRebuildIndexes: [...new Set([...this.forceRebuildIndexes, ...this.rebuiltIndexes])] },
     );
 
-    // Apply all updates together: data, timestamps, and index updates
-    this.builder.set({ ...updates, ...indexUpdates });
-    this.updateDataApplied = true;
+    // Once inspected, derived keys must refresh even when a setter restores the original value.
+    for (const name of Object.keys(this.entityConfig.indexes ?? {})) {
+      const index = this.entityConfig.table.gsis[name];
+      if (index && (index.partitionKey in indexUpdates || (index.sortKey && index.sortKey in indexUpdates))) {
+        this.rebuiltIndexes.add(name);
+      }
+    }
+
+    // The table builder already holds user mutations in call order.
+    this.builder.set({ ...timestamps, ...indexUpdates } as Partial<T>);
   }
 
   // Delegate all UpdateBuilder methods to the wrapped builder
@@ -352,16 +286,19 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     } else {
       this.builder.set(valuesOrPath, value as PathType<T, K>);
     }
+    this.entityConfig.data = setItemValues(this.entityConfig.data, valuesOrPath, value);
     return this;
   }
 
   remove<K extends Path<T>>(path: K): this {
     this.builder.remove(path);
+    this.entityConfig.data = setItemValues(this.entityConfig.data, path, undefined);
     return this;
   }
 
   add<K extends Path<T>>(path: K, value: PathType<T, K>): this {
     this.builder.add(path, value);
+    this.entityConfig.data = setItemValues(this.entityConfig.data, path, undefined);
     return this;
   }
 
@@ -370,6 +307,7 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
     value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
   ): this {
     this.builder.deleteElementsFromSet(path, value);
+    this.entityConfig.data = setItemValues(this.entityConfig.data, path, undefined);
     return this;
   }
 
@@ -389,50 +327,27 @@ export class EntityAwareUpdateBuilder<T extends DynamoItem> {
   }
 
   toDynamoCommand(): UpdateCommandParams {
-    this.updateDataApplied = false;
     this.applyEntityUpdates();
     return this.builder.toDynamoCommand();
   }
 
   withTransaction(transaction: TransactionBuilder): void {
-    this.updateDataApplied = false;
     this.applyEntityUpdates();
     this.builder.withTransaction(transaction, this.entityName);
   }
 
   debug(): ReturnType<UpdateBuilder<T>["debug"]> {
-    this.updateDataApplied = false;
     this.applyEntityUpdates();
     return this.builder.debug();
   }
 
   async execute(): Promise<{ item?: T }> {
-    // Reset the flag for each execution to ensure fresh timestamps
-    this.updateDataApplied = false;
     this.applyEntityUpdates();
     return this.builder.execute();
   }
 
   async executeWithMetadata(): Promise<{ item?: T } & WriteExecutionMetadata> {
-    this.updateDataApplied = false;
     this.applyEntityUpdates();
     return this.builder.executeWithMetadata();
   }
-}
-
-/**
- * Creates an entity-aware UpdateBuilder with force index rebuild functionality
- */
-export function createEntityAwareUpdateBuilder<T extends DynamoItem>(
-  builder: UpdateBuilder<T>,
-  entityName: string,
-  entityConfig: {
-    data: Partial<T>;
-    key: T;
-    table: Table;
-    indexes: Record<string, IndexDefinition<T>> | undefined;
-    generateTimestamps: () => Record<string, string | number>;
-  },
-): EntityAwareUpdateBuilder<T> {
-  return new EntityAwareUpdateBuilder(builder, entityName, entityConfig);
 }

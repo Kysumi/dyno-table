@@ -1,33 +1,16 @@
 import type { BuilderContext } from "../builders/builder-types.js";
-import type {
-  GetBuilder,
-  Path,
-  PathType,
-  QueryBuilder,
-  ScanBuilder,
-  TransactionBuilder,
-  UpdateBuilder,
-  UpdateCommandParams,
-  VectorSearchBuilder,
-  VectorSearchInput,
-} from "../builders.js";
-import {
-  type Condition,
-  type ConditionOperator,
-  eq,
-  type PrimaryKey,
-  type PrimaryKeyWithoutExpression,
-} from "../conditions.js";
+import type { GetBuilder, QueryBuilder, ScanBuilder, VectorSearchBuilder, VectorSearchInput } from "../builders.js";
+import { eq, type PrimaryKey, type PrimaryKeyWithoutExpression } from "../conditions.js";
 import type { StandardSchemaV1 } from "../standard-schema.js";
 import type { Table } from "../table.js";
 import type { DynamoItem, TableConfig, VectorIndexFor, VectorIndexNames } from "../types.js";
 import { ConfigurationErrors, EntityErrors } from "../utils/error-factory.js";
 import type { IndexDefinition } from "./create-index.js";
 import {
-  createEntityAwareUpdateBuilder,
   EntityAwareDeleteBuilder,
   EntityAwareGetBuilder,
   EntityAwarePutBuilder,
+  EntityAwareUpdateBuilder,
   type EntityDeleteBuilder,
   type EntityGetBuilder,
   type EntityPutBuilder,
@@ -82,32 +65,9 @@ export type EntityVectorSearchInput<
     ? Omit<VectorSearchInput<TConfig, TIndexName>, "partition"> & { partition?: never }
     : VectorSearchInput<TConfig, TIndexName>;
 
-type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
-type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
-
 export type { EntityDeleteBuilder, EntityGetBuilder, EntityPutBuilder } from "./entity-aware-builders.js";
-
-export type EntityUpdateBuilder<T extends DynamoItem> = {
-  readonly entityName: string;
-  set(values: Partial<T>): EntityUpdateBuilder<T>;
-  set<K extends Path<T>>(path: K, value: PathType<T, K>): EntityUpdateBuilder<T>;
-  remove<K extends Path<T>>(path: K): EntityUpdateBuilder<T>;
-  add<K extends Path<T>>(path: K, value: PathType<T, K>): EntityUpdateBuilder<T>;
-  deleteElementsFromSet<K extends Path<T>>(
-    path: K,
-    value: PathSetElementType<T, K>[] | Set<PathSetElementType<T, K>>,
-  ): EntityUpdateBuilder<T>;
-  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): EntityUpdateBuilder<T>;
-  returnValues(returnValues: "ALL_NEW" | "UPDATED_NEW" | "ALL_OLD" | "UPDATED_OLD" | "NONE"): EntityUpdateBuilder<T>;
-  returnConsumedCapacity(value: "INDEXES" | "TOTAL" | "NONE"): EntityUpdateBuilder<T>;
-  toDynamoCommand(): UpdateCommandParams;
-  withTransaction(transaction: TransactionBuilder): void;
-  debug(): ReturnType<UpdateBuilder<T>["debug"]>;
-  execute(): Promise<{ item?: T }>;
-  executeWithMetadata(): ReturnType<UpdateBuilder<T>["executeWithMetadata"]>;
-  forceIndexRebuild(indexes: string | string[]): EntityUpdateBuilder<T>;
-  getForceRebuildIndexes(): string[];
-};
+export type EntityUpdateBuilder<T extends DynamoItem> =
+  import("./entity-aware-builders.js").EntityAwareUpdateBuilder<T>;
 
 interface Settings<TEntityTypeAttribute extends string = string> {
   /**
@@ -193,8 +153,8 @@ export interface EntityRepository<
   TConfig extends TableConfig = TableConfig,
   TEntityTypeAttribute extends string = "entityType",
 > {
-  create: (data: TInput) => EntityPutBuilder<T>;
-  upsert: (data: TInput & I) => EntityPutBuilder<T>;
+  create: (data: TInput) => EntityPutBuilder<T, TInput>;
+  upsert: (data: TInput) => EntityPutBuilder<T, TInput>;
   get: (key: I) => EntityGetBuilder<T>;
   update: (key: I, data: Partial<T>) => EntityUpdateBuilder<T>;
   delete: (key: I) => EntityDeleteBuilder;
@@ -333,7 +293,11 @@ export function defineEntity<
     /**
      * If the data object already has a createdAt value, skip generating it.
      */
-    if (createdAt && timestampsToGenerate.includes("createdAt") && !data.createdAt) {
+    if (
+      createdAt &&
+      timestampsToGenerate.includes("createdAt") &&
+      data[createdAt.attributeName ?? "createdAt"] === undefined
+    ) {
       const name = createdAt.attributeName ?? "createdAt";
       timestamps[name] = createdAt.format === "UNIX" ? unixTime : now.toISOString();
     }
@@ -341,7 +305,11 @@ export function defineEntity<
     /**
      * If the data object already has an updatedAt value, skip generating it.
      */
-    if (updatedAt && timestampsToGenerate.includes("updatedAt") && !data.updatedAt) {
+    if (
+      updatedAt &&
+      timestampsToGenerate.includes("updatedAt") &&
+      data[updatedAt.attributeName ?? "updatedAt"] === undefined
+    ) {
       const name = updatedAt.attributeName ?? "updatedAt";
       timestamps[name] = updatedAt.format === "UNIX" ? unixTime : now.toISOString();
     }
@@ -370,19 +338,20 @@ export function defineEntity<
           return new EntityAwarePutBuilder(
             builder,
             config.name,
-            () => prepareItemSync(itemPreparationConfig, table, "create", data),
-            () => prepareItemAsync(itemPreparationConfig, table, "create", data),
+            data,
+            (candidate) => prepareItemSync(itemPreparationConfig, table, "create", candidate),
+            (candidate) => prepareItemAsync(itemPreparationConfig, table, "create", candidate),
           );
         },
 
-        upsert: (data: TInput & I) => {
+        upsert: (data: TInput) => {
           const builder = table.put<T>({} as T, { entityNames: [config.name] });
           return new EntityAwarePutBuilder(
             builder,
             config.name,
-            () => prepareItemSync(itemPreparationConfig, table, "upsert", data),
-            () => prepareItemAsync(itemPreparationConfig, table, "upsert", data),
-            (item) => item,
+            data,
+            (candidate) => prepareItemSync(itemPreparationConfig, table, "upsert", candidate),
+            (candidate) => prepareItemAsync(itemPreparationConfig, table, "upsert", candidate),
           );
         },
 
@@ -399,12 +368,12 @@ export function defineEntity<
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
-          return createEntityAwareUpdateBuilder(builder, config.name, {
+          return new EntityAwareUpdateBuilder(builder, config.name, {
             data,
             key: key as unknown as T,
             table,
             indexes: config.indexes,
-            generateTimestamps: () => generateTimestamps(["updatedAt"], data),
+            generateTimestamps: (updates) => generateTimestamps(["updatedAt"], updates),
           });
         },
 

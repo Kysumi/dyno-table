@@ -167,7 +167,7 @@ export interface TypedBatchResult<TEntities extends Record<string, DynamoItem> =
  * }>();
  *
  * // Add operations using entity repositories
- * userRepo.create(newUser).withBatch(batch, 'User')
+ * userRepo.upsert(newUser).withBatch(batch, 'User')
  * userRepo.delete({ id: 'old-user' }).withBatch(batch, 'User')
  * orderRepo.get({ id: 'existing-order' }).withBatch(batch, 'Order')
  *
@@ -251,6 +251,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * @internal
    */
   putWithCommand<K extends keyof TEntities>(command: PutCommandParams, entityType?: K): this {
+    if (command.conditionExpression) throw BatchErrors.conditionUnsupported();
     const batchItem: TypedBatchItem<TEntities[K]> = {
       type: "Put",
       params: command,
@@ -270,6 +271,7 @@ export class BatchBuilder<TEntities extends Record<string, DynamoItem> = Record<
    * @internal
    */
   deleteWithCommand<K extends keyof TEntities>(command: DeleteCommandParams, entityType?: K): this {
+    if (command.conditionExpression) throw BatchErrors.conditionUnsupported();
     const batchItem: TypedBatchItem = {
       type: "Delete",
       params: command,

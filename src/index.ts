@@ -47,13 +47,13 @@ export {
 export type {
   CollectionConfig,
   CollectionDefinition,
-  CollectionQueryBuilder,
   CollectionReader,
   CollectionVectorSearchMatch,
   CollectionVectorSearchResult,
 } from "./entity/collection.js";
 export {
   CollectionPageIterator,
+  CollectionQueryBuilder,
   CollectionResultIterator,
   CollectionVectorSearchBuilder,
   defineCollection,

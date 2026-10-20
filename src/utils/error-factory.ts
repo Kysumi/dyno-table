@@ -425,6 +425,13 @@ export const TransactionErrors = {
  * Factory functions for Batch errors
  */
 export const BatchErrors = {
+  conditionUnsupported: () =>
+    new BatchError(
+      "Batch writes cannot preserve conditions. Use a transaction for conditional writes, including entity creates and deletes.",
+      ErrorCodes.BATCH_CONDITION_UNSUPPORTED,
+      "write",
+      [],
+    ),
   batchEmpty: (operation: "write" | "read") =>
     new BatchError(`No items specified for batch ${operation} operation`, ErrorCodes.BATCH_EMPTY, operation, [], {
       suggestion:

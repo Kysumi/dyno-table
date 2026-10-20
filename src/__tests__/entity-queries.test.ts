@@ -519,8 +519,7 @@ describe("Entity Repository", () => {
 
       // Verify that only updatedAt timestamp was added (not createdAt)
       expect(mockBuilder.set).toHaveBeenCalled();
-      // @ts-expect-error
-      const setCall = mockBuilder.set.mock.calls[0][0];
+      const setCall = Object.assign({}, ...mockBuilder.set.mock.calls.map(([data]) => data));
       expect(setCall).toHaveProperty("name", "Updated Name");
       expect(setCall).toHaveProperty("modifiedAt");
       expect(typeof setCall.modifiedAt).toBe("number"); // UNIX format

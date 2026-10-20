@@ -19,7 +19,7 @@ Entity definition names must be unique within a collection. Omit `indexName` to 
 
 ## Query Pages
 
-`reader.query()` returns the same `QueryBuilder` as `table.query()`. Configure it with the usual methods, then call `paginate()` to get grouped pages:
+`reader.query()` returns a `CollectionQueryBuilder` that delegates query execution and pagination to the table builder. Configure it with the usual methods, then call `paginate()` to get grouped pages:
 
 ```ts
 const pages = reader
@@ -36,7 +36,9 @@ for await (const page of pages) {
 
 Collection pagination defaults to 25 items per `Paginator` page, so large partitions are processed in bounded groups. Pass a different size to `paginate(n)` when needed. Calling `execute()` returns a `CollectionResultIterator`: `for await` streams individual configured items, while `toArray()` returns one complete result grouped by entity type.
 
-Items whose entity type is not configured in the collection are omitted. Empty pages still include every configured key with an empty array.
+`clone()` preserves collection grouping and independent query settings. `select()` automatically includes the entity discriminator so projected items can still be grouped. `findOne()` returns one configured entity item.
+
+Items whose entity type is not configured in the collection are filtered out. Empty pages still include every configured key with an empty array.
 
 ## Get All Results
 

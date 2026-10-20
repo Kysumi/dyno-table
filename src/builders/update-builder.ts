@@ -352,6 +352,7 @@ export class UpdateBuilder<T extends DynamoItem> {
    * @returns The builder instance for method chaining
    */
   condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
+    const previous = this.options.condition;
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -374,6 +375,7 @@ export class UpdateBuilder<T extends DynamoItem> {
     } else {
       this.options.condition = condition;
     }
+    if (previous) this.options.condition = and(previous, this.options.condition);
     return this;
   }
 

@@ -200,10 +200,39 @@ describe("defineCollection", () => {
 
     expect(useIndex).toHaveBeenCalledWith("gsi1");
     expect(useIndex).toHaveBeenCalledWith("gsi2");
-    expect(filter).toHaveBeenCalledOnce();
+    expect(filter).toHaveBeenCalledTimes(2);
     expect(paginate).toHaveBeenCalledWith(25);
     expect(sortDescending).toHaveBeenCalledOnce();
     expect(iterator).toBeDefined();
+  });
+
+  it("keeps grouping after clone and leaves the underlying builder intact", async () => {
+    const base = useRealQueryBuilder([[{ id: "dino-1", entityType: "Dinosaur" }]]);
+    const execute = base.execute;
+    const query = defineCollection({ entities })
+      .createReader(mockTable as unknown as Table)
+      .query({ pk: "NZ" });
+    expect(base.execute).toBe(execute);
+    const clone = query.clone().limit(2);
+    expect(query.getLimit()).toBeUndefined();
+    expect(await (await clone.execute()).toArray()).toEqual({
+      Dinosaur: [{ id: "dino-1", entityType: "Dinosaur" }],
+      Warehouse: [],
+    });
+    expect(await clone.paginate().getAllPages()).toEqual({
+      Dinosaur: [{ id: "dino-1", entityType: "Dinosaur" }],
+      Warehouse: [],
+    });
+  });
+
+  it("retains the discriminator when selecting collection fields", () => {
+    const base = useRealQueryBuilder([]);
+    const select = vi.spyOn(base, "select");
+    defineCollection({ entities })
+      .createReader(mockTable as unknown as Table)
+      .query({ pk: "NZ" })
+      .select("id");
+    expect(select).toHaveBeenCalledWith(["id", "entityType"]);
   });
 
   it("leaves the base-table query alone when no index is configured", () => {

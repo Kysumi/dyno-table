@@ -643,9 +643,9 @@ describe("request plugins", () => {
       batchWrite.mockResolvedValue({ UnprocessedItems: {} });
 
       const batch = table.batchBuilder();
-      dinoRepo.create({ id: "1", name: "Rex" }).withBatch(batch);
+      dinoRepo.upsert({ id: "1", name: "Rex" }).withBatch(batch);
       const otherRepo = OtherEntity.createRepository(table);
-      otherRepo.create({ id: "2", label: "nest" }).withBatch(batch);
+      otherRepo.upsert({ id: "2", label: "nest" }).withBatch(batch);
       await batch.execute();
 
       expect(onRequestStart.mock.calls[0]?.[0]).toMatchObject({
@@ -670,8 +670,8 @@ describe("request plugins", () => {
         .mockResolvedValueOnce({ UnprocessedItems: {} });
 
       const batch = table.batchBuilder();
-      dinoRepo.create({ id: "1", name: "Rex" }).withBatch(batch);
-      OtherEntity.createRepository(table).create({ id: "2", label: "nest" }).withBatch(batch);
+      dinoRepo.upsert({ id: "1", name: "Rex" }).withBatch(batch);
+      OtherEntity.createRepository(table).upsert({ id: "2", label: "nest" }).withBatch(batch);
       await batch.execute({ baseDelayMs: 0 });
 
       expect(onRequestStart.mock.calls.map(([event]) => event.entityNames)).toEqual([["Dino", "Other"], ["Other"]]);

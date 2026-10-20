@@ -102,6 +102,7 @@ export class DeleteBuilder {
   public condition<T extends DynamoItem>(
     condition: Condition | ((op: ConditionOperator<T>) => Condition),
   ): DeleteBuilder {
+    const previous = this.options.condition;
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -124,6 +125,7 @@ export class DeleteBuilder {
     } else {
       this.options.condition = condition;
     }
+    if (previous) this.options.condition = and(previous, this.options.condition);
     return this;
   }
 
