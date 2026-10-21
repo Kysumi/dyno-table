@@ -12,6 +12,17 @@ export interface BuilderContext {
   readonly entityNames?: readonly string[];
 }
 
+/**
+ * Parameter type `withBatch` takes once a write carries a condition. Batch writes cannot enforce conditions,
+ * so passing a batch to a conditional builder is a compile error naming the alternative.
+ */
+export type ConditionalBatchWrite = "Conditional writes cannot be batched. Use withTransaction() instead.";
+
+/** Resolves the `withBatch` parameter: the batch for unconditional writes, {@link ConditionalBatchWrite} otherwise. */
+export type BatchParameter<TConditional extends boolean, TBatch> = TConditional extends true
+  ? ConditionalBatchWrite
+  : TBatch;
+
 export interface WriteExecutionMetadata {
   consumedCapacity?: ConsumedCapacity;
 }

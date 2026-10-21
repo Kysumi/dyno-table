@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import type { TableConfig } from "../src/types";
 import { Table } from "../src/table";
+import type { TableConfig } from "../src/types";
 
 // Define entity types for our single-table design
 type EntityType = "DINOSAUR" | "FOSSIL" | "HABITAT" | "PERIOD";
@@ -31,7 +31,7 @@ type Dinosaur = BaseEntity & {
 };
 
 // Define period type
-type Period = BaseEntity & {
+export type Period = BaseEntity & {
   entityType: "PERIOD";
   periodId: string;
   name: string;
@@ -40,7 +40,7 @@ type Period = BaseEntity & {
 };
 
 // Define habitat type
-type Habitat = BaseEntity & {
+export type Habitat = BaseEntity & {
   entityType: "HABITAT";
   habitatId: string;
   name: string;
@@ -104,7 +104,7 @@ const dinoTable = new Table<DinoTableConfig>({
   },
 });
 
-async function getDinosaursBySpecies(species: string): Promise<Dinosaur[]> {
+export async function getDinosaursBySpecies(species: string): Promise<Dinosaur[]> {
   const result = await dinoTable
     .query<Dinosaur>({
       pk: species,
@@ -115,7 +115,7 @@ async function getDinosaursBySpecies(species: string): Promise<Dinosaur[]> {
   return await result.toArray();
 }
 
-async function getDinosaursByPeriod(periodId: string): Promise<Dinosaur[]> {
+export async function getDinosaursByPeriod(periodId: string): Promise<Dinosaur[]> {
   const result = await dinoTable
     .query<Dinosaur>({
       pk: periodId,
@@ -126,7 +126,7 @@ async function getDinosaursByPeriod(periodId: string): Promise<Dinosaur[]> {
   return await result.toArray();
 }
 
-async function getDinosaursByHabitat(habitatId: string): Promise<Dinosaur[]> {
+export async function getDinosaursByHabitat(habitatId: string): Promise<Dinosaur[]> {
   const result = await dinoTable
     .query<Dinosaur>({
       pk: habitatId,
@@ -137,7 +137,7 @@ async function getDinosaursByHabitat(habitatId: string): Promise<Dinosaur[]> {
   return await result.toArray();
 }
 
-async function getDinosaurWithFossils(dinoId: string): Promise<{
+export async function getDinosaurWithFossils(dinoId: string): Promise<{
   dinosaur: Dinosaur | undefined;
   fossils: Fossil[];
 }> {
@@ -164,7 +164,7 @@ async function getDinosaurWithFossils(dinoId: string): Promise<{
 }
 
 // Example function demonstrating the type safety
-async function demonstrateTypeSafety(page: Record<string, unknown>) {
+export async function demonstrateTypeSafety(page: Record<string, unknown>) {
   // This would cause a TypeScript error because "NonExistentIndex" is not a valid GSI
   // const result = await dinoTable
   //   .query<Dinosaur>({
@@ -186,7 +186,7 @@ async function demonstrateTypeSafety(page: Record<string, unknown>) {
   return await result.toArray();
 }
 
-async function createDinosaur(
+export async function createDinosaur(
   dinoData: Omit<Dinosaur, "pk" | "sk" | "createdAt" | "updatedAt" | "entityType">,
 ): Promise<Dinosaur> {
   const now = new Date().toISOString();
@@ -205,7 +205,7 @@ async function createDinosaur(
   return dinosaur;
 }
 
-async function createFossil(
+export async function createFossil(
   fossilData: Omit<Fossil, "pk" | "sk" | "createdAt" | "updatedAt" | "entityType">,
 ): Promise<Fossil> {
   const now = new Date().toISOString();
@@ -228,7 +228,7 @@ async function createFossil(
   return fossil;
 }
 
-async function updateDinosaurHabitat(dinoId: string, habitatId: string): Promise<void> {
+export async function updateDinosaurHabitat(dinoId: string, habitatId: string): Promise<void> {
   await dinoTable
     .update<Dinosaur>({
       pk: `DINOSAUR#${dinoId}`,

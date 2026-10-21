@@ -115,6 +115,7 @@ describe("Entity Timestamp Operations", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -145,6 +146,7 @@ describe("Entity Timestamp Operations", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
       };
 
@@ -175,6 +177,7 @@ describe("Entity Timestamp Operations", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -230,6 +233,7 @@ describe("Entity Timestamp Operations", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -255,6 +259,7 @@ describe("Entity Timestamp Operations", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
       };
 
@@ -312,6 +317,7 @@ describe("Entity Timestamp Operations", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -342,6 +348,7 @@ describe("Entity Timestamp Operations", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
       };
 
@@ -403,6 +410,7 @@ describe("Entity Timestamp Operations", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -449,6 +457,7 @@ describe("Entity Timestamp Operations", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -474,6 +483,7 @@ describe("Entity Timestamp Operations", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
       };
 

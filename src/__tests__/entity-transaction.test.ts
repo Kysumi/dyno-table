@@ -88,6 +88,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -145,6 +146,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -180,6 +182,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         toDynamoCommand: vi.fn().mockReturnValue({
@@ -241,6 +244,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -286,6 +290,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -378,6 +383,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -413,6 +419,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn(),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -448,6 +455,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         condition: vi.fn().mockReturnThis(),
@@ -478,12 +486,14 @@ describe("Entity Transaction Support", () => {
 
       const mockCreateBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
 
       const mockUpsertBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -530,6 +540,7 @@ describe("Entity Transaction Support", () => {
 
       const mockCreateBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         toDynamoCommand: vi.fn().mockReturnValue({
@@ -545,6 +556,7 @@ describe("Entity Transaction Support", () => {
 
       const mockUpsertBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         toDynamoCommand: vi.fn().mockReturnValue({

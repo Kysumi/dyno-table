@@ -20,7 +20,12 @@ import { prepareExpressionParams } from "../expression.js";
 import type { DynamoItem } from "../types.js";
 import { debugCommand } from "../utils/debug-expression.js";
 import type { BatchBuilder } from "./batch-builder.js";
-import type { DeleteCommandParams, WriteExecutionMetadata, WriteExecutionState } from "./builder-types.js";
+import type {
+  BatchParameter,
+  DeleteCommandParams,
+  WriteExecutionMetadata,
+  WriteExecutionState,
+} from "./builder-types.js";
 import type { TransactionBuilder } from "./transaction-builder.js";
 
 export interface DeleteOptions {
@@ -52,8 +57,10 @@ type DeleteExecutor = (params: DeleteCommandParams) => Promise<{ item?: DynamoIt
  *   .returnValues('ALL_OLD')
  *   .execute();
  * ```
+ *
+ * @typeParam TConditional - Whether the delete carries a condition, which removes `withBatch`
  */
-export class DeleteBuilder {
+export class DeleteBuilder<TConditional extends boolean = false> {
   private options: DeleteOptions = {
     returnValues: "ALL_OLD",
   };
@@ -101,7 +108,7 @@ export class DeleteBuilder {
    */
   public condition<T extends DynamoItem>(
     condition: Condition | ((op: ConditionOperator<T>) => Condition),
-  ): DeleteBuilder {
+  ): DeleteBuilder<true> {
     const previous = this.options.condition;
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
@@ -126,7 +133,7 @@ export class DeleteBuilder {
       this.options.condition = condition;
     }
     if (previous) this.options.condition = and(previous, this.options.condition);
-    return this;
+    return this as DeleteBuilder<true>;
   }
 
   /**
@@ -151,7 +158,7 @@ export class DeleteBuilder {
    * @param returnValues - Use 'ALL_OLD' to return all attributes of the deleted item
    * @returns The builder instance for method chaining
    */
-  public returnValues(returnValues: "ALL_OLD"): DeleteBuilder {
+  public returnValues(returnValues: "ALL_OLD"): this {
     this.options.returnValues = returnValues;
     return this;
   }
@@ -214,10 +221,10 @@ export class DeleteBuilder {
    * ```ts
    * const batch = table.batchBuilder();
    *
-   * // Remove multiple dinosaurs in batch
-   * dinosaurRepo.delete({ id: 'old-dino-1' }).withBatch(batch);
-   * dinosaurRepo.delete({ id: 'old-dino-2' }).withBatch(batch);
-   * dinosaurRepo.delete({ id: 'old-dino-3' }).withBatch(batch);
+   * // Remove multiple dinosaurs in batch (batch deletes must be unconditional)
+   * table.delete({ pk: 'DINO#old-dino-1', sk: 'PROFILE' }).withBatch(batch);
+   * table.delete({ pk: 'DINO#old-dino-2', sk: 'PROFILE' }).withBatch(batch);
+   * table.delete({ pk: 'DINO#old-dino-3', sk: 'PROFILE' }).withBatch(batch);
    *
    * // Execute all deletions efficiently
    * await batch.execute();
@@ -231,8 +238,8 @@ export class DeleteBuilder {
    * }>();
    *
    * // Add operations with type information
-   * userRepo.delete({ id: 'user-1' }).withBatch(batch, 'User');
-   * orderRepo.delete({ id: 'order-1' }).withBatch(batch, 'Order');
+   * table.delete({ pk: 'USER#user-1', sk: 'PROFILE' }).withBatch(batch, 'User');
+   * table.delete({ pk: 'ORDER#order-1', sk: 'DETAILS' }).withBatch(batch, 'Order');
    *
    * // Execute batch operations
    * await batch.execute();
@@ -244,9 +251,9 @@ export class DeleteBuilder {
   public withBatch<
     TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
     K extends keyof TEntities = keyof TEntities,
-  >(batch: BatchBuilder<TEntities>, entityType?: K) {
+  >(batch: BatchParameter<TConditional, BatchBuilder<TEntities>>, entityType?: K) {
     const command = this.toDynamoCommand();
-    batch.deleteWithCommand(command, entityType);
+    (batch as BatchBuilder<TEntities>).deleteWithCommand(command, entityType);
   }
 
   /**

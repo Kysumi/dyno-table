@@ -356,8 +356,6 @@ describe("Entity Integration Tests - Batch Operations", () => {
     }
 
     // Entity deletes retain their type guard and therefore require a transaction.
-    const batch = table.batchBuilder();
-    expect(() => userRepository.delete({ id: "batch-user-1" }).withBatch(batch)).toThrow("conditions");
     const transaction = table.transactionBuilder();
     userRepository.delete({ id: "batch-user-1" }).withTransaction(transaction);
     userRepository.delete({ id: "batch-user-2" }).withTransaction(transaction);

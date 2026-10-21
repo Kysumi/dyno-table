@@ -1,5 +1,6 @@
 import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import type { ConditionalBatchWrite } from "../builders/builder-types";
 import { eq } from "../conditions";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
@@ -113,13 +114,46 @@ describe("entity adapters preserve table behavior", () => {
     expect(repo.update({ id: "1" }, {}).set("modified", 0).debug().readable.updateExpression).toContain("modified = 0");
   });
 
-  it("rejects conditional batches instead of silently dropping guards", () => {
+  it("rejects conditional batches at compile time instead of silently dropping guards", () => {
     const { repo, table } = setup();
     const batch = table.batchBuilder();
-    expect(() => repo.create({ id: "1" }).withBatch(batch)).toThrow("conditions");
-    expect(() => repo.delete({ id: "1" }).withBatch(batch)).toThrow("conditions");
+    // @ts-expect-error entity creates carry an insert-only condition
+    expect(() => repo.create({ id: "1" }).returnValues("NONE").withBatch(batch)).toThrow("conditions");
+    // @ts-expect-error entity upserts become conditional once a condition is added
+    expect(() => repo.upsert({ id: "1" }).condition(eq("status", "pending")).withBatch(batch)).toThrow("conditions");
+    // @ts-expect-error table creates carry an insert-only condition
+    expect(() => table.create({ pk: "1" }).withBatch(batch)).toThrow("conditions");
+    // @ts-expect-error conditional table puts cannot be batched
     expect(() => table.put({ pk: "1" }).condition(eq("status", "pending")).withBatch(batch)).toThrow("conditions");
-    expect(() => repo.upsert({ id: "1" }).withBatch(batch)).not.toThrow();
+    // @ts-expect-error conditional table deletes cannot be batched
+    expect(() => table.delete({ pk: "1" }).condition(eq("status", "pending")).withBatch(batch)).toThrow("conditions");
+    // Entity deletes always guard on the entity type, so they expose no batch method.
+    expect("withBatch" in repo.delete({ id: "1" })).toBe(false);
+
+    expect(() => repo.upsert({ id: "1" }).returnValues("NONE").withBatch(batch)).not.toThrow();
+    expect(() => table.put({ pk: "2" }).withBatch(batch)).not.toThrow();
+    expect(() => table.delete({ pk: "3" }).returnValues("ALL_OLD").withBatch(batch)).not.toThrow();
+  });
+
+  it("keeps typed entity names on unconditional batch writes", () => {
+    const { repo, table } = setup();
+    const batch = table.batchBuilder<{ User: Item }>();
+    repo.upsert({ id: "1" }).withBatch(batch, "User");
+    table.put({ pk: "2" }).withBatch(batch, "User");
+    // @ts-expect-error entity type must be a key of the batch's entity map
+    repo.upsert({ id: "3" }).withBatch(batch, "Order");
+    expectTypeOf(repo.create({ id: "4" }).withBatch)
+      .parameter(0)
+      .toEqualTypeOf<ConditionalBatchWrite>();
+  });
+
+  it("writes the prepared entity item as-is, keeping literal dotted attribute names", async () => {
+    const { repo, client } = setup();
+    const builder = repo.upsert({ id: "1", "meta.version": 2 });
+    expect(builder.debug().raw.item).toMatchObject({ "meta.version": 2 });
+    await builder.execute();
+    expect(client.put.mock.calls[0]?.[0].Item).toMatchObject({ "meta.version": 2 });
+    expect(client.put.mock.calls[0]?.[0].Item).not.toHaveProperty("meta");
   });
 
   it("shares safe nested put setters with the table", () => {

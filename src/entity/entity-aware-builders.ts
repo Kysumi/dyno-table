@@ -1,5 +1,5 @@
 import type { BatchBuilder } from "../builders/batch-builder.js";
-import type { UpdateCommandParams, WriteExecutionMetadata } from "../builders/builder-types.js";
+import type { BatchParameter, UpdateCommandParams, WriteExecutionMetadata } from "../builders/builder-types.js";
 import type { DeleteBuilder } from "../builders/delete-builder.js";
 import type { GetBuilder } from "../builders/get-builder.js";
 import type { PutBuilder } from "../builders/put-builder.js";
@@ -16,13 +16,22 @@ import { GsiKeyBuilder } from "./ddb-indexing.js";
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
-export type EntityPutBuilder<T extends DynamoItem, TInput extends DynamoItem = T> = EntityAwarePutBuilder<T, TInput>;
+export type EntityPutBuilder<
+  T extends DynamoItem,
+  TInput extends DynamoItem = T,
+  TConditional extends boolean = false,
+> = EntityAwarePutBuilder<T, TInput, TConditional>;
 
-export class EntityAwarePutBuilder<T extends DynamoItem, TInput extends DynamoItem = T> {
+/** @typeParam TConditional - Whether the put carries a condition, which removes `withBatch` */
+export class EntityAwarePutBuilder<
+  T extends DynamoItem,
+  TInput extends DynamoItem = T,
+  TConditional extends boolean = false,
+> {
   public item?: T;
 
   constructor(
-    private readonly builder: PutBuilder<T>,
+    private readonly builder: PutBuilder<T, boolean>,
     public readonly entityName: string,
     private data: TInput,
     private readonly prepareSync: (data: TInput) => T,
@@ -31,7 +40,7 @@ export class EntityAwarePutBuilder<T extends DynamoItem, TInput extends DynamoIt
 
   private applyPrepared(item: T): void {
     this.item = item;
-    this.builder.set(this.item);
+    this.builder.replaceItem(item);
   }
 
   private applySync(): void {
@@ -49,9 +58,9 @@ export class EntityAwarePutBuilder<T extends DynamoItem, TInput extends DynamoIt
     return this;
   }
 
-  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
+  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): EntityAwarePutBuilder<T, TInput, true> {
     this.builder.condition(condition);
-    return this;
+    return this as EntityAwarePutBuilder<T, TInput, true>;
   }
 
   returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT"): this {
@@ -73,9 +82,9 @@ export class EntityAwarePutBuilder<T extends DynamoItem, TInput extends DynamoIt
   withBatch<
     TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
     K extends keyof TEntities = keyof TEntities,
-  >(batch: BatchBuilder<TEntities>, entityType?: K): void {
+  >(batch: BatchParameter<TConditional, BatchBuilder<TEntities>>, entityType?: K): void {
     this.applySync();
-    this.builder.withBatch(batch, entityType ?? (this.entityName as K));
+    this.builder.withBatch(batch as BatchBuilder<TEntities>, entityType ?? (this.entityName as K));
   }
 
   debug(): ReturnType<PutBuilder<T>["debug"]> {
@@ -131,9 +140,10 @@ export class EntityAwareGetBuilder<T extends DynamoItem> {
 
 export type EntityDeleteBuilder = EntityAwareDeleteBuilder;
 
+/** Entity deletes always guard on the entity type, so they cannot be batched; use `withTransaction` instead. */
 export class EntityAwareDeleteBuilder {
   constructor(
-    private readonly builder: DeleteBuilder,
+    private readonly builder: DeleteBuilder<boolean>,
     public readonly entityName: string,
   ) {}
 
@@ -154,13 +164,6 @@ export class EntityAwareDeleteBuilder {
 
   withTransaction(transaction: TransactionBuilder): void {
     this.builder.withTransaction(transaction, this.entityName);
-  }
-
-  withBatch<
-    TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
-    K extends keyof TEntities = keyof TEntities,
-  >(batch: BatchBuilder<TEntities>, entityType?: K): void {
-    this.builder.withBatch(batch, entityType ?? (this.entityName as K));
   }
 
   execute(): Promise<{ item?: DynamoItem }> {

@@ -5,7 +5,7 @@ import type { StandardSchemaV1 } from "../standard-schema.js";
 import type { Table } from "../table.js";
 import type { DynamoItem, TableConfig, VectorIndexFor, VectorIndexNames } from "../types.js";
 import { ConfigurationErrors, EntityErrors } from "../utils/error-factory.js";
-import type { IndexDefinition } from "./create-index.js";
+import type { IndexDefinition, IndexKey } from "./create-index.js";
 import {
   EntityAwareDeleteBuilder,
   EntityAwareGetBuilder,
@@ -23,6 +23,7 @@ export {
   createIndex,
   type IndexBuilder,
   type IndexDefinition,
+  type IndexKey,
   type PartitionKeyIndexBuilder,
 } from "./create-index.js";
 
@@ -124,10 +125,11 @@ export interface EntityConfig<
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
   TEntityTypeAttribute extends string = "entityType",
+  TKey extends IndexKey = IndexKey,
 > {
   name: string;
   schema: StandardSchemaV1<TInput, T>;
-  primaryKey: IndexDefinition<I>;
+  primaryKey: IndexDefinition<I, TKey>;
   indexes?: Record<string, IndexDefinition<T>>;
   queries: Q;
   settings?: Settings<TEntityTypeAttribute>;
@@ -153,7 +155,7 @@ export interface EntityRepository<
   TConfig extends TableConfig = TableConfig,
   TEntityTypeAttribute extends string = "entityType",
 > {
-  create: (data: TInput) => EntityPutBuilder<T, TInput>;
+  create: (data: TInput) => EntityPutBuilder<T, TInput, true>;
   upsert: (data: TInput) => EntityPutBuilder<T, TInput>;
   get: (key: I) => EntityGetBuilder<T>;
   update: (key: I, data: Partial<T>) => EntityUpdateBuilder<T>;
@@ -172,9 +174,20 @@ export interface EntityDefinition<
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
   TEntityTypeAttribute extends string = "entityType",
+  TKey extends IndexKey = IndexKey,
 > {
   name: string;
   entityTypeAttributeName: TEntityTypeAttribute;
+  /**
+   * Generates the primary key (`pk`, plus `sk` when the primary index has a sort key) without a table.
+   * Takes the same key input as `get`, `update`, and `delete`, validated against the primary key schema.
+   *
+   * @example
+   * ```typescript
+   * const { pk, sk } = UserEntity.getKey({ id: "123" });
+   * ```
+   */
+  getKey: (key: I) => TKey;
   createRepository: <TConfig extends TableConfig>(
     table: Table<TConfig>,
   ) => EntityRepository<T, TInput, I, Q, TConfig, TEntityTypeAttribute>;
@@ -265,9 +278,10 @@ export function defineEntity<
   I extends DynamoItem = T,
   Q extends QueryRecord<T> = QueryRecord<T>,
   const TEntityTypeAttribute extends string = "entityType",
+  TKey extends IndexKey = IndexKey,
 >(
-  config: EntityConfig<T, TInput, I, Q, TEntityTypeAttribute>,
-): EntityDefinition<T, TInput, I, Q, TEntityTypeAttribute> {
+  config: EntityConfig<T, TInput, I, Q, TEntityTypeAttribute, TKey>,
+): EntityDefinition<T, TInput, I, Q, TEntityTypeAttribute, TKey> {
   const entityTypeAttributeName = (config.settings?.entityTypeAttributeName ?? "entityType") as TEntityTypeAttribute;
 
   /**
@@ -329,6 +343,7 @@ export function defineEntity<
   return {
     name: config.name,
     entityTypeAttributeName,
+    getKey: (key) => config.primaryKey.generateKey(key),
     createRepository: <TConfig extends TableConfig>(
       table: Table<TConfig>,
     ): EntityRepository<T, TInput, I, Q, TConfig, TEntityTypeAttribute> => {

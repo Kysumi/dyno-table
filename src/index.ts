@@ -72,6 +72,7 @@ export type {
   EntityVectorSearchInput,
   IndexBuilder,
   IndexDefinition,
+  IndexKey,
   PartitionKeyIndexBuilder,
   QueryEntity,
   QueryRecord,

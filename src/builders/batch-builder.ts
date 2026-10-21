@@ -168,7 +168,7 @@ export interface TypedBatchResult<TEntities extends Record<string, DynamoItem> =
  *
  * // Add operations using entity repositories
  * userRepo.upsert(newUser).withBatch(batch, 'User')
- * userRepo.delete({ id: 'old-user' }).withBatch(batch, 'User')
+ * table.delete({ pk: 'USER#old-user', sk: 'PROFILE' }).withBatch(batch, 'User')
  * orderRepo.get({ id: 'existing-order' }).withBatch(batch, 'Order')
  *
  * // Execute all operations and get typed results

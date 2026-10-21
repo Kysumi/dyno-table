@@ -95,7 +95,7 @@ const ITEM_IDS = Array.from({ length: ITEM_COUNT }, (_, i) => `item-${i}`);
 async function seedItems(table: Table, items: ReturnType<typeof createRepos>["items"]) {
   const batch = table.batchBuilder();
   for (const id of ITEM_IDS) {
-    items.create({ id }).withBatch(batch);
+    items.upsert({ id }).withBatch(batch);
   }
   await batch.execute();
 }

@@ -7,18 +7,8 @@
     "declarationMap": false,
     "rootDir": "./src",
     "outDir": "./dist",
-    "types": [
-      "node"
-    ]
+    "types": ["node"]
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "src/**/__tests__/**",
-    "tests",
-    "examples",
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/__tests__/**", "tests", "examples", "node_modules", "dist"]
 }

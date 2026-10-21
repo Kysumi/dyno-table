@@ -209,6 +209,26 @@ const orderKey = createIndex()
   .sortKey(({ orderId, createdAt }) => orderSK({ orderId, createdAt }));
 ```
 
+### Generating a primary key
+
+`getKey()` on an entity definition returns the generated `pk` (and `sk`, when the primary index has a sort key) without a table or repository. It takes the same input as `get()`, `update()`, and `delete()`, so TypeScript requires every field of the primary key's input schema.
+
+```ts
+const OrderEntity = defineEntity({
+  name: "Order",
+  schema: orderSchema,
+  primaryKey: compositeKey,
+  queries: {},
+});
+
+const { pk, sk } = OrderEntity.getKey({ userId: "123", orderId: "456" });
+// pk: "USER#123", sk: "ORDER#456"
+
+OrderEntity.getKey({ userId: "123" }); // ❌ Type error: orderId is required
+```
+
+The return type follows the index: `{ pk: string; sk: string }` with `.sortKey()`, `{ pk: string }` with `.withoutSortKey()`. The input is validated against the primary key schema, and invalid input throws a validation error.
+
 ### Global secondary index (GSI) configuration
 
 ```ts
@@ -1091,8 +1111,8 @@ const userSchemaV3 = z.object({
 - `upsert()` accepts the schema input type, like `create()`. Its default result now matches `table.put()` (`undefined`). Add `.returnValues("INPUT")` where a caller needs the prepared item. Explicit `ALL_OLD`, `NONE`, and `CONSISTENT` modes now retain the table result, including in `executeWithMetadata()`.
 - Put `.set()` accepts schema input fields. Setters run before schema validation, transforms, timestamps, and key generation. Nested paths update nested values rather than writing literal dotted attribute names.
 - Repeated write `.condition()` calls combine with `AND` across table and entity builders. Build a fresh builder to replace a condition; use `op.or(...)` inside a condition for alternatives.
-- Entity `create()` and `delete()` carry conditions. Use transactions for these operations; batching now rejects conditions instead of discarding them. Use entity `upsert()` for unconditional batch replacement.
+- Entity `create()` and `delete()` carry conditions. Use transactions for these operations; batches no longer discard conditions. `withBatch()` is now a compile error on `create()` builders, `table.create()`, and any put or delete builder after `.condition()`, and entity `delete()` builders no longer have `withBatch()`. Untyped callers get a `BatchError` at runtime. Use entity `upsert()` for unconditional batch replacement.
 - Put `.withTransaction()` retains the entity builder when chained. It still queues a snapshot at the time it is called.
 - Fluent update `.set()` values take precedence over the initial update object and participate in index generation. Supply the fields required by each writable index. Atomic changes to indexed fields that lack enough information to regenerate the index must use an explicit replacement value instead.
 - Collection `.clone()` now returns a collection builder, preserving grouping. Collection `.select()` retains the discriminator needed for grouping.
-- `EntityPutBuilder`, `EntityGetBuilder`, `EntityDeleteBuilder`, and `EntityUpdateBuilder` are still exported, but they are now aliases of the concrete entity builder classes instead of standalone interfaces or object types. `EntityPutBuilder` gains a second `TInput` type parameter (defaulting to `T`). Code that implements these types with its own objects, or merges declarations into them, must switch to the builders returned by a repository.
+- `EntityPutBuilder`, `EntityGetBuilder`, `EntityDeleteBuilder`, and `EntityUpdateBuilder` are still exported, but they are now aliases of the concrete entity builder classes instead of standalone interfaces or object types. `EntityPutBuilder` gains `TInput` and `TConditional` type parameters, and `PutBuilder` and `DeleteBuilder` gain `TConditional` (all defaulting to the previous behaviour). `.condition()` returns the conditional variant, so annotate a conditional builder as `PutBuilder<T, true>`. Code that implements these types with its own objects, or merges declarations into them, must switch to the builders returned by a repository.

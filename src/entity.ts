@@ -26,6 +26,7 @@ export type {
   EntityVectorSearchInput,
   IndexBuilder,
   IndexDefinition,
+  IndexKey,
   MappedQueries,
   PartitionKeyIndexBuilder,
   QueryEntity,

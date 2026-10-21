@@ -1,10 +1,10 @@
+import * as readline from "node:readline";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { Table } from "dyno-table";
 import type { EntityRepository } from "dyno-table/entity";
-import * as readline from "node:readline";
 import { createTable, TABLE_NAME } from "./ddb-table";
 import { type Dinosaur, DinosaurEntity } from "./dinosaur-entity";
-import { Table } from "dyno-table";
 
 const docClient = DynamoDBDocument.from(
   new DynamoDBClient({
@@ -183,7 +183,9 @@ async function main() {
     await createDinosaurs(dinosaurRepo);
 
     console.log("Querying dinosaurs by diet...");
-    const carnivores = await dinosaurRepo.query.byDiet({ diet: "herbivore" }).execute();
+    const carnivores = await dinosaurRepo.query.byDiet({ diet: "carnivore" }).execute();
+    const carnivoreItems = await carnivores.toArray();
+    console.log(`Found ${carnivoreItems.length} carnivore dinosaurs`);
     const herbivores = await dinosaurRepo.query.byDiet({ diet: "herbivore" }).execute();
     const herbivoreItems = await herbivores.toArray();
     console.log(`Found ${herbivoreItems.length} herbivore dinosaurs:`);

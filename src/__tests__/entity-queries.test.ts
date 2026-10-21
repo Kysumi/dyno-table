@@ -126,6 +126,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -172,6 +173,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -199,6 +201,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn(),
       };
 
@@ -225,6 +228,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -261,6 +265,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn(),
       };
 
@@ -315,6 +320,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -343,6 +349,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -400,6 +407,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -456,6 +464,7 @@ describe("Entity Repository", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
       };
 
@@ -510,6 +519,7 @@ describe("Entity Repository", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
       };
 
@@ -680,6 +690,7 @@ describe("Entity Repository", () => {
       const mockBuilder = {
         condition: vi.fn().mockReturnThis(),
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue({ item: { ...key, ...updateData } }),
       };
 
@@ -703,6 +714,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -750,6 +762,7 @@ describe("Entity Repository", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
       };
 
@@ -795,6 +808,7 @@ describe("Entity Repository - Deferred Validation", () => {
 
     const mockBuilder = {
       set: vi.fn().mockReturnThis(),
+      replaceItem: vi.fn().mockReturnThis(),
       execute: vi.fn().mockResolvedValue(testData),
     };
 
@@ -817,6 +831,7 @@ describe("Entity Repository - Deferred Validation", () => {
 
     const mockBuilder = {
       set: vi.fn().mockReturnThis(),
+      replaceItem: vi.fn().mockReturnThis(),
       withTransaction: vi.fn().mockReturnThis(),
     };
 
@@ -843,6 +858,7 @@ describe("Entity Repository - Deferred Validation", () => {
 
     const mockBuilder = {
       set: vi.fn().mockReturnThis(),
+      replaceItem: vi.fn().mockReturnThis(),
       execute: vi.fn(),
     };
 
@@ -861,6 +877,7 @@ describe("Entity Repository - Deferred Validation", () => {
 
     const mockBuilder = {
       set: vi.fn().mockReturnThis(),
+      replaceItem: vi.fn().mockReturnThis(),
       withTransaction: vi.fn().mockReturnThis(),
     };
 

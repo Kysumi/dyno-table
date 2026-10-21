@@ -145,7 +145,7 @@ await batch.execute();
 
 ### Entity batch write
 
-Batch writes cannot enforce conditions. Use `upsert()` for unconditional entity writes. Entity `create()` and `delete()`, or any explicit `.condition()`, require a transaction or direct execution; `withBatch()` rejects them before sending a request.
+Batch writes cannot enforce conditions. Use `upsert()` for unconditional entity writes. Entity `create()` and `delete()`, `table.create()`, and any builder after `.condition()` require a transaction or direct execution. TypeScript rejects `withBatch()` on these builders at compile time (entity deletes have no `withBatch()` at all). Untyped callers get a `BatchError` before any request is sent.
 
 ```ts
 // Batch write with entities (automatic validation!)
