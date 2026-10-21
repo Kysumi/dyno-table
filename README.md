@@ -187,7 +187,7 @@ const batch = table.batchBuilder();
   .forEach(key => dinoRepo.get(key).withBatch(batch));
 
 // Queue writes; reads and writes can share one batch
-carnivores.forEach(dino => dinoRepo.create(dino).withBatch(batch));
+carnivores.forEach(dino => dinoRepo.upsert(dino).withBatch(batch));
 
 const { reads } = await batch.execute();
 const dinos = reads.itemsByType.Dinosaur;
