@@ -7,13 +7,10 @@ import type { DynamoItem, TableConfig, VectorIndexFor, VectorIndexNames } from "
 import { ConfigurationErrors, EntityErrors } from "../utils/error-factory.js";
 import type { IndexDefinition, IndexKey } from "./create-index.js";
 import {
-  EntityAwareDeleteBuilder,
-  EntityAwareGetBuilder,
-  EntityAwarePutBuilder,
-  EntityAwareUpdateBuilder,
-  type EntityDeleteBuilder,
-  type EntityGetBuilder,
-  type EntityPutBuilder,
+  EntityDeleteBuilder,
+  EntityGetBuilder,
+  EntityPutBuilder,
+  EntityUpdateBuilder,
 } from "./entity-aware-builders.js";
 import { type ItemPreparationConfig, prepareItemAsync, prepareItemSync } from "./item-preparation.js";
 
@@ -66,9 +63,12 @@ export type EntityVectorSearchInput<
     ? Omit<VectorSearchInput<TConfig, TIndexName>, "partition"> & { partition?: never }
     : VectorSearchInput<TConfig, TIndexName>;
 
-export type { EntityDeleteBuilder, EntityGetBuilder, EntityPutBuilder } from "./entity-aware-builders.js";
-export type EntityUpdateBuilder<T extends DynamoItem> =
-  import("./entity-aware-builders.js").EntityAwareUpdateBuilder<T>;
+export type {
+  EntityDeleteBuilder,
+  EntityGetBuilder,
+  EntityPutBuilder,
+  EntityUpdateBuilder,
+} from "./entity-aware-builders.js";
 
 interface Settings<TEntityTypeAttribute extends string = string> {
   /**
@@ -211,7 +211,7 @@ function createScopedQueryEntity<
 
   return {
     scan: () => track(table.scan<T>(context).filter(eq(entityTypeAttributeName, entityName))),
-    get: (key) => track(new EntityAwareGetBuilder(table.get<T>(key, context), entityName)),
+    get: (key) => track(new EntityGetBuilder(table.get<T>(key, context), entityName)),
     query: (keyCondition) =>
       track(table.query<T>(keyCondition, context).filter(eq(entityTypeAttributeName, entityName))),
     searchVectors: (indexName, input) =>
@@ -350,7 +350,7 @@ export function defineEntity<
       return {
         create: (data: TInput) => {
           const builder = table.create<T>({} as T, { entityNames: [config.name] });
-          return new EntityAwarePutBuilder(
+          return new EntityPutBuilder(
             builder,
             config.name,
             data,
@@ -361,7 +361,7 @@ export function defineEntity<
 
         upsert: (data: TInput) => {
           const builder = table.put<T>({} as T, { entityNames: [config.name] });
-          return new EntityAwarePutBuilder(
+          return new EntityPutBuilder(
             builder,
             config.name,
             data,
@@ -371,7 +371,7 @@ export function defineEntity<
         },
 
         get: <K extends I>(key: K) => {
-          return new EntityAwareGetBuilder(
+          return new EntityGetBuilder(
             table.get<T>(config.primaryKey.generateKey(key), { entityNames: [config.name] }),
             config.name,
           );
@@ -383,7 +383,7 @@ export function defineEntity<
 
           builder.condition(eq(entityTypeAttributeName, config.name));
 
-          return new EntityAwareUpdateBuilder(builder, config.name, {
+          return new EntityUpdateBuilder(builder, config.name, {
             data,
             key: key as unknown as T,
             table,
@@ -393,7 +393,7 @@ export function defineEntity<
         },
 
         delete: <K extends I>(key: K) => {
-          const builder = new EntityAwareDeleteBuilder(
+          const builder = new EntityDeleteBuilder(
             table.delete(config.primaryKey.generateKey(key), { entityNames: [config.name] }),
             config.name,
           );

@@ -16,14 +16,8 @@ import { GsiKeyBuilder } from "./ddb-indexing.js";
 type SetElementType<T> = T extends Set<infer U> ? U : T extends Array<infer U> ? U : never;
 type PathSetElementType<T, K extends Path<T>> = SetElementType<PathType<T, K>>;
 
-export type EntityPutBuilder<
-  T extends DynamoItem,
-  TInput extends DynamoItem = T,
-  TConditional extends boolean = false,
-> = EntityAwarePutBuilder<T, TInput, TConditional>;
-
 /** @typeParam TConditional - Whether the put carries a condition, which removes `withBatch` */
-export class EntityAwarePutBuilder<
+export class EntityPutBuilder<
   T extends DynamoItem,
   TInput extends DynamoItem = T,
   TConditional extends boolean = false,
@@ -58,9 +52,9 @@ export class EntityAwarePutBuilder<
     return this;
   }
 
-  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): EntityAwarePutBuilder<T, TInput, true> {
+  condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): EntityPutBuilder<T, TInput, true> {
     this.builder.condition(condition);
-    return this as EntityAwarePutBuilder<T, TInput, true>;
+    return this as EntityPutBuilder<T, TInput, true>;
   }
 
   returnValues(returnValues: "ALL_OLD" | "NONE" | "CONSISTENT" | "INPUT"): this {
@@ -103,9 +97,7 @@ export class EntityAwarePutBuilder<
   }
 }
 
-export type EntityGetBuilder<T extends DynamoItem> = EntityAwareGetBuilder<T>;
-
-export class EntityAwareGetBuilder<T extends DynamoItem> {
+export class EntityGetBuilder<T extends DynamoItem> {
   constructor(
     private readonly builder: GetBuilder<T>,
     public readonly entityName: string,
@@ -138,10 +130,8 @@ export class EntityAwareGetBuilder<T extends DynamoItem> {
   }
 }
 
-export type EntityDeleteBuilder = EntityAwareDeleteBuilder;
-
 /** Entity deletes always guard on the entity type, so they cannot be batched; use `withTransaction` instead. */
-export class EntityAwareDeleteBuilder {
+export class EntityDeleteBuilder {
   constructor(
     private readonly builder: DeleteBuilder<boolean>,
     public readonly entityName: string,
@@ -191,7 +181,7 @@ interface EntityUpdateConfig<T extends DynamoItem> {
  * Entity-aware wrapper for UpdateBuilder that adds forceIndexRebuild functionality
  * and automatically provides the entity name to transactions
  */
-export class EntityAwareUpdateBuilder<T extends DynamoItem> {
+export class EntityUpdateBuilder<T extends DynamoItem> {
   private forceRebuildIndexes: string[] = [];
   private readonly rebuiltIndexes = new Set<string>();
   public readonly entityName: string;
