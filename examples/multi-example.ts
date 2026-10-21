@@ -233,7 +233,7 @@ const seedData = async () => {
   console.log("Data seeded successfully");
 };
 
-const cleanData = async () => {
+export const cleanData = async () => {
   console.log("Cleaning data...");
 
   let dinosKilled = 0;
@@ -262,7 +262,11 @@ const cleanData = async () => {
   console.log("Data cleaned successfully");
 };
 
-const getDinosaursByName = async (species: DinosaurSpecies, firstName: DinosaurName, lastName?: DinosaurName) => {
+export const getDinosaursByName = async (
+  species: DinosaurSpecies,
+  firstName: DinosaurName,
+  lastName?: DinosaurName,
+) => {
   const dinosaurs = await dinoTable
     .query<Dinosaur>({
       pk: `SPECIES#${species}`,
@@ -287,7 +291,7 @@ const getDinosaursByName = async (species: DinosaurSpecies, firstName: DinosaurN
   }
 };
 
-const scanData = async () => {
+export const scanData = async () => {
   const dinosaurs = await dinoTable.scan<Dinosaur>().select(["firstName", "lastName"]).limit(50).paginate(10);
   let total = 0;
   do {

@@ -145,12 +145,14 @@ await batch.execute();
 
 ### Entity batch write
 
+Batch writes cannot enforce conditions. Use `upsert()` for unconditional entity writes. Entity `create()` and `delete()`, `table.create()`, and any builder after `.condition()` require a transaction or direct execution. TypeScript rejects `withBatch()` on these builders at compile time (entity deletes have no `withBatch()` at all). Untyped callers get a `BatchError` before any request is sent.
+
 ```ts
 // Batch write with entities (automatic validation!)
 const batch = table.batchBuilder();
 
 newDiscoveries.forEach(dino => {
-  dinoRepo.create(dino).withBatch(batch);
+  dinoRepo.upsert(dino).withBatch(batch);
 });
 
 await batch.execute();
@@ -159,20 +161,20 @@ await batch.execute();
 ### Mixed batch operations
 
 ```ts
-// Mix puts and deletes in one batch
-const batch = table.batchBuilder();
+// Preserve entity guards in one transaction
+const transaction = table.transactionBuilder();
 
 // Add newly discovered dinosaurs
 jurassicDiscoveries.forEach(dino => {
-  dinoRepo.create(dino).withBatch(batch);
+  dinoRepo.create(dino).withTransaction(transaction);
 });
 
 // Remove outdated classifications
 outdatedClassifications.forEach(({ id }) => {
-  dinoRepo.delete({ id }).withBatch(batch);
+  dinoRepo.delete({ id }).withTransaction(transaction);
 });
 
-await batch.execute();
+await transaction.execute();
 ```
 
 ## Entity batch operations
@@ -189,37 +191,37 @@ const getBatch = table.batchBuilder();
 const { reads: museumReads } = await getBatch.execute();
 const museumCollection = museumReads.itemsByType.Dinosaur;
 
-// Batch operations with validation
-const batch = table.batchBuilder();
+// Transactional writes with validation
+const transaction = table.transactionBuilder();
 
 // All creates are validated against schema
 cretaceousDinosaurs.forEach(dino => {
-  dinoRepo.create(dino).withBatch(batch);
+  dinoRepo.create(dino).withTransaction(transaction);
 });
 
 // Updates with conditions
 discoveryUpdates.forEach(({ id, updates }) => {
   dinoRepo.update({ id }, updates)
     .condition(op => op.attributeExists("pk"))
-    .withBatch(batch);
+    .withTransaction(transaction);
 });
 
-await batch.execute();
+await transaction.execute();
 ```
 
 ### Batch with different entities
 
 ```ts
 // Coordinate operations across multiple entities
-const batch = table.batchBuilder();
+const transaction = table.transactionBuilder();
 
 // Create dinosaur record
-dinoRepo.create(newDinosaur).withBatch(batch);
+dinoRepo.create(newDinosaur).withTransaction(transaction);
 
 // Update paleontologist's discovery count
 paleoRepo.update({ id: newDinosaur.discoveredBy }, {})
   .add("discoveriesCount", 1)
-  .withBatch(batch);
+  .withTransaction(transaction);
 
 // Create discovery event
 discoveryRepo.create({
@@ -228,9 +230,9 @@ discoveryRepo.create({
   paleontologistId: newDinosaur.discoveredBy,
   year: newDinosaur.discoveryYear,
   location: newDinosaur.fossilLocation
-}).withBatch(batch);
+}).withTransaction(transaction);
 
-await batch.execute();
+await transaction.execute();
 ```
 
 ## Performance considerations
@@ -251,7 +253,7 @@ const massiveDiscoveryList = Array.from({ length: 150 }, (_, i) => ({
 const batch = table.batchBuilder();
 
 massiveDiscoveryList.forEach(dino => {
-  dinoRepo.create(dino).withBatch(batch);
+  dinoRepo.upsert(dino).withBatch(batch);
 });
 
 await batch.execute();
@@ -266,16 +268,16 @@ await batch.execute();
 ### Conditional failures
 
 ```ts
-// Batch with conditional operations
-const batch = table.batchBuilder();
+// Conditional operations require a transaction
+const transaction = table.transactionBuilder();
 
 discoveries.forEach(dino => {
   dinoRepo.create(dino)
     .condition(op => op.attributeNotExists("pk")) // Only create if doesn't exist
-    .withBatch(batch);
+    .withTransaction(transaction);
 });
 
-await batch.execute();
+await transaction.execute();
 ```
 
 ## Error handling
@@ -332,7 +334,7 @@ async function migrateDinosaurData(oldRecords: OldDinosaurFormat[]) {
   const writeBatch = table.batchBuilder();
 
   migratedRecords.forEach(dino => {
-    dinoRepo.create(dino).withBatch(writeBatch);
+    dinoRepo.upsert(dino).withBatch(writeBatch);
   });
 
   await writeBatch.execute();
@@ -373,7 +375,7 @@ async function generateExpeditionReport(expeditionId: string) {
   };
 
   // Store various analytics views
-  analyticsRepo.create({
+  analyticsRepo.upsert({
     id: `expedition-${expeditionId}`,
     type: "summary",
     data: analytics
@@ -381,7 +383,7 @@ async function generateExpeditionReport(expeditionId: string) {
 
   // Individual period analytics
   Object.entries(analytics.periodBreakdown).forEach(([period, count]) => {
-    analyticsRepo.create({
+    analyticsRepo.upsert({
       id: `expedition-${expeditionId}-${period}`,
       type: "period",
       period,

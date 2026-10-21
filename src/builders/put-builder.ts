@@ -19,8 +19,9 @@ import {
 import { prepareExpressionParams } from "../expression.js";
 import type { DynamoItem } from "../types.js";
 import { debugCommand } from "../utils/debug-expression.js";
+import { setItemValues } from "../utils/item-values.js";
 import type { BatchBuilder } from "./batch-builder.js";
-import type { PutCommandParams, WriteExecutionMetadata, WriteExecutionState } from "./builder-types.js";
+import type { BatchParameter, PutCommandParams, WriteExecutionMetadata, WriteExecutionState } from "./builder-types.js";
 import type { TransactionBuilder } from "./transaction-builder.js";
 import type { Path, PathType } from "./types.js";
 
@@ -73,9 +74,10 @@ type PutExecutor<T extends DynamoItem> = (params: PutCommandParams) => Promise<T
  * ```
  *
  * @typeParam T - The type of item being put into the table
+ * @typeParam TConditional - Whether the put carries a condition, which removes `withBatch`
  */
-export class PutBuilder<T extends DynamoItem> {
-  private readonly item: T;
+export class PutBuilder<T extends DynamoItem, TConditional extends boolean = false> {
+  private item: T;
   private options: PutOptions;
   private readonly executor: PutExecutor<T>;
   private readonly tableName: string;
@@ -129,12 +131,17 @@ export class PutBuilder<T extends DynamoItem> {
    */
   set<K extends Path<T>>(path: K, value: PathType<T, K>): this;
   set<K extends Path<T>>(valuesOrPath: K | Partial<T>, value?: PathType<T, K>): this {
-    if (typeof valuesOrPath === "object") {
-      Object.assign(this.item, valuesOrPath);
-    } else {
-      // @ts-expect-error
-      this.item[valuesOrPath] = value;
-    }
+    this.item = setItemValues(this.item, valuesOrPath, value);
+    return this;
+  }
+
+  /**
+   * Replaces the whole item without dotted-path expansion.
+   *
+   * @internal
+   */
+  replaceItem(item: T): this {
+    this.item = item;
     return this;
   }
 
@@ -191,7 +198,8 @@ export class PutBuilder<T extends DynamoItem> {
    * @param condition - Either a Condition object or a callback function that builds the condition
    * @returns The builder instance for method chaining
    */
-  public condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
+  public condition(condition: Condition | ((op: ConditionOperator<T>) => Condition)): PutBuilder<T, true> {
+    const previous = this.options.condition;
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -214,7 +222,8 @@ export class PutBuilder<T extends DynamoItem> {
     } else {
       this.options.condition = condition;
     }
-    return this;
+    if (previous) this.options.condition = and(previous, this.options.condition);
+    return this as PutBuilder<T, true>;
   }
 
   /**
@@ -325,9 +334,9 @@ export class PutBuilder<T extends DynamoItem> {
    * const batch = table.batchBuilder();
    *
    * // Add multiple dinosaurs to batch
-   * dinosaurRepo.create(newDino1).withBatch(batch);
-   * dinosaurRepo.create(newDino2).withBatch(batch);
-   * dinosaurRepo.create(newDino3).withBatch(batch);
+   * dinosaurRepo.upsert(newDino1).withBatch(batch);
+   * dinosaurRepo.upsert(newDino2).withBatch(batch);
+   * dinosaurRepo.upsert(newDino3).withBatch(batch);
    *
    * // Execute all operations efficiently
    * await batch.execute();
@@ -341,8 +350,8 @@ export class PutBuilder<T extends DynamoItem> {
    * }>();
    *
    * // Add operations with type information
-   * userRepo.create(newUser).withBatch(batch, 'User');
-   * orderRepo.create(newOrder).withBatch(batch, 'Order');
+   * userRepo.upsert(newUser).withBatch(batch, 'User');
+   * orderRepo.upsert(newOrder).withBatch(batch, 'Order');
    *
    * // Execute and get typed results
    * const result = await batch.execute();
@@ -355,9 +364,9 @@ export class PutBuilder<T extends DynamoItem> {
   public withBatch<
     TEntities extends Record<string, DynamoItem> = Record<string, DynamoItem>,
     K extends keyof TEntities = keyof TEntities,
-  >(batch: BatchBuilder<TEntities>, entityType?: K) {
+  >(batch: BatchParameter<TConditional, BatchBuilder<TEntities>>, entityType?: K) {
     const command = this.toDynamoCommand();
-    batch.putWithCommand(command, entityType);
+    (batch as BatchBuilder<TEntities>).putWithCommand(command, entityType);
   }
 
   /**

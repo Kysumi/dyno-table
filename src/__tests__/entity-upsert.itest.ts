@@ -72,7 +72,7 @@ describe("Entity Upsert Integration Tests", () => {
       diet: "carnivore",
     };
 
-    await expect(repository.upsert(dino).execute()).resolves.not.toThrow();
+    await expect(repository.upsert(dino).execute()).resolves.toBeUndefined();
   });
 
   it("should return the enriched item (with generated keys and entityType) after upserting a new item", async () => {
@@ -84,7 +84,7 @@ describe("Entity Upsert Integration Tests", () => {
       heightMeters: 3,
     };
 
-    const result = await repository.upsert(dino).execute();
+    const result = await repository.upsert(dino).returnValues("INPUT").execute();
 
     expect(result).toBeDefined();
     // Original fields preserved
@@ -104,7 +104,7 @@ describe("Entity Upsert Integration Tests", () => {
       diet: "herbivore",
     };
 
-    await repository.upsert(dino).execute();
+    await repository.upsert(dino).returnValues("INPUT").execute();
 
     const getResult = await repository.get({ id: "new-dino" }).execute();
     expect(getResult.item).toBeDefined();
@@ -131,7 +131,7 @@ describe("Entity Upsert Integration Tests", () => {
       heightMeters: 7,
     };
 
-    const result = await repository.upsert(updated).execute();
+    const result = await repository.upsert(updated).returnValues("INPUT").execute();
 
     expect(result).toBeDefined();
     expect(result?.species).toBe("T-Rex Updated");
@@ -151,7 +151,7 @@ describe("Entity Upsert Integration Tests", () => {
       heightMeters: 4,
     };
 
-    const upsertResult = await repository.upsert(dino).execute();
+    const upsertResult = await repository.upsert(dino).returnValues("INPUT").execute();
     const getResult = await repository.get({ id: "existing-dino" }).execute();
 
     assert(upsertResult);

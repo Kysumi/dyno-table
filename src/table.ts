@@ -165,7 +165,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * const oldData = await table.create(userData).returnValues('ALL_OLD').execute();
    * ```
    */
-  create<T extends DynamoItem>(item: T, context: BuilderContext = {}): PutBuilder<T> {
+  create<T extends DynamoItem>(item: T, context: BuilderContext = {}): PutBuilder<T, true> {
     return this.put(item, context)
       .condition((op: ConditionOperator<T>) => op.attributeNotExists(this.partitionKey as Path<T>))
       .returnValues("INPUT");
@@ -747,7 +747,7 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * const batch = table.batchBuilder();
    *
    * // Add operations
-   * userRepo.create(newUser).withBatch(batch);
+   * userRepo.upsert(newUser).withBatch(batch);
    * orderRepo.get({ id: 'order-1' }).withBatch(batch);
    *
    * // Execute operations
@@ -764,9 +764,9 @@ export class Table<TConfig extends TableConfig = TableConfig> {
    * }>();
    *
    * // Add operations with type information
-   * userRepo.create(newUser).withBatch(batch, 'User');
+   * userRepo.upsert(newUser).withBatch(batch, 'User');
    * orderRepo.get({ id: 'order-1' }).withBatch(batch, 'Order');
-   * productRepo.delete({ id: 'old-product' }).withBatch(batch, 'Product');
+   * table.delete({ pk: 'PRODUCT#old-product', sk: 'DETAILS' }).withBatch(batch, 'Product');
    *
    * // Execute and get typed results
    * const result = await batch.execute();

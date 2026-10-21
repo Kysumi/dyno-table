@@ -103,6 +103,7 @@ export class ConditionCheckBuilder {
    * @returns The builder instance for method chaining
    */
   condition<T extends DynamoItem>(condition: Condition | ((op: ConditionOperator<T>) => Condition)): this {
+    const previous = this.conditionExpression;
     if (typeof condition === "function") {
       const conditionOperator: ConditionOperator<T> = {
         eq,
@@ -125,6 +126,7 @@ export class ConditionCheckBuilder {
     } else {
       this.conditionExpression = condition;
     }
+    if (previous) this.conditionExpression = and(previous, this.conditionExpression);
     return this;
   }
 

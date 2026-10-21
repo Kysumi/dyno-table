@@ -209,6 +209,26 @@ const orderKey = createIndex()
   .sortKey(({ orderId, createdAt }) => orderSK({ orderId, createdAt }));
 ```
 
+### Generating a primary key
+
+`getKey()` on an entity definition returns the generated `pk` (and `sk`, when the primary index has a sort key) without a table or repository. It takes the same input as `get()`, `update()`, and `delete()`, so TypeScript requires every field of the primary key's input schema.
+
+```ts
+const OrderEntity = defineEntity({
+  name: "Order",
+  schema: orderSchema,
+  primaryKey: compositeKey,
+  queries: {},
+});
+
+const { pk, sk } = OrderEntity.getKey({ userId: "123", orderId: "456" });
+// pk: "USER#123", sk: "ORDER#456"
+
+OrderEntity.getKey({ userId: "123" }); // ❌ Type error: orderId is required
+```
+
+The return type follows the index: `{ pk: string; sk: string }` with `.sortKey()`, `{ pk: string }` with `.withoutSortKey()`. The input is validated against the primary key schema, and invalid input throws a validation error.
+
 ### Global secondary index (GSI) configuration
 
 ```ts
@@ -373,8 +393,8 @@ await table.transaction((tx) => {
 // Create with batch
 const batch = table.batchBuilder();
 
-userRepo.create(user1).withBatch(batch);
-userRepo.create(user2).withBatch(batch);
+userRepo.upsert(user1).withBatch(batch);
+userRepo.upsert(user2).withBatch(batch);
 
 await batch.execute();
 ```
@@ -389,7 +409,7 @@ const updatedUser = await userRepo.upsert({
   email: "johnsmith@example.com",
   status: "active",
   // All required fields must be provided
-}).execute();
+}).returnValues("INPUT").execute();
 ```
 
 ### Get operations
@@ -750,7 +770,7 @@ await table.transaction((tx) => {
 const batch = table.batchBuilder();
 
 users.forEach(userData => {
-  userRepo.create(userData).withBatch(batch);
+  userRepo.upsert(userData).withBatch(batch);
 });
 
 await batch.execute();
@@ -758,9 +778,10 @@ await batch.execute();
 // Mixed batch operations
 const mixedBatch = table.batchBuilder();
 
-userRepo.create(newUser).withBatch(mixedBatch);
-userRepo.delete({ id: "old-user" }).withBatch(mixedBatch);
-profileRepo.create(newProfile).withBatch(mixedBatch);
+userRepo.upsert(newUser).withBatch(mixedBatch);
+// Conditional deletes use a transaction or a direct execution.
+await userRepo.delete({ id: "old-user" }).execute();
+profileRepo.upsert(newProfile).withBatch(mixedBatch);
 
 await mixedBatch.execute();
 ```
@@ -977,110 +998,4 @@ async function createUser(userData: UserInput): Promise<User> {
     }
   }
 }
-```
-
-## Migration guide
-
-### From table operations to entities
-
-```ts
-// Before: Direct table operations
-const users = await table
-  .query({ pk: "STATUS#active" })
-  .useIndex("gsi1")
-  .filter((op) => op.eq("department", "engineering"))
-  .execute();
-
-// After: Entity pattern
-const engineers = await userRepo.query
-  .getActiveEngineers()
-  .execute();
-
-// The entity query provides:
-// - Input type checking
-// - Clear semantic meaning
-// - Type safety
-// - Automatic entity type filtering
-```
-
-### Adding entities to existing tables
-
-```ts
-// 1. Define entity for existing data structure
-const LegacyUserEntity = defineEntity({
-  name: "LegacyUser",
-  schema: z.object({
-    // Match existing fields exactly
-    pk: z.string(),
-    sk: z.string(),
-    userId: z.string(),
-    userName: z.string(),
-    // ... other existing fields
-  }),
-  primaryKey: createIndex()
-    .input(z.object({ pk: z.string(), sk: z.string() }))
-    .partitionKey(({ pk }) => pk)
-    .sortKey(({ sk }) => sk),
-  queries: {},
-  settings: {
-    entityTypeAttributeName: "type", // Add entity type gradually
-  },
-});
-
-// 2. Gradually migrate to semantic queries
-const queries = {
-  // Start with direct translations
-  getUsersByStatus: createQuery
-    .input<{ status: string }>()
-    .query(({ input, entity }) =>
-      entity.scan().filter((op) => op.eq("userStatus", input.status))
-    ),
-
-  // Evolve to better patterns over time
-  getActiveUsers: createQuery
-    .input()
-    .query(({ entity }) =>
-      entity.scan().filter((op) => op.eq("userStatus", "ACTIVE"))
-    ),
-};
-```
-
-### Schema evolution
-
-```ts
-// Version 1: Initial schema
-const userSchemaV1 = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string(),
-});
-
-// Version 2: Add optional fields with defaults
-const userSchemaV2 = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string(),
-  status: z.enum(["active", "inactive"]).default("active"), // New field with default
-  preferences: z.object({
-    theme: z.enum(["light", "dark"]).default("light"),
-  }).default({ theme: "light" }), // New nested object with defaults
-});
-
-// Version 3: Transform existing data
-const userSchemaV3 = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string(),
-  status: z.enum(["active", "inactive", "suspended"]),
-  profile: z.object({
-    displayName: z.string().transform((_, ctx) => {
-      // Transform from existing 'name' field
-      const user = ctx.parent as any;
-      return user.name || user.displayName;
-    }),
-    preferences: z.object({
-      theme: z.enum(["light", "dark"]).default("light"),
-    }),
-  }),
-});
 ```

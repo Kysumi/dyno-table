@@ -93,6 +93,8 @@ try {
 #### 4. BatchError
 Thrown when an entire batch request fails outright. Ordinary partial failures don't throw; they come back as `unprocessed` items on the result (see [Batch operations](./batch-operations.md)).
 
+It is also thrown with code `BATCH_CONDITION_UNSUPPORTED` when untyped code adds a conditional write to a batch. DynamoDB batch writes cannot enforce conditions, so dyno-table refuses them instead of silently dropping the guard. In TypeScript, this case is a compile error.
+
 **Example:**
 ```typescript
 import { BatchError } from 'dyno-table';
@@ -261,6 +263,7 @@ ErrorCodes.TRANSACTION_CANCELLED
 
 ErrorCodes.BATCH_UNPROCESSED_ITEMS
 ErrorCodes.BATCH_SIZE_EXCEEDED
+ErrorCodes.BATCH_CONDITION_UNSUPPORTED
 
 ErrorCodes.EXPRESSION_INVALID
 ErrorCodes.EXPRESSION_MISSING_ATTRIBUTE

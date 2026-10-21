@@ -7,7 +7,7 @@ import type {
   VectorConditionOperator,
   VectorSearchBuilder,
 } from "../builders/vector-search-builder.js";
-import type { PrimaryKey } from "../conditions.js";
+import { type Condition, type ConditionOperator, inArray, type PrimaryKey } from "../conditions.js";
 import type { Table } from "../table.js";
 import type { DynamoItem, TableConfig, VectorIndexNames } from "../types.js";
 import { ConfigurationErrors } from "../utils/error-factory.js";
@@ -24,14 +24,6 @@ type GroupedResult<E extends Record<string, AnyEntityDefinition>> = {
 };
 /** Union of every entity's item type in the collection — sound only where items are filtered to configured entities. */
 type CollectionItem<E extends Record<string, AnyEntityDefinition>> = InferEntityItem<E[keyof E]>;
-
-type GroupCollectionBuilderMethod<E extends Record<string, AnyEntityDefinition>, M> = M extends (
-  ...args: infer A
-) => infer R
-  ? R extends QueryBuilder<DynamoItem, TableConfig>
-    ? (...args: A) => CollectionQueryBuilder<E>
-    : M
-  : M;
 
 /** Buckets items by the configured entity definitions. Unmatched items are omitted. */
 export function groupByEntityType<E extends Record<string, AnyEntityDefinition>>(
@@ -196,16 +188,73 @@ export class CollectionVectorSearchBuilder<
   }
 }
 
-/** A QueryBuilder whose chainable methods retain a grouped paginator. */
-export type CollectionQueryBuilder<E extends Record<string, AnyEntityDefinition>> = {
-  [K in keyof QueryBuilder<DynamoItem, TableConfig>]: K extends "paginate"
-    ? (pageSize?: number) => CollectionPageIterator<E>
-    : K extends "execute"
-      ? () => Promise<CollectionResultIterator<E>>
-      : K extends "clone"
-        ? QueryBuilder<DynamoItem, TableConfig>[K]
-        : GroupCollectionBuilderMethod<E, QueryBuilder<DynamoItem, TableConfig>[K]>;
-};
+/** Adds collection grouping while leaving the table builder and its paginator intact. */
+export class CollectionQueryBuilder<E extends Record<string, AnyEntityDefinition>> {
+  constructor(
+    private readonly builder: QueryBuilder<DynamoItem, TableConfig>,
+    private readonly entities: E,
+    private readonly entityTypeAttributeName: string,
+  ) {}
+
+  clone(): CollectionQueryBuilder<E> {
+    return new CollectionQueryBuilder(this.builder.clone(), this.entities, this.entityTypeAttributeName);
+  }
+
+  filter(condition: Condition | ((op: ConditionOperator<CollectionItem<E>>) => Condition)): this {
+    this.builder.filter(condition as Condition | ((op: ConditionOperator<DynamoItem>) => Condition));
+    return this;
+  }
+
+  select<K extends Path<CollectionItem<E>>>(fields: K | K[]): this {
+    this.builder.select([...(Array.isArray(fields) ? fields : [fields]), this.entityTypeAttributeName]);
+    return this;
+  }
+
+  includeIndexes(): this {
+    this.builder.includeIndexes();
+    return this;
+  }
+  useIndex(indexName: string): this {
+    this.builder.useIndex(indexName);
+    return this;
+  }
+  consistentRead(value = true): this {
+    this.builder.consistentRead(value);
+    return this;
+  }
+  sortAscending(): this {
+    this.builder.sortAscending();
+    return this;
+  }
+  sortDescending(): this {
+    this.builder.sortDescending();
+    return this;
+  }
+  limit(value: number): this {
+    this.builder.limit(value);
+    return this;
+  }
+  getLimit(): number | undefined {
+    return this.builder.getLimit();
+  }
+  startFrom(key: DynamoItem): this {
+    this.builder.startFrom(key);
+    return this;
+  }
+
+  paginate(pageSize = DEFAULT_PAGE_SIZE): CollectionPageIterator<E> {
+    return new CollectionPageIterator(this.builder.paginate(pageSize), this.entities, this.entityTypeAttributeName);
+  }
+
+  async execute(): Promise<CollectionResultIterator<E>> {
+    return new CollectionResultIterator(await this.builder.execute(), this.entities, this.entityTypeAttributeName);
+  }
+
+  async findOne(): Promise<CollectionItem<E> | undefined> {
+    for await (const item of await this.clone().limit(1).execute()) return item;
+    return undefined;
+  }
+}
 
 export class CollectionPageIterator<E extends Record<string, AnyEntityDefinition>> {
   constructor(
@@ -294,17 +343,8 @@ export function defineCollection<
         let builder = table.query<DynamoItem>(keyCondition, { entityNames });
         if (config.indexName !== undefined) builder = builder.useIndex(config.indexName as never);
 
-        const paginate = builder.paginate.bind(builder);
-        const execute = builder.execute.bind(builder);
-        return Object.assign(builder, {
-          paginate: (pageSize?: number) =>
-            new CollectionPageIterator(
-              paginate(pageSize ?? DEFAULT_PAGE_SIZE),
-              config.entities,
-              entityTypeAttributeName,
-            ),
-          execute: async () => new CollectionResultIterator(await execute(), config.entities, entityTypeAttributeName),
-        }) as CollectionQueryBuilder<E>;
+        builder.filter(inArray(entityTypeAttributeName, entityNames));
+        return new CollectionQueryBuilder(builder, config.entities, entityTypeAttributeName);
       },
       searchVectors: (indexName, input) =>
         new CollectionVectorSearchBuilder(table, indexName, input, config.entities, entityTypeAttributeName),

@@ -137,7 +137,7 @@ const ORDER_IDS = ["order-1", "order-2", "order-3", "order-4", "order-5"];
 async function seedOrders(table: Table, orders: ReturnType<typeof createRepos>["orders"]) {
   const batch = table.batchBuilder();
   for (const [index, id] of ORDER_IDS.entries()) {
-    orders.create({ id, amount: (index + 1) * 10 }).withBatch(batch);
+    orders.upsert({ id, amount: (index + 1) * 10 }).withBatch(batch);
   }
   await batch.execute();
 }
@@ -151,11 +151,11 @@ async function seedUsersAndOwnedOrders(
   orders: ReturnType<typeof createRepos>["orders"],
 ) {
   const batch = table.batchBuilder();
-  users.create({ id: "user-1", displayName: "Alice" }).withBatch(batch);
-  users.create({ id: "user-2", displayName: "Bob" }).withBatch(batch);
+  users.upsert({ id: "user-1", displayName: "Alice" }).withBatch(batch);
+  users.upsert({ id: "user-2", displayName: "Bob" }).withBatch(batch);
   for (const [index, id] of ORDER_IDS.entries()) {
     const userId = USER_IDS[index % USER_IDS.length] as string;
-    orders.create({ id, amount: (index + 1) * 10, userId }).withBatch(batch);
+    orders.upsert({ id, amount: (index + 1) * 10, userId }).withBatch(batch);
   }
   await batch.execute();
 }

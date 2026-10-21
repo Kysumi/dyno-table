@@ -167,7 +167,7 @@ describe("Entity Integration Tests - Batch Operations", () => {
 
     // Add multiple create operations to batch
     for (const user of users) {
-      userRepository.create(user).withBatch(batch);
+      userRepository.upsert(user).withBatch(batch);
     }
 
     const result = await batch.execute();
@@ -215,9 +215,9 @@ describe("Entity Integration Tests - Batch Operations", () => {
     const batch = table.batchBuilder();
 
     // Add different entity types to the same batch
-    userRepository.create(user).withBatch(batch);
-    orderRepository.create(order).withBatch(batch);
-    productRepository.create(product).withBatch(batch);
+    userRepository.upsert(user).withBatch(batch);
+    orderRepository.upsert(order).withBatch(batch);
+    productRepository.upsert(product).withBatch(batch);
 
     const result = await batch.execute();
 
@@ -310,7 +310,7 @@ describe("Entity Integration Tests - Batch Operations", () => {
 
     // Mix read and write operations
     userRepository.get({ id: "get-user-1" }).withBatch(batch);
-    userRepository.create(newUser).withBatch(batch);
+    userRepository.upsert(newUser).withBatch(batch);
 
     const result = await batch.execute();
 
@@ -325,7 +325,7 @@ describe("Entity Integration Tests - Batch Operations", () => {
     expect(newUserResult.item?.name).toBe("New Batch User");
   });
 
-  it("should handle batch delete operations", async () => {
+  it("should reject guarded batch deletes and preserve them in transactions", async () => {
     // First create users to delete
     const usersToDelete: UserEntity[] = [
       {
@@ -355,17 +355,11 @@ describe("Entity Integration Tests - Batch Operations", () => {
       expect(result.item).toBeDefined();
     }
 
-    // Now delete them using batch
-    const batch = table.batchBuilder();
-
-    userRepository.delete({ id: "batch-user-1" }).withBatch(batch);
-    userRepository.delete({ id: "batch-user-2" }).withBatch(batch);
-
-    const result = await batch.execute();
-
-    // Verify batch deletion
-    expect(result.writes.processed).toBe(2);
-    expect(result.writes.unprocessed).toHaveLength(0);
+    // Entity deletes retain their type guard and therefore require a transaction.
+    const transaction = table.transactionBuilder();
+    userRepository.delete({ id: "batch-user-1" }).withTransaction(transaction);
+    userRepository.delete({ id: "batch-user-2" }).withTransaction(transaction);
+    await transaction.execute();
 
     // Verify users were deleted
     for (const user of usersToDelete) {
@@ -464,7 +458,7 @@ describe("Entity Integration Tests - Batch Operations", () => {
     const batch = table.batchBuilder();
     const beforeCreate = new Date();
 
-    userRepository.create(user).withBatch(batch);
+    userRepository.upsert(user).withBatch(batch);
 
     await batch.execute();
 
@@ -499,7 +493,7 @@ describe("Entity Integration Tests - Batch Operations", () => {
 
     const batch = table.batchBuilder();
 
-    userRepository.create(user).withBatch(batch);
+    userRepository.upsert(user).withBatch(batch);
 
     await batch.execute();
 
@@ -540,7 +534,7 @@ describe("Entity Integration Tests - Batch Operations", () => {
 
     // Add all users to batch
     for (const user of manyUsers) {
-      userRepository.create(user).withBatch(batch);
+      userRepository.upsert(user).withBatch(batch);
     }
 
     const result = await batch.execute();
@@ -608,8 +602,8 @@ describe("Entity Integration Tests - Batch Operations", () => {
     }>();
 
     // Add operations WITHOUT specifying entity types - they should be inferred automatically
-    userRepository.create(user).withBatch(batch);
-    orderRepository.create(order).withBatch(batch);
+    userRepository.upsert(user).withBatch(batch);
+    orderRepository.upsert(order).withBatch(batch);
 
     const result = await batch.execute();
 

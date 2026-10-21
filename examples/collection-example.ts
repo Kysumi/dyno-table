@@ -88,3 +88,4 @@ const iterator = await inventory
   .filter((op) => op.eq("status", "ACTIVE"))
   .execute();
 const data = await iterator.toArray();
+console.log(`Found ${data.Dinosaur.length} active dinosaurs and ${data.Warehouse.length} active warehouses`);

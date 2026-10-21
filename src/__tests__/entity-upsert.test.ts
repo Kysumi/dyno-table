@@ -1,192 +1,139 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { createIndex, defineEntity } from "../entity/entity";
 import type { StandardSchemaV1 } from "../standard-schema";
-import type { Table } from "../table";
+import { Table } from "../table";
 import type { DynamoItem } from "../types";
 
-interface TestEntity extends DynamoItem {
+interface Item extends DynamoItem {
   id: string;
   name: string;
-  status: string;
+  profile: { city: string };
 }
-
-const testSchema: StandardSchemaV1<TestEntity> = {
+const schema: StandardSchemaV1<Item> = {
   "~standard": {
     version: 1,
     vendor: "test",
-    validate: vi.fn().mockImplementation((data) => ({
-      value: data,
-    })) as unknown as (value: unknown) => { value: TestEntity } | { issues: Array<{ message: string }> },
+    validate: (input) => {
+      const item = input as Item;
+      return item.name.length ? { value: item } : { issues: [{ message: "name is required" }] };
+    },
   },
 };
-
-const primaryKeySchema: StandardSchemaV1<{ id: string }> = {
-  "~standard": {
-    version: 1,
-    vendor: "test",
-    validate: vi.fn().mockImplementation((data) => ({
-      value: data,
-    })) as unknown as (value: unknown) => { value: { id: string } } | { issues: Array<{ message: string }> },
-  },
-};
-
-const mockTable = {
-  create: vi.fn(),
-  put: vi.fn(),
-  get: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  scan: vi.fn(),
-  query: vi.fn(),
-  partitionKey: "pk",
-  sortKey: "sk",
-  gsis: {},
-};
-
-const testEntity = defineEntity({
-  name: "TestEntity",
-  schema: testSchema,
+const client = { put: vi.fn(), get: vi.fn(), update: vi.fn(), delete: vi.fn() };
+const table = new Table({
+  client: client as unknown as DynamoDBDocument,
+  tableName: "test",
+  indexes: { partitionKey: "pk", gsis: { byCity: { partitionKey: "gsiPk" } } },
+});
+const entity = defineEntity({
+  name: "User",
+  schema,
   primaryKey: createIndex()
-    .input(primaryKeySchema)
-    .partitionKey((item) => `TEST#${item.id}`)
-    .sortKey(() => "METADATA"),
+    .input(schema)
+    .partitionKey((item) => `USER#${item.id}`)
+    .withoutSortKey(),
+  indexes: {
+    byCity: createIndex()
+      .input(schema)
+      .partitionKey((item) => item.profile.city)
+      .withoutSortKey(),
+  },
   queries: {},
 });
+const repo = entity.createRepository(table);
+const data: Item = { id: "1", name: "Original", profile: { city: "Wellington" } };
 
-describe("entity upsert", () => {
-  let repository: ReturnType<typeof testEntity.createRepository>;
+beforeEach(() => {
+  vi.resetAllMocks();
+  client.put.mockResolvedValue({});
+  client.get.mockResolvedValue({});
+});
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    repository = testEntity.createRepository(mockTable as unknown as Table);
+describe("entity put uses the table contract", () => {
+  it("returns nothing by default, just like table.put", async () => {
+    await expect(repo.upsert(data).execute()).resolves.toBeUndefined();
+    expect(client.put).toHaveBeenCalledTimes(1);
   });
 
-  it("should return the validated item, not the underlying executor result", async () => {
-    const mockBuilder = {
-      set: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue(undefined), // Simulates returnValues: "NONE"
-    };
-
-    mockTable.put.mockReturnValue(mockBuilder);
-
-    const testData: TestEntity & { id: string } = {
-      id: "456",
-      name: "Another Item",
-      status: "inactive",
-    };
-
-    const builder = repository.upsert(testData);
-    const result = await builder.execute();
-
-    // The result should be the validated + key-enriched item, not undefined
-    expect(result).toBeDefined();
-    expect(result).toMatchObject({
-      id: "456",
-      name: "Another Item",
-      status: "inactive",
-      pk: "TEST#456",
-      sk: "METADATA",
+  it("returns the prepared input only when requested", async () => {
+    await expect(repo.upsert(data).returnValues("INPUT").execute()).resolves.toMatchObject({
+      ...data,
+      pk: "USER#1",
+      gsiPk: "Wellington",
+      entityType: "User",
     });
   });
 
-  it("should include the entity type attribute in the returned item", async () => {
-    const mockBuilder = {
-      set: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue(undefined),
-    };
-
-    mockTable.put.mockReturnValue(mockBuilder);
-
-    const testData: TestEntity & { id: string } = {
-      id: "789",
-      name: "Entity Type Test",
-      status: "active",
-    };
-
-    const result = await repository.upsert(testData).execute();
-
-    // Default entity type attribute name is "entityType"
-    expect(result).toHaveProperty("entityType", "TestEntity");
+  it("preserves old values and execution metadata", async () => {
+    const old = { ...data, name: "Old" };
+    const capacity = { TableName: "test", CapacityUnits: 1 };
+    client.put.mockResolvedValue({ Attributes: old, ConsumedCapacity: capacity });
+    await expect(
+      repo.upsert(data).returnValues("ALL_OLD").returnConsumedCapacity("TOTAL").executeWithMetadata(),
+    ).resolves.toEqual({ item: old, consumedCapacity: capacity });
+    expect(client.put.mock.calls[0]?.[0].ReturnValues).toBe("ALL_OLD");
   });
 
-  it("should not let input overwrite generated keys", async () => {
-    mockTable.put.mockReturnValue({ set: vi.fn().mockReturnThis(), execute: vi.fn().mockResolvedValue(undefined) });
-
-    const result = await repository
-      .upsert({ id: "789", name: "Key Test", status: "active", pk: "wrong", sk: "wrong" })
-      .execute();
-
-    expect(result).toMatchObject({ pk: "TEST#789", sk: "METADATA" });
+  it("returns the consistent read from the table executor", async () => {
+    const persisted = { ...data, name: "Persisted" };
+    client.get.mockResolvedValue({ Item: persisted });
+    await expect(repo.upsert(data).returnValues("CONSISTENT").execute()).resolves.toEqual(persisted);
+    expect(client.get.mock.calls[0]?.[0].ConsistentRead).toBe(true);
   });
 
-  it("should call the underlying put executor exactly once", async () => {
-    // Capture the spy before upsert() wraps builder.execute
-    const originalExecuteSpy = vi.fn().mockResolvedValue(undefined);
-    const mockBuilder = {
-      set: vi.fn().mockReturnThis(),
-      execute: originalExecuteSpy,
-    };
-
-    mockTable.put.mockReturnValue(mockBuilder);
-
-    const testData: TestEntity & { id: string } = {
-      id: "101",
-      name: "Execution Count Test",
-      status: "active",
-    };
-
-    // upsert() replaces builder.execute with a wrapper that calls originalExecuteSpy internally
-    await repository.upsert(testData).execute();
-
-    expect(originalExecuteSpy).toHaveBeenCalledTimes(1);
+  it("validates fluent overrides before writing", async () => {
+    await expect(repo.upsert(data).set("name", "").execute()).rejects.toThrow();
+    expect(client.put).not.toHaveBeenCalled();
   });
 
-  it("applies caller overrides to debug output and execution", async () => {
-    const debugResult = { raw: { item: {} }, readable: {} };
-    const set = vi.fn().mockReturnThis();
-    mockTable.put.mockReturnValue({ set, debug: vi.fn().mockReturnValue(debugResult), execute: vi.fn() });
-
-    const builder = repository
-      .upsert({ id: "456", name: "Original", status: "inactive" })
-      .set({ name: "Overridden" })
-      .set("status", "active");
-
-    expect(builder.debug()).toBe(debugResult);
-    expect(set).toHaveBeenLastCalledWith(
-      expect.objectContaining({ name: "Overridden", status: "active", pk: "TEST#456", sk: "METADATA" }),
-    );
-    await expect(builder.execute()).resolves.toMatchObject({ name: "Overridden", status: "active" });
+  it("prepares keys from final nested input without mutating the original", async () => {
+    const builder = repo.upsert(data).set("id", "2").set("profile.city", "Auckland").set({ pk: "wrong" });
+    expect(builder.debug().raw.item).toMatchObject({ pk: "USER#2", gsiPk: "Auckland" });
+    await expect(builder.returnValues("INPUT").execute()).resolves.toMatchObject({
+      id: "2",
+      profile: { city: "Auckland" },
+      pk: "USER#2",
+      gsiPk: "Auckland",
+    });
+    expect(data.profile.city).toBe("Wellington");
   });
 
-  it("should throw a validation error when schema validation fails", async () => {
-    const failingSchema: StandardSchemaV1<TestEntity> = {
+  it("uses schema input setters and derives keys from transformed output", async () => {
+    const transformed: StandardSchemaV1<{ rawId: string }, { id: string }> = {
       "~standard": {
         version: 1,
         vendor: "test",
-        validate: vi.fn().mockReturnValue({
-          issues: [{ message: "id is required" }],
-        }) as unknown as (value: unknown) => { value: TestEntity } | { issues: Array<{ message: string }> },
+        validate: (input) => ({ value: { id: (input as { rawId: string }).rawId.toUpperCase() } }),
       },
     };
-
-    const failingEntity = defineEntity({
-      name: "FailingEntity",
-      schema: failingSchema,
-      primaryKey: createIndex()
-        .input(primaryKeySchema)
-        .partitionKey((item) => `TEST#${item.id}`)
-        .sortKey(() => "METADATA"),
-      queries: {},
-    });
-
-    const mockBuilder = {
-      set: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockResolvedValue(undefined),
+    const keySchema: StandardSchemaV1<{ id: string }> = {
+      "~standard": { version: 1, vendor: "test", validate: (input) => ({ value: input as { id: string } }) },
     };
-    mockTable.put.mockReturnValue(mockBuilder);
+    const transformedRepo = defineEntity({
+      name: "Transformed",
+      schema: transformed,
+      primaryKey: createIndex()
+        .input(keySchema)
+        .partitionKey((item) => item.id)
+        .withoutSortKey(),
+      queries: {},
+    }).createRepository(table);
+    const builder = transformedRepo.upsert({ rawId: "a" }).set("rawId", "b");
+    await expect(builder.returnValues("INPUT").execute()).resolves.toMatchObject({ id: "B", pk: "B" });
+    expectTypeOf<Parameters<typeof transformedRepo.upsert>[0]>().toEqualTypeOf<{ rawId: string }>();
+  });
 
-    const failingRepo = failingEntity.createRepository(mockTable as unknown as Table);
-
-    await expect(failingRepo.upsert({ id: "", name: "Bad Item", status: "active" }).execute()).rejects.toThrow();
+  it("prepares and validates the same item for transactions and batches", () => {
+    const transaction = table.transactionBuilder();
+    const tx = vi.spyOn(transaction, "putWithCommand");
+    const builder = repo.upsert(data).set("profile.city", "Auckland");
+    expect(builder.withTransaction(transaction)).toBe(builder);
+    expect(tx.mock.calls[0]?.[0].item).toMatchObject({ gsiPk: "Auckland" });
+    const batch = table.batchBuilder();
+    const write = vi.spyOn(batch, "putWithCommand");
+    builder.withBatch(batch);
+    expect(write.mock.calls[0]?.[0].item).toMatchObject({ gsiPk: "Auckland" });
+    expect(() => repo.upsert(data).set("name", "").withTransaction(transaction)).toThrow();
   });
 });

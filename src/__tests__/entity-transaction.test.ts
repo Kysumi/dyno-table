@@ -88,6 +88,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -100,7 +101,6 @@ describe("Entity Transaction Support", () => {
       builder.withTransaction(mockTransaction);
 
       // Verify that the builder has the correct data including keys after withTransaction is called
-      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
@@ -146,6 +146,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -158,7 +159,6 @@ describe("Entity Transaction Support", () => {
       builder.withTransaction(mockTransaction);
 
       // Verify that the builder has the correct data including keys and timestamps after withTransaction is called
-      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntityWithTimestamps",
@@ -182,6 +182,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         toDynamoCommand: vi.fn().mockReturnValue({
@@ -201,7 +202,6 @@ describe("Entity Transaction Support", () => {
       const builder = repository.create(testData);
 
       // Keys should not be generated yet
-      // @ts-expect-error
       expect(builder.item).toBeUndefined();
 
       // Simulate what happens when withTransaction is called
@@ -210,7 +210,6 @@ describe("Entity Transaction Support", () => {
       builder.withTransaction(mockTransaction);
 
       // Verify that keys are generated when withTransaction is called
-      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
@@ -245,6 +244,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -257,7 +257,6 @@ describe("Entity Transaction Support", () => {
       builder.withTransaction(mockTransaction);
 
       // Verify that complex keys are generated correctly after withTransaction is called
-      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "ComplexEntity",
@@ -291,6 +290,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -303,7 +303,6 @@ describe("Entity Transaction Support", () => {
       builder.withTransaction(mockTransaction);
 
       // Verify that only partition key is generated (no sort key) after withTransaction is called
-      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "SimpleEntity",
@@ -384,6 +383,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -396,7 +396,6 @@ describe("Entity Transaction Support", () => {
       builder.withTransaction(mockTransaction);
 
       // Verify that primary and secondary index keys are generated after withTransaction is called
-      // @ts-expect-error
       expect(builder.item).toEqual({
         ...testData,
         entityType: "EntityWithGSI",
@@ -420,6 +419,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn(),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -455,6 +455,7 @@ describe("Entity Transaction Support", () => {
 
       const mockBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         condition: vi.fn().mockReturnThis(),
@@ -468,7 +469,8 @@ describe("Entity Transaction Support", () => {
       const builder = repository.create(testData).withTransaction(mockTransaction);
 
       // Should be able to continue chaining after withTransaction
-      expect(builder).toBe(mockBuilder);
+      expect(builder.entityName).toBe("TestEntity");
+      expect(builder.returnValues("INPUT")).toBe(builder);
       expect(mockBuilder.withTransaction).toHaveBeenCalledWith(mockTransaction, "TestEntity");
     });
   });
@@ -484,12 +486,14 @@ describe("Entity Transaction Support", () => {
 
       const mockCreateBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
 
       const mockUpsertBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
       };
@@ -508,14 +512,12 @@ describe("Entity Transaction Support", () => {
       upsertBuilder.withTransaction(mockTransaction);
 
       // Both should have complete data including keys after withTransaction is called
-      // @ts-expect-error
       expect(createBuilder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
         pk: "TEST#consistency-test",
         sk: "METADATA#",
       });
-      // @ts-expect-error
       expect(upsertBuilder.item).toEqual({
         ...testData,
         entityType: "TestEntity",
@@ -538,6 +540,7 @@ describe("Entity Transaction Support", () => {
 
       const mockCreateBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         toDynamoCommand: vi.fn().mockReturnValue({
@@ -553,6 +556,7 @@ describe("Entity Transaction Support", () => {
 
       const mockUpsertBuilder = {
         set: vi.fn().mockReturnThis(),
+        replaceItem: vi.fn().mockReturnThis(),
         execute: vi.fn().mockResolvedValue(testData),
         withTransaction: vi.fn().mockReturnThis(),
         toDynamoCommand: vi.fn().mockReturnValue({
@@ -580,7 +584,6 @@ describe("Entity Transaction Support", () => {
       expect(() => upsertBuilder.withTransaction(mockTransaction)).not.toThrow();
 
       // Both should have complete data including keys after withTransaction is called
-      // @ts-expect-error
       expect(createBuilder.item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",
@@ -588,7 +591,6 @@ describe("Entity Transaction Support", () => {
           entityType: "TestEntity",
         }),
       );
-      // @ts-expect-error
       expect(upsertBuilder.item).toEqual(
         expect.objectContaining({
           pk: "TEST#fix-demo",

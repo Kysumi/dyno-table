@@ -52,7 +52,7 @@ const UserEntity = defineEntity({
 
 **Business Logic Focus**: Move from thinking about DynamoDB keys to thinking about business entities and operations.
 
-**Validation First**: All data is validated against schemas before persistence, preventing invalid data from reaching DynamoDB.
+**Validation First**: Create and upsert validate the final input after fluent setters, then generate keys and timestamps. Partial updates retain the table update API; they do not validate a complete entity schema.
 
 **Semantic Naming**: Query methods use business terminology rather than technical DynamoDB concepts (e.g., `getUsersByStatus()` vs `gsi1Query()`).
 
